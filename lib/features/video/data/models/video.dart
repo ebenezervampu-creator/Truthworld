@@ -55,6 +55,7 @@ class Video {
     this.topics = const [],
     this.language = 'en',
     this.languages = const [],
+    this.dubbingLanguages = const [],
     this.isShort = false,
     this.isKidFriendly = false,
     bool? allowComments,
@@ -270,6 +271,7 @@ class Video {
   final List<String> topics;
   final String language;
   final List<String> languages;
+  final List<String> dubbingLanguages;
   final bool isShort;
   final bool isKidFriendly;
 
@@ -315,6 +317,7 @@ class Video {
   final String? provisionalViewerNote;
   final List<Map<String, dynamic>> provisionalClaims;
   final String? credibilityStatus;
+  String? get factCheckStatus => credibilityStatus;
 
   // Direct fields (immediate availability without cache delay)
   final String _directFactCheckUrl;
@@ -325,11 +328,11 @@ class Video {
 
   // Summary getter with priority: moderation.summary -> credibility.summary -> description
   String get summary {
-    if (UserFeedbackSanitizer.isValidVideoSummary(moderationSummary)) {
+    if (UserFeedbackSanitizer.isValidVideoSummary(moderationSummary, targetLanguage: language)) {
       return moderationSummary;
     }
     final credSummary = VideoMediaService.credibilityCache[id]?.summary;
-    if (UserFeedbackSanitizer.isValidVideoSummary(credSummary)) {
+    if (UserFeedbackSanitizer.isValidVideoSummary(credSummary, targetLanguage: language)) {
       return credSummary!;
     }
     return description;
@@ -582,6 +585,7 @@ class Video {
     List<String>? topics,
     String? language,
     List<String>? languages,
+    List<String>? dubbingLanguages,
     bool? isShort,
     bool? isKidFriendly,
     bool? allowComments,
@@ -658,6 +662,7 @@ class Video {
       topics: topics ?? this.topics,
       language: language ?? this.language,
       languages: languages ?? this.languages,
+      dubbingLanguages: dubbingLanguages ?? this.dubbingLanguages,
       isShort: isShort ?? this.isShort,
       isKidFriendly: isKidFriendly ?? this.isKidFriendly,
       enableComments: allowComments ?? enableComments ?? this.enableComments,

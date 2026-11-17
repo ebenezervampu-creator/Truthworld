@@ -60,6 +60,7 @@ export const onCommunityPostCreated = onDocumentCreated(
           },
           android: {
             priority: "high" as const,
+            collapseKey: `post_${postId}`,
             notification: {
               channelId: "truthworld_notifications",
               clickAction: "FLUTTER_NOTIFICATION_CLICK",
@@ -67,6 +68,7 @@ export const onCommunityPostCreated = onDocumentCreated(
               visibility: "public" as const,
               icon: "ic_notification",
               color: "#14EAB2",
+              tag: `post_${postId}`,
               ...(validThumb ? { imageUrl: validThumb } : {}),
             },
           },
@@ -74,6 +76,7 @@ export const onCommunityPostCreated = onDocumentCreated(
             headers: {
               "apns-priority": "10",
               "apns-push-type": "alert",
+              "apns-collapse-id": `post_${postId}`,
             },
             payload: {
               aps: {
@@ -87,8 +90,10 @@ export const onCommunityPostCreated = onDocumentCreated(
           webpush: {
             headers: {
               Urgency: "high",
+              Topic: `post_${postId}`,
             },
             notification: {
+              tag: `post_${postId}`,
               icon: "https://www.truthworld.in/icons/Icon-192.png",
               badge: "https://www.truthworld.in/icons/Icon-192.png",
               ...(validThumb ? { image: validThumb } : {}),

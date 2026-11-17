@@ -101,12 +101,14 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
             ? 'full_ground'
             : aiFactCheckTier.value)
         : 'none';
+    final isManualDubbingRequested =
+        aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty;
     final map = AIFeatures(
       genLangSubs: aiGenerateSubtitles.value,
-      generateDubbing: aiGenerateDubbing.value,
+      generateDubbing: isManualDubbingRequested,
       translationLanguages: List<String>.from(aiTranslationLanguages),
       tts: TTSConfig(
-        enabled: aiGenerateDubbing.value,
+        enabled: isManualDubbingRequested,
         voiceType: aiTTSVoiceType.value == 'cloned'
             ? 'voice_clone'
             : 'standard',
@@ -120,7 +122,9 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
       pipelineStage: pipelineStage,
     ).toMap();
     map['providedSources'] = List<String>.from(providedSources);
-    map['dubbingLanguages'] = List<String>.from(aiDubbingLanguages);
+    map['dubbingLanguages'] = isManualDubbingRequested
+        ? List<String>.from(aiDubbingLanguages)
+        : <String>[];
     map['spokenLanguages'] = spokenLanguages.isNotEmpty
         ? List<String>.from(spokenLanguages)
         : [effectiveVideoLanguage];
@@ -133,11 +137,12 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
     map['truthVerification'] = aiFactCheckEnabled.value;
     map['enableDiarization'] = aiDiarizationEnabled.value;
     map['speakerDiarization'] = aiDiarizationEnabled.value;
-    map['enableLipSync'] = false;
-    map['lipSync'] = false;
-    map['dubbingTier'] = aiDubbingTier.value;
+    map['dubbingTier'] = isManualDubbingRequested ? aiDubbingTier.value : 'none';
+    map['dubbingMode'] = isManualDubbingRequested
+        ? (aiTTSVoiceType.value == 'cloned' ? 'voice_clone' : 'standard')
+        : 'none';
     map['cinemaGrade'] = false;
-    map['stemIsolation'] = true;
+    map['stemIsolation'] = isManualDubbingRequested;
     map['isometryMode'] = 'strict_syllable';
     map['uncannyMitigation'] = 'cadence_lock';
     map['autoChaptersEnabled'] = aiChaptersEnabled.value;

@@ -1178,7 +1178,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 5,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1196,7 +1196,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 5,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1214,7 +1214,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 5,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1232,7 +1232,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 5,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1250,7 +1250,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 5,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1268,7 +1268,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 5,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -2305,9 +2305,6 @@
         },
         {
           "key": "GOOGLE_TRANSLATION_API_KEY"
-        },
-        {
-          "key": "SARVAM_API_KEY"
         }
       ],
       "labels": {},
@@ -2340,9 +2337,6 @@
         },
         {
           "key": "GOOGLE_TRANSLATION_API_KEY"
-        },
-        {
-          "key": "SARVAM_API_KEY"
         }
       ],
       "labels": {},
@@ -3334,13 +3328,13 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": 15,
       "minInstances": null,
-      "maxInstances": 5,
+      "maxInstances": 10,
       "ingressSettings": null,
-      "concurrency": 50,
+      "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": 1,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -3492,9 +3486,6 @@
         },
         {
           "key": "GOOGLE_TRANSLATION_API_KEY"
-        },
-        {
-          "key": "SARVAM_API_KEY"
         }
       ],
       "labels": {},
@@ -3528,7 +3519,7 @@
     "handleTranscription": {
       "availableMemoryMb": 1024,
       "timeoutSeconds": 540,
-      "minInstances": 1,
+      "minInstances": 0,
       "maxInstances": 20,
       "ingressSettings": null,
       "concurrency": 2,
@@ -3545,9 +3536,6 @@
         },
         {
           "key": "GEMINI_API_KEY"
-        },
-        {
-          "key": "SARVAM_API_KEY"
         }
       ],
       "labels": {},
@@ -3563,7 +3551,7 @@
     "handleTranscriptionComplete": {
       "availableMemoryMb": 2048,
       "timeoutSeconds": 540,
-      "minInstances": 1,
+      "minInstances": 0,
       "maxInstances": 20,
       "ingressSettings": null,
       "concurrency": 2,
@@ -3599,7 +3587,7 @@
       "availableMemoryMb": 2048,
       "timeoutSeconds": 540,
       "minInstances": 0,
-      "maxInstances": 2,
+      "maxInstances": 15,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -3623,6 +3611,29 @@
         "retry": true
       },
       "entryPoint": "handleCredibility"
+    },
+    "credibilitySlaCanary": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 120,
+      "minInstances": 0,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 15 minutes",
+        "retryConfig": {
+          "retryCount": 0
+        }
+      },
+      "entryPoint": "credibilitySlaCanary"
     },
     "handleCredibilitySynthesis": {
       "availableMemoryMb": 2048,
@@ -4057,6 +4068,42 @@
       "callableTrigger": {},
       "entryPoint": "remasterDubbedAudioTrack"
     },
+    "getDubbingExportPackage": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 60,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getDubbingExportPackage"
+    },
+    "generateDubbedVideo": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 300,
+      "minInstances": null,
+      "maxInstances": 3,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "generateDubbedVideo"
+    },
     "assemblyAiWebhook": {
       "availableMemoryMb": 512,
       "timeoutSeconds": 300,
@@ -4097,7 +4144,7 @@
       "entryPoint": "recoverWebhookOutboxLeases"
     },
     "onVideoPublished": {
-      "availableMemoryMb": 512,
+      "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
       "maxInstances": 3,
@@ -4125,10 +4172,10 @@
       "entryPoint": "onVideoPublished"
     },
     "onVideoDeletedCascade": {
-      "availableMemoryMb": 512,
+      "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 20,
+      "maxInstances": 3,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -4153,10 +4200,10 @@
       "entryPoint": "onVideoDeletedCascade"
     },
     "permanentlyDeleteVideo": {
-      "availableMemoryMb": 512,
+      "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 10,
+      "maxInstances": 3,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,

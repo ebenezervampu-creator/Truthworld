@@ -17,14 +17,145 @@ import { TTSResult, TTSRequest, PronunciationRule } from "../types";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
-import { ELEVENLABS_VOICE_GENDER_MAP } from "./googleTextToSpeechService";
 import { createSilentMp3Buffer } from "./media";
+import { normalizeScriptureCitationsForTts, applyTeluguTheologicalLexiconGuard } from "./translation";
+import { expressiveV4Bus } from "./expressiveV4Bus";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 
+export interface VoiceDescriptor {
+  id: string;
+  name: string;
+  gender: "MALE" | "FEMALE";
+  pitchBand: "deep" | "mid" | "high";
+  ageTone: "youthful" | "adult" | "mature";
+}
+
+export const ELEVENLABS_MULTI_SPEAKER_PALETTE: {
+  MALE: VoiceDescriptor[];
+  FEMALE: VoiceDescriptor[];
+} = {
+  MALE: [
+    // Young (~24-32)
+    { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", gender: "MALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "g5CIjZEefAph4nQFvHAz", name: "Ethan", gender: "MALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "SOYHLrjzK2X1ezoPC6cr", name: "Harry", gender: "MALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "CYw3kZ02Hs0563khs1Fj", name: "Dave", gender: "MALE", pitchBand: "mid", ageTone: "youthful" },
+    { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam", gender: "MALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "GBv7mTt0atIp3Br8iCZE", name: "Thomas", gender: "MALE", pitchBand: "mid", ageTone: "youthful" },
+    { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh", gender: "MALE", pitchBand: "deep", ageTone: "youthful" },
+    { id: "zcAOhNBS3c14rBihAFp1", name: "Giovanni", gender: "MALE", pitchBand: "mid", ageTone: "youthful" },
+    { id: "ErXwobaYiN019PkySvjV", name: "Antoni", gender: "MALE", pitchBand: "mid", ageTone: "adult" },
+    { id: "bVMeCyTHy58xNoL34h3p", name: "Jeremy", gender: "MALE", pitchBand: "mid", ageTone: "adult" },
+    // Middle-Aged (~38-52)
+    { id: "iP95p4xoKVk53GoZ742B", name: "Chris", gender: "MALE", pitchBand: "mid", ageTone: "adult" },
+    { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", gender: "MALE", pitchBand: "mid", ageTone: "adult" },
+    { id: "29vD33N1CtxCmqQRPOHJ", name: "Drew", gender: "MALE", pitchBand: "mid", ageTone: "adult" },
+    { id: "N2lVS1w4EtoT3dr4eOWO", name: "Callum", gender: "MALE", pitchBand: "deep", ageTone: "adult" },
+    { id: "ODq5zmih8GrVes37Dizd", name: "Patrick", gender: "MALE", pitchBand: "high", ageTone: "adult" },
+    { id: "Zlb1dXrM653N07WRdFW3", name: "Joseph", gender: "MALE", pitchBand: "mid", ageTone: "adult" },
+    { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", gender: "MALE", pitchBand: "mid", ageTone: "mature" },
+    { id: "Yko7PKHZNXotIFUBG7I9", name: "Matthew", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "pNInz6obpgDQGcFmaJgB", name: "Adam", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", gender: "MALE", pitchBand: "deep", ageTone: "adult" },
+    { id: "nPczCjzI2devNBz1zQrb", name: "Brian", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "5Q0t7uMcjvnagumLfvZi", name: "Paul", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "2EiwWnXFnvU5JabPnv8n", name: "Clyde", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    // Senior (~58-70)
+    { id: "VR6AewLTigWG4xSOukaG", name: "Arnold", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "pqHfZKP75CvOlQylNhV4", name: "Bill", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "D38z5RcWu1voky8WS1ja", name: "Fin", gender: "MALE", pitchBand: "mid", ageTone: "mature" },
+    { id: "ZQe5CZNOzWyzPSCn5a3c", name: "James", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "flq6f7yk4E4fJM5XTYuZ", name: "Michael", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "t0jbNlBVZ17f02VDIeMI", name: "Jessie", gender: "MALE", pitchBand: "deep", ageTone: "mature" },
+  ],
+  FEMALE: [
+    // Young (~18-29)
+    { id: "jBpfuIE2acCO8z3wKNLl", name: "Gigi", gender: "FEMALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "zrHiDhphv9ZnVXBqCLjz", name: "Mimi", gender: "FEMALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli", gender: "FEMALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella / Sarah", gender: "FEMALE", pitchBand: "high", ageTone: "adult" },
+    { id: "hpp4J3VqNfWAUOO0d1Us", name: "Bella", gender: "FEMALE", pitchBand: "high", ageTone: "adult" },
+    { id: "piTKgcLEGmPE4e6mEKli", name: "Nicole", gender: "FEMALE", pitchBand: "high", ageTone: "adult" },
+    { id: "oWAxZDx7w5VEj9dCyTeq", name: "Nicole", gender: "FEMALE", pitchBand: "high", ageTone: "adult" },
+    { id: "jsCqWAovK2LkecY7zXl4", name: "Freya", gender: "FEMALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", gender: "FEMALE", pitchBand: "mid", ageTone: "adult" },
+    { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi", gender: "FEMALE", pitchBand: "high", ageTone: "youthful" },
+    { id: "LcfcDJNUP1GQjkzn1xUU", name: "Emily", gender: "FEMALE", pitchBand: "mid", ageTone: "adult" },
+    // Middle-Aged (~36-48)
+    { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", gender: "FEMALE", pitchBand: "mid", ageTone: "mature" },
+    { id: "pMsXgVXv3BLzUgSXRplE", name: "Serena", gender: "FEMALE", pitchBand: "mid", ageTone: "adult" },
+    { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", gender: "FEMALE", pitchBand: "mid", ageTone: "adult" },
+    { id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", gender: "FEMALE", pitchBand: "mid", ageTone: "mature" },
+    { id: "ThT5KcBeYPX3keUQqHPh", name: "Dorothy", gender: "FEMALE", pitchBand: "mid", ageTone: "mature" },
+    { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", gender: "FEMALE", pitchBand: "deep", ageTone: "mature" },
+    { id: "z9fAnlkpzviPz146aGWa", name: "Glinda", gender: "FEMALE", pitchBand: "high", ageTone: "youthful" },
+    // Senior (~60+)
+    { id: "oWAxZDx7w5VEj9dCyTzz", name: "Grace", gender: "FEMALE", pitchBand: "mid", ageTone: "mature" },
+    { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", gender: "FEMALE", pitchBand: "mid", ageTone: "adult" },
+  ],
+};
+
+// Known ElevenLabs preset voice mappings to gender for seamless translation
+export const ELEVENLABS_VOICE_GENDER_MAP: Record<string, "MALE" | "FEMALE"> = {
+  // Male Voices (29 + legacy aliases)
+  "TX3LPaxmHKxFdv7VOQHJ": "MALE",   // Liam (24)
+  "g5CIjZEefAph4nQFvHAz": "MALE",   // Ethan (24)
+  "g5CIjZEefAph4nJUvZnz": "MALE",   // Marcus (24)
+  "SOYHLrjzK2X1ezoPC6cr": "MALE",   // Harry (25)
+  "CYw3kZ02Hs0563khs1Fj": "MALE",   // Dave (26)
+  "yoZ06aMxZJJ28mfd3POQ": "MALE",   // Sam (26)
+  "GBv7mTt0atIp3Br8iCZE": "MALE",   // Thomas (28)
+  "TxGEqnHWrfWFTfGW9XjX": "MALE",   // Josh (29)
+  "zcAOhNBS3c14rBihAFp1": "MALE",   // Giovanni (30)
+  "ErXwobaYiN019PkySvjV": "MALE",   // Antoni (32)
+  "bVMeCyTHy58xNoL34h3p": "MALE",   // Jeremy (32)
+  "iP95p4xoKVk53GoZ742B": "MALE",   // Chris (38)
+  "IKne3meq5aSn9XLyUdCD": "MALE",   // Charlie (40)
+  "29vD33N1CtxCmqQRPOHJ": "MALE",   // Drew (42)
+  "N2lVS1w4EtoT3dr4eOWO": "MALE",   // Callum (42)
+  "ODq5zmih8GrVes37Dizd": "MALE",   // Patrick (43)
+  "Zlb1dXrM653N07WRdFW3": "MALE",   // Joseph (44)
+  "JBFqnCBsd6RMkjVDRZzb": "MALE",   // George (45)
+  "Yko7PKHZNXotIFUBG7I9": "MALE",   // Matthew (45)
+  "pNInz6obpgDQGcFmaJgB": "MALE",   // Adam (46)
+  "onwK4e9ZLuTAKqWW03F9": "MALE",   // Daniel (46)
+  "nPczCjzI2devNBz1zQrb": "MALE",   // Brian (48)
+  "5Q0t7uMcjvnagumLfvZi": "MALE",   // Paul (50)
+  "2EiwWnXFnvU5JabPnv8n": "MALE",   // Clyde (52)
+  "VR6AewLTigWG4xSOukaG": "MALE",   // Arnold (58)
+  "pqHfZKP75CvOlQylNhV4": "MALE",   // Bill (62)
+  "D38z5RcWu1voky8WS1ja": "MALE",   // Fin (65)
+  "ZQe5CZNOzWyzPSCn5a3c": "MALE",   // James (66)
+  "flq6f7yk4E4fJM5XTYuZ": "MALE",   // Michael (68)
+  "t0jbNlBVZ17f02VDIeMI": "MALE",   // Jessie (70)
+
+  // Female Voices (17 + legacy aliases)
+  "jBpfuIE2acCO8z3wKNLl": "FEMALE", // Gigi (18)
+  "zrHiDhphv9ZnVXBqCLjz": "FEMALE", // Mimi (19)
+  "MF3mGyEYCl7XYWbV9V6O": "FEMALE", // Elli (21)
+  "EXAVITQu4vr4xnSDxMaL": "FEMALE", // Bella / Sarah (25)
+  "hpp4J3VqNfWAUOO0d1Us": "FEMALE", // Bella (25)
+  "piTKgcLEGmPE4e6mEKli": "FEMALE", // Nicole (25)
+  "oWAxZDx7w5VEj9dCyTeq": "FEMALE", // Nicole (25)
+  "jsCqWAovK2LkecY7zXl4": "FEMALE", // Freya (26)
+  "21m00Tcm4TlvDq8ikWAM": "FEMALE", // Rachel (28)
+  "AZnzlk1XvdvUeBnXmlld": "FEMALE", // Domi (28)
+  "LcfcDJNUP1GQjkzn1xUU": "FEMALE", // Emily (29)
+  "XB0fDUnXU5powFXDhCwa": "FEMALE", // Charlotte (36)
+  "pMsXgVXv3BLzUgSXRplE": "FEMALE", // Serena (38)
+  "Xb7hH8MSUJpSbSDYk0k2": "FEMALE", // Alice (40)
+  "XrExE9yKIg1WjnnlVkGX": "FEMALE", // Matilda (42)
+  "ThT5KcBeYPX3keUQqHPh": "FEMALE", // Dorothy (44)
+  "pFZP5JQG7iQjIQuC4Bku": "FEMALE", // Lily (45)
+  "z9fAnlkpzviPz146aGWa": "FEMALE", // Glinda (48)
+  "oWAxZDx7w5VEj9dCyTzz": "FEMALE", // Grace (60)
+  "FGY2WhTYpPnrIDTdsKH5": "FEMALE", // Laura
+};
+
 export const TTS_MODELS = {
   v4: "eleven_v4",                           // Flagship Primary V4 — native support for 80+ languages for every video
-  v3: "eleven_v3",                           // Failover Tier 2 — fallback if any issue occurs with V4
+  v3: "eleven_v4",                           // Deprecated alias: strictly mapped to eleven_v4 (Zero fallback models)
 } as const;
 
 /**
@@ -47,7 +178,7 @@ export const V4_PREMIUM_80_LANGUAGES = new Set([
   "sw", "af", "zu", "xh", "ha", "yo", "ig", "am", "so",
 ]);
 
-const MAX_RETRIES = 2; // Strict 2-tier failover: Tier 1 (eleven_v4) -> Tier 2 (eleven_v3). Exactly one fallback, no other tiers.
+const MAX_RETRIES = 2; // Retries transient 429/5xx strictly on eleven_v4 (Zero fallback models)
 
 /**
  * Valid inline expressive audio tags supported by ElevenLabs eleven_v4.
@@ -61,7 +192,10 @@ export const VALID_ELEVENLABS_AUDIO_TAGS = new Set<string>([
   "gasps",
   "excited",
   "sorrowful",
+  "sad",
   "angry",
+  "said angrily",
+  "sarcastic",
   "calm",
   "serious",
   "pauses",
@@ -628,9 +762,11 @@ export class ElevenLabsTTSService {
       textPreview: request.text.substring(0, 60),
     });
 
-    const attemptModels = [TTS_MODELS.v4, TTS_MODELS.v3];
-
-    const glossarizedText = applyPronunciationGlossary(request.text, request.pronunciationGlossary);
+    let glossarizedText = applyPronunciationGlossary(request.text, request.pronunciationGlossary);
+    if (request.language === "te") {
+      glossarizedText = applyTeluguTheologicalLexiconGuard(glossarizedText);
+    }
+    glossarizedText = normalizeScriptureCitationsForTts(glossarizedText, request.language);
 
     // 🛡️ Zero-Credit Non-Speech / Empty Segment Guard:
     // If text contains only audio tags, brackets, parentheses, punctuation, emojis, or whitespace
@@ -669,31 +805,56 @@ export class ElevenLabsTTSService {
     }
 
     const clamp01 = (v: number): number => Number(Math.max(0, Math.min(1, v)).toFixed(2));
+
+    // Expressive v4 Bus dynamic parameterization fallback if not pre-computed
+    let initialStability = request.stability;
+    let initialSimilarity = request.similarityBoost;
+    let initialStyle = request.style;
+    let initialEmotionTag = request.emotionTag;
+
+    if (initialStyle === undefined || initialStability === undefined) {
+      const busResult = expressiveV4Bus.processSegment({
+        jobId: request.jobId,
+        language: request.language,
+        translatedText: glossarizedText,
+        telemetry: {
+          energyDb: request.energyDb,
+          emotionTag: request.emotionTag,
+          stabilityOverride: request.stability,
+          similarityBoostOverride: request.similarityBoost,
+          styleOverride: request.style,
+        },
+        preferVoiceCloning: request.preferVoiceCloning,
+        voiceType: request.voiceType as any,
+      });
+      initialStability = initialStability ?? busResult.voiceSettings.stability;
+      initialSimilarity = initialSimilarity ?? busResult.voiceSettings.similarity_boost;
+      initialStyle = initialStyle ?? busResult.voiceSettings.style;
+      initialEmotionTag = initialEmotionTag ?? busResult.emotionTag;
+    }
+
     const resolvedStability =
-      typeof request.stability === "number" && Number.isFinite(request.stability)
-        ? clamp01(request.stability)
+      typeof initialStability === "number" && Number.isFinite(initialStability)
+        ? clamp01(initialStability)
         : (request.preferVoiceCloning ? 0.45 : this.defaultVoiceSettings.stability);
     const resolvedSimilarity =
-      typeof request.similarityBoost === "number" && Number.isFinite(request.similarityBoost)
-        ? clamp01(request.similarityBoost)
+      typeof initialSimilarity === "number" && Number.isFinite(initialSimilarity)
+        ? clamp01(initialSimilarity)
         : (request.preferVoiceCloning ? 0.85 : this.defaultVoiceSettings.similarity_boost);
 
     const voiceSettings: VoiceSettings = {
       stability: resolvedStability,
       similarity_boost: resolvedSimilarity,
       use_speaker_boost: request.useSpeakerBoost ?? this.defaultVoiceSettings.use_speaker_boost ?? true,
-      ...(typeof (request as any).style === "number" ? { style: (request as any).style } : {}),
+      ...(typeof request.style === "number" && Number.isFinite(request.style) ? { style: clamp01(request.style) } : {}),
     };
 
     const releaseSlot = await GlobalTTSConcurrencyManager.acquireSlot();
 
     try {
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        const currentModel = attemptModels[attempt] || TTS_MODELS.v3;
-        const isCurrentV4 = currentModel === TTS_MODELS.v4;
-        const synthesisText = isCurrentV4
-          ? sanitizeTextForElevenLabsV4(glossarizedText, request.emotionTag)
-          : stripAudioTagsForSubtitles(glossarizedText);
+        const currentModel = TTS_MODELS.v4; // Strictly eleven_v4 (zero fallback models)
+        const synthesisText = sanitizeTextForElevenLabsV4(glossarizedText, initialEmotionTag);
 
         try {
           const response = await axios.post(
@@ -834,14 +995,13 @@ export class ElevenLabsTTSService {
           }
 
           if (attempt === MAX_RETRIES - 1) {
-            throw new Error(`[ElevenLabsTTS] Failed after 2 attempts (Tier 1 ${TTS_MODELS.v4} and Tier 2 fallback ${TTS_MODELS.v3}): ${statusCode} — ${errorBody}`);
+            throw new Error(`[ElevenLabsTTS] Failed with model ${TTS_MODELS.v4}: ${statusCode} — ${errorBody}`);
           }
 
-          const nextModel = attemptModels[attempt + 1];
-          logger.info("[ElevenLabsTTS] Retrying synthesis with single fallback model", {
+          logger.info("[ElevenLabsTTS] Retrying synthesis strictly with eleven_v4", {
             jobId: request.jobId,
             nextAttempt: attempt + 2,
-            model: nextModel,
+            model: TTS_MODELS.v4,
           });
 
           const delay = 1000 * Math.pow(2, attempt);
@@ -980,9 +1140,9 @@ export class TTSService {
   /**
    * Unified synthesis entry point.
    * - Video Audio Tracks Dubbing & Voice Cloning: Strictly powered by ElevenLabs v4 (`eleven_v4`).
-   *   If any issue occurs, the single failover tier is ElevenLabs v3 (`eleven_v3`).
+   *   Zero fallback models or alternative providers.
    *   Google Cloud Text-to-Speech (Chirp 3: HD / Neural2 / etc.) has been completely terminated.
-   *   All dubbing strictly routes to ElevenLabs (eleven_v4 -> eleven_v3) with zero other models or providers.
+   *   All dubbing strictly routes to ElevenLabs v4 (`eleven_v4`).
    */
   async synthesize(request: TTSRequest): Promise<TTSResult> {
     const apiKey = this.elevenLabsTts.getApiKey();
@@ -994,7 +1154,7 @@ export class TTSService {
       throw new Error("ElevenLabs API key is missing. Video dubbing strictly requires ElevenLabs v4.");
     }
 
-    logger.info("[TTS] Synthesizing audio track strictly with ElevenLabs (Tier 1: eleven_v4, Tier 2 failover: eleven_v3)", {
+    logger.info("[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)", {
       jobId: request.jobId,
       language: request.language,
       voiceCloneId: request.voiceCloneId,

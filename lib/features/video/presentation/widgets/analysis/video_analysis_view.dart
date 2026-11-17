@@ -596,7 +596,51 @@ class VideoAnalysisView extends StatelessWidget {
         ],
 
         // Fact-Checked Claims
-        if (parsed.claims.isEmpty) ...[
+        if (videoCtrl.isLoadingFactCheck.value ||
+            video.factCheckStatus == 'processing' ||
+            video.factCheckStatus == 'running') ...[
+          Container(
+            padding: const EdgeInsets.all(28),
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.bgSurface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.bgDivider),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Truth Verification in Progress',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Analyzing video dialogue and validating factual assertions against authoritative sources...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ] else if (parsed.claims.isEmpty) ...[
           Container(
             padding: const EdgeInsets.all(24),
             margin: const EdgeInsets.symmetric(vertical: 8),
@@ -625,6 +669,33 @@ class VideoAnalysisView extends StatelessWidget {
                     color: AppColors.textSecondary,
                     fontSize: 12,
                     height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    videoCtrl.loadFactCheckData(video.factCheckUrl, true);
+                  },
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: const Text(
+                    'Re-check Analysis',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: AppColors.bgDivider),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 ),
               ],

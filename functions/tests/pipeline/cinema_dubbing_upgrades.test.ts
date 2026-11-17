@@ -160,8 +160,8 @@ describe("Cinema Dubbing Architecture Upgrades", () => {
 
     it("picks lower-dialogue-bleed stem between parallel Demucs and ElevenLabs isolation", async () => {
       const media = new MediaService();
-      const prevWorkerUrl = PIPELINE_CONFIG.LIPSYNC_SERVICE_URL;
-      (PIPELINE_CONFIG as any).LIPSYNC_SERVICE_URL = "https://demucs-worker.test.local";
+      const prevWorkerUrl = (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL;
+      (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL = "https://demucs-worker.test.local";
 
       try {
         jest.spyOn(axios, "post").mockResolvedValueOnce({
@@ -206,7 +206,7 @@ describe("Cinema Dubbing Architecture Upgrades", () => {
         expect(best.source).toBe("neural_demixing_best_of_2");
         expect(best.degraded).toBe(false);
       } finally {
-        (PIPELINE_CONFIG as any).LIPSYNC_SERVICE_URL = prevWorkerUrl;
+        (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL = prevWorkerUrl;
       }
     });
   });

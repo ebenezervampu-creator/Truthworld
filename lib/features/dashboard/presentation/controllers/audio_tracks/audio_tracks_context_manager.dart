@@ -201,7 +201,11 @@ class AudioTracksContextManager {
   Future<void> selectVideo(
     Video? video, {
     required Future<void> Function(Video? video) onVideoSelected,
+    bool force = false,
   }) async {
+    if (!force && video != null && selectedVideo.value?.id == video.id) {
+      return;
+    }
     selectedVideo.value = video;
     await onVideoSelected(video);
   }

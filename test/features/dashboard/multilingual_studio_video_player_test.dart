@@ -69,7 +69,9 @@ void main() {
     VoidCallback? onAddDubTrack,
   }) {
     return GetMaterialApp(
-      theme: ThemeData.dark(),
+      theme: ThemeData.dark().copyWith(
+        splashFactory: NoSplash.splashFactory,
+      ),
       home: Scaffold(
         body: SingleChildScrollView(
           child: MultilingualStudioVideoPlayer(
@@ -367,6 +369,36 @@ void main() {
 
       expect(ctrl.isChangingTrack.value, isFalse);
       expect(ctrl.selectedTrack.value?.code, 'ta');
+    });
+
+    test('Seamless audio-only track switch keeps video active and switches selectedTrack', () async {
+      final ctrl = MultiAudioPlayerController();
+      addTearDown(() => ctrl.onClose());
+      const baseTrack = AudioTrackOption(
+        code: 'en',
+        label: 'English',
+        isEmbedded: true,
+      );
+      const secondEmbeddedTrack = AudioTrackOption(
+        code: 'es',
+        label: 'Spanish',
+        isEmbedded: true,
+      );
+
+      ctrl.selectedTrack.value = baseTrack;
+      expect(ctrl.selectedTrack.value?.code, 'en');
+
+      // Switch to Spanish embedded track
+      await ctrl.switchTrack(secondEmbeddedTrack);
+
+      expect(ctrl.selectedTrack.value?.code, 'es');
+      expect(ctrl.isChangingTrack.value, isFalse);
+
+      // Switch back to English embedded audio track seamlessly
+      await ctrl.switchTrack(baseTrack);
+
+      expect(ctrl.selectedTrack.value?.code, 'en');
+      expect(ctrl.isChangingTrack.value, isFalse);
     });
 
     testWidgets('Renders resolution ladder bar with non-raw resolutions (1080p, 720p, 480p)', (tester) async {

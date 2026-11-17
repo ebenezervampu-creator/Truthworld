@@ -124,7 +124,7 @@ class CreateContentSubtitlesDubbingSection extends StatelessWidget {
                 const SizedBox(height: 16),
               ],
 
-              // Spoken Video Language ("From") Selector: Same 39 languages for Subtitles & Dubbing
+              // Spoken Video Language ("From") Selector: Strictly 18 languages for Subtitles & Dubbing via AssemblyAI Universal-3.5 Pro
               _buildSpokenLanguageSelector(context, uploadController),
               const SizedBox(height: 12),
 
@@ -136,7 +136,7 @@ class CreateContentSubtitlesDubbingSection extends StatelessWidget {
                 title: 'AI Subtitles & Translation',
                 subtitle: isSubtitles
                     ? (selectedSubLangs.isNotEmpty
-                        ? '${selectedSubLangs.length} ${selectedSubLangs.length == 1 ? "language" : "languages"} (Google Cloud Translation & Gemini 2.5 Flash) • \$${subtitleCost.toStringAsFixed(2)}'
+                        ? '${selectedSubLangs.length} ${selectedSubLangs.length == 1 ? "language" : "languages"} (Google Cloud Translation v3) • \$${subtitleCost.toStringAsFixed(2)}'
                         : 'Enabled • 135+ target languages available')
                     : 'Disabled',
                 isEnabled: isSubtitles,
@@ -165,6 +165,8 @@ class CreateContentSubtitlesDubbingSection extends StatelessWidget {
                   uploadController.aiGenerateDubbing.value = val;
                   if (val && selectedDubLangs.isEmpty) {
                     Get.to(() => const UploadSubtitlesAndDubbingPage());
+                  } else if (!val) {
+                    uploadController.aiDubbingLanguages.clear();
                   }
                 },
               ),
@@ -213,94 +215,9 @@ class CreateContentSubtitlesDubbingSection extends StatelessWidget {
     });
   }
 
-  Widget _buildSpokenLanguageSelector(BuildContext context, UploadController uploadController) {
-    final currentCode = uploadController.primarySpokenLanguage.value.isEmpty
-        ? 'auto'
-        : uploadController.primarySpokenLanguage.value;
-    final match = allSpokenLanguages.firstWhereOrNull((l) => l.code == currentCode);
-    final displayName = match != null
-        ? (match.code == 'auto' ? match.name : '${match.name} (${match.nativeName})')
-        : currentCode.toUpperCase();
-
-    return InkWell(
-      onTap: () => showSpokenLanguagePicker(
-        context: context,
-        controller: uploadController,
-      ),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF111114),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0284C7).withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.record_voice_over_rounded,
-                color: Color(0xFF38BDF8),
-                size: 16,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Spoken Video Language ("From")',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '39 languages supported via AssemblyAI Universal-3.5 Pro & Sarvam AI',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.55),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1F2029),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    displayName,
-                    style: const TextStyle(
-                      color: Color(0xFF38BDF8),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.arrow_drop_down, color: Color(0xFF38BDF8), size: 16),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Spoken Video Language ("From") Selector: Strictly 18 languages for Subtitles & Dubbing via AssemblyAI Universal-3.5 Pro
+  Widget _buildSpokenLanguageSelector(BuildContext context, UploadController uploadController) =>
+      buildSpokenLanguageSelector(context, uploadController);
 
   Widget _buildFeatureStatusTile({
     required IconData icon,
@@ -367,6 +284,104 @@ class CreateContentSubtitlesDubbingSection extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget buildSpokenLanguageSelector(BuildContext context, UploadController uploadController) {
+  return Obx(() {
+    final currentCode = uploadController.primarySpokenLanguage.value.isEmpty
+        ? 'auto'
+        : uploadController.primarySpokenLanguage.value;
+    final match = allSpokenLanguages.firstWhereOrNull((l) => l.code == currentCode);
+    final displayName = match != null
+        ? (match.code == 'auto' ? match.name : '${match.name} (${match.nativeName})')
+        : currentCode.toUpperCase();
+
+    return InkWell(
+      onTap: () => showSpokenLanguagePicker(
+        context: context,
+        controller: uploadController,
+      ),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF111114),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0284C7).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.record_voice_over_rounded,
+                color: Color(0xFF38BDF8),
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Spoken Video Language ("From")',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '18 languages supported via AssemblyAI Universal-3.5 Pro',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E2028),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: const Color(0xFF38BDF8).withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    displayName,
+                    style: const TextStyle(
+                      color: Color(0xFF38BDF8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.arrow_drop_down,
+                    color: Color(0xFF38BDF8),
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  });
 }
 
 /// Section 11: TruthWorld Verification Section.
@@ -712,7 +727,6 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
       final isFactCheck = uploadController.aiFactCheckEnabled.value;
       final isDiarization = uploadController.aiDiarizationEnabled.value;
       final isChapters = uploadController.aiChaptersEnabled.value;
-      final isExpanded = uploadController.isAiFeaturesExpanded.value;
 
       final selectedChan = uploadController.selectedChannel.value;
       final isCustom = selectedChan?.channelType == ChannelType.custom;
@@ -810,7 +824,7 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
                         Text(
                           activeCount == 0
                               ? 'Tap to add AI subtitles, dubbing, fact-checking & chapters'
-                              : '$activeCount features enabled${totalCost > 0 ? " • \$${totalCost.toStringAsFixed(2)}" : " • Free (\$0.00)"}',
+                              : '$activeCount features enabled${totalCost > 0 ? " • \$${totalCost.toStringAsFixed(2)}" : r" • Free ($0.00)"}',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.6),
                             fontSize: 12,
@@ -849,6 +863,10 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
+
+              // Spoken Video Language ("From") Selector: Strictly 18 languages for Subtitles & Dubbing via AssemblyAI Universal-3.5 Pro (+ Auto-Detect)
+              buildSpokenLanguageSelector(context, uploadController),
+              const SizedBox(height: 14),
 
               // 5 Feature Toggles / Chips
               Wrap(
@@ -977,8 +995,8 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
     required String label,
     required IconData icon,
     required bool isActive,
-    String? badgeText,
     required VoidCallback onTap,
+    String? badgeText,
   }) {
     final fgColor = isActive ? Colors.black : Colors.white70;
     final bgColor = isActive ? Colors.white : const Color(0xFF1E1E22);
@@ -1047,7 +1065,7 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
     required VoidCallback onRemove,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF131419),
         borderRadius: BorderRadius.circular(12),
@@ -1056,35 +1074,36 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
               color: iconBgColor,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: iconColor, size: 18),
+            child: Icon(icon, color: iconColor, size: 17),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 2,
                   children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
@@ -1093,19 +1112,19 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
                         costLabel,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   languagesPreview,
                   style: const TextStyle(
                     color: Color(0xFFA1A1AA),
-                    fontSize: 11.5,
+                    fontSize: 11,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1113,12 +1132,12 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           InkWell(
             onTap: onEdit,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
                 color: const Color(0xFF222430),
                 borderRadius: BorderRadius.circular(8),
@@ -1127,13 +1146,13 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.edit_outlined, size: 13, color: Colors.white),
-                  SizedBox(width: 4),
+                  Icon(Icons.edit_outlined, size: 12, color: Colors.white),
+                  SizedBox(width: 3),
                   Text(
                     'Configure',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1141,14 +1160,14 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white54),
             onPressed: onRemove,
             tooltip: 'Remove',
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
           ),
         ],
       ),

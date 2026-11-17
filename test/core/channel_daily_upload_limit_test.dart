@@ -49,10 +49,26 @@ void main() {
       expect(ContentValidationMixin.formatDurationMinutesSeconds(1200), equals('20 min'));
     });
 
-    test('Standard channel: Uploading 7s video or audio with 0m uploaded today is VALID', () {
+    test('Standard channel: Uploading video under 30s is BLOCKED', () {
+      final res7 = ContentValidator.validateChannelVideoUpload(
+        standardChannel,
+        durationSeconds: 7,
+      );
+      expect(res7.isValid, isFalse);
+      expect(res7.message, equals('Video duration must be at least 30 seconds.'));
+
+      final res29 = ContentValidator.validateChannelVideoUpload(
+        standardChannel,
+        durationSeconds: 29,
+      );
+      expect(res29.isValid, isFalse);
+      expect(res29.message, equals('Video duration must be at least 30 seconds.'));
+    });
+
+    test('Standard channel: Uploading exactly 30s video with 0m uploaded today is VALID', () {
       final res = ContentValidator.validateChannelVideoUpload(
         standardChannel,
-        durationSeconds: 7, // 7 seconds (short media allowed)
+        durationSeconds: 30, // 30 seconds minimum duration
       );
       expect(res.isValid, isTrue);
       expect(res.message, equals('Valid'));

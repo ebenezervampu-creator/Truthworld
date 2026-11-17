@@ -31,8 +31,8 @@ export const onVideoDeletedCascade = onDocumentDeleted(
   {
     document: "videos/{videoId}",
     region: "asia-south1",
-    memory: "512MiB",
-    maxInstances: 20,
+    memory: "256MiB",
+    maxInstances: 3,
   },
   async (event) => {
     const videoId = event.params.videoId;
@@ -62,12 +62,29 @@ export const onVideoDeletedCascade = onDocumentDeleted(
       // 3. Remove from shorts if present
       await db.collection("shorts").doc(videoId).delete().catch(() => {});
 
-      // 4. Remove any matching video_hashes
-      const hashSnaps = await db.collection("video_hashes").where("jobId", "==", videoId).get().catch(() => null);
-      if (hashSnaps && !hashSnaps.empty) {
-        const batch = db.batch();
-        hashSnaps.docs.forEach((doc) => batch.delete(doc.ref));
-        await batch.commit().catch(() => {});
+      // 4. Remove any matching video_hashes (by videoId or jobId)
+      const hashQueries = [
+        db.collection("video_hashes").where("jobId", "==", videoId).get().catch(() => null),
+        db.collection("video_hashes").where("videoId", "==", videoId).get().catch(() => null),
+      ];
+      if (beforeData?.jobId) {
+        hashQueries.push(
+          db.collection("video_hashes").where("jobId", "==", beforeData.jobId).get().catch(() => null)
+        );
+      }
+      const hashResults = await Promise.all(hashQueries);
+      const hashBatch = db.batch();
+      let hasDeletions = false;
+      for (const snap of hashResults) {
+        if (snap && !snap.empty) {
+          snap.docs.forEach((d) => {
+            hashBatch.delete(d.ref);
+            hasDeletions = true;
+          });
+        }
+      }
+      if (hasDeletions) {
+        await hashBatch.commit().catch(() => {});
       }
 
       // 4. Remove GCS Storage assets for this video
@@ -127,7 +144,8 @@ export const onVideoDeletedCascade = onDocumentDeleted(
 export const permanentlyDeleteVideo = onCall(
   {
     region: "asia-south1",
-    memory: "512MiB",
+    memory: "256MiB",
+    maxInstances: 3,
   },
   async (request) => {
     if (!request.auth) {
@@ -182,12 +200,29 @@ export const permanentlyDeleteVideo = onCall(
       // 3. Delete from shorts if present
       await db.collection("shorts").doc(videoId).delete().catch(() => {});
 
-      // 4. Delete hashes
-      const hashSnaps = await db.collection("video_hashes").where("jobId", "==", videoId).get().catch(() => null);
-      if (hashSnaps && !hashSnaps.empty) {
-        const batch = db.batch();
-        hashSnaps.docs.forEach((doc) => batch.delete(doc.ref));
-        await batch.commit().catch(() => {});
+      // 4. Delete hashes (by videoId or jobId)
+      const hashQueries = [
+        db.collection("video_hashes").where("jobId", "==", videoId).get().catch(() => null),
+        db.collection("video_hashes").where("videoId", "==", videoId).get().catch(() => null),
+      ];
+      if (data?.jobId) {
+        hashQueries.push(
+          db.collection("video_hashes").where("jobId", "==", data.jobId).get().catch(() => null)
+        );
+      }
+      const hashResults = await Promise.all(hashQueries);
+      const hashBatch = db.batch();
+      let hasDeletions = false;
+      for (const snap of hashResults) {
+        if (snap && !snap.empty) {
+          snap.docs.forEach((d) => {
+            hashBatch.delete(d.ref);
+            hasDeletions = true;
+          });
+        }
+      }
+      if (hasDeletions) {
+        await hashBatch.commit().catch(() => {});
       }
 
       // 4. Delete Storage assets

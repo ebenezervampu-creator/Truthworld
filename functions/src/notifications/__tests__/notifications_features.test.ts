@@ -868,6 +868,81 @@ function testTripleNotificationPrevention() {
 }
 
 // ----------------------------------------------------------------------
+// FEATURE 11: Video Publish Notification Mutex Lock & Broadcast Collapse
+// ----------------------------------------------------------------------
+function testVideoPublishDeduplicationAndLock() {
+  console.log("\n--- [Feature 11] Testing Video Publish Mutex Lock & Collapse ---");
+
+  // Simulated mutex transaction lock logic matching onVideoPublished
+  class MockLockStore {
+    locks = new Set<string>();
+    videoStates = new Map<string, { notificationsSent?: boolean }>();
+
+    attemptLockTransaction(videoId: string): boolean {
+      if (this.locks.has(videoId)) {
+        return false;
+      }
+      const vState = this.videoStates.get(videoId);
+      if (vState?.notificationsSent === true) {
+        return false;
+      }
+      this.locks.add(videoId);
+      this.videoStates.set(videoId, { ...vState, notificationsSent: true });
+      return true;
+    }
+  }
+
+  const store = new MockLockStore();
+  const vid = "video_bible_quran_123";
+
+  // 1. First trigger acquires lock successfully
+  const lock1 = store.attemptLockTransaction(vid);
+  assert(lock1 === true, "First publish event acquires notification lock successfully");
+
+  // 2. Concurrent second event trying simultaneously is rejected
+  const lock2 = store.attemptLockTransaction(vid);
+  assert(lock2 === false, "Concurrent second event fails to acquire lock (prevents duplicate fanout)");
+
+  // 3. Retry of first event is also rejected (idempotent skip)
+  const lockRetry = store.attemptLockTransaction(vid);
+  assert(lockRetry === false, "Event retry fails lock check and skips re-sending");
+
+  // 4. Test deterministic notification ID for new_video_followed
+  function resolveNotificationDocId(type: string, userId: string, videoId?: string): string {
+    const isNewVideo = type === "new_video_followed" && !!videoId;
+    return isNewVideo ? `notif_vid_${videoId}_${userId}` : "random_generated_uuid";
+  }
+
+  const notifId1 = resolveNotificationDocId("new_video_followed", "user_subscriber_1", vid);
+  const notifId2 = resolveNotificationDocId("new_video_followed", "user_subscriber_1", vid);
+  assert(notifId1 === `notif_vid_${vid}_user_subscriber_1`, "Generates deterministic video notification doc ID");
+  assert(notifId1 === notifId2, "Deterministic notification ID is idempotent across multiple calls");
+
+  // 5. Broadcast message payload has Android tag, collapseKey, and APNS collapse ID
+  function buildBroadcastPayload(videoId: string, channelId: string) {
+    return {
+      topic: `channel_${channelId}`,
+      android: {
+        collapseKey: `video_${videoId}`,
+        notification: {
+          tag: `video_${videoId}`,
+        },
+      },
+      apns: {
+        headers: {
+          "apns-collapse-id": `video_${videoId}`,
+        },
+      },
+    };
+  }
+
+  const payload = buildBroadcastPayload(vid, "chan_ebenezer");
+  assert(payload.android.collapseKey === `video_${vid}`, "Broadcast Android payload includes collapseKey matching videoId");
+  assert(payload.android.notification.tag === `video_${vid}`, "Broadcast Android payload includes notification tag matching videoId");
+  assert(payload.apns.headers["apns-collapse-id"] === `video_${vid}`, "Broadcast APNS payload includes apns-collapse-id matching videoId");
+}
+
+// ----------------------------------------------------------------------
 // RUN ALL TESTS
 // ----------------------------------------------------------------------
 console.log("==================================================");
@@ -884,6 +959,7 @@ testChannelNotificationPreferences();
 testTopicNotificationPreferences();
 testSubscriberNotificationGateAndMultiCollectionFanout();
 testTripleNotificationPrevention();
+testVideoPublishDeduplicationAndLock();
 
 console.log("\n==================================================");
 console.log(`TOTAL RESULTS: ${passed} PASSED, ${failed} FAILED`);

@@ -204,6 +204,16 @@ export interface TranslatedSegment {
   similarityBoostOverride?: number;
   pitchRangeSemitones?: number;
   voiceQuality?: "breathy" | "modal" | "creaky" | "pressed";
+  emotionalIntensity?: {
+    anger?: number;
+    sadness?: number;
+    joy?: number;
+    fear?: number;
+    disgust?: number;
+    surprise?: number;
+  };
+  energyEnvelopePattern?: "rising" | "falling" | "flat" | "dynamic";
+  breathingPattern?: "natural" | "rapid" | "suppressed";
   syllableBudgetCompliance?: number;
   isHook?: boolean;
   variants?: {
@@ -230,6 +240,7 @@ export interface TTSRequest {
   pitch?: number;
   stability?: number;
   similarityBoost?: number;
+  style?: number;
   useSpeakerBoost?: boolean;
   emotionTag?: string;
   energyDb?: number;
@@ -502,6 +513,35 @@ export interface EvidenceCatalog {
   rejectedCandidates: RejectedEvidenceCandidate[];
   verifiedAcademicMetadata: VerifiedAcademicMetadata[];
   retrievedAtUtc: string;
+}
+
+export type EvidenceProvider =
+  | "PUBMED"
+  | "CROSSREF"
+  | "WIKIPEDIA"
+  | "SERP"
+  | "VERTEX_GROUNDING";
+
+export interface VerifiedSource {
+  evidenceId: string; // e.g., "E1", "E2"
+  title: string;
+  uri: string;
+  snippet?: string; // Passage excerpt or abstract injected into closed-world prompt
+  sourceProvider?: EvidenceProvider;
+  claimIds?: string[]; // Optional claim association for batch-scoped prompt injection
+}
+
+export interface AdjudicatedClaim {
+  claimId: string;
+  verdict: "VERIFIED" | "FALSE" | "MISLEADING" | "DISPUTED" | "UNVERIFIABLE";
+  confidence: number;
+  rationale: string;
+  citedEvidenceIds: string[];
+  v2VerifiedUrls: VerifiedSource[];
+  hasConflictingEvidence: boolean;
+  escalatedToTier3: boolean;
+  thinkingLevelUsed: "LOW" | "HIGH" | string;
+  usedPreRetrievedEvidence: boolean;
 }
 
 export interface RichSource {
@@ -1064,6 +1104,7 @@ export interface PublicAuditPackV1 {
     auditPackSha256: string;
     datasetManifestHash: string;
     signerId: string;
+    keyId?: string;
     algorithm: 'Ed25519' | 'HMAC-SHA256';
     publicKeyPem?: string;
     signature: string;
@@ -1765,6 +1806,33 @@ export interface EpistemicUncertainty {
   disclosedGaps: string[];
 }
 
+export type ExtrapolationFallacyType =
+  | 'ANNUALIZATION_ERROR'
+  | 'BASE_RATE_CONFLATION'
+  | 'SAMPLE_TO_POPULATION_LEAP'
+  | 'CHERRY_PICKED_TIMEFRAME'
+  | 'CROSS_CATEGORY_EQUATION'
+  | 'GEOGRAPHIC_GENERALIZATION';
+
+export interface StatisticalDistortionGenealogy {
+  sourceMetric: {
+    rawFigure: number | string;
+    unit: string;
+    timeframe: string;
+    description: string;
+  };
+  claimedMetric: {
+    rawFigure: number | string;
+    unit: string;
+    timeframe: string;
+    description: string;
+  };
+  extrapolationFallacy: ExtrapolationFallacyType;
+  multiplicationFactor?: number;
+  genealogyExplanation: string;
+  citedEvidenceIds: string[]; // Strictly bound to evidenceRegistry [E1..En]
+}
+
 export interface CredibilityAssessmentV2 {
   assessmentId: string;
   schemaVersion: '2.0.0';
@@ -1781,6 +1849,7 @@ export interface CredibilityAssessmentV2 {
   uncertainty: EpistemicUncertainty;
   semanticValidation?: SemanticEvidenceValidationResult;
   inferenceAudits?: InferenceStepAudit[];
+  distortionGenealogy?: StatisticalDistortionGenealogy;
 }
 
 export interface MultiModelConsensusMetadata {
@@ -2590,6 +2659,8 @@ export interface UserConfig {
   dubbingMode: 'none' | 'standard' | 'voice_clone';
   genLangSubs: boolean;
   generateDubbing: boolean;
+  enableDubbing?: boolean;
+  dubbingLanguages?: string[];
   enableFactCheck: boolean;
   priority: 'low' | 'normal' | 'high';
   duration?: number; // duration in seconds
@@ -2627,6 +2698,7 @@ export interface ExecutionPlan {
   expectedSpeakerCount?: '1' | '2-3' | '4+' | 'not_sure';
   contentFormat?: 'solo' | 'interview' | 'podcast' | 'debate' | 'commentary' | 'general';
   primaryLanguage?: string; // v7.2: Skip auto-detection
+  sourceLanguage?: string;  // Authentic source/original video spoken language
   spokenLanguages?: string[]; // Multilingual / code-mixed spoken languages
   guestNames?: string[];    // v7.2: Persistent identity help
   sensitiveTopics?: ('health' | 'politics' | 'finance' | 'religion' | 'other')[]; // v7.2: Risk-aware scoring
@@ -2648,12 +2720,10 @@ export interface ExecutionPlan {
   autoChapters?: boolean;
   enableDiarization?: boolean;
   diarization?: boolean;
-  enableLipSync?: boolean;
-  lipSyncMode?: 'latentsync' | 'musetalk' | 'standard';
   dubbingLanguages?: string[];
   dubbingTier?: 'audio_track';
-  uncannyMitigation?: 'none' | 'cadence_lock' | 'smart_cutaway' | 'selective_lipsync';
-  isometryMode?: 'natural' | 'strict_syllable' | 'viseme_locked';
+  uncannyMitigation?: 'none' | 'cadence_lock' | 'smart_cutaway';
+  isometryMode?: 'natural' | 'strict_syllable';
   cinemaGrade?: boolean;
   stemIsolation?: boolean;
   studioMneStemUrl?: string; // Original studio-provided clean M&E stem URL (bypasses neural demixing for 100% clean M&E)
@@ -2687,12 +2757,17 @@ export function isCredibilityEnabled(plan?: Partial<ExecutionPlan> | Record<stri
 
 /**
  * Returns true when Dubbing / Audio Localization is specifically enabled.
+ * ZERO AUTOMATIC DUBBING: Dubbing is strictly opt-in and manual.
+ * Requires both the dubbing flag AND explicit dubbing target languages.
  */
 export function isDubbingEnabled(plan?: Partial<ExecutionPlan> | Record<string, any> | null): boolean {
   if (!plan) return false;
   const p = plan as Record<string, any>;
-  if (typeof p.enableDubbing === "boolean") return p.enableDubbing;
-  return !!p.generateDubbing;
+  const dubLangs = Array.isArray(p.dubbingLanguages) && p.dubbingLanguages.length > 0
+    ? p.dubbingLanguages
+    : (Array.isArray(p.languages) ? p.languages : []);
+  const flag = typeof p.enableDubbing === "boolean" ? p.enableDubbing : !!p.generateDubbing;
+  return flag && dubLangs.length > 0;
 }
 
 /**
@@ -3209,6 +3284,16 @@ export interface DubbingSegment {
   deliveryStyle?: string;
   pitchRangeSemitones?: number;
   voiceQuality?: "breathy" | "modal" | "creaky" | "pressed";
+  emotionalIntensity?: {
+    anger?: number;
+    sadness?: number;
+    joy?: number;
+    fear?: number;
+    disgust?: number;
+    surprise?: number;
+  };
+  energyEnvelopePattern?: "rising" | "falling" | "flat" | "dynamic";
+  breathingPattern?: "natural" | "rapid" | "suppressed";
   syllableBudgetCompliance?: number;
   synthesizedAudioUrl?: string;
   durationMs?: number;
@@ -3240,8 +3325,6 @@ export interface DubbingResult {
     master?: string;
     vocals?: string | null;
   };
-  lipSyncUrl?: string;
-  lipSyncStatus?: 'completed' | 'skipped' | 'fallback_remux' | 'no_face_detected' | 'failed';
   meta?: {
     voice?: string;
     durationSec: number;
@@ -3249,6 +3332,33 @@ export interface DubbingResult {
     mneSource?: string;
     dialogueBleedDb?: number;
   };
+}
+
+/**
+ * 🛡️ Persistent Dubbing Checkpoint Schema
+ * Persists all 5 resume anchors atomically to guarantee zero duplicate Google Cloud Translation v3 calls
+ * and zero re-billed ElevenLabs eleven_v4 credits on partial failure resumption.
+ */
+export interface DubbingCheckpoint {
+  jobId: string;
+  targetLang: string;
+  stage: "translated" | "synthesizing" | "stitching" | "completed";
+  isolatedVocalUrl?: string | null;              // Skips Step 1.6 neural separation on rerun
+  meStemUrl?: string | null;                     // Reused directly in FFmpeg mastering
+  voiceMapping?: Record<string, string>;         // Locks speaker -> voiceId across partial reruns
+  translatedSegments?: DubbingSegment[];         // 100% preserved ($0 Translation v3 rerun cost)
+  synthesizedUrls?: Record<number | string, string>; // Only commits ffprobe-verified chunks (>1KB, >100ms)
+  leaseExpiresAt?: number;                       // Prevents duplicate concurrent retry workers
+  updatedAt: number;
+  status?: string;                               // Backward-compatible status alias
+  masterAudioUrl?: string;
+  directAudioUrl?: string;
+  dialogueStemUrl?: string;
+  subtitleUrl?: string;
+  translationUrl?: string;
+  masterVideoUrl?: string;
+  totalSegments?: number;
+  completedAt?: number;
 }
 
 // ============================================
@@ -3579,7 +3689,10 @@ export type ElevenLabsEmotionTag =
   | 'gasps'
   | 'excited'
   | 'sorrowful'
+  | 'sad'
   | 'angry'
+  | 'said angrily'
+  | 'sarcastic'
   | 'calm'
   | 'serious';
 
@@ -3630,6 +3743,8 @@ export interface DubbingEditableSegment {
   stabilityOverride?: number;
   similarityBoostOverride?: number;
   pitchRangeSemitones?: number;
+  speakingRateRatio?: number;
+  deliveryStyle?: string;
   voiceQuality?: 'breathy' | 'modal' | 'creaky' | 'pressed';
   voiceId?: string;
   synthesizedAudioUrl?: string;
@@ -3657,6 +3772,8 @@ export interface DubbingEditableManifest {
   pronunciationGlossary: PronunciationRule[];
   segments: DubbingEditableSegment[];
   version: number;
+  revision?: number;
+  regenerationCount?: number;
   updatedAt: number;
 }
 

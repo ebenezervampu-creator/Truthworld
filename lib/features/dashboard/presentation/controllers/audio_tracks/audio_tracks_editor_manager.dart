@@ -9,6 +9,7 @@ import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/audio_track_models.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/studio_media_download_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
@@ -42,7 +43,7 @@ class AudioTracksEditorManager {
     // 1. Primary / Base Track
     var baseUrl = entireAudioMap[baseLang] ?? '';
     if (baseUrl.isEmpty) {
-      baseUrl = video.videoUrl;
+      baseUrl = video.videoUrl.isNotEmpty ? video.videoUrl : video.originalUrl;
     }
     tracksList.add(
       AudioTrackItem(
@@ -178,40 +179,19 @@ class AudioTracksEditorManager {
     required void Function(String msg) onShowSuccess,
     required void Function(String err) onShowError,
   }) async {
-    var url = track.audioUrl;
     final video = selectedVideo;
-    if (url.isEmpty && video != null) {
-      url = video.videoUrl;
-    }
-
-    if (url.isEmpty) {
-      onShowError('No audio track URL available to download.');
+    if (video == null) {
+      onShowError('No video selected.');
       return;
     }
 
-    var downloadUrl = url;
-    try {
-      final resolved = await StorageUtils.resolveUrl(url);
-      if (resolved.isNotEmpty) {
-        downloadUrl = resolved;
-      }
-    } catch (e) {
-      logger.error(
-        'Failed resolving audio track download URL: $url',
-        error: e,
-        tag: _tag,
-      );
-    }
-
-    final rawTitle = video?.title ?? 'audio';
-    final videoTitle = rawTitle
-        .replaceAll(RegExp(r'[^\w\s\-]'), '')
-        .trim()
-        .replaceAll(' ', '_');
-    final fileName = '${videoTitle}_${track.languageCode}_audio.mp3';
-
-    DownloadHelper.downloadFromUrl(downloadUrl, fileName);
-    onShowSuccess('Downloading ${track.languageName} Audio Track: $fileName');
+    final cleanTitle = StudioMediaDownloadService.getCleanTitle(video);
+    await StudioMediaDownloadService.downloadAudioTrack(
+      video: video,
+      langCode: track.languageCode,
+      langLabel: track.languageName,
+      cleanTitle: cleanTitle,
+    );
   }
 
   /// Initiates native file download for commentary track.

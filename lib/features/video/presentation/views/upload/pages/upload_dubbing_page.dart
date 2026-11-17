@@ -151,11 +151,11 @@ class UploadDubbingPage extends StatelessWidget {
                       DubbingTierHeader(controller: controller),
                       const SizedBox(height: 16),
 
-                      // 2.5 Source Spoken Video Language ("From") Selector (39 languages)
+                      // 2.5 Source Spoken Video Language ("From") Selector (18 languages)
                       SpokenLanguageSelectorCard(
                         controller: controller.uploadController,
                         title: 'Source Spoken Video Language ("From")',
-                        subtitle: 'Speech recognition strictly supports 39 languages via AssemblyAI Universal-3.5 Pro & Sarvam AI',
+                        subtitle: 'Speech recognition strictly supports 18 languages via AssemblyAI Universal-3.5 Pro',
                       ),
                       const SizedBox(height: 16),
 

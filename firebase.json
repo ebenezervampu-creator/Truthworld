@@ -43,6 +43,13 @@
           }
         },
         {
+          "source": "/api/discovery{,/**}",
+          "function": {
+            "functionId": "publicFeedServer",
+            "region": "asia-south1"
+          }
+        },
+        {
           "source": "/api/og/**",
           "function": {
             "functionId": "seoServer",

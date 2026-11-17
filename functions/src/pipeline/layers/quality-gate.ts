@@ -27,11 +27,16 @@ export interface DubbingQualityGateParams {
   mneStemUrl?: string;
   outputAudioSize?: number;
   // Professional Dubbing & Cinema Tolerances (Explicitly Decoupled)
-  tier?: "creator" | "cinema";
+  tier?: "creator" | "cinema" | "audio_track";
   maxContainerDriftMs?: number; // Cinema target: <= 50ms, Creator default: 1500ms
   dialogueOnsetDriftMs?: number; // Cinema target: <= 60ms (2 frames @ 24fps), Creator: 250ms
-  lipSyncFlapDriftFrames?: number; // Cinema target: <= 2 frames
+  segmentCollisionsCount?: number; // Count of overlapping turns (speech end > next speech start)
+  outroSpeechTruncated?: boolean; // True if speech active within 120ms of container end without margin
+  trueSpeechEndMs?: number; // Pre-fade, post-tempo true waveform end timestamp (ms)
+  containerDurationMs?: number; // Total container duration (ms)
   mneValidation?: import("../services/media").MneValidationResult;
+  translatedSegments?: Array<{ original?: string; translated?: string; text?: string; translatedText?: string }>;
+  translatedTexts?: string[];
 }
 
 export interface DubbingQualityGateResult {
@@ -49,9 +54,12 @@ export interface DubbingQualityGateResult {
     bgmPreserved: boolean;
     quotaExceeded: boolean;
     outputAudioSizeBytes: number;
-    tier: "creator" | "cinema";
+    tier: "creator" | "cinema" | "audio_track";
     dialogueOnsetDriftMs?: number;
-    lipSyncFlapDriftFrames?: number;
+    segmentCollisionsCount?: number;
+    outroSpeechTruncated?: boolean;
+    trueSpeechEndMs?: number;
+    containerDurationMs?: number;
     mneValidationStatus?: "passed" | "degraded" | "failed" | "not_required";
     mneSource?: string;
     dialogueBleedDb?: number;
@@ -95,11 +103,14 @@ export class DubbingQualityGate {
       durationDriftSeconds = Math.abs(actualDurationSeconds - expectedDurationSeconds);
       
       // Decoupled Tolerance Hierarchy:
-      // Cinema Dubbing: Strict broadcast/master container parity <= 50ms
-      // Creator Dubbing: Short videos (<= 60s) <= 1.5s; Long form <= 2.5%
-      const toleranceSeconds = isCinema
+      // Cinema Dubbing & Precision Dialogue: Strict container parity <= 50ms
+      // Audio Track Tier: Generous tolerance (up to 10s or 10%) to accommodate natural dialogue pauses or outro silence
+      // Creator Dubbing: Precision short-form container drift <= 50ms (or maxContainerDriftMs); Long form <= 5%
+      const toleranceSeconds = isCinema || (params.maxContainerDriftMs !== undefined && params.maxContainerDriftMs <= 50)
         ? (params.maxContainerDriftMs ? params.maxContainerDriftMs / 1000 : 0.05)
-        : (expectedDurationSeconds <= 60 ? 3.5 : Math.max(3.0, expectedDurationSeconds * 0.05));
+        : (params.tier === "audio_track"
+            ? Math.max(5.0, expectedDurationSeconds * 0.10)
+            : (expectedDurationSeconds <= 60 ? (params.maxContainerDriftMs ? params.maxContainerDriftMs / 1000 : 0.05) : Math.max(3.0, expectedDurationSeconds * 0.05)));
 
       if (durationDriftSeconds > toleranceSeconds) {
         violations.push(
@@ -118,15 +129,28 @@ export class DubbingQualityGate {
       }
     }
 
-    // ── Rule 2c: Visual Lip-Flap Synchronization (Cinema Gate) ────────────────
-    if (params.lipSyncFlapDriftFrames !== undefined && params.lipSyncFlapDriftFrames !== null) {
-      const maxFlapFrames = 2; // Netflix NPPS standard: within 2 frames on evaluated on-camera speech
-      if (params.lipSyncFlapDriftFrames > maxFlapFrames) {
+    // ── Rule 2c: Per-Segment Envelope Collision Check ─────────────────────────
+    if (params.segmentCollisionsCount !== undefined && params.segmentCollisionsCount > 0) {
+      violations.push(
+        `Dialogue turn collision: ${params.segmentCollisionsCount} segments exceed permissible window and overlap consecutive speech turns`
+      );
+    }
+
+    // ── Rule 2d: True Waveform Outro Completion Check (Pre-Fade Guard) ─────────
+    const minRequiredTailSilenceMs = 120;
+    if (params.trueSpeechEndMs !== undefined && params.containerDurationMs !== undefined) {
+      if (params.trueSpeechEndMs > params.containerDurationMs - minRequiredTailSilenceMs) {
         violations.push(
-          `Visual lip-sync mismatch: Flap drift ${params.lipSyncFlapDriftFrames} frames exceeds ${maxFlapFrames} frames tolerance`
+          `Final speech ends at ${params.trueSpeechEndMs}ms, violating ${minRequiredTailSilenceMs}ms tail margin before ${params.containerDurationMs}ms EOF`
         );
       }
+    } else if (params.outroSpeechTruncated) {
+      violations.push(
+        "Outro speech truncated: Active speech continues within 120ms of container end without sufficient tail margin"
+      );
     }
+
+
 
     // ── Rule 3: Audio File Integrity ───────────────────────────────────────────
     if (actualDurationSeconds <= 0.5) {
@@ -145,17 +169,58 @@ export class DubbingQualityGate {
     }
 
     // ── Rule 5: Background Music & M&E Preservation ───────────────────────────
+    const isStrictStem = isCinema || params.tier === undefined;
     const bgmPreserved = !stemIsolationRequested || (isStemPreserved && (!params.mneValidation || params.mneValidation.validationStatus !== "failed"));
     if (stemIsolationRequested) {
       if (params.mneValidation) {
         const { validationStatus, issues } = params.mneValidation;
         if (validationStatus === "failed") {
-          violations.push(`M&E stem validation failed: ${issues.join("; ")}`);
+          if (isStrictStem) {
+            violations.push(`M&E stem validation failed: ${issues.join("; ")}`);
+          } else {
+            logger.warn("[Dubbing:QualityGate] M&E stem degraded/fallback for audio track tier — proceeding with dialogue master:", issues);
+          }
         } else if (validationStatus === "degraded" && isCinema) {
           violations.push(`M&E stem quality degraded for Cinema tier: ${issues.join("; ")}`);
         }
       } else if (!isStemPreserved) {
-        violations.push("Background music preservation was requested, but discrete stem isolation or ducking failed");
+        if (isStrictStem) {
+          violations.push("Background music preservation was requested, but discrete stem isolation or ducking failed");
+        } else {
+          logger.warn("[Dubbing:QualityGate] Discrete stem isolation unavailable for audio track tier — proceeding with dialogue master");
+        }
+      }
+    }
+
+    // ── Rule 6: Lexical & Theological Quality Gate Checks ───────────────────
+    if (params.targetLang === "te") {
+      const textsToCheck: string[] = [];
+      if (params.translatedTexts) {
+        textsToCheck.push(...params.translatedTexts);
+      }
+      if (params.translatedSegments) {
+        textsToCheck.push(...params.translatedSegments.map((s) => s.translatedText || s.translated || s.text || ""));
+      }
+      for (const t of textsToCheck) {
+        if (!t) continue;
+        if (/సారి\s*చే|సారి\s*దిద్ద/i.test(t)) {
+          violations.push(
+            `Prohibited Telugu mistranslation detected: "సారి చేస్తుంది" found in dubbing text. Must use short స "సరిచేస్తోంది" / "సరిచేస్తున్నారు".`
+          );
+          break;
+        }
+        if (/మరియు\s+కానీ/i.test(t)) {
+          violations.push(
+            `Prohibited grammatical drift detected: redundant "మరియు కానీ" in Telugu dubbing text.`
+          );
+          break;
+        }
+        if (/\b\d{1,3}\s*:\s*\d{1,3}\b/.test(t)) {
+          violations.push(
+            `Unexpanded scripture citation detected in Telugu dubbing text: raw ":" character will vocalize as "colon". Must normalize via normalizeScriptureCitationsForTts.`
+          );
+          break;
+        }
       }
     }
 
@@ -181,7 +246,10 @@ export class DubbingQualityGate {
         outputAudioSizeBytes: outputAudioSize,
         tier: params.tier || "creator",
         dialogueOnsetDriftMs: params.dialogueOnsetDriftMs,
-        lipSyncFlapDriftFrames: params.lipSyncFlapDriftFrames,
+        segmentCollisionsCount: params.segmentCollisionsCount,
+        outroSpeechTruncated: params.outroSpeechTruncated,
+        trueSpeechEndMs: params.trueSpeechEndMs,
+        containerDurationMs: params.containerDurationMs,
         mneValidationStatus: params.mneValidation?.validationStatus,
         mneSource: params.mneValidation?.source,
         dialogueBleedDb: params.mneValidation?.dialogueBleedDb,

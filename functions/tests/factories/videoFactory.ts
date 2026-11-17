@@ -10,6 +10,8 @@ export interface TestVideo {
   visibility: 'public' | 'unlisted' | 'private';
   channelId: string;
   category: string;
+  topics?: string[];
+  uploadedAt?: any;
   viewCount: number;
   likeCount: number;
   commentCount: number;

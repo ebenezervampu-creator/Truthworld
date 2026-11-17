@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -301,13 +300,10 @@ mixin VideoDragToMiniplayerMixin on BaseController, GetTickerProviderStateMixin 
     final durSec = isVpcInitialized && videoPlayerController != null
         ? videoPlayerController!.value.duration.inSeconds
         : videoToPlay.durationSeconds;
-    final isNearEnd = durSec > 0 &&
-        (pos.inSeconds >= (durSec - 10) || (pos.inSeconds / durSec) >= 0.90);
-    final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
-        WatchHistoryService.to.isVideoFullyWatched(videoToPlay.id, totalDuration: durSec);
-    final isNearStart = pos < const Duration(seconds: 5);
-
-    final isEligible = !isNearEnd && !isFullyWatched && !isNearStart && pos > Duration.zero;
+    final isEnded = durSec > 0 &&
+        pos.inSeconds >= (durSec - 2) &&
+        !(videoPlayerController?.value.isPlaying ?? false);
+    final resumePos = isEnded ? Duration.zero : pos;
 
     // Register active controller for zero-latency handoff to miniplayer
     if (videoPlayerController != null && !kIsWeb) {
@@ -321,31 +317,15 @@ mixin VideoDragToMiniplayerMixin on BaseController, GetTickerProviderStateMixin 
       } catch (_) {}
       chewieController = null;
 
-      if (isEligible) {
-        VideoPlaybackHandoff.registerActiveController(
-          videoToPlay.id,
-          videoPlayerController!,
-          position: pos,
-        );
-      } else {
-        VideoPlaybackHandoff.clear(videoToPlay.id);
-        try {
-          videoPlayerController!.seekTo(Duration.zero);
-        } catch (_) {}
-        VideoPlaybackHandoff.registerActiveController(
-          videoToPlay.id,
-          videoPlayerController!,
-          position: Duration.zero,
-        );
-      }
+      VideoPlaybackHandoff.registerActiveController(
+        videoToPlay.id,
+        videoPlayerController!,
+        position: resumePos,
+      );
       videoPlayerController = null;
       rxVideoPlayerController.value = null;
     } else {
-      if (isEligible) {
-        VideoPlaybackHandoff.registerResumePosition(videoToPlay.id, pos);
-      } else {
-        VideoPlaybackHandoff.clear(videoToPlay.id);
-      }
+      VideoPlaybackHandoff.registerResumePosition(videoToPlay.id, resumePos);
     }
 
     // Launch video in miniplayer synchronously/immediately before popping route
@@ -353,7 +333,7 @@ mixin VideoDragToMiniplayerMixin on BaseController, GetTickerProviderStateMixin 
       unawaited(
         MiniplayerController.to.showWithVideo(
           videoToPlay,
-          resumeFromPosition: isEligible ? pos : Duration.zero,
+          resumeFromPosition: resumePos,
           overrideUrl: selectedResUrl,
           clip: activeClipToPlay,
           isAudioOnly: isAudioOnlyToPlay,

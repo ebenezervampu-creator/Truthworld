@@ -145,6 +145,48 @@ export class StreamingClaimProcessor {
   }
 
   /**
+   * ⚡ BATCHED FIRESTORE WRITE: Marks an array of escalated claims as DEEP_VERIFYING
+   * in Firestore using atomic batched commits (up to 400 claims per batch) rather than
+   * serialized transaction round-trips. Protects against write limits and contention.
+   */
+  public static async markClaimsDeepVerifying(
+    videoId: string,
+    claimIds: string[]
+  ): Promise<void> {
+    if (!videoId || !Array.isArray(claimIds) || claimIds.length === 0) return;
+
+    const chunkSize = 400;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    for (let i = 0; i < claimIds.length; i += chunkSize) {
+      const chunk = claimIds.slice(i, i + chunkSize);
+      const batch = db().batch();
+
+      for (const cid of chunk) {
+        if (!cid) continue;
+        const claimRef = db().collection("videos").doc(videoId).collection("claims").doc(cid);
+        batch.set(
+          claimRef,
+          {
+            stateLevel: ClaimStateLevel.DEEP_VERIFYING,
+            status: "unverified" as ClaimStatus,
+            verdict: "unverified",
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+      }
+
+      await batch.commit().catch((err: any) => {
+        logger.warn("[StreamingClaimProcessor] Failed to batch-mark claims as DEEP_VERIFYING", {
+          videoId,
+          err: err?.message,
+        });
+      });
+    }
+  }
+
+  /**
    * Updates an individual claim with state machine transitions and stale-worker protection.
    */
   public static async updateClaimProgress(
@@ -221,7 +263,7 @@ export class StreamingClaimProcessor {
     }
     await batchMark.commit().catch(() => {});
 
-    // 2. Execute Fused Grounding (single unified Gemini 2.5 call with Google Search)
+    // 2. Execute Fused Grounding (single unified Gemini 3.5 call with Google Search)
     const verifiedList = await FusedGroundingService.verifyBatchFused(claims, domainContext, options);
 
     // 3. Immediately publish finalized claims to Firestore
@@ -292,49 +334,54 @@ export class StreamingClaimProcessor {
   ): Promise<void> {
     if (!videoId || !Array.isArray(claims) || claims.length === 0) return;
 
-    const batch = db().batch();
+    const chunkSize = 400;
     const now = admin.firestore.FieldValue.serverTimestamp();
 
-    for (const claim of claims) {
-      if (!claim.claimId) continue;
-      const claimRef = db().collection("videos").doc(videoId).collection("claims").doc(claim.claimId);
-      const startMs = typeof claim.start === "number" ? Math.round(claim.start) : 0;
-      const endMs = typeof claim.end === "number" ? Math.round(claim.end) : startMs + 3000;
+    for (let i = 0; i < claims.length; i += chunkSize) {
+      const chunk = claims.slice(i, i + chunkSize);
+      const batch = db().batch();
 
-      batch.set(
-        claimRef,
-        {
-          claimId: claim.claimId,
+      for (const claim of chunk) {
+        if (!claim.claimId) continue;
+        const claimRef = db().collection("videos").doc(videoId).collection("claims").doc(claim.claimId);
+        const startMs = typeof claim.start === "number" ? Math.round(claim.start) : 0;
+        const endMs = typeof claim.end === "number" ? Math.round(claim.end) : startMs + 3000;
+
+        batch.set(
+          claimRef,
+          {
+            claimId: claim.claimId,
+            videoId,
+            text: claim.text,
+            speaker: claim.speaker || "Speaker",
+            startMs,
+            endMs,
+            status: claim.status,
+            verdict: claim.status,
+            verificationMethod: claim.verificationMethod || "deterministic",
+            verificationConfidence: claim.verificationConfidence || 0.85,
+            reasoning: claim.reasoning || "",
+            richSources: claim.richSources || [],
+            isProvisional: false,
+            stateLevel: ClaimStateLevel.FINALIZED,
+            evidenceLevel: claim.evidenceLevel || "MODERATE",
+            verifiedFacts: claim.verifiedFacts || [],
+            missingEvidence: claim.missingEvidence || [],
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+      }
+
+      try {
+        await batch.commit();
+        logger.info(`[StreamingClaimProcessor] Published batch of ${chunk.length} pre-resolved claims for ${videoId}`);
+      } catch (err: any) {
+        logger.warn(`[StreamingClaimProcessor] Failed to publish resolved claims batch`, {
           videoId,
-          text: claim.text,
-          speaker: claim.speaker || "Speaker",
-          startMs,
-          endMs,
-          status: claim.status,
-          verdict: claim.status,
-          verificationMethod: claim.verificationMethod || "deterministic",
-          verificationConfidence: claim.verificationConfidence || 0.85,
-          reasoning: claim.reasoning || "",
-          richSources: claim.richSources || [],
-          isProvisional: false,
-          stateLevel: ClaimStateLevel.FINALIZED,
-          evidenceLevel: claim.evidenceLevel || "MODERATE",
-          verifiedFacts: claim.verifiedFacts || [],
-          missingEvidence: claim.missingEvidence || [],
-          updatedAt: now,
-        },
-        { merge: true }
-      );
-    }
-
-    try {
-      await batch.commit();
-      logger.info(`[StreamingClaimProcessor] Published ${claims.length} pre-resolved claims for ${videoId}`);
-    } catch (err: any) {
-      logger.warn(`[StreamingClaimProcessor] Failed to publish resolved claims batch`, {
-        videoId,
-        err: err?.message,
-      });
+          err: err?.message,
+        });
+      }
     }
   }
 }

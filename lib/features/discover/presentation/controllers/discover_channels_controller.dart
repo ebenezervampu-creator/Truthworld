@@ -14,12 +14,14 @@ import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
+import 'package:truthworld/features/home/data/datasources/edge_feed_remote_data_source.dart';
 import 'package:truthworld/features/search/data/services/engine/typesense_search_engine.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class DiscoverChannelsController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final EdgeFeedRemoteDataSource _edgeDataSource = EdgeFeedRemoteDataSource();
 
   final RxString selectedCategory = 'All'.obs;
   final RxString selectedLanguage = 'All Languages'.obs;
@@ -478,6 +480,23 @@ class DiscoverChannelsController extends BaseController {
 
     rxIsLoading.value = true;
     try {
+      // Step 0: Edge-first delivery for initial discover channels batch
+      try {
+        final edgeChannels = await _edgeDataSource.fetchDiscoveryChannels(
+          category: selectedCategory.value == 'All' ? 'all' : selectedCategory.value,
+          limit: 30,
+        );
+        if (edgeChannels.isNotEmpty) {
+          _cachedAllChannels = edgeChannels;
+          _lastChannelsFetchTime = DateTime.now();
+          updateCategoryChannelCounts(_cachedAllChannels);
+          await _applyFiltersAndRanking();
+          return;
+        }
+      } catch (edgeErr, edgeStack) {
+        ErrorHandler.log(edgeErr, stackTrace: edgeStack, tag: 'DiscoverChannelsController.loadChannels.edge');
+      }
+
       final query = _firestore
           .collection(FirestoreCollections.channels);
 

@@ -5,8 +5,8 @@
  *  - Default (`--dry-run`): Zero paid API credits. Exercises local FFmpeg audio fixture
  *    generation, real duration/loudness/bleed probes, Levenshtein WER & diarization math,
  *    ElevenLabs v4 tag + subtitle sanitization, and Gemini syllable-budget scoring.
- *  - Opt-in (`--execute-live`): Metered execution against real AssemblyAI/Sarvam, Demucs /
- *    ElevenLabs Audio Isolation, Gemini 2.5 Flash, and ElevenLabs eleven_v4 APIs.
+ *  - Opt-in (`--execute-live`): Metered execution against real AssemblyAI Universal-3.5 Pro, Demucs /
+ *    ElevenLabs Audio Isolation, Gemini 3.5 Flash Lite, and ElevenLabs eleven_v4 APIs.
  *
  * Usage:
  *   npm run benchmark:dubbing -- --dry-run
@@ -361,10 +361,10 @@ export async function runDubbingBenchmark(argv: string[] = process.argv.slice(2)
     throw new Error("--execute-live requires --audio=<gs:// or https:// audio/video URL>");
   }
   const hasElevenLabs = Boolean(process.env.ELEVENLABS_API_KEY);
-  const hasStt = Boolean(process.env.ASSEMBLYAI_API_KEY || process.env.SARVAM_API_KEY);
+  const hasStt = Boolean(process.env.ASSEMBLYAI_API_KEY || process.env.ASSEMBLYAI_KEY);
   if (!hasElevenLabs || !hasStt) {
     throw new Error(
-      "--execute-live requires live credentials (ELEVENLABS_API_KEY and ASSEMBLYAI_API_KEY or SARVAM_API_KEY)"
+      "--execute-live requires live credentials (ELEVENLABS_API_KEY and ASSEMBLYAI_API_KEY)"
     );
   }
 

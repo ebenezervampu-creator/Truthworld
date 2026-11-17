@@ -89,7 +89,6 @@ class ChannelWalletPricing {
   // Legacy aliases for backward compatibility ($0.30/min baseline)
   static const double perMinuteStandardDubbingRate = 0.30;
   static const double perMinuteVoiceCloneRate = 0.30;
-  static const double perMinuteLipSyncRate = 0.30;
 
   /// Production-Ready Dubbing Tiers Catalog
   static const List<DubbingProductionTier> productionTiers = DubbingProductionTier.allTiers;
@@ -350,23 +349,7 @@ class ChannelWalletPricing {
     return double.parse(baseCost.toStringAsFixed(2));
   }
 
-  /// AI Visual Lip-Sync feature has been discontinued and removed.
-  static double getFlatLipSyncPricePerLanguage({
-    required int durationSeconds,
-    ChannelType channelType = ChannelType.standard,
-  }) {
-    return 0.0;
-  }
 
-  /// AI Visual Lip-Sync feature has been discontinued and removed.
-  static double calculateLipSyncCost({
-    required int languageCount,
-    int durationSeconds = 0,
-    ChannelType channelType = ChannelType.standard,
-    double discountPercent = 0.0,
-  }) {
-    return 0.0;
-  }
 
   /// Transparent flat pricing tiers for Subtitles based on video duration:
   /// Note: Truthworld enforces a 2-minute (120s) minimum video upload length.

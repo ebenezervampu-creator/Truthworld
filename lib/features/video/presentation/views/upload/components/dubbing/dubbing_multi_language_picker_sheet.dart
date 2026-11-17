@@ -997,7 +997,7 @@ void showSpokenLanguagePicker({
                 selectedCount: () => controller.isMultilingualSpoken.value
                     ? controller.spokenLanguages.length
                     : (controller.primarySpokenLanguage.value == 'auto' ? 0 : 1),
-                emptySubtitle: '39 languages supported via AssemblyAI Universal-3.5 Pro & Sarvam AI',
+                emptySubtitle: '18 languages supported via AssemblyAI Universal-3.5 Pro',
                 selectedSubtitleBuilder: (count) => controller.isMultilingualSpoken.value
                     ? '$count spoken languages selected (code-mixed)'
                     : '1 primary spoken language selected',
@@ -1029,7 +1029,7 @@ void showSpokenLanguagePicker({
                           style: const TextStyle(color: Colors.white, fontSize: 13.5),
                           cursorColor: Colors.white,
                           decoration: const InputDecoration(
-                            hintText: 'Search 39 spoken languages (e.g. Telugu, Hindi, Spanish)...',
+                            hintText: 'Search 18 spoken languages (e.g. English, Hindi, Spanish)...',
                             hintStyle: TextStyle(
                               color: Color(0xFF71717A),
                               fontSize: 13,
@@ -1086,9 +1086,6 @@ void showSpokenLanguagePicker({
                     );
                   }
 
-                  final isMultilingual = controller.isMultilingualSpoken.value;
-                  final primaryCode = controller.primarySpokenLanguage.value;
-
                   return ListView.separated(
                     physics: const BouncingScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1100,6 +1097,8 @@ void showSpokenLanguagePicker({
                     itemBuilder: (c, i) {
                       final item = filtered[i];
                       return Obx(() {
+                        final isMultilingual = controller.isMultilingualSpoken.value;
+                        final primaryCode = controller.primarySpokenLanguage.value;
                         final isSelected = isMultilingual
                             ? controller.spokenLanguages.contains(item.code)
                             : (primaryCode == item.code || (primaryCode.isEmpty && item.code == 'auto'));

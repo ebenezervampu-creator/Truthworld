@@ -6,7 +6,7 @@ import 'package:truthworld/features/video/presentation/views/upload/components/d
 
 /// Clean, high-contrast Spoken Video Language ("From") Selector Card.
 /// Shared across Subtitles and Dubbing studios.
-/// Supports the exact 39 languages powered by AssemblyAI Universal-3.5 Pro & Sarvam AI Saaras v4 (+ Auto-Detect).
+/// Supports the exact 18 languages powered by AssemblyAI Universal-3.5 Pro (+ Auto-Detect).
 class SpokenLanguageSelectorCard extends StatelessWidget {
   final UploadController controller;
   final String title;
@@ -15,18 +15,20 @@ class SpokenLanguageSelectorCard extends StatelessWidget {
   const SpokenLanguageSelectorCard({
     required this.controller,
     this.title = 'Spoken Video Language ("From")',
-    this.subtitle = 'Speech recognition strictly supports 39 languages via AssemblyAI Universal-3.5 Pro & Sarvam AI',
+    this.subtitle = 'Speech recognition strictly supports 18 languages via AssemblyAI Universal-3.5 Pro',
     super.key,
   });
 
   static const List<Map<String, String>> popularLanguages = [
     {'code': 'auto', 'name': 'Auto-Detect', 'native': 'Auto'},
-    {'code': 'te', 'name': 'Telugu', 'native': 'తెలుగు'},
-    {'code': 'hi', 'name': 'Hindi', 'native': 'हिन्दी'},
-    {'code': 'ta', 'name': 'Tamil', 'native': 'தமிழ்'},
-    {'code': 'kn', 'name': 'Kannada', 'native': 'ಕನ್ನಡ'},
-    {'code': 'ml', 'name': 'Malayalam', 'native': 'മലയാളം'},
     {'code': 'en', 'name': 'English', 'native': 'English'},
+    {'code': 'hi', 'name': 'Hindi', 'native': 'हिन्दी'},
+    {'code': 'es', 'name': 'Spanish', 'native': 'Español'},
+    {'code': 'fr', 'name': 'French', 'native': 'Français'},
+    {'code': 'de', 'name': 'German', 'native': 'Deutsch'},
+    {'code': 'zh', 'name': 'Chinese', 'native': '中文'},
+    {'code': 'ja', 'name': 'Japanese', 'native': '日本語'},
+    {'code': 'ar', 'name': 'Arabic', 'native': 'العربية'},
   ];
 
   @override
@@ -225,7 +227,7 @@ class SpokenLanguageSelectorCard extends StatelessWidget {
                             Icon(Icons.search, color: Color(0xFF38BDF8), size: 13),
                             SizedBox(width: 4),
                             Text(
-                              'Browse (39 Languages)',
+                              'Browse (18 Languages)',
                               style: TextStyle(
                                 color: Color(0xFF38BDF8),
                                 fontSize: 11.5,

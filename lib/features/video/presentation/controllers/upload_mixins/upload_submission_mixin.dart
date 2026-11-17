@@ -11,6 +11,7 @@ import 'package:truthworld/core/utils/mentions_helper.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_mixins/upload_ai_features_mixin.dart';
@@ -83,8 +84,8 @@ mixin UploadSubmissionMixin on
       'channelImage': channelImage,
       'tags': tags,
       'language': videoLang,
-      'sourceLanguage': videoLang,
-      'primaryLanguage': videoLang,
+      'sourceLanguage': hasExplicitSpokenLanguage ? videoLang : 'auto',
+      'primaryLanguage': hasExplicitSpokenLanguage ? videoLang : 'auto',
       'spokenLanguages': effectiveSpokenLangs,
       'isMultilingual': effectiveSpokenLangs.length > 1 || isMultilingualSpoken.value,
       'languages': effectiveSelectedLangs,
@@ -187,6 +188,18 @@ mixin UploadSubmissionMixin on
         }
       }
 
+      final effectiveDurationSeconds = durationMs > 0
+          ? (durationMs ~/ 1000)
+          : videoDurationSeconds.value;
+
+      if (!isDraft &&
+          effectiveDurationSeconds > 0 &&
+          effectiveDurationSeconds < UploadControllerBase.minVideoDurationSeconds) {
+        const errorMsg = 'Video duration must be at least 30 seconds.';
+        AppSnackbar.warning(errorMsg);
+        throw Exception(errorMsg);
+      }
+
       // Validate daily quota for selected channel before publishing
       var currentChan = selectedChannel.value;
       if (currentChan == null && channelId.trim().isNotEmpty) {
@@ -198,7 +211,7 @@ mixin UploadSubmissionMixin on
         } catch (_) {}
       }
       if (currentChan != null && !isDraft) {
-        final durationSeconds = durationMs ~/ 1000;
+        final durationSeconds = effectiveDurationSeconds;
         final used = await getTodayUploadedDurationSeconds(currentChan.id);
         final validation = validateChannelVideoUpload(
           currentChan,
@@ -395,8 +408,8 @@ mixin UploadSubmissionMixin on
             : selectedCategory.value,
         'tags': validTags,
         'language': effectiveVideoLanguage,
-        'sourceLanguage': effectiveVideoLanguage,
-        'primaryLanguage': effectiveVideoLanguage,
+        'sourceLanguage': hasExplicitSpokenLanguage ? effectiveVideoLanguage : 'auto',
+        'primaryLanguage': hasExplicitSpokenLanguage ? effectiveVideoLanguage : 'auto',
         'spokenLanguages': spokenLanguages.isNotEmpty
             ? spokenLanguages.toList()
             : [effectiveVideoLanguage],
@@ -446,11 +459,14 @@ mixin UploadSubmissionMixin on
         'enableDiarization': aiDiarizationEnabled.value,
         'diarization': aiDiarizationEnabled.value,
         'speakerDiarization': aiDiarizationEnabled.value,
-        'enableLipSync': false,
-        'lipSync': false,
-        'dubbingTier': aiDubbingTier.value,
+        'dubbingTier': (aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty)
+            ? aiDubbingTier.value
+            : 'none',
+        'dubbingMode': (aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty)
+            ? (aiTTSVoiceType.value == 'cloned' ? 'voice_clone' : 'standard')
+            : 'none',
         'cinemaGrade': false,
-        'stemIsolation': true,
+        'stemIsolation': (aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty),
         'isometryMode': 'strict_syllable',
         'uncannyMitigation': 'cadence_lock',
         'aiFeatures': buildFeaturesMap(
@@ -472,7 +488,14 @@ mixin UploadSubmissionMixin on
             aiFactCheckReviewMode.value != 'first_to_creator',
       };
 
-      if (aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty) {
+      final isManualDubbingRequested =
+          aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty;
+      if (isManualDubbingRequested) {
+        updateData['generateDubbing'] = true;
+        updateData['enableDubbing'] = true;
+        updateData['dubbingLanguages'] = aiDubbingLanguages.toList();
+        updateData['dubbingTier'] = aiDubbingTier.value;
+        updateData['dubbingMode'] = aiTTSVoiceType.value == 'cloned' ? 'voice_clone' : 'standard';
         updateData['dubbingPaid'] = true;
         updateData['dubbingCostUSD'] = dubbingCost;
         updateData['dubbingDurationSeconds'] = effectiveDurationSec;
@@ -483,6 +506,12 @@ mixin UploadSubmissionMixin on
         if (dubbingTx != null) {
           updateData['dubbingWalletTxId'] = dubbingTx.id;
         }
+      } else {
+        updateData['generateDubbing'] = false;
+        updateData['enableDubbing'] = false;
+        updateData['dubbingLanguages'] = <String>[];
+        updateData['dubbingTier'] = 'none';
+        updateData['dubbingMode'] = 'none';
       }
 
       if (aiGenerateSubtitles.value && subLangsToBill.isNotEmpty) {
@@ -528,6 +557,84 @@ mixin UploadSubmissionMixin on
           throw Exception('Ownership verification failed');
         }
         await docRef.update(updateData);
+      }
+
+      // Initialize AI voice dubbing job and pipeline stages consistently across upload and studio
+      if (aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty && !isDraft) {
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        final targetLangs = aiDubbingLanguages.map((l) => l.trim().toLowerCase()).toList();
+        final stageUpdates = <String, dynamic>{
+          'dubbing': {'status': 'pending', 'progress': 0, 'startedAt': nowMs},
+          'onDemandAI': {
+            'status': 'running',
+            'progress': 10,
+            'requestedFeatures': ['dubbing'],
+            'requestedLanguages': targetLangs,
+            'startedAt': nowMs,
+          },
+        };
+        for (final lang in targetLangs) {
+          stageUpdates['dubbing_$lang'] = {
+            'status': 'pending',
+            'progress': 0,
+            'startedAt': nowMs,
+          };
+          stageUpdates['translating_$lang'] = {
+            'status': 'pending',
+            'progress': 0,
+            'startedAt': nowMs,
+          };
+        }
+
+        try {
+          await firestore.collection(FirestoreCollections.videoJobs).doc(videoId).set({
+            'jobId': videoId,
+            'videoId': videoId,
+            'userId': userId,
+            'channelId': channelId.trim(),
+            'videoUrl': docSnapshot.data()?['videoUrl'] ?? videoUrl,
+            'fileName': title.trim().isNotEmpty ? title.trim() : 'video.mp4',
+            'status': 'processing',
+            'paidFromWallet': dubbingTx != null,
+            'walletTransactionId': dubbingTx?.id,
+            'dubbingTier': aiDubbingTier.value,
+            'durationSeconds': effectiveDurationSec,
+            'executionPlan': {
+              'jobId': videoId,
+              'videoId': videoId,
+              'primaryLanguage': effectiveVideoLanguage,
+              'languages': targetLangs,
+              'dubbingLanguages': targetLangs,
+              'enableDubbing': true,
+              'generateDubbing': true,
+              'dubbingTier': aiDubbingTier.value,
+              'dubbingMode': aiTTSVoiceType.value == 'cloned' ? 'voice_clone' : 'standard',
+              'voiceGender': 'auto',
+              'cinemaGrade': false,
+              'stemIsolation': true,
+              'durationSeconds': effectiveDurationSec,
+            },
+            'stages': stageUpdates,
+            'createdAt': nowMs,
+            'updatedAt': nowMs,
+          }, SetOptions(merge: true));
+        } catch (jobErr, stack) {
+          ErrorHandler.log(jobErr, stackTrace: stack, tag: 'UploadSubmissionMixin.initVideoJobsDubbing');
+        }
+
+        // Register in AudioTracksController so Audio Tracks studio tab immediately displays generating progress
+        AudioTracksController.registerActiveDubbingJob(
+          videoId: videoId,
+          targetLanguages: targetLangs,
+        );
+        if (Get.isRegistered<AudioTracksController>()) {
+          try {
+            Get.find<AudioTracksController>().registerActiveDubbingForVideo(
+              videoId: videoId,
+              targetLanguages: targetLangs,
+            );
+          } catch (_) {}
+        }
       }
 
       if (isDraft) {

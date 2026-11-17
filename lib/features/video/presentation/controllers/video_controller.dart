@@ -1704,6 +1704,7 @@ class VideoController extends BaseController
 
 
 
+  @override
   final ScrollController scrollController = ScrollController();
 
 
@@ -2123,9 +2124,9 @@ class VideoController extends BaseController
   void onClose() {
     disposeClaimStream();
 
-    disposeDragToMiniplayer();
-
     handoffToMiniplayerOrDispose();
+
+    disposeDragToMiniplayer();
 
 
 

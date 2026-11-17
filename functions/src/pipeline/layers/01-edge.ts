@@ -119,6 +119,12 @@ export class EdgeLayer {
       const eta = pipelineEstimator.estimateTotal(duration, plan);
 
       const now = Date.now();
+      const isDubbing = Boolean(
+        plan.generateDubbing &&
+        Array.isArray(plan.dubbingLanguages) &&
+        plan.dubbingLanguages.length > 0
+      );
+
       const stages: JobData["stages"] = {
         upload: { status: "completed", progress: 100, startedAt: t0, completedAt: now },
         validation: { status: "completed", progress: 100, startedAt: now, completedAt: now },
@@ -126,7 +132,7 @@ export class EdgeLayer {
         transcription: this.stagePending(),
         copyright: this.stagePending(),
         credibility: isCredibilityEnabled(plan) ? this.stagePending() : this.stageSkipped(),
-        dubbing: plan.generateDubbing ? this.stagePending() : this.stageSkipped(),
+        dubbing: isDubbing ? this.stagePending() : this.stageSkipped(),
       };
 
       if (isLocalizationEnabled(plan)) {
@@ -136,7 +142,10 @@ export class EdgeLayer {
           const normLang = normalizeLanguageCode(lang);
           stages[`translating_${normLang}`] = this.stagePending();
           if (lang !== normLang) stages[`translating_${lang}`] = this.stagePending();
-          if (plan.generateDubbing) {
+        }
+        if (isDubbing) {
+          for (const lang of plan.dubbingLanguages!) {
+            const normLang = normalizeLanguageCode(lang);
             stages[`dubbing_${normLang}`] = this.stagePending();
             if (lang !== normLang) stages[`dubbing_${lang}`] = this.stagePending();
           }

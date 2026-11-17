@@ -1,7 +1,7 @@
 /**
  * 👥 SPEAKER INTELLIGENCE SERVICE
  * 
- * Uses Gemini 2.5 Flash to profile speakers in a transcript, enabling 
+ * Uses Gemini 3.5 Flash Lite to profile speakers in a transcript, enabling 
  * accurate voice matching and identity preservation.
  */
 
@@ -27,7 +27,7 @@ export interface SpeakerProfile {
 
 export class SpeakerProfilingService {
   private readonly model = genAI.getGenerativeModel({
-    model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
+    model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.5-flash-lite",
   });
 
   /**

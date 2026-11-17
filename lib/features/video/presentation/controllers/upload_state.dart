@@ -81,7 +81,6 @@ class UploadState {
     this.aiGenerateSubtitles = false,
     this.aiGenerateDubbing = false,
     this.aiDiarizationEnabled = false,
-    this.aiLipSyncEnabled = false,
     this.aiSummaryEnabled = true,
     this.aiTranslationLanguages = const [],
     this.aiDubbingLanguages = const [],
@@ -179,7 +178,6 @@ class UploadState {
   final bool aiGenerateSubtitles;
   final bool aiGenerateDubbing;
   final bool aiDiarizationEnabled;
-  final bool aiLipSyncEnabled;
   final bool aiSummaryEnabled;
   final List<String> aiTranslationLanguages;
   final List<String> aiDubbingLanguages;
@@ -336,7 +334,6 @@ class UploadState {
     bool? aiGenerateSubtitles,
     bool? aiGenerateDubbing,
     bool? aiDiarizationEnabled,
-    bool? aiLipSyncEnabled,
     bool? aiSummaryEnabled,
     List<String>? aiTranslationLanguages,
     List<String>? aiDubbingLanguages,
@@ -443,7 +440,6 @@ class UploadState {
       aiGenerateSubtitles: aiGenerateSubtitles ?? this.aiGenerateSubtitles,
       aiGenerateDubbing: aiGenerateDubbing ?? this.aiGenerateDubbing,
       aiDiarizationEnabled: aiDiarizationEnabled ?? this.aiDiarizationEnabled,
-      aiLipSyncEnabled: aiLipSyncEnabled ?? this.aiLipSyncEnabled,
       aiSummaryEnabled: aiSummaryEnabled ?? this.aiSummaryEnabled,
       aiTranslationLanguages:
           aiTranslationLanguages ?? this.aiTranslationLanguages,
@@ -535,7 +531,6 @@ class UploadState {
         other.aiGenerateSubtitles == aiGenerateSubtitles &&
         other.aiGenerateDubbing == aiGenerateDubbing &&
         other.aiDiarizationEnabled == aiDiarizationEnabled &&
-        other.aiLipSyncEnabled == aiLipSyncEnabled &&
         other.aiSummaryEnabled == aiSummaryEnabled &&
         listEquals(other.aiTranslationLanguages, aiTranslationLanguages) &&
         listEquals(other.aiDubbingLanguages, aiDubbingLanguages) &&

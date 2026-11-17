@@ -357,6 +357,9 @@ class CreateContentController extends GetxController {
     final hasMedia = uploadController.videoUrl.value.isNotEmpty ||
         uploadController.pickedVideo.value != null ||
         uploadController.resumedVideoDraft.value != null;
+    final durationSeconds = uploadController.videoDurationSeconds.value;
+    final isDurationValid = durationSeconds <= 0 ||
+        durationSeconds >= UploadControllerBase.minVideoDurationSeconds;
     final hasCategory = uploadController.selectedCategory.value.isNotEmpty;
     final hasChannel = uploadController.selectedChannel.value != null;
     if (uploadController.isScheduled.value) {
@@ -364,7 +367,7 @@ class CreateContentController extends GetxController {
         return false;
       }
     }
-    return hasThumb && hasMedia && hasCategory && hasChannel;
+    return hasThumb && hasMedia && isDurationValid && hasCategory && hasChannel;
   }
 
   void showExitConfirmation(BuildContext context) {
@@ -451,6 +454,15 @@ class CreateContentController extends GetxController {
         return;
       }
 
+      final durationSec = uploadController.videoDurationSeconds.value;
+      if (durationSec > 0 &&
+          durationSec < UploadControllerBase.minVideoDurationSeconds) {
+        AppSnackbar.warning(
+          'Video duration must be at least 30 seconds.',
+        );
+        return;
+      }
+
       final titleValidation = ContentValidator.validate(
         rawTitle,
         fieldName: 'Title',
@@ -493,6 +505,10 @@ class CreateContentController extends GetxController {
             uploadController.pickedVideo.value == null &&
             uploadController.resumedVideoDraft.value == null) {
           reasons.add('Video file or draft is required');
+        } else if (uploadController.videoDurationSeconds.value > 0 &&
+            uploadController.videoDurationSeconds.value <
+                UploadControllerBase.minVideoDurationSeconds) {
+          reasons.add('Video duration must be at least 30 seconds');
         }
         if (uploadController.selectedCategory.value.isEmpty) {
           reasons.add('Category is required');

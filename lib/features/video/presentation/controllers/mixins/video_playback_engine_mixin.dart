@@ -679,6 +679,10 @@ mixin VideoPlaybackEngineMixin on GetxController {
           );
           initialSeekPosition = null;
         }
+        if (isClosed || _playerInitEpoch != currentEpoch) {
+          _safeDisposeVpc(newVpc);
+          return;
+        }
         if (!newVpc.value.isPlaying) {
           try {
             await newVpc.play();
@@ -743,6 +747,10 @@ mixin VideoPlaybackEngineMixin on GetxController {
             !GuestPlaybackLimitService.to.isPlaybackAllowed()) {
           GuestPlaybackLimitService.to.promptGuestSignIn();
         } else {
+          if (isClosed || _playerInitEpoch != currentEpoch) {
+            _safeDisposeVpc(newVpc);
+            return;
+          }
           // Immediately start playback to begin decoding and frame rendering at target position
           try {
             await newVpc.play();
@@ -787,6 +795,11 @@ mixin VideoPlaybackEngineMixin on GetxController {
             isNotSubscriber: isNotSub,
           );
         }
+      }
+
+      if (isClosed || _playerInitEpoch != currentEpoch) {
+        _safeDisposeVpc(newVpc);
+        return;
       }
 
       chewieController = ChewieController(
@@ -856,6 +869,13 @@ mixin VideoPlaybackEngineMixin on GetxController {
         deviceOrientationsAfterFullScreen: const [DeviceOrientation.portraitUp],
         systemOverlaysOnEnterFullScreen: const [],
       );
+
+      if (isClosed || _playerInitEpoch != currentEpoch) {
+        _safeDisposeVpc(newVpc);
+        _safeDisposeChewie(chewieController);
+        chewieController = null;
+        return;
+      }
 
       // Listen for fullscreen changes from Chewie
       chewieController!.addListener(onChewieEvent);

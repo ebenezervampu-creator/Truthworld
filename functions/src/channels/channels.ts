@@ -144,7 +144,7 @@ export const createChannel = onCall(
     try {
       const genAI = getVertexAI();
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash-lite",
         systemInstruction: `You are TruthWorld's Channel Content Moderation Agent powered by Google Cloud Vertex AI.
 Evaluate channel registration details (name, slug/handle, description/bio, tags) for compliance with Community Guidelines.
 Zero tolerance for hate speech, harassment, slurs, adult/pornographic content, scams, or dangerous illegal activities.

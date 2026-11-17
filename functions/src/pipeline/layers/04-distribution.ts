@@ -293,11 +293,34 @@ export class DistributionLayer {
     try {
       const parsed = JSON.parse(raw) as PipelineEvent<T>;
 
-      if (!parsed.jobId || !parsed.eventType) {
-        throw new Error(`Missing jobId or eventType. Payload: ${raw.substring(0, 100)}`);
+      // Auto-heal missing eventType or jobId from PubSub attributes
+      if (!parsed.eventType) {
+        const attrEventType = (msg.attributes as any)?.eventType;
+        if (attrEventType) {
+          parsed.eventType = attrEventType;
+        }
       }
+
+      if (!parsed.jobId) {
+        const attrJobId = (msg.attributes as any)?.jobId;
+        if (attrJobId) {
+          parsed.jobId = attrJobId;
+        }
+      }
+
       if (!parsed.eventId) {
-        throw new Error("Missing eventId (idempotency key)");
+        parsed.eventId = (msg.attributes as any)?.eventId || parsed.jobId || uuidv4();
+      }
+
+      if (!parsed.jobId || !parsed.eventType) {
+        logger.warn("[Distribution] Received malformed message missing jobId or eventType - marking poison pill to prevent retry loop", {
+          hasJobId: !!parsed.jobId,
+          hasEventType: !!parsed.eventType,
+          payloadSample: raw.substring(0, 100),
+        });
+        (parsed as any).isMalformed = true;
+        (parsed as any).eventType = (parsed.eventType || "unknown") as any;
+        (parsed as any).jobId = parsed.jobId || "unknown";
       }
 
       return parsed;

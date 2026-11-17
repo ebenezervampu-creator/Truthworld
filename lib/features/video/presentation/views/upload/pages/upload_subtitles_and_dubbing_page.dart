@@ -446,7 +446,7 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                           Icon(Icons.search, color: Color(0xFF38BDF8), size: 13),
                           SizedBox(width: 4),
                           Text(
-                            'More (39 Languages)',
+                            'More (18 Languages)',
                             style: TextStyle(
                               color: Color(0xFF38BDF8),
                               fontSize: 11.5,
@@ -685,7 +685,7 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Google Cloud Translation API with Gemini 2.5 Flash',
+                        'Google Cloud Translation API v3',
                         style: TextStyle(
                           color: Color(0xFFA1A1AA),
                           fontSize: 11.5,

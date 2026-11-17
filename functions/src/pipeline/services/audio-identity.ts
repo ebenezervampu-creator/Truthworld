@@ -37,16 +37,19 @@ const VOICE_QUALITY_SIMILARITY: Record<VoiceQualityType, number> = {
 };
 
 const EMOTION_TAG_SETTINGS: Record<ElevenLabsEmotionTag, { stability: number; similarityBoost: number }> = {
-  whispers:  { stability: 0.34, similarityBoost: 0.88 },
-  shouts:    { stability: 0.28, similarityBoost: 0.84 },
-  laughs:    { stability: 0.32, similarityBoost: 0.85 },
-  sighs:     { stability: 0.38, similarityBoost: 0.87 },
-  gasps:     { stability: 0.30, similarityBoost: 0.86 },
-  excited:   { stability: 0.34, similarityBoost: 0.85 },
-  sorrowful: { stability: 0.36, similarityBoost: 0.88 },
-  angry:     { stability: 0.30, similarityBoost: 0.84 },
-  calm:      { stability: 0.62, similarityBoost: 0.86 },
-  serious:   { stability: 0.56, similarityBoost: 0.87 },
+  whispers:      { stability: 0.34, similarityBoost: 0.88 },
+  shouts:        { stability: 0.28, similarityBoost: 0.84 },
+  laughs:        { stability: 0.32, similarityBoost: 0.85 },
+  sighs:         { stability: 0.38, similarityBoost: 0.87 },
+  gasps:         { stability: 0.30, similarityBoost: 0.86 },
+  excited:       { stability: 0.34, similarityBoost: 0.85 },
+  sorrowful:     { stability: 0.36, similarityBoost: 0.88 },
+  sad:           { stability: 0.38, similarityBoost: 0.88 },
+  angry:         { stability: 0.30, similarityBoost: 0.84 },
+  "said angrily":{ stability: 0.26, similarityBoost: 0.82 },
+  sarcastic:     { stability: 0.40, similarityBoost: 0.85 },
+  calm:          { stability: 0.62, similarityBoost: 0.86 },
+  serious:       { stability: 0.56, similarityBoost: 0.87 },
 };
 
 export function mapEmotionToElevenLabsCue(
@@ -78,13 +81,18 @@ export function mapEmotionToElevenLabsCue(
     enthusiastic: "excited",
     energetic: "excited",
     happy: "excited",
-    sad: "sorrowful",
+    sad: "sad",
     sorrowful: "sorrowful",
     crying: "sorrowful",
     grief: "sorrowful",
     angry: "angry",
     furious: "angry",
     frustrated: "angry",
+    "said angrily": "said angrily",
+    angrily: "said angrily",
+    sarcastic: "sarcastic",
+    sarcastically: "sarcastic",
+    ironic: "sarcastic",
     calm: "calm",
     relaxed: "calm",
     serious: "serious",
@@ -178,7 +186,7 @@ export interface AcousticFingerprint {
 export class AudioIdentityService {
   private get model() {
     return getVertexAI().getGenerativeModel({
-      model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || "gemini-2.5-flash",
+      model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || "gemini-3.5-flash-lite",
     });
   }
 
@@ -263,7 +271,7 @@ export class AudioIdentityService {
 
   /**
    * 2. 🧠 Capture Acoustic Fingerprint (Semantic Descriptors)
-   * Uses Vertex AI Gemini 2.5 Flash Multimodal Audio to analyze the creator's
+   * Uses Vertex AI Gemini 3.5 Flash Lite Multimodal Audio to analyze the creator's
    * microphone texture, room aesthetics, dynamics, pacing, and vocal resonance.
    */
   async captureFingerprint(jobId: string, vocalUrl: string): Promise<AcousticFingerprint> {
@@ -571,7 +579,7 @@ Return ONLY a valid JSON object matching this schema:
         }
       }
 
-      // 2a. Deep Per-Segment Gemini 2.5 Flash Multimodal Audio Analysis (inlineData WAV slices, bounded concurrency)
+      // 2a. Deep Per-Segment Gemini 3.5 Flash Lite Multimodal Audio Analysis (inlineData WAV slices, bounded concurrency)
       if (localAudioPath && ffmpegPath) {
         const activeSegments = segments
           .slice(0, 40)

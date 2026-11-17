@@ -23,6 +23,59 @@ class DubbingSegmentEditorPage extends StatelessWidget {
     super.key,
   });
 
+  /// Opens the interactive segment editor as a right-side sliding studio drawer.
+  static void openAsDrawer(
+    BuildContext context, {
+    required String videoId,
+    required String languageCode,
+    required String languageName,
+    bool isDarkMode = true,
+    Future<void> Function()? onRemastered,
+  }) {
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss Dubbing Studio',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (dialogCtx, anim1, anim2) {
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: Colors.transparent,
+            child: SizedBox(
+              width: MediaQuery.of(dialogCtx).size.width.clamp(360.0, 720.0),
+              height: double.infinity,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(16),
+                ),
+                child: DubbingSegmentEditorPage(
+                  videoId: videoId,
+                  languageCode: languageCode,
+                  languageName: languageName,
+                  isDarkMode: isDarkMode,
+                  onRemastered: onRemastered,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (dialogCtx, anim1, anim2, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic),
+          ),
+          child: child,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tag = '${videoId}_$languageCode';
@@ -75,6 +128,47 @@ class DubbingSegmentEditorPage extends StatelessWidget {
             ),
           ),
           actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+              child: Obx(
+                () => ElevatedButton.icon(
+                  onPressed: controller.isExporting.value ||
+                          controller.isLoading.value ||
+                          controller.segments.isEmpty
+                      ? null
+                      : () => controller.showExportModal(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: controller.isExporting.value
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.file_download_outlined,
+                          size: 16,
+                          color: Colors.black,
+                        ),
+                  label: Text(
+                    controller.isExporting.value ? 'Exporting...' : 'Export',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.only(right: 14, top: 8, bottom: 8),
               child: Obx(

@@ -120,7 +120,7 @@ describe("Phase 4: Concurrency, Backpressure & Resilience Suite", () => {
       const flakyOp = jest.fn().mockImplementation(async () => {
         attempts++;
         if (attempts < 3) {
-          const err: any = new Error("RESOURCE_EXHAUSTED: Quota exceeded for gemini-2.5-flash");
+          const err: any = new Error("RESOURCE_EXHAUSTED: Quota exceeded for gemini-3.5-flash-lite");
           err.status = 429;
           throw err;
         }

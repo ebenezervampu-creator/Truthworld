@@ -5,7 +5,7 @@
  * 1. Zero HTML Entity Leakage (decodeHtmlEntities) across named, decimal, and hex entities
  * 2. Transient Error & Quota Resilience (withTransientRetry) on 429, 503, and network timeouts
  * 3. Bounded Concurrency Pool (mapConcurrent) preserving strict index order
- * 4. Dubbing Lip-Sync & Timing Constraints (durationSeconds & maxWords calculations)
+ * 4. Dubbing Dialogue Pacing & Timing Constraints (durationSeconds & maxWords calculations)
  * 5. Structured JSON Output & Defensive Parsing (handling markdown fences & missing fields)
  */
 
@@ -137,7 +137,7 @@ async function runTests() {
   assert(emptyResult.length === 0, "Handles empty input array cleanly");
 
   // ----------------------------------------------------------------------
-  // GAP 4: Dubbing Lip-Sync & Timing Constraints
+  // GAP 4: Dubbing Dialogue Pacing & Timing Constraints
   // ----------------------------------------------------------------------
   console.log("\n--- [Gap 4] Testing Audio Dubbing Pacing & Escalation ---");
 

@@ -155,6 +155,7 @@ void main() {
         thumbnailUrl: '',
         factCheckReviewMode: 'open_to_users',
         isFactCheckApproved: true,
+        isFactChecked: true,
         claims: [],
         summary: 'Philosophical inquiry on language semantics.',
         domain: 'Linguistics',
@@ -212,6 +213,7 @@ void main() {
         thumbnailUrl: '',
         factCheckReviewMode: 'open_to_users',
         isFactCheckApproved: true,
+        isFactChecked: true,
         claims: [],
         summary: 'Summary text',
         domain: 'Linguistics',
@@ -248,8 +250,13 @@ void main() {
       // Verify more vertical button (PopupMenuButton) is present
       expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
 
-      // Verify Inspect Full Report is present
-      expect(find.text('Inspect Full Report'), findsOneWidget);
+      // Verify "Ai check" button is present for ready fact-checks
+      expect(find.text('Ai check'), findsOneWidget);
+
+      // Verify unwanted clutter is NOT present
+      expect(find.text('Inspect Full Report'), findsNothing);
+      expect(find.textContaining('Step 1/5'), findsNothing);
+      expect(find.textContaining('Not Yet Available to Users'), findsNothing);
 
       // Tap more vertical button and verify options
       await tester.tap(find.byIcon(Icons.more_vert_rounded));
@@ -279,13 +286,14 @@ void main() {
       );
     });
 
-    testWidgets('Tapping Inspect Full Report opens VideoAnalysisScreen on a separate page', (tester) async {
+    testWidgets('Tapping Ai check opens VideoAnalysisScreen on a separate page', (tester) async {
       final item = VideoFactCheckItem(
         id: 'v_inspect_1',
         title: 'Deep-dive Analysis Video',
         thumbnailUrl: '',
         factCheckReviewMode: 'open_to_users',
         isFactCheckApproved: true,
+        isFactChecked: true,
         claims: [],
         summary: 'Detailed summary',
         domain: 'Science',
@@ -306,12 +314,12 @@ void main() {
         ),
       );
 
-      // Verify Inspect Full Report button is displayed
-      final inspectButton = find.text('Inspect Full Report');
-      expect(inspectButton, findsOneWidget);
+      // Verify "Ai check" text button is displayed
+      final aiCheckButton = find.text('Ai check');
+      expect(aiCheckButton, findsOneWidget);
 
-      // Tap Inspect Full Report
-      await tester.tap(inspectButton);
+      // Tap "Ai check"
+      await tester.tap(aiCheckButton);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
 
@@ -328,7 +336,129 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(VideoAnalysisScreen), findsNothing);
-      expect(find.text('Inspect Full Report'), findsOneWidget);
+      expect(find.text('Ai check'), findsOneWidget);
+    });
+
+    testWidgets('renders animated Fact-check in Progress (50%) for in-progress video without unwanted clutter', (tester) async {
+      final inProgressItem = VideoFactCheckItem(
+        id: 'v_progress_50',
+        title: 'Video Analysis In Progress',
+        thumbnailUrl: '',
+        factCheckReviewMode: 'open_to_users',
+        isFactCheckApproved: false,
+        isFactChecked: false,
+        factCheckStatus: 'running',
+        factCheckProgress: 50,
+        claims: [],
+        summary: '',
+        domain: 'History',
+        durationSeconds: 462.0, // 07:42
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TruthVerificationVideoCard(
+              video: inProgressItem,
+              channelId: 'ch1',
+              isDarkMode: true,
+              onToggleApproval: (_, _) {},
+              onApprove: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      // Settle progress animation (TweenAnimationBuilder)
+      await tester.pump(const Duration(milliseconds: 700));
+
+      // Verify thumbnail timestamp "07:42" is rendered
+      expect(find.text('07:42'), findsOneWidget);
+
+      // Verify title is rendered
+      expect(find.text('Video Analysis In Progress'), findsOneWidget);
+
+      // Verify animated progress badge renders "Fact-check in Progress (50%)"
+      expect(find.text('Fact-check in Progress (50%)'), findsOneWidget);
+
+      // Verify more vertical icon is rendered
+      expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
+
+      // Verify unwanted clutter is removed
+      expect(find.text('Inspect Full Report'), findsNothing);
+      expect(find.text('Ai check'), findsNothing);
+      expect(find.textContaining('Step 1/5'), findsNothing);
+      expect(find.textContaining('remaining'), findsNothing);
+      expect(find.textContaining('Not Yet Available to Users'), findsNothing);
+      expect(find.textContaining('AI Verification Running'), findsNothing);
+      expect(find.textContaining('Extracting claims'), findsNothing);
+    });
+
+    test('calculateStagePacedProgress produces continuous granular progress 1%, 2%, 6%, 17%... 100%', () {
+      final baseTime = DateTime(2026, 11, 14, 12, 0, 0);
+
+      // Stage 1: Initial backend queue (backendProgress: 5)
+      // At t = 0s
+      final p0 = TruthVerificationVideoCard.calculateStagePacedProgress(
+        backendProgress: 5,
+        durationSeconds: 462.0,
+        isReady: false,
+        stageUpdatedAt: baseTime,
+        now: baseTime,
+      );
+      expect(p0, 1); // Starts at 1%
+
+      // At t = 2s -> 2%
+      final p2 = TruthVerificationVideoCard.calculateStagePacedProgress(
+        backendProgress: 5,
+        durationSeconds: 462.0,
+        isReady: false,
+        stageUpdatedAt: baseTime,
+        now: baseTime.add(const Duration(seconds: 2)),
+      );
+      expect(p2, 1); // 1%
+
+      // At t = 12s -> 6%
+      final p12 = TruthVerificationVideoCard.calculateStagePacedProgress(
+        backendProgress: 5,
+        durationSeconds: 462.0,
+        isReady: false,
+        stageUpdatedAt: baseTime,
+        now: baseTime.add(const Duration(seconds: 12)),
+      );
+      expect(p12, 6); // 6%
+
+      // Stage 2: Audio/transcript ready (backendProgress: 10)
+      // At t = 8s -> 17%
+      final p17 = TruthVerificationVideoCard.calculateStagePacedProgress(
+        backendProgress: 10,
+        durationSeconds: 462.0,
+        isReady: false,
+        stageUpdatedAt: baseTime,
+        now: baseTime.add(const Duration(seconds: 8)),
+      );
+      expect(p17, 17); // 17%
+
+      // Stage 3: Grounding against authoritative sources (backendProgress: 50)
+      final p50 = TruthVerificationVideoCard.calculateStagePacedProgress(
+        backendProgress: 50,
+        durationSeconds: 462.0,
+        isReady: false,
+        stageUpdatedAt: baseTime,
+        now: baseTime,
+      );
+      expect(p50, 50); // 50%
+
+      // Completed stage
+      final p100 = TruthVerificationVideoCard.calculateStagePacedProgress(
+        backendProgress: 100,
+        durationSeconds: 462.0,
+        isReady: true,
+        stageUpdatedAt: baseTime,
+        now: baseTime,
+      );
+      expect(p100, 100); // 100%
     });
 
     testWidgets('mounting TruthVerificationDashboardPage with initialVideoId inside Obx does not trigger setState during build',
@@ -356,6 +486,71 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(TruthVerificationDashboardPage), findsOneWidget);
+    });
+
+    testWidgets(
+        'renders Re-trigger Fact-Check button when fact-check is not ready and invokes callback',
+        (tester) async {
+      String? retriggeredVideoId;
+
+      final unverifiedVideo = VideoFactCheckItem(
+        id: 'v_unverified_1',
+        title: 'Video Needing Fact Check',
+        thumbnailUrl: '',
+        factCheckReviewMode: 'open_to_users',
+        isFactCheckApproved: false,
+        isFactChecked: false,
+        claims: [],
+        summary: 'Not assessed',
+        domain: 'General',
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TruthVerificationVideoCard(
+              video: unverifiedVideo,
+              channelId: 'ch1',
+              isDarkMode: false,
+              onToggleApproval: (_, _) {},
+              onApprove: (_) {},
+              onRetrigger: (id) {
+                retriggeredVideoId = id;
+              },
+            ),
+          ),
+        ),
+      );
+
+      // Verify status badge shows "Needs Fact-Check"
+      expect(find.text('Needs Fact-Check'), findsOneWidget);
+
+      // Verify "Re-trigger Fact-Check" button is rendered
+      final retriggerBtn = find.text('Re-trigger Fact-Check');
+      expect(retriggerBtn, findsWidgets);
+
+      // Tap the primary Re-trigger Fact-Check button
+      await tester.tap(retriggerBtn.first);
+      await tester.pump();
+      expect(retriggeredVideoId, 'v_unverified_1');
+
+      // Reset tracker
+      retriggeredVideoId = null;
+
+      // Open popup menu
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pumpAndSettle();
+
+      // Find the menu option
+      final menuItem =
+          find.widgetWithText(PopupMenuItem<String>, 'Re-trigger Fact-Check');
+      expect(menuItem, findsOneWidget);
+
+      // Tap menu item
+      await tester.tap(menuItem);
+      await tester.pumpAndSettle();
+      expect(retriggeredVideoId, 'v_unverified_1');
     });
   });
 }

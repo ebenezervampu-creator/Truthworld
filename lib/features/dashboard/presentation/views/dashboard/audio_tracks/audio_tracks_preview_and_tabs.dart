@@ -333,7 +333,7 @@ class AudioTracksTabPill extends StatelessWidget {
   }
 }
 
-/// Modern studio underline tab bar matching the uploaded UI mockup.
+/// Modern studio underline tab bar matching the UI design specification.
 class AudioTracksUnderlineTabBar extends StatelessWidget {
   const AudioTracksUnderlineTabBar({
     required this.controller,

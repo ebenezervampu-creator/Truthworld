@@ -125,6 +125,18 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
             mimeType,
           );
           duration = dur?.inSeconds ?? 0;
+          if (duration == 0 && pickedFile.bytes != null) {
+            try {
+              final blobUrl = WebPlatformUtils.createBlobUrl(pickedFile.bytes!, mimeType);
+              if (blobUrl.isNotEmpty) {
+                final tempCtrl = VideoPlayerController.networkUrl(Uri.parse(blobUrl));
+                await tempCtrl.initialize();
+                duration = tempCtrl.value.duration.inSeconds;
+                await tempCtrl.dispose();
+                WebPlatformUtils.revokeBlobUrl(blobUrl);
+              }
+            } catch (_) {}
+          }
         } else {
           final file = io.File(pickedFile.path!);
           final controller = VideoPlayerController.file(file);
@@ -132,6 +144,14 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
           await controller.initialize();
           duration = controller.value.duration.inSeconds;
           await controller.dispose();
+        }
+
+        // Validate Minimum Video Duration (at least 30 seconds)
+        if (duration < UploadControllerBase.minVideoDurationSeconds) {
+          AppSnackbar.warning(
+            'Video duration must be at least 30 seconds.',
+          );
+          return;
         }
 
         // Validate Daily Upload Limit & Video Duration against selected channel
@@ -157,8 +177,8 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
             return;
           }
         } else {
-          if (duration < 0) {
-            AppSnackbar.warning('Media duration cannot be negative.');
+          if (duration < UploadControllerBase.minVideoDurationSeconds) {
+            AppSnackbar.warning('Video duration must be at least 30 seconds.');
             return;
           }
           if (duration > maxDurationSeconds) {
@@ -220,8 +240,20 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
         if (duration.inMilliseconds > 0) {
           videoDuration.value = duration;
           videoDurationSeconds.value = duration.inSeconds;
+
+          if (duration.inSeconds < UploadControllerBase.minVideoDurationSeconds) {
+            AppSnackbar.warning('Video duration must be at least 30 seconds.');
+            await videoPlayerController?.dispose();
+            videoPlayerController = null;
+            pickedVideo.value = null;
+            videoUrl.value = '';
+            videoDuration.value = Duration.zero;
+            videoDurationSeconds.value = 0;
+            update();
+            return;
+          }
         }
-        // Truthworld does not have a YouTube Shorts feature: all media (short or long, even 7s) are standard Truthworld videos
+        // Truthworld does not have a YouTube Shorts feature: all media (short or long, min 30s) are standard Truthworld videos
         isShort.value = false;
         debugPrint(
           '🎥 Media loaded: duration ${duration.inSeconds}s (Truthworld standard player, no Shorts mode)',

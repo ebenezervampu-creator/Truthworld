@@ -14,7 +14,6 @@ import {
   CDN_RATE_CARDS,
   calculateSubtitleCost,
   getFlatDubbingPricePerLanguage,
-  getFlatLipSyncPricePerLanguage,
 } from "../../src/pipeline/services/cost-engine";
 
 describe("Cost Engine, Telemetry & Unit Economics Verification Suite", () => {
@@ -65,7 +64,7 @@ describe("Cost Engine, Telemetry & Unit Economics Verification Suite", () => {
   });
 
   describe("3. Sub-cent AI Attribution & Tier Pricing", () => {
-    test("Calculates subtitle, dubbing, and lip-sync pricing according to tiers", () => {
+    test("Calculates subtitle and dubbing pricing according to tiers", () => {
       // Subtitles (Ultra Tier: $0.50 / 10m)
       const subUltra = calculateSubtitleCost(1, 600, "standard", 0, "ultra");
       expect(subUltra).toBe(0.50);
@@ -75,10 +74,6 @@ describe("Cost Engine, Telemetry & Unit Economics Verification Suite", () => {
       expect(dubPrice10m).toBe(3.00);
       const clonePrice10m = getFlatDubbingPricePerLanguage(600, "standard", "voice_clone");
       expect(clonePrice10m).toBe(3.00);
-
-      // Lip-Sync (Discontinued / Removed)
-      const lipSync10m = getFlatLipSyncPricePerLanguage(600, "standard");
-      expect(lipSync10m).toBe(0.00);
     });
   });
 

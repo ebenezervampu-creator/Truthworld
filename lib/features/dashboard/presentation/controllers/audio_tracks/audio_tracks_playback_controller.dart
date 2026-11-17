@@ -5,6 +5,8 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_registry.dart';
 
 /// Coordinator for inline audio track preview playback across devices.
 class AudioTracksPlaybackController extends BaseController {
@@ -79,6 +81,11 @@ class AudioTracksPlaybackController extends BaseController {
       return;
     }
 
+    try {
+      TowerPlayerRegistry.pauseAllActivePlayers();
+      MultiAudioPlayerController.pauseAll();
+    } catch (_) {}
+
     if (activeTrackId.value == trackId) {
       if (isPlaying.value) {
         await pause();
@@ -109,7 +116,7 @@ class AudioTracksPlaybackController extends BaseController {
       isPlaying.value = true;
     } catch (e) {
       logger.error('Error starting audio playback for: $cleanUrl', error: e, tag: _tag);
-      // Graceful fallback for mock/test/unsupported URLs without showing raw errors
+      // Graceful fallback for unreachable or invalid URLs without exposing raw errors
       isPlaying.value = false;
       AppSnackbar.error('Unable to play audio preview. Please check your connection.');
     }
@@ -170,6 +177,9 @@ class AudioTracksPlaybackController extends BaseController {
     _playerStateSub?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
+    try {
+      _player.stop();
+    } catch (_) {}
     _player.dispose();
     super.onClose();
   }

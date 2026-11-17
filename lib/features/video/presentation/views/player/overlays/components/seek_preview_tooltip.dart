@@ -66,7 +66,9 @@ class SeekPreviewTooltip extends StatelessWidget {
               alignment: Alignment.bottomLeft,
               child: Padding(
                 padding: EdgeInsets.only(left: leftPx),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOutCubic,
                   width: tooltipWidth,
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(

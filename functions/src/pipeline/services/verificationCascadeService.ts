@@ -37,7 +37,7 @@ import { tier0KnowledgeService } from "./tier0Knowledge";
 import { registryService } from "../registry/RegistryService";
 import { FastTrackLlmService } from "./fastTrackLlmService";
 import { FusedGroundingService, FusedGroundingOptions } from "./fusedGroundingService";
-import { StreamingClaimProcessor, ClaimStateLevel } from "./streamingClaimProcessor";
+import { StreamingClaimProcessor } from "./streamingClaimProcessor";
 import {
   VerificationConcurrencyManager,
   ClaimPrioritizationScheduler,
@@ -376,6 +376,12 @@ export class VerificationCascadeService {
               if (videoId) {
                 await StreamingClaimProcessor.publishResolvedClaims(videoId, [verified]).catch(() => {});
               }
+
+              // ⚡ TIER 3 FALSE-POSITIVE SHADOW AUDIT (3% Random Sampling)
+              // Verifies empirical claims masked as opinions/satire are not prematurely bypassed
+              if (Math.random() < 0.03) {
+                this.executeTier3ShadowAudit(c, domainContext, options, fastTrackResult.status).catch(() => {});
+              }
             } else {
               // Empirical assertion or fast-track flagged grounding required
               tier4EscalatedClaims.push(c);
@@ -401,14 +407,12 @@ export class VerificationCascadeService {
     const prioritizedTier4 = ClaimPrioritizationScheduler.prioritizeClaims(tier4EscalatedClaims);
     logger.info(`[VerificationCascade] Tier 4 Deep Grounding executing for ${prioritizedTier4.length} escalated claims across bounded worker pool`);
 
-    // 1. Mark escalated claims as DEEP_VERIFYING in Firestore
-    if (videoId) {
-      for (const c of prioritizedTier4) {
-        await StreamingClaimProcessor.updateClaimProgress(videoId, c.claimId, {
-          stateLevel: ClaimStateLevel.DEEP_VERIFYING,
-          status: "unverified",
-        }).catch(() => {});
-      }
+    // 1. Mark escalated claims as DEEP_VERIFYING in Firestore via single batched commit
+    if (videoId && prioritizedTier4.length > 0) {
+      await StreamingClaimProcessor.markClaimsDeepVerifying(
+        videoId,
+        prioritizedTier4.map((c) => c.claimId)
+      ).catch(() => {});
     }
 
     // 2. Partition into micro-batches to optimize search quality, avoid prompt/token exhaustion, and enable parallel workers
@@ -473,5 +477,40 @@ export class VerificationCascadeService {
 
     // Return in strict deterministic order matching original input slice
     return VerificationConcurrencyManager.restoreDeterministicOrder(claims, finalResultsMap);
+  }
+
+  /**
+   * ⚡ TIER 3 FALSE-POSITIVE SHADOW AUDIT
+   * Samples 1%–5% of claims triaged as opinion/satire/belief and runs them asynchronously
+   * through Tier 4 Search Grounding in the background (zero user latency impact).
+   * Flags discrepancies where an empirical claim was misclassified as an opinion.
+   */
+  private static async executeTier3ShadowAudit(
+    claim: FilteredClaim,
+    domainContext: string,
+    options: FusedGroundingOptions,
+    tier3Verdict: string
+  ): Promise<void> {
+    try {
+      const shadowResults = await FusedGroundingService.verifyBatchFused([claim], domainContext, options);
+      if (shadowResults.length > 0) {
+        const shadow = shadowResults[0];
+        if (
+          (shadow.status === "false_claim" || shadow.status === "verified_true") &&
+          (shadow.evidenceLevel === "STRONG" || (shadow.richSources && shadow.richSources.length > 0))
+        ) {
+          logger.warn(`[Tier3ShadowAudit] Discrepancy detected: Claim triaged by Tier 3 as "${tier3Verdict}", but Tier 4 found empirical evidence: "${shadow.status}"`, {
+            claimId: claim.claimId,
+            text: claim.text,
+            tier3Verdict,
+            shadowVerdict: shadow.status,
+            evidenceLevel: shadow.evidenceLevel,
+            sourcesCount: shadow.richSources?.length || 0,
+          });
+        }
+      }
+    } catch (auditErr: any) {
+      logger.debug("[Tier3ShadowAudit] Background audit pass completed with transient error", { err: auditErr?.message });
+    }
   }
 }

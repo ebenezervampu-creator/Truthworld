@@ -90,17 +90,17 @@ class LibraryController extends BaseController
 
   void _initializeAnimations() {
     fadeAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 260),
       vsync: this,
     );
 
     slideAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 240),
       vsync: this,
     );
 
     scaleAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 200),
       vsync: this,
     );
 
@@ -112,17 +112,17 @@ class LibraryController extends BaseController
     );
 
     slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(
           CurvedAnimation(
             parent: slideAnimationController,
             curve: Curves.easeOutCubic,
           ),
         );
 
-    scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
+    scaleAnimation = Tween<double>(begin: 0.98, end: 1).animate(
       CurvedAnimation(
         parent: scaleAnimationController,
-        curve: Curves.easeOutBack,
+        curve: Curves.easeOutCubic,
       ),
     );
 

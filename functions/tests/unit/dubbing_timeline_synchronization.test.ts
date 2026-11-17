@@ -12,7 +12,6 @@
 
 import { parseDurationToSeconds, mediaService, MergeAudioOptions } from "../../src/pipeline/services/media";
 import { elevenLabsTtsService, TTS_MODELS } from "../../src/pipeline/services/tts";
-import { googleTextToSpeechService } from "../../src/pipeline/services/googleTextToSpeechService";
 import { SyncInstruction, TimedSegment, DubbingSegment } from "../../src/pipeline/types";
 
 describe("Dubbing Duration & Timeline Synchronization Pipeline", () => {
@@ -164,18 +163,6 @@ describe("Dubbing Duration & Timeline Synchronization Pipeline", () => {
       expect(supportsSpeed(modelV4Turbo)).toBe(false);
       expect(supportsSpeed(modelV3)).toBe(true);
       expect(supportsSpeed(modelFlash)).toBe(true);
-    });
-
-    it("Google Cloud TTS: clamps speakingRate safely within [0.75, 1.35] for Chirp 3: HD and Standard", () => {
-      const clampRate = (rate?: number) => {
-        if (rate === undefined) return 1.0;
-        return Math.max(0.75, Math.min(1.35, rate));
-      };
-
-      expect(clampRate(1.20)).toBe(1.20);
-      expect(clampRate(1.80)).toBe(1.35); // Clamped at 1.35x
-      expect(clampRate(0.50)).toBe(0.75); // Clamped at 0.75x
-      expect(clampRate(undefined)).toBe(1.0);
     });
   });
 

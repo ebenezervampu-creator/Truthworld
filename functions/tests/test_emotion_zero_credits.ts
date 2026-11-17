@@ -51,6 +51,18 @@ assert(sighCue.emotionTag === "sighs", "Exhaustion maps to 'sighs' tag", sighCue
 const gaspCue = mapEmotionToElevenLabsCue("shocked", -18.0);
 assert(gaspCue.emotionTag === "gasps", "Shock maps to 'gasps' tag", gaspCue);
 
+const angryCue = mapEmotionToElevenLabsCue("angrily", -12.0);
+assert(angryCue.emotionTag === "said angrily", "Angrily maps to 'said angrily' tag", angryCue);
+
+const sarcasticCue = mapEmotionToElevenLabsCue("sarcastic", -20.0);
+assert(sarcasticCue.emotionTag === "sarcastic", "Sarcastic maps to 'sarcastic' tag", sarcasticCue);
+
+const sadCue = mapEmotionToElevenLabsCue("sad", -25.0);
+assert(sadCue.emotionTag === "sad", "Sad maps to 'sad' tag", sadCue);
+
+const calmCue = mapEmotionToElevenLabsCue("calm", -22.0);
+assert(calmCue.emotionTag === "calm", "Calm maps to 'calm' tag", calmCue);
+
 // -------------------------------------------------------------------------------------
 // TEST 2: 6-Axis Emotional Intensity Vector (Gemini Multimodal Profile)
 // -------------------------------------------------------------------------------------
@@ -100,13 +112,27 @@ const subText = stripAudioTagsForSubtitles(hindiForV4);
 assert(!subText.includes("[laughs]"), "Subtitle guard strips [laughs] tag for viewers");
 assert(subText === "हाँ, यह सचमुच अद्भुत था!", `Clean subtitle display: "${subText}"`);
 
+// Official v4 tags preservation verification
+const sarcasticRaw = "[sarcastic] Oh sure, that will totally work! [crowd cheer]";
+const sarcasticForV4 = sanitizeTextForElevenLabsV4(sarcasticRaw);
+assert(sarcasticForV4 === "[sarcastic] Oh sure, that will totally work!", `Preserves [sarcastic] tag: "${sarcasticForV4}"`);
+assert(stripAudioTagsForSubtitles(sarcasticForV4) === "Oh sure, that will totally work!", "Strips [sarcastic] from subtitles");
+
+const angryRaw = "[said angrily] Stop doing that immediately!";
+const angryForV4 = sanitizeTextForElevenLabsV4(angryRaw);
+assert(angryForV4 === "[said angrily] Stop doing that immediately!", `Preserves [said angrily] tag: "${angryForV4}"`);
+
+const sadRaw = "[sad] I really hoped things would be different.";
+const sadForV4 = sanitizeTextForElevenLabsV4(sadRaw);
+assert(sadForV4 === "[sad] I really hoped things would be different.", `Preserves [sad] tag: "${sadForV4}"`);
+
 // -------------------------------------------------------------------------------------
 // TEST 4: ElevenLabs v4 Synthesis Payload Inspection (Zero-Credit Mock)
 // -------------------------------------------------------------------------------------
 console.log("\n[Test 4] Testing ElevenLabs v4 Request Contract & Tier 1/Tier 2 Failover...");
 
 assert(TTS_MODELS.v4 === "eleven_v4", "TTS_MODELS.v4 is 'eleven_v4'");
-assert(TTS_MODELS.v3 === "eleven_v3", "TTS_MODELS.v3 is 'eleven_v3'");
+assert(TTS_MODELS.v3 === "eleven_v4", "TTS_MODELS.v3 is mapped to 'eleven_v4' (zero fallback models)");
 assert((TTS_MODELS as any).multilingual_v2 === undefined, "multilingual_v2 is completely removed");
 assert((TTS_MODELS as any).flash === undefined, "flash is completely removed");
 assert((TTS_MODELS as any).v4Turbo === undefined, "v4Turbo is completely removed");

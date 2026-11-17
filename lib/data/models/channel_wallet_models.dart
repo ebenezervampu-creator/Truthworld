@@ -209,7 +209,6 @@ class DubbingProductionTier {
   final String badge;
   final String description;
   final bool isCinemaGrade;
-  final bool isLipSync;
   final bool isVoiceClone;
 
   const DubbingProductionTier({
@@ -225,7 +224,6 @@ class DubbingProductionTier {
     required this.badge,
     required this.description,
     this.isCinemaGrade = false,
-    this.isLipSync = false,
     this.isVoiceClone = false,
   });
 
@@ -235,14 +233,13 @@ class DubbingProductionTier {
     category: 'audio',
     perMinuteRateUSD: 0.30,
     tenMinutePriceUSD: 3.00,
-    asrProvider: 'AssemblyAI (18 Langs) + Sarvam AI Indic + Google Chirp',
-    translationEngine: 'Google Cloud Translation v3 + Gemini 2.5',
+    asrProvider: 'AssemblyAI Universal 3.5 Pro (18 Languages)',
+    translationEngine: 'Google Cloud Translation v3',
     ttsEngine: 'ElevenLabs v4 Studio Voice Cloning',
     visualSync: 'Viseme Cadence Locking (Zero Overhang)',
     badge: '100% BGM Preserved',
     description: 'Replicates creator vocal identity with 100% Studio Preservation & Viseme Cadence Locking (prevents vocal overhang on talking-head videos with zero phase cancellation).',
     isCinemaGrade: false,
-    isLipSync: false,
     isVoiceClone: true,
   );
 
@@ -306,10 +303,10 @@ class SubtitleProductionTier {
     tenMinutePriceUSD: 0.50,
     additionalLangTenMinutePriceUSD: 0.20,
     additionalLangPerMinuteUSD: 0.02,
-    asrProvider: 'AssemblyAI Universal 3.5 Pro + Sarvam AI Indic + Google Chirp 2',
-    translationEngine: 'Google Cloud Translation v3 + Gemini 2.5 Flash',
+    asrProvider: 'AssemblyAI Universal 3.5 Pro (18 Languages)',
+    translationEngine: 'Google Cloud Translation v3',
     badge: 'Ultra',
-    description: 'Cinema-grade cultural adaptation, idiomatic transcreation, and precision split timing powered by Gemini 2.5 Flash.',
+    description: 'Cinema-grade cultural adaptation, idiomatic transcreation, and precision split timing powered by Google Cloud Translation v3.',
     isUltra: true,
     isPro: true,
   );

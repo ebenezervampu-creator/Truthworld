@@ -32,11 +32,10 @@ class UploadDubbingController extends GetxController {
 
   // Working copy of selections
   final RxSet<String> selectedLanguages = <String>{}.obs;
-  final RxBool isDubbingEnabled = true.obs;
+  final RxBool isDubbingEnabled = false.obs;
   final RxString selectedDubbingTier = 'audio_track'.obs;
   final RxString voiceType = 'cloned'.obs; // Voice cloning & vocal identity
   final RxBool isDiarizationEnabled = false.obs;
-  final RxBool isLipSyncEnabled = false.obs;
   final RxBool isStemIsolationEnabled = true.obs;
   final RxBool isCinemaGradeEnabled = false.obs;
 
@@ -53,13 +52,12 @@ class UploadDubbingController extends GetxController {
       }
     }
     selectedLanguages.assignAll(normalized);
-    isDubbingEnabled.value = uploadController.aiDubbingLanguages.isEmpty ||
+    isDubbingEnabled.value = uploadController.aiDubbingLanguages.isNotEmpty &&
         uploadController.aiGenerateDubbing.value;
 
     selectedDubbingTier.value = 'audio_track';
     voiceType.value = 'cloned';
     isDiarizationEnabled.value = uploadController.aiDiarizationEnabled.value;
-    isLipSyncEnabled.value = false;
     isCinemaGradeEnabled.value = false;
     isStemIsolationEnabled.value = true;
   }
@@ -70,7 +68,6 @@ class UploadDubbingController extends GetxController {
   void selectTier(String tierId) {
     selectedDubbingTier.value = 'audio_track';
     voiceType.value = 'cloned';
-    isLipSyncEnabled.value = false;
     isCinemaGradeEnabled.value = false;
     isStemIsolationEnabled.value = true;
   }
@@ -399,7 +396,6 @@ class UploadDubbingController extends GetxController {
         selectedLanguages.isNotEmpty && isDubbingEnabled.value;
     uploadController.aiTTSVoiceType.value = voiceType.value;
     uploadController.aiDiarizationEnabled.value = isDiarizationEnabled.value;
-    uploadController.aiLipSyncEnabled.value = isLipSyncEnabled.value;
 
     // Automatically ensure dubbed languages have matching subtitles
     if (uploadController.aiGenerateDubbing.value) {

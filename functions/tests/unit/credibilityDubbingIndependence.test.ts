@@ -219,8 +219,8 @@ describe('Credibility & Dubbing 100% System Independence', () => {
       updatedAt: Date.now(),
     });
 
-    await EdgeLayer.failStage(jobId, 'dubbing', 'Sarvam STT unavailable');
-    await EdgeLayer.upsertDubbingJob(jobId, { status: 'failed', error: 'Sarvam STT unavailable' });
+    await EdgeLayer.failStage(jobId, 'dubbing', 'AssemblyAI STT unavailable');
+    await EdgeLayer.upsertDubbingJob(jobId, { status: 'failed', error: 'AssemblyAI STT unavailable' });
 
     const jobMidSnap = await db().collection('video_jobs').doc(jobId).get();
     expect(jobMidSnap.data()?.status).toBe('processing');

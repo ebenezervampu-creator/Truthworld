@@ -258,6 +258,125 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
           }
 
           if (workingList.isEmpty) {
+            final isSearch = search.isNotEmpty;
+            final hasZeroTotalClaims = claims.isEmpty;
+
+            if (isSearch) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.bgPage,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+                child: Center(
+                  child: Text(
+                    'No claims match "$search"',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            if (hasZeroTotalClaims) {
+              return Container(
+                padding: const EdgeInsets.all(28),
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.fact_check_outlined,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'No Factual Claims Detected',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Our verification engine analyzed this video and found no specific verifiable factual claims. The content may consist of commentary, personal opinions, creative expression, or general conversation.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => analysisCtrl.setSelectedTab(1),
+                          icon: const Icon(Icons.show_chart_rounded, size: 15, color: Colors.black),
+                          label: const Text(
+                            'View Overview',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton.icon(
+                          onPressed: () => analysisCtrl.setSelectedTab(3),
+                          icon: const Icon(Icons.verified_user_outlined, size: 15, color: Colors.white),
+                          label: const Text(
+                            'View Conclusion',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+
             return Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(

@@ -8,8 +8,7 @@
  * 4. Gender invariant is strictly preserved.
  */
 
-import { ElevenLabsTTSService, TTSService } from "../services/tts";
-import { ELEVENLABS_VOICE_GENDER_MAP } from "../services/googleTextToSpeechService";
+import { ElevenLabsTTSService, TTSService, ELEVENLABS_VOICE_GENDER_MAP } from "../services/tts";
 import { TTSRequest } from "../types";
 
 describe("Strictly ElevenLabs v4 Dubbing Pipeline (Chirp 3: HD Terminated)", () => {
@@ -88,25 +87,27 @@ describe("Strictly ElevenLabs v4 Dubbing Pipeline (Chirp 3: HD Terminated)", () 
     );
   });
 
-  test("4. Failover tier is strictly ElevenLabs v3 when v4 encounters error (zero Google fallback)", async () => {
+  test("4. Zero fallback models: transient retry strictly uses eleven_v4 (zero fallback models)", async () => {
     const configuredEleven = new ElevenLabsTTSService("valid-test-key");
     const attemptedModels: string[] = [];
 
     // Spy on internal axios post
     const axios = require("axios");
+    let callCount = 0;
     jest.spyOn(axios, "post").mockImplementation(async (...args: any[]) => {
       const url = args[0] as string;
       const body = args[1];
       if (url.includes("/text-to-speech/")) {
         attemptedModels.push(body.model_id);
-        if (body.model_id === "eleven_v4") {
+        callCount++;
+        if (callCount === 1) {
           const err: any = new Error("v4 transient service error");
           err.response = { status: 500, data: "Temporary internal error" };
           throw err;
         }
-        // v3 succeeds
+        // retry succeeds with eleven_v4
         return {
-          data: Buffer.from("v3-audio-output-bytes"),
+          data: Buffer.from("v4-audio-output-bytes"),
         };
       }
       return { data: {} };
@@ -124,13 +125,13 @@ describe("Strictly ElevenLabs v4 Dubbing Pipeline (Chirp 3: HD Terminated)", () 
 
     const tts = new TTSService(undefined, configuredEleven);
     const result = await tts.synthesize({
-      jobId: "job_v4_to_v3",
+      jobId: "job_v4_retry",
       language: "te",
       text: "నమస్కారం",
       voiceId: "ErXwobaYiN019PkySvjV",
     });
 
-    expect(attemptedModels).toEqual(["eleven_v4", "eleven_v3"]);
+    expect(attemptedModels).toEqual(["eleven_v4", "eleven_v4"]);
     expect(result.provider).toBe("elevenlabs");
   });
 });

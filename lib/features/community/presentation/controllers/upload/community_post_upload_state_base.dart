@@ -34,8 +34,8 @@ abstract class CommunityPostUploadStateBase extends BaseController
 
   // ── Reactive State ────────────────────────────────────────────────────────
 
-  /// Mandatory creator copyright & rights ownership declaration
-  final RxBool hasConfirmedCopyrightDeclaration = false.obs;
+  /// Creator copyright & rights ownership declaration (maintained for backward compatibility)
+  final RxBool hasConfirmedCopyrightDeclaration = true.obs;
 
   // Topic Selection State
   final RxString selectedTopicId = ''.obs;
@@ -127,10 +127,6 @@ abstract class CommunityPostUploadStateBase extends BaseController
 
     // Only block if an image was explicitly rejected (verifying/pending images do not block)
     if (moderationStatuses.values.any((s) => s == 'REJECTED')) {
-      return false;
-    }
-
-    if (!hasConfirmedCopyrightDeclaration.value) {
       return false;
     }
 

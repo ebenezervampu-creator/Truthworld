@@ -307,7 +307,7 @@ describe('Unit: Industry-Standard Anti-Bias & 100% Rational Credibility System',
       expect(res.adjudicatedStatus).toBe('verified_true');
     });
 
-    it('triggers Gemini 2.5 Flash reasoning model when domain is sensitive (health, finance, war)', async () => {
+    it('triggers reasoning model when domain is sensitive (health, finance, war)', async () => {
       let requestedModel = '';
       (verificationService as any).genAI = {
         getGenerativeModel: jest.fn().mockImplementation((config: any) => {
@@ -348,8 +348,8 @@ describe('Unit: Industry-Standard Anti-Bias & 100% Rational Credibility System',
         'health'
       );
 
-      // Verify that reasoning model (gemini-2.5-flash) was requested
-      expect(requestedModel).toBe(PIPELINE_CONFIG.GEMINI_MODELS?.reasoning || 'gemini-2.5-flash');
+      // Verify that reasoning model was requested
+      expect(requestedModel).toBe(PIPELINE_CONFIG.GEMINI_MODELS?.reasoning || 'gemini-3.5-flash-lite');
     });
   });
 });

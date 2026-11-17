@@ -199,7 +199,6 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.75,
-          style: 0.3,
           use_speaker_boost: true,
         },
       });
@@ -219,10 +218,10 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
     });
   });
 
-  describe('Sample 4: Multi-Tier Fallback to Tier 2 (eleven_v3) upon V4 Overload', () => {
-    it('falls back to eleven_v3 when eleven_v4 encounters 429 rate limit', async () => {
+  describe('Sample 4: Zero Fallback Policy — Strictly ElevenLabs v4 (eleven_v4)', () => {
+    it('retries strictly on eleven_v4 when encountering transient 429 rate limit (zero fallback models)', async () => {
       const sampleSegment = 'సత్యమేవ జయతే - సత్యం మాత్రమే గెలుస్తుంది.';
-      const sampleV3Bytes = Buffer.from('sample-v3-fallback-audio');
+      const sampleV4Bytes = Buffer.from('sample-v4-retry-audio');
 
       // Attempt 1: eleven_v4 fails with 429
       mockedAxios.post.mockRejectedValueOnce({
@@ -233,9 +232,9 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
         message: 'Request failed with status code 429',
       });
 
-      // Attempt 2: eleven_v3 succeeds
+      // Attempt 2: retry on eleven_v4 succeeds
       mockedAxios.post.mockResolvedValueOnce({
-        data: sampleV3Bytes,
+        data: sampleV4Bytes,
       });
 
       const request: TTSRequest = {
@@ -250,21 +249,19 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
       // Verify 2 attempts were made
       expect(mockedAxios.post).toHaveBeenCalledTimes(2);
 
-      // Attempt 1 was eleven_v4 (Tier 1)
+      // Both attempts are strictly eleven_v4 (zero fallback models)
       expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({
         model_id: 'eleven_v4',
       });
-
-      // Attempt 2 fell back to eleven_v3 (Tier 2 Fallback 1)
       expect(mockedAxios.post.mock.calls[1][1]).toMatchObject({
-        model_id: 'eleven_v3',
+        model_id: 'eleven_v4',
       });
 
       expect(result.provider).toBe('elevenlabs');
       expect(result.audioUrl).toContain('gs://truthworld-test-bucket/audio/job_sample_fallback/te/chunk-');
     });
 
-    it('stops after exactly 1 fallback (Tier 1 eleven_v4 -> Tier 2 eleven_v3) without attempting any 3rd tier', async () => {
+    it('strictly fails with eleven_v4 after retries without attempting any fallback models', async () => {
       const sampleSegment = 'ప్రపంచవ్యాప్తంగా శాంతి మరియు సత్యం ముఖ్యం.';
 
       // Attempt 1: eleven_v4 fails with 500
@@ -276,11 +273,11 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
         message: 'Request failed with status code 500',
       });
 
-      // Attempt 2: eleven_v3 fails with 503
+      // Attempt 2: eleven_v4 fails with 503
       mockedAxios.post.mockRejectedValueOnce({
         response: {
           status: 503,
-          data: { detail: 'V3 capacity saturated' },
+          data: { detail: 'V4 capacity saturated' },
         },
         message: 'Request failed with status code 503',
       });
@@ -294,13 +291,13 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
 
       const elevenService = (ttsService as any).elevenLabsTts;
       await expect(elevenService.synthesize(request)).rejects.toThrow(
-        /Failed after 2 attempts/
+        /Failed with model eleven_v4/
       );
 
-      // Verify EXACTLY 2 ElevenLabs attempts were made: v4 then v3. Zero 3rd tier!
+      // Verify both attempts strictly used eleven_v4 (zero fallback models)
       expect(mockedAxios.post).toHaveBeenCalledTimes(2);
       expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ model_id: 'eleven_v4' });
-      expect(mockedAxios.post.mock.calls[1][1]).toMatchObject({ model_id: 'eleven_v3' });
+      expect(mockedAxios.post.mock.calls[1][1]).toMatchObject({ model_id: 'eleven_v4' });
     });
   });
 });

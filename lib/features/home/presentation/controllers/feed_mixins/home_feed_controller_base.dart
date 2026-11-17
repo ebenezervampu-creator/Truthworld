@@ -6,6 +6,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/data/services/feed_cache_manager.dart';
+import 'package:truthworld/features/home/data/services/feed_refresh_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -15,6 +16,9 @@ abstract class HomeFeedControllerBase extends BaseController {
   AuthService get authService;
   FirebaseFirestore get firestore;
   FeedCacheManager get feedCacheManager;
+  YouTubeFeedRefreshService get youtubeFeedRefreshService =>
+      _defaultYouTubeRefreshService ??= YouTubeFeedRefreshService();
+  YouTubeFeedRefreshService? _defaultYouTubeRefreshService;
   HomeRepository? get homeRepository;
   set homeRepository(HomeRepository? repo);
 

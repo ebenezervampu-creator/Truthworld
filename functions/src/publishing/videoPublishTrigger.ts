@@ -27,7 +27,7 @@ export const onVideoPublished = onDocumentUpdated(
     document: "videos/{videoId}",
     region: "asia-south1",
     retry: true,
-    memory: "512MiB",
+    memory: "256MiB",
     maxInstances: 3,
   },
   async (event) => {
@@ -283,15 +283,56 @@ export const onVideoPublished = onDocumentUpdated(
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SCENARIO D: Trigger Subscriber Notifications once video is approved & published
+    // Atomic Mutex Lock: Guarantees EXACTLY-ONCE fanout across concurrent events & retries
     // ═══════════════════════════════════════════════════════════════════════════
     if (shouldSendNotifications) {
-      logger.info("[PublishGate] Video approved & published. Triggering subscriber notifications.", { videoId });
-      await db.collection("videos").doc(videoId).update({
-        notificationsSent: true,
-      });
-      _fanOutSubscriberNotifications(afterData, videoId).catch(err =>
-        logger.warn("[PublishGate] Subscriber notification fan-out failed (non-critical)", { videoId, err: String(err) })
-      );
+      const lockRef = db.collection("video_notification_locks").doc(videoId);
+      const videoRef = db.collection("videos").doc(videoId);
+
+      let lockAcquired = false;
+      try {
+        lockAcquired = await db.runTransaction(async (transaction) => {
+          const [lockDoc, liveVideoDoc] = await Promise.all([
+            transaction.get(lockRef),
+            transaction.get(videoRef),
+          ]);
+
+          if (lockDoc.exists) {
+            return false;
+          }
+
+          const liveData = liveVideoDoc.data();
+          if (!liveVideoDoc.exists || liveData?.notificationsSent === true) {
+            return false;
+          }
+
+          transaction.set(lockRef, {
+            videoId,
+            channelId: afterData.channelId || null,
+            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: Date.now(),
+          });
+
+          transaction.update(videoRef, {
+            notificationsSent: true,
+            notificationsSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          return true;
+        });
+      } catch (lockErr) {
+        logger.warn("[PublishGate] Failed to acquire notification lock transaction (possible concurrent execution)", { videoId, err: String(lockErr) });
+        lockAcquired = false;
+      }
+
+      if (lockAcquired) {
+        logger.info("[PublishGate] Video approved & published. Atomic lock acquired. Triggering subscriber notifications.", { videoId });
+        _fanOutSubscriberNotifications(afterData, videoId).catch(err =>
+          logger.warn("[PublishGate] Subscriber notification fan-out failed (non-critical)", { videoId, err: String(err) })
+        );
+      } else {
+        logger.info("[PublishGate] Subscriber notifications already locked or dispatched for video — skipping duplicate fanout.", { videoId });
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -377,16 +418,19 @@ export const onVideoPublished = onDocumentUpdated(
       const factCheckTier: "short" | "standard" | "full_ground" = enableFactChecking ? "full_ground" : "standard";
 
       let enableGenLangSubs = aiFeatures.genLangSubs ?? (hasTargetLanguages || (aiFeatures.generateSubtitles ?? false));
-      let enableDubbing = Boolean(
-        aiFeatures.generateDubbing === true ||
-        aiFeatures.dubbing === true ||
-        afterData.generateDubbing === true ||
-        afterData.dubbing === true ||
-        (Array.isArray(aiFeatures.dubbingLanguages) && aiFeatures.dubbingLanguages.length > 0) ||
-        (Array.isArray(afterData.dubbingLanguages) && afterData.dubbingLanguages.length > 0) ||
-        (aiFeatures.dubbingMode && aiFeatures.dubbingMode !== "none") ||
-        (afterData.dubbingMode && afterData.dubbingMode !== "none")
+      // ZERO AUTOMATIC DUBBING:
+      // Channels can ONLY manually dub their videos while uploading in upload screen or in Audio Tracks page studio.
+      // Videos must NEVER receive automatic dubbing.
+      const rawDubbingLangs = Array.isArray(aiFeatures.dubbingLanguages)
+        ? aiFeatures.dubbingLanguages
+        : (Array.isArray(afterData.dubbingLanguages) ? afterData.dubbingLanguages : []);
+      const normDubbingLangs = normalizeLanguageCodes(rawDubbingLangs);
+
+      const isManualDubbingRequested = Boolean(
+        (aiFeatures.generateDubbing === true || afterData.generateDubbing === true) &&
+        normDubbingLangs.length > 0
       );
+      let enableDubbing = isManualDubbingRequested;
       const enableSummary = aiFeatures.summary ?? false;
       const enableDiarization = (
         aiFeatures.diarization ??
@@ -434,9 +478,10 @@ export const onVideoPublished = onDocumentUpdated(
       );
 
       let requiredDubCost = 0;
-      if (enableDubbing && nonPrimaryTargetLangs.length > 0) {
+      const nonPrimaryDubLangs = normDubbingLangs.filter((l) => l !== channelLang);
+      if (enableDubbing && nonPrimaryDubLangs.length > 0) {
         const rate = getFlatDubbingRatePerLanguage(videoDurationSec);
-        requiredDubCost = Number((nonPrimaryTargetLangs.length * rate).toFixed(2));
+        requiredDubCost = Number((nonPrimaryDubLangs.length * rate).toFixed(2));
       }
 
       let requiredSubCost = 0;
@@ -616,10 +661,10 @@ export const onVideoPublished = onDocumentUpdated(
         enableDiarization,
         diarization: enableDiarization,
         factCheckEnabled: enableFactChecking,
-        dubbingLanguages: Array.isArray(aiFeatures.dubbingLanguages) ? normalizeLanguageCodes(aiFeatures.dubbingLanguages) : [],
+        dubbingLanguages: enableDubbing ? normDubbingLangs : [],
         primaryLanguage: channelLang,
-        languages: Array.from(new Set([channelLang, ...requestedLanguages])),
-        dubbingMode: voiceType === "voice_clone" ? "voice_clone" : (enableDubbing ? "standard" : "none"),
+        languages: Array.from(new Set([channelLang, ...requestedLanguages, ...(enableDubbing ? normDubbingLangs : [])])),
+        dubbingMode: enableDubbing ? (voiceType === "voice_clone" ? "voice_clone" : "standard") : "none",
         generateDubbing: enableDubbing,
         genLangSubs: enableGenLangSubs,
         channelType: afterData.channelType || "standard",
@@ -710,6 +755,9 @@ export const onVideoPublished = onDocumentUpdated(
         try {
           const batch = db.batch();
           batch.set(db.collection("video_jobs").doc(jobId), jobData);
+          if (jobId !== videoId) {
+            batch.set(db.collection("video_jobs").doc(videoId), jobData, { merge: true });
+          }
           if (enableFactChecking) {
             batch.set(db.collection("credibility_jobs").doc(jobId), {
               jobId,
@@ -743,6 +791,7 @@ export const onVideoPublished = onDocumentUpdated(
           batch.update(db.collection("videos").doc(videoId), {
             jobId,
             language: channelLang,
+            dubbingLanguages: executionPlan.dubbingLanguages || [],
             factCheckTier,
             enableFactCheck: enableFactChecking,
             factChecking: enableFactChecking,
@@ -885,7 +934,15 @@ export const onVideoPublished = onDocumentUpdated(
         (l: string) => normalizeLanguageCode(l) !== scenarioBChannelLang && !existingLanguagesProcessed.includes(l)
       );
 
-      const wantDubbingB = Boolean(aiFeatures.generateDubbing ?? jobData.executionPlan?.generateDubbing);
+      const rawDubLangsB = Array.isArray(aiFeatures.dubbingLanguages)
+        ? aiFeatures.dubbingLanguages
+        : (Array.isArray(afterData.dubbingLanguages) ? afterData.dubbingLanguages : (jobData.executionPlan?.dubbingLanguages || []));
+      const normDubLangsB = normalizeLanguageCodes(rawDubLangsB).filter((l: string) => normalizeLanguageCode(l) !== scenarioBChannelLang);
+
+      const wantDubbingB = Boolean(
+        (aiFeatures.generateDubbing === true || afterData.generateDubbing === true || jobData.executionPlan?.generateDubbing === true) &&
+        normDubLangsB.length > 0
+      );
       const wantSubsB = Boolean(aiFeatures.genLangSubs ?? jobData.executionPlan?.genLangSubs);
 
       const durationB = Number(
@@ -1002,7 +1059,7 @@ export const onVideoPublished = onDocumentUpdated(
         }
       }
 
-      const updatedGenerateDubbing = aiFeatures.generateDubbing ?? jobData.executionPlan?.generateDubbing;
+      const updatedGenerateDubbing = wantDubbingB;
       const updatedGenLangSubs = aiFeatures.genLangSubs ?? jobData.executionPlan?.genLangSubs;
       const updatedPlan: ExecutionPlan = {
         ...jobData.executionPlan,
@@ -1011,6 +1068,8 @@ export const onVideoPublished = onDocumentUpdated(
         genLangSubs: updatedGenLangSubs,
         enableDubbing: updatedGenerateDubbing,
         enableSubtitles: updatedGenLangSubs,
+        dubbingLanguages: updatedGenerateDubbing ? normDubLangsB : [],
+        dubbingMode: updatedGenerateDubbing ? (jobData.executionPlan?.dubbingMode || "standard") : "none",
         jobId,
       };
 
@@ -1064,6 +1123,9 @@ export const onVideoPublished = onDocumentUpdated(
       }
 
       await jobDoc.ref.update(updatePayload);
+      if (jobId !== videoId) {
+        await db.collection("video_jobs").doc(videoId).set(updatePayload, { merge: true }).catch(() => {});
+      }
       return;
     }
 
@@ -1119,6 +1181,20 @@ export const onVideoPublished = onDocumentUpdated(
             "executionPlan.dubbingMode": "none",
             updatedAt: Date.now(),
           });
+        }
+
+        const isJobCredibilityCompleted =
+          jobData.stages?.credibility?.status === "completed" ||
+          Boolean(jobData.outputs?.factCheckUrl) ||
+          jobData.status === "completed";
+
+        // If the linked job has already completed credibility, but this specific video document has not received the outputs:
+        if (isJobCredibilityCompleted && (!afterData.isFactChecked || !afterData.credibilityVerified)) {
+          const targetUserId = afterData.userId || afterData.ownerId || jobData.userId || "unknown";
+          logger.info("[PublishGate] Video linked to completed job missing credibility outputs — propagating now", { videoId, jobId: existingJobId });
+          const { aggregationLayer } = require("../pipeline/layers/09-aggregation");
+          await aggregationLayer.propagateCompletedJobToVideo(existingJobId, videoId, targetUserId);
+          return;
         }
 
         if (enableFactCheckingOnReconcile && (existingCredStatus === "skipped" || !existingCredEnabled)) {
@@ -1248,6 +1324,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
         },
         android: {
           priority: "high" as const,
+          collapseKey: `video_${videoId}`,
           notification: {
             channelId: "truthworld_notifications",
             clickAction: "FLUTTER_NOTIFICATION_CLICK",
@@ -1255,6 +1332,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
             visibility: "public" as const,
             icon: "ic_notification",
             color: "#14EAB2",
+            tag: `video_${videoId}`,
             ...(validThumb ? { imageUrl: validThumb } : {}),
           },
         },
@@ -1262,6 +1340,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
           headers: {
             "apns-priority": "10",
             "apns-push-type": "alert",
+            "apns-collapse-id": `video_${videoId}`,
           },
           payload: {
             aps: {
@@ -1275,8 +1354,10 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
         webpush: {
           headers: {
             Urgency: "high",
+            Topic: `video_${videoId}`,
           },
           notification: {
+            tag: `video_${videoId}`,
             icon: "https://www.truthworld.in/icons/Icon-192.png",
             badge: "https://www.truthworld.in/icons/Icon-192.png",
             ...(validThumb ? { image: validThumb } : {}),

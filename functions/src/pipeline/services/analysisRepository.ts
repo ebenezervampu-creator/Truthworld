@@ -82,7 +82,7 @@ export class GCSAnalysisRepository implements AnalysisRepository {
         versions: nextVersions,
         latestVerifiedAt: new Date().toISOString(),
         latestSchema: "v9",
-        latestModel: "Gemini 2.5 Pro",
+        latestModel: data?.versions?.model || data?.llmProvider || "Gemini 3.5 Pro",
         createdAt,
         updatedAt: new Date().toISOString()
       };

@@ -91,6 +91,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     Video video,
     RecommendationSurface surface, {
     DiversityConfig? diversityConfig,
+    Set<String>? seenVideoIds,
+    int refreshEpoch = 0,
   }) {
     final credibilityMultiplier = _computeCredibilityGate(video);
     if (credibilityMultiplier == 0.0) {
@@ -158,6 +160,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       userPrimaryLanguage: userPrimary,
       secondaryLanguages: secondaryLangs,
       knownLanguages: knownLangs,
+      seenVideoIds: seenVideoIds,
+      refreshEpoch: refreshEpoch,
     );
   }
 
@@ -166,6 +170,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     List<Video> candidates,
     RecommendationSurface surface, {
     DiversityConfig? diversityConfig,
+    Set<String>? seenVideoIds,
+    int refreshEpoch = 0,
   }) {
     final config = Get.find<AlgorithmRemoteConfig>();
     final baseWeights = config.getWeightProfile(surface);
@@ -193,6 +199,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       userPrimaryLanguage: userPrimary,
       secondaryLanguages: secondaryLangs,
       knownLanguages: knownLangs,
+      seenVideoIds: seenVideoIds,
+      refreshEpoch: refreshEpoch,
     );
 
     final finalFeed = rankVideosWorker(task);
@@ -211,9 +219,17 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     List<Video> candidates,
     RecommendationSurface surface, {
     DiversityConfig? diversityConfig,
+    Set<String>? seenVideoIds,
+    int refreshEpoch = 0,
   }) async {
     if (candidates.length <= 15) {
-      return rankVideos(candidates, surface, diversityConfig: diversityConfig);
+      return rankVideos(
+        candidates,
+        surface,
+        diversityConfig: diversityConfig,
+        seenVideoIds: seenVideoIds,
+        refreshEpoch: refreshEpoch,
+      );
     }
 
     final config = Get.find<AlgorithmRemoteConfig>();
@@ -242,6 +258,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       userPrimaryLanguage: userPrimary,
       secondaryLanguages: secondaryLangs,
       knownLanguages: knownLangs,
+      seenVideoIds: seenVideoIds,
+      refreshEpoch: refreshEpoch,
     );
 
     final finalFeed = await compute(rankVideosWorker, task);

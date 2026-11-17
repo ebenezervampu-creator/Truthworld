@@ -2779,8 +2779,9 @@ class ClaimDetailScreen extends StatelessWidget {
     String? videoId,
     String? claimId,
   }) async {
-    final targetUrl =
-        (urlStr != null && urlStr.trim().isEmpty == false) ? urlStr : source?.url;
+    final direct = source?.directUrl;
+    final fallback = (urlStr != null && urlStr.trim().isNotEmpty) ? urlStr : source?.url;
+    final targetUrl = (direct != null && direct.trim().isNotEmpty) ? direct : fallback;
     if (targetUrl == null || targetUrl.trim().isEmpty) return;
     await SourceUrlSanitizer.launchSourceUrl(
       url: targetUrl,

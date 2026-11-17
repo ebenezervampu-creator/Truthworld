@@ -29,6 +29,9 @@ abstract class UploadControllerBase extends BaseController
   static const int maxDescriptionLength = 5000;
   static const int maxTags = 5;
 
+  /// Minimum allowed video duration: 30 seconds.
+  static const int minVideoDurationSeconds = 30;
+
   /// Maximum allowed file size for video thumbnails: 2MB (strictly aligned with YouTube limit).
   static const int maxThumbnailSizeBytes = 2 * 1024 * 1024;
 
@@ -91,6 +94,10 @@ abstract class UploadControllerBase extends BaseController
     return channelLanguageCode;
   }
 
+  /// Whether the creator explicitly selected a specific spoken language (vs auto-detect).
+  bool get hasExplicitSpokenLanguage =>
+      primarySpokenLanguage.value.isNotEmpty && primarySpokenLanguage.value != 'auto';
+
   /// List of supported translation and audio languages
   List<TranslationLanguage> get supportedLanguagesList => supportedLanguages;
 
@@ -144,6 +151,7 @@ abstract class UploadControllerBase extends BaseController
   );
 
   // Category & Metadata
+  @override
   RxString get selectedCategory;
   RxString get selectedVisibility;
   RxBool get isKidFriendly;
@@ -175,7 +183,6 @@ abstract class UploadControllerBase extends BaseController
   RxBool get aiGenerateSubtitles;
   RxBool get aiGenerateDubbing;
   RxBool get aiDiarizationEnabled;
-  RxBool get aiLipSyncEnabled;
   RxBool get aiSummaryEnabled;
   RxString get primarySpokenLanguage;
   RxList<String> get spokenLanguages;
@@ -194,13 +201,19 @@ abstract class UploadControllerBase extends BaseController
   RxList<String> get providedSources;
 
   // Topics
+  @override
   RxString get selectedTopicId;
+  @override
   RxList<String> get selectedTopicIds;
+  @override
   RxList<Topic> get availableTopics;
+  @override
   RxBool get isTopicsLoading;
   RxString get topicsError;
+  @override
   RxString get topicSearchQuery;
   RxMap<String, Map<String, String>> get channelMetadataCache;
+  @override
   RxMap<String, dynamic> get newTopicData;
 
   // Wizard Stage
@@ -215,6 +228,7 @@ abstract class UploadControllerBase extends BaseController
   set videoMetadata(Map<String, dynamic> data);
 
   // Text Controllers
+  @override
   TextEditingController get titleController;
   TextEditingController get descriptionController;
   TextEditingController get tagController;

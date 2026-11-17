@@ -349,6 +349,17 @@ export class DeterministicVerifierService {
       }
     }
 
+    // 1b. Statistical Distortion Genealogy Referential Integrity:
+    if (assessment.distortionGenealogy) {
+      for (const id of assessment.distortionGenealogy.citedEvidenceIds || []) {
+        if (!registry[id]) {
+          errors.push(
+            `[REFERENTIAL_INTEGRITY] distortionGenealogy references non-existent evidence ID '${id}'.`
+          );
+        }
+      }
+    }
+
     // 2. Non-Empty Grounding Rule:
     // An assessment cannot be SUPPORTED or CONTRADICTED if the corresponding evidence array is empty,
     // or if any referenced evidence item has exactMatchScore < 0.95.

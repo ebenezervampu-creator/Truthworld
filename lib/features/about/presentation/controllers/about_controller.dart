@@ -23,17 +23,17 @@ class AboutController extends BaseController with GetTickerProviderStateMixin {
 
   void _initializeAnimations() {
     fadeAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 260),
       vsync: this,
     );
 
     slideAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 240),
       vsync: this,
     );
 
     scaleAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 200),
       vsync: this,
     );
 
@@ -45,7 +45,7 @@ class AboutController extends BaseController with GetTickerProviderStateMixin {
     );
 
     slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(
       CurvedAnimation(
         parent: slideAnimationController,
         curve: Curves.easeOutCubic,
@@ -55,7 +55,7 @@ class AboutController extends BaseController with GetTickerProviderStateMixin {
     scaleAnimation = Tween<double>(begin: 0.98, end: 1).animate(
       CurvedAnimation(
         parent: scaleAnimationController,
-        curve: Curves.easeOutBack,
+        curve: Curves.easeOutCubic,
       ),
     );
 

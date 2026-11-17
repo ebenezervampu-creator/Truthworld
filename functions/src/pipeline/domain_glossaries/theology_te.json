@@ -1,0 +1,32 @@
+{
+  "glossaryId": "theology_te",
+  "domain": "theology",
+  "sourceLanguage": "en",
+  "targetLanguage": "te",
+  "description": "TruthWorld domain glossary for theological, biblical, and prayer discourse in Telugu dubbing & subtitles.",
+  "terms": [
+    {
+      "source": "Lord",
+      "target": "ప్రభువా",
+      "context": "vocative_prayer_and_biblical_address",
+      "disallowedTransliterations": ["లార్డ్"],
+      "acceptableAlternatives": ["ప్రభువు", "దేవా"]
+    },
+    {
+      "source": "God",
+      "target": "దేవుడు",
+      "context": "biblical_theological_address",
+      "acceptableAlternatives": ["భగవంతుడు", "పరలోకపు తండ్రి"]
+    },
+    {
+      "source": "Grace",
+      "target": "కృప",
+      "context": "theological_grace"
+    },
+    {
+      "source": "Faith",
+      "target": "విశ్వాసం",
+      "context": "theological_faith"
+    }
+  ]
+}

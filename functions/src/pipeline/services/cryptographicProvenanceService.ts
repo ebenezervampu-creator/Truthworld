@@ -19,10 +19,51 @@ import { CryptographicProvenanceRecord, DatasetIntegrityManifest } from '../type
 export class CryptographicProvenanceService {
   private static readonly DEFAULT_AUDIT_SECRET = 'truthworld_sovereign_audit_key_prod_2026';
 
-  // Institutional Authority Ed25519 Keypair (Singleton)
-  private static _authorityKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync('ed25519');
-  private static _authorityPublicKeyPem: string = CryptographicProvenanceService._authorityKeyPair.publicKey.export({ type: 'spki', format: 'pem' }).toString();
-  private static _authorityPrivateKeyPem: string = CryptographicProvenanceService._authorityKeyPair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  // Institutional Authority Ed25519 Keypair (Supports Secret Manager / Environment Injection)
+  private static initAuthorityKeyPair(): {
+    publicKey: crypto.KeyObject;
+    privateKey: crypto.KeyObject;
+    publicKeyPem: string;
+    privateKeyPem: string;
+  } {
+    try {
+      const envPrivateKeyPem = process.env.AUDIT_AUTHORITY_PRIVATE_KEY_PEM;
+      if (envPrivateKeyPem && envPrivateKeyPem.trim().length > 0) {
+        const privateKey = crypto.createPrivateKey(envPrivateKeyPem);
+        const publicKey = crypto.createPublicKey(privateKey);
+        return {
+          publicKey,
+          privateKey,
+          publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString(),
+          privateKeyPem: envPrivateKeyPem,
+        };
+      }
+    } catch {
+      // Fallback cleanly to internal key generation on secret parse failure
+    }
+    const generated = crypto.generateKeyPairSync('ed25519');
+    return {
+      publicKey: generated.publicKey,
+      privateKey: generated.privateKey,
+      publicKeyPem: generated.publicKey.export({ type: 'spki', format: 'pem' }).toString(),
+      privateKeyPem: generated.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    };
+  }
+
+  private static _authorityData = CryptographicProvenanceService.initAuthorityKeyPair();
+  private static _authorityKeyPair = {
+    publicKey: CryptographicProvenanceService._authorityData.publicKey,
+    privateKey: CryptographicProvenanceService._authorityData.privateKey,
+  };
+  private static _authorityPublicKeyPem: string = CryptographicProvenanceService._authorityData.publicKeyPem;
+  private static _authorityPrivateKeyPem: string = CryptographicProvenanceService._authorityData.privateKeyPem;
+
+  /**
+   * Retrieves active authority Key ID for versioning and rotation tracking.
+   */
+  public static getAuthorityKeyId(): string {
+    return process.env.AUDIT_AUTHORITY_KEY_ID || 'tw-ed25519-v1';
+  }
 
   /**
    * Deterministic canonical JSON serialization (RFC 8785 standard subset).

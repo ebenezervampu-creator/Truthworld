@@ -146,8 +146,8 @@ void main() {
       expect(find.text('Audio'), findsWidgets);
       expect(find.text('Download'), findsOneWidget);
 
-      // 6. Audio progress bar above download button and in track cards are removed
-      expect(find.byType(Slider), findsNothing);
+      // 6. Audio progress bar above download button and in track cards are removed (only single video scrubber slider exists)
+      expect(find.byType(Slider), findsOneWidget);
 
       // 7. Track items shown as language tabs in video player above
       expect(find.textContaining('English'), findsWidgets);
@@ -211,7 +211,7 @@ void main() {
       expect(find.text('VideoTracks'), findsNothing);
       expect(find.text('Audio'), findsWidgets);
       expect(find.text('Download'), findsOneWidget);
-      expect(find.byType(Slider), findsNothing);
+      expect(find.byType(Slider), findsOneWidget);
     });
 
     testWidgets('showAddAudioOptionsSheet opens bottom sheet with Generate Audio and Add files options', (tester) async {

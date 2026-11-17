@@ -13,6 +13,8 @@ class CommunityPostContentInputs
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 900;
+
     return CommunityUploadSectionCard(
       title: '1. Post Content',
       children: [
@@ -169,9 +171,10 @@ class CommunityPostContentInputs
               children: [
                 TextFormField(
                   controller: controller.descCtrl,
-                  maxLines: 5,
-                  minLines: 4,
+                  minLines: isDesktop ? 12 : 6,
+                  maxLines: isDesktop ? 16 : 8,
                   maxLength: 2000,
+                  textAlignVertical: TextAlignVertical.top,
                   inputFormatters: TruthworldTextInputFormatters.withLimit(2000),
                   onChanged: (val) => controller.descriptionText.value = val,
                   style: context.twTypography.body.copyWith(

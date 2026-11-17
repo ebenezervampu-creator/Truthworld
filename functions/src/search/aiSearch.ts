@@ -155,7 +155,7 @@ export const aiSearchAssistant = onCall(
     try {
       const genAI = getVertexAI();
       const model = genAI.getGenerativeModel({
-        model: PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition || "gemini-2.5-flash",
+        model: PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition || "gemini-3.5-flash-lite",
         systemInstruction: AI_SEARCH_SYSTEM_PROMPT,
         generationConfig: {
           responseMimeType: "application/json",

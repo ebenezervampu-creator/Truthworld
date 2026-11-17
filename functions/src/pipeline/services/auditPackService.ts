@@ -141,6 +141,7 @@ export class AuditPackService {
         auditPackSha256,
         datasetManifestHash,
         signerId: 'audit_authority_truthworld_main',
+        keyId: CryptographicProvenanceService.getAuthorityKeyId(),
         algorithm: 'Ed25519',
         publicKeyPem,
         signature,

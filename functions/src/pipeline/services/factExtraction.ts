@@ -1,9 +1,10 @@
-import type { VertexAI } from "../utils/ai-client";
+import { Type, Schema } from "@google/genai";
+import { getVertexClient, getVertexAI, type VertexAI } from "../utils/ai-client";
+import { GEMINI_MODELS, PIPELINE_CONFIG } from "../config";
+import { recordTokenUsage } from "./cost-engine";
 import * as admin from "firebase-admin";
-import { PIPELINE_CONFIG } from "../config";
-import { getVertexAI } from "../utils/ai-client";
 import { 
-  ExtractedClaim, 
+  ExtractedClaim as LegacyExtractedClaim, 
   GeminiExtractionSchema,
   GeminiSingleExtractionSchema, 
   Utterance, 
@@ -16,6 +17,205 @@ import { isSubjectiveClaim, containsVerifiablePredicate } from "./contentIntentD
 import { SourceAvatarService } from "./sourceAvatarService";
 import { logger } from "../utils/logger";
 import { withAiRetry, extractCandidateText } from "../utils/ai-utils";
+
+export interface DiarizedUtterance {
+  speaker: string; // AssemblyAI speaker ID ("A", "B", etc.)
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+export interface ExtractedClaim {
+  claimId: string;
+  speakerId: string;
+  startMs: number;
+  endMs: number;
+  verbatimQuote: string;
+  normalizedClaim: string;
+  domain:
+    | "GENERAL_FACT"
+    | "HEALTH_MEDICAL"
+    | "GEOPOLITICS_WAR"
+    | "ELECTIONS_GOVERNANCE"
+    | "MACROECONOMICS_FINANCE";
+  requiresVerification: boolean;
+}
+
+export const EXTRACTION_SCHEMA: Schema = {
+  type: Type.ARRAY,
+  items: {
+    type: Type.OBJECT,
+    properties: {
+      claimId: { type: Type.STRING },
+      speakerId: { type: Type.STRING },
+      startMs: { type: Type.INTEGER },
+      endMs: { type: Type.INTEGER },
+      verbatimQuote: { type: Type.STRING },
+      normalizedClaim: { type: Type.STRING },
+      domain: {
+        type: Type.STRING,
+        enum: [
+          "GENERAL_FACT",
+          "HEALTH_MEDICAL",
+          "GEOPOLITICS_WAR",
+          "ELECTIONS_GOVERNANCE",
+          "MACROECONOMICS_FINANCE",
+        ],
+      },
+      requiresVerification: { type: Type.BOOLEAN },
+    },
+    required: [
+      "claimId",
+      "speakerId",
+      "startMs",
+      "endMs",
+      "verbatimQuote",
+      "normalizedClaim",
+      "domain",
+      "requiresVerification",
+    ],
+  },
+};
+
+export const SYSTEM_INSTRUCTION = `You are TruthWorld's Layer 06 Empirical Claim Extractor.
+CRITICAL BINDING CONSTRAINTS:
+1. Preserve and bind the exact AssemblyAI speaker IDs (e.g., "A", "B") and millisecond timestamps (startMs, endMs) provided in the input.
+2. Do NOT attempt to re-diarize, infer real names, merge distinct speaker turns, or alter timestamps.
+3. Extract ALL verifiable empirical, historical, legal, constitutional, and statistical assertions. Do NOT omit valid claims across any minute of the video.
+4. Exclude only pure subjective opinions, personal preferences, and religious faith beliefs.
+5. Multilingual & Indic support: Extract claims from Telugu, Hindi, and bilingual speech with equal rigor, preserving authentic quotes and millisecond boundaries.`;
+
+export async function extractEmpiricalClaims(
+  videoId: string,
+  utterances: DiarizedUtterance[],
+  requireUsResidency = false
+): Promise<ExtractedClaim[]> {
+  if (!Array.isArray(utterances) || utterances.length === 0) {
+    return [];
+  }
+
+  const ai = getVertexClient({ requireUsResidency });
+  const tier = GEMINI_MODELS.extraction;
+
+  // Chunk utterances if transcript exceeds 15 utterances or 60 seconds
+  const CHUNK_UTTERANCE_LIMIT = 15;
+  const CHUNK_TIME_SPAN_MS = 60000;
+
+  const totalSpan = (utterances[utterances.length - 1]?.endMs || 0) - (utterances[0]?.startMs || 0);
+
+  if (utterances.length <= CHUNK_UTTERANCE_LIMIT && totalSpan <= CHUNK_TIME_SPAN_MS) {
+    const response = await ai.models.generateContent({
+      model: tier.model,
+      contents: JSON.stringify(utterances),
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: tier.temperature,
+        maxOutputTokens: tier.maxOutputTokens,
+        responseMimeType: "application/json",
+        responseSchema: EXTRACTION_SCHEMA,
+        thinkingConfig: {
+          thinkingLevel: tier.defaultThinkingLevel as any,
+        },
+      },
+    });
+
+    if (response.usageMetadata) {
+      recordTokenUsage({
+        videoId,
+        tier: "TIER_1_EXTRACTION",
+        model: tier.model,
+        usage: response.usageMetadata,
+        groundingQueriesExecuted: 0,
+      });
+    }
+
+    const raw = response.text ?? "[]";
+    try {
+      return JSON.parse(raw) as ExtractedClaim[];
+    } catch {
+      return [];
+    }
+  }
+
+  // Chunking path for comprehensive multi-minute coverage
+  const chunks: DiarizedUtterance[][] = [];
+  let curChunk: DiarizedUtterance[] = [];
+  let curStart = utterances[0]?.startMs || 0;
+
+  for (const u of utterances) {
+    curChunk.push(u);
+    const span = (u.endMs || 0) - curStart;
+    if (curChunk.length >= CHUNK_UTTERANCE_LIMIT || span >= CHUNK_TIME_SPAN_MS) {
+      chunks.push(curChunk);
+      curChunk = [];
+      curStart = u.endMs || 0;
+    }
+  }
+  if (curChunk.length > 0) {
+    chunks.push(curChunk);
+  }
+
+  logger.info(`[extractEmpiricalClaims] Processing ${utterances.length} utterances across ${chunks.length} chronological chunks for full timeline coverage`, { videoId });
+
+  const CONCURRENCY = 3;
+  const allClaims: ExtractedClaim[] = [];
+
+  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+    const batch = chunks.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.all(
+      batch.map(async (chunk) => {
+        try {
+          const response = await ai.models.generateContent({
+            model: tier.model,
+            contents: JSON.stringify(chunk),
+            config: {
+              systemInstruction: SYSTEM_INSTRUCTION,
+              temperature: tier.temperature,
+              maxOutputTokens: tier.maxOutputTokens,
+              responseMimeType: "application/json",
+              responseSchema: EXTRACTION_SCHEMA,
+              thinkingConfig: {
+                thinkingLevel: tier.defaultThinkingLevel as any,
+              },
+            },
+          });
+
+          if (response.usageMetadata) {
+            recordTokenUsage({
+              videoId,
+              tier: "TIER_1_EXTRACTION",
+              model: tier.model,
+              usage: response.usageMetadata,
+              groundingQueriesExecuted: 0,
+            });
+          }
+
+          const raw = response.text ?? "[]";
+          return JSON.parse(raw) as ExtractedClaim[];
+        } catch (chunkErr) {
+          logger.warn(`[extractEmpiricalClaims] Chunk extraction failed, continuing with next`, { error: String(chunkErr) });
+          return [];
+        }
+      })
+    );
+
+    batchResults.forEach((claims) => allClaims.push(...claims));
+  }
+
+  // Deduplicate claims across chunk boundaries
+  const seen = new Set<string>();
+  const uniqueClaims: ExtractedClaim[] = [];
+  for (const c of allClaims) {
+    const key = (c.normalizedClaim || c.verbatimQuote || "").toLowerCase().trim();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      uniqueClaims.push(c);
+    }
+  }
+
+  logger.info(`[extractEmpiricalClaims] Extracted ${uniqueClaims.length} total empirical claims across full timeline`, { videoId });
+  return uniqueClaims;
+}
 
 const HarmCategory = {
   HARM_CATEGORY_HARASSMENT: "HARM_CATEGORY_HARASSMENT",
@@ -124,7 +324,8 @@ export class FactExtractionService {
     const overlapWords = 25;
     const duration = utterance.end - utterance.start;
 
-    for (let i = 0; i < words.length; i += (targetWords - overlapWords)) {
+    let i = 0;
+    while (i < words.length) {
       let endIdx = i + targetWords;
       
       // Attempt to find a punctuation boundary within the last 30% of the chunk
@@ -153,7 +354,7 @@ export class FactExtractionService {
       });
 
       if (endIdx >= words.length) break;
-      i = endIdx - overlapWords; // Move i to endIdx but keep overlap
+      i = Math.max(i + 1, endIdx - overlapWords);
     }
 
     return subUtterances;
@@ -271,7 +472,7 @@ export class FactExtractionService {
       channelTitle?: string;
       domain?: string;
     }
-  ): Promise<ExtractedClaim[]> {
+  ): Promise<LegacyExtractedClaim[]> {
     const transcript = this.formatChunk(utterances);
 
     const videoContextBlock = videoContext?.title
@@ -395,7 +596,7 @@ Return a JSON response with this structure:
 Return ONLY valid JSON, no explanations.`;
 
     const extractChain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.5-flash-lite",
       fallback: null,
       forcePrimary: true
     };
@@ -453,7 +654,7 @@ Return ONLY valid JSON, no explanations.`;
         return [];
       }
 
-      const extractedClaims: ExtractedClaim[] = claimsToProcess
+      const extractedClaims: LegacyExtractedClaim[] = claimsToProcess
         .filter((c) => c.confidence >= 0.5) 
         .map((claim, idx) => {
           let nature: ClaimNature = claim.nature as any;
@@ -535,7 +736,7 @@ RULES:
 4. Detect the language accurately.`;
 
     const stanceChain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.5-flash-lite",
       fallback: null,
       forcePrimary: true
     };
@@ -583,7 +784,7 @@ RULES:
       channelTitle?: string;
       domain?: string;
     }
-  ): Promise<ExtractedClaim[]> {
+  ): Promise<LegacyExtractedClaim[]> {
     if (!utterances || utterances.length === 0) {
       console.warn("[FactExtraction] Empty transcript — skipping extraction");
       return [];
@@ -592,7 +793,7 @@ RULES:
     // Split into chunks
     const chunks = this.chunkTranscript(utterances, chunkDurationMs);
     const totalChunks = chunks.length;
-    const allClaims: ExtractedClaim[] = [];
+    const allClaims: LegacyExtractedClaim[] = [];
 
     // Process chunks with concurrency control
     for (let i = 0; i < chunks.length; i += maxConcurrent) {
@@ -648,7 +849,7 @@ RULES:
     mimeType: string = "video/mp4",
     videoTitle?: string
   ): Promise<{
-    claims: ExtractedClaim[];
+    claims: LegacyExtractedClaim[];
     domainInfo: {
       domain: string;
       stance: string;
@@ -733,7 +934,7 @@ Return ONLY a valid JSON object matching this structure:
 }`;
 
     const extractChain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.5-flash-lite",
       fallback: null,
       forcePrimary: true,
     };
@@ -792,12 +993,23 @@ Return ONLY a valid JSON object matching this structure:
         };
       }
 
+      let claimsToProcess: any[] = [];
       const validation = GeminiExtractionSchema.safeParse(parsed);
       const validatedData = validation.success ? validation.data : parsed;
 
-      const rawClaimsList = Array.isArray(validatedData.claims) ? validatedData.claims : [];
+      if (validation.success) {
+        claimsToProcess = validation.data.claims;
+      } else if (Array.isArray(parsed?.claims)) {
+        logger.warn(`[FactExtraction] Full schema validation failed for media extraction on ${jobId}, salvaging valid claims individually`);
+        for (const rawClaim of parsed.claims) {
+          const singleVal = GeminiSingleExtractionSchema.safeParse(rawClaim);
+          if (singleVal.success) {
+            claimsToProcess.push(singleVal.data);
+          }
+        }
+      }
 
-      const extractedClaims: ExtractedClaim[] = rawClaimsList
+      const extractedClaims: LegacyExtractedClaim[] = claimsToProcess
         .filter((c: any) => (c.confidence ?? 0.5) >= 0.5)
         .map((claim: any, idx: number) => {
           let nature: ClaimNature = (claim.nature as any) || "VERIFIABLE_FACT";
@@ -863,14 +1075,32 @@ Return ONLY a valid JSON object matching this structure:
       channelTitle?: string;
       domain?: string;
     }
-  ): Promise<ExtractedClaim[]> {
-    const durationMs = transcript.duration * 1000;
-    
+  ): Promise<LegacyExtractedClaim[]> {
+    const rawUtterances = transcript?.utterances ?? [];
+    if (!Array.isArray(rawUtterances) || rawUtterances.length === 0) {
+      logger.warn(`[FactExtraction] Empty transcript utterances for job ${jobId}`);
+      return [];
+    }
+
+    const durationSec = (typeof transcript.duration === "number" && transcript.duration > 0)
+      ? transcript.duration
+      : (rawUtterances.length > 0
+          ? (rawUtterances[rawUtterances.length - 1].end || rawUtterances[rawUtterances.length - 1].endMs || 0) / 1000
+          : 120);
+    const durationMs = durationSec * 1000;
+
+    logger.info(`[FactExtraction] Initiating full-timeline chunked claim extraction for ${jobId}`, {
+      utteranceCount: rawUtterances.length,
+      durationSec: Math.round(durationSec),
+      chunkDurationMs,
+      hasVideoContext: Boolean(videoContext?.title),
+    });
+
     if (durationMs > FactExtractionService.LONGFORM_THRESHOLD_MS) {
-      logger.info(`[FactExtraction] Long-form detected (${Math.round(durationMs/60000)} mins). Using Map-Reduce path.`);
+      logger.info(`[FactExtraction] Long-form detected (${Math.round(durationMs / 60000)} mins). Using Map-Reduce path.`);
       return this.extractClaimsMapReduce(jobId, transcript, chunkDurationMs, maxConcurrent, videoContext);
     } else {
-      return this.extractClaimsStandard(jobId, transcript.utterances ?? [], chunkDurationMs, maxConcurrent, videoContext);
+      return this.extractClaimsStandard(jobId, rawUtterances, chunkDurationMs, maxConcurrent, videoContext);
     }
   }
 
@@ -885,13 +1115,13 @@ Return ONLY a valid JSON object matching this structure:
       channelTitle?: string;
       domain?: string;
     }
-  ): Promise<ExtractedClaim[]> {
+  ): Promise<LegacyExtractedClaim[]> {
     const segmentDurationMs = 10 * 60 * 1000; // 10 minute segments
     const segments = this.segmentTranscript(transcript, segmentDurationMs);
     
     logger.info(`[FactExtraction] Map Phase: Segmented transcript into ${segments.length} blocks for parallel processing.`);
 
-    const segmentResults: ExtractedClaim[][] = [];
+    const segmentResults: LegacyExtractedClaim[][] = [];
     const segmentBatchSize = 2; // Process 2 segments (~20 mins of video) at a time
 
     for (let i = 0; i < segments.length; i += segmentBatchSize) {
@@ -936,7 +1166,7 @@ Return ONLY a valid JSON object matching this structure:
   /**
    * Basic semantic deduplication for merged claims
    */
-  private deduplicateAndMerge(claims: ExtractedClaim[]): ExtractedClaim[] {
+  private deduplicateAndMerge(claims: LegacyExtractedClaim[]): LegacyExtractedClaim[] {
     const seen = new Set<string>();
     return claims.filter(c => {
       const key = c.text.toLowerCase().trim();
@@ -1008,7 +1238,7 @@ Return ONLY a valid JSON object matching this structure:
       const segmentSummariesResults = await Promise.all(
         segments.map(async (segment) => {
           const segmentText = segment.segmentUtterances.map(u => `${u.speaker || 'Speaker'}: ${u.text}`).join("\n");
-          const segmentChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+          const segmentChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.5-flash-lite", fallback: null, forcePrimary: true };
           return withAiRetry(async (modelId: string) => {
             const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
             const res = await activeModel.generateContent(`Summarize this transcript segment briefly (focus on core arguments and key facts):\n\n${segmentText.substring(0, 10000)}`);
@@ -1068,7 +1298,7 @@ ${priorsInfo}`;
 - Extracted Claims: ${health.extractedClaims}
 - Factual Claims Routed: ${health.factualRouted}
 - Successfully Evaluated: ${health.evaluatedClaims}
-${health.healthStatus === 'critical' ? 'CRITICAL OPERATIONAL FAILURE: Most factual claims failed verification due to system timeouts. DO NOT use the term "Unsupported" (which implies a successful search with no results). Instead, use "Inconclusive due to Operational Timeout". State clearly that verification coverage was insufficient to form a reliable verdict.' : ''}
+${health.healthStatus === 'critical' && health.factualRouted > 0 ? 'CRITICAL OPERATIONAL FAILURE: Most factual claims failed verification due to system timeouts. DO NOT use the term "Unsupported" (which implies a successful search with no results). Instead, use "Inconclusive due to Operational Timeout". State clearly that verification coverage was insufficient to form a reliable verdict.' : ''}
 ` : "";
 
     const prompt = `You are a ${personas[tier]}. Produce an institutional-grade Trust Report.
@@ -1153,7 +1383,7 @@ Return ONLY valid JSON according to:
 6. MANIPULATION: Distinguish between "Marketing Hype" (scored low) and "Rage-bait" (scored high).
 7. INTELLIGENT NEUTRALITY: If the transcript is primarily legal or political inquiries, suggest specific types of sources (e.g., "consult court rulings") rather than making definitive conclusions.`;
 
-    const narrativeChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    const narrativeChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.5-flash-lite", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
@@ -1263,7 +1493,7 @@ Return a JSON object:
 }
 Return ONLY valid JSON.`;
 
-    const contradictionChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.consistency || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    const contradictionChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.consistency || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.5-flash-lite", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
@@ -1332,7 +1562,7 @@ Return a JSON map: {"Speaker Label": "Real Name or Unknown"}.
 Example: {"Speaker A": "John Smith", "Speaker B": "Unknown"}.
 Return ONLY JSON.`;
 
-    const speakerChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    const speakerChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.5-flash-lite", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const res = await activeModel.generateContent(prompt);

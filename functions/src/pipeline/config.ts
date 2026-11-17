@@ -10,6 +10,57 @@
  *        firebase functions:secrets:set GOOGLE_TRANSLATION_API_KEY
  */
 
+export type ThinkingLevel = "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" | "XHIGH";
+
+export interface ModelTierConfig {
+  model: string;
+  defaultThinkingLevel: ThinkingLevel;
+  temperature: number;
+  maxOutputTokens: number;
+}
+
+export const PIPELINE_PHASE: "PHASE_1_PROMO" | "PHASE_2_UNIFIED" =
+  (process.env.PIPELINE_PHASE as "PHASE_1_PROMO" | "PHASE_2_UNIFIED") || "PHASE_1_PROMO";
+
+export const GEMINI_MODELS: Record<"extraction" | "verification" | "reasoning", ModelTierConfig> = {
+  extraction: {
+    model: process.env.GEMINI_MODEL_EXTRACTION || "gemini-3.5-flash-lite",
+    defaultThinkingLevel: "MINIMAL",
+    temperature: 0.0,
+    maxOutputTokens: 8192,
+  },
+  verification: {
+    model:
+      PIPELINE_PHASE === "PHASE_2_UNIFIED"
+        ? (process.env.GEMINI_MODEL_VERIFICATION_PHASE_2 || "gemini-4-hydrogen")
+        : (process.env.GEMINI_MODEL_VERIFICATION || "gemini-3.8-flash"),
+    defaultThinkingLevel: "LOW",
+    temperature: 0.1,
+    maxOutputTokens: 4096,
+  },
+  reasoning: {
+    model: process.env.GEMINI_MODEL_REASONING || "gemini-4-hydrogen",
+    defaultThinkingLevel: "MEDIUM",
+    temperature: 0.1,
+    maxOutputTokens: 8192,
+  },
+};
+
+export const PIPELINE_LIMITS = {
+  BATCH_SIZE_GROUNDING: Number(process.env.BATCH_SIZE_GROUNDING) || 6,
+  TIER3_DEFAULT_THINKING: "MEDIUM" as ThinkingLevel,
+  TIER3_ESCALATION_THINKING: "HIGH" as ThinkingLevel,
+  TIER3_CONFLICT_THINKING: "XHIGH" as ThinkingLevel,
+  TIER3_CONFIDENCE_THRESHOLD: 0.85,
+  MAX_ESCALATION_THINKING: "XHIGH" as ThinkingLevel,
+  SENSITIVE_DOMAINS: new Set([
+    "HEALTH_MEDICAL",
+    "GEOPOLITICS_WAR",
+    "ELECTIONS_GOVERNANCE",
+    "MACROECONOMICS_FINANCE",
+  ]),
+} as const;
+
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -24,9 +75,6 @@ function requireEnv(name: string): string {
 }
 
 export const PIPELINE_CONFIG = {
-  get SARVAM_API_KEY(): string {
-    return process.env.SARVAM_API_KEY || "";
-  },
   get ASSEMBLYAI_KEY(): string {
     return requireEnv("ASSEMBLYAI_KEY");
   },
@@ -41,35 +89,46 @@ export const PIPELINE_CONFIG = {
   get GOOGLE_TRANSLATION_API_KEY(): string {
     return requireEnv("GOOGLE_TRANSLATION_API_KEY");
   },
-  get GOOGLE_TTS_API_KEY(): string {
-    return process.env.GOOGLE_TTS_API_KEY || process.env.GOOGLE_TRANSLATION_API_KEY || "";
-  },
-  FFMPEG_SERVICE_URL: process.env.FFMPEG_SERVICE_URL || "https://placeholder.run",
-  LIPSYNC_SERVICE_URL: process.env.LIPSYNC_SERVICE_URL || "https://ebenezervampu--truthworld-latentsync-worker-fastapi-app.us-east.modal.run",
+  FFMPEG_SERVICE_URL: process.env.FFMPEG_SERVICE_URL || "",
+  DEMUX_SERVICE_URL: process.env.DEMUX_SERVICE_URL || "",
   PUBLIC_FUNCTION_BASE_URL: "https://asia-south1-truthworld-1.cloudfunctions.net",
   VIDEO_BUCKET: "truthworld-1.firebasestorage.app",
+
+  // ─── World-Class Google Cloud Translation Configuration ───────────────────
+  TRANSLATION_PROVIDER: process.env.TRANSLATION_PROVIDER || "google",
+  TRANSLATION_API_VERSION: process.env.TRANSLATION_API_VERSION || "v3",
+  TRANSLATION_MODEL: process.env.TRANSLATION_MODEL || "general/translation-llm",
+  TRANSLATION_LOCATION: process.env.TRANSLATION_LOCATION || "global",
+
+  /** Last-known-good configuration for automatic fallback / zero-downtime rollback */
+  LAST_KNOWN_GOOD_TRANSLATION_CONFIG: {
+    provider: "google",
+    apiVersion: "v3",
+    model: "general/translation-llm",
+    location: "global",
+  } as const,
 
   /**
    * 🧠 ROLE-BASED MODEL SELECTION (Vertex AI Hybrid Cost-Effective Architecture)
    *
    * Cost strategy:
-   * Unified Workhorse (Gemini 2.5 Flash)        → ultra-fast, high-throughput, low-cost multimodal engine
-   * Baseline Workhorse (Gemini 2.5 Flash)       → fast, reliable multimodal pipeline (~$0.15/1M in)
-   * Truth Arbiter / Reasoning (Gemini 2.5 Flash) → deep, robust verification for sensitive/disputed domains
+   * Unified Workhorse (Gemini 3.5 Flash Lite)        → ultra-fast, high-throughput, low-cost multimodal engine
+   * Baseline Workhorse (Gemini 3.5 Flash Lite)       → fast, reliable multimodal pipeline
+   * Truth Arbiter / Reasoning (Gemini 3.5 Flash Lite) → deep, robust verification for sensitive/disputed domains
    *
-   * Saves ~50% on worker spend while ensuring frontier truth verification on sensitive claims.
+   * Saves on worker spend while ensuring frontier truth verification on sensitive claims.
    */
   GEMINI_MODELS: {
-    extraction: process.env.GEMINI_EXTRACTION_MODEL || "gemini-2.5-flash",   // Fast, cost-effective claim extraction (Flash-Lite)
-    verification: process.env.GEMINI_VERIFICATION_MODEL || "gemini-2.5-flash", // Truth arbiter (Gemini 2.5 Flash)
-    reasoning: process.env.GEMINI_REASONING_MODEL || "gemini-2.5-flash",       // Vertex AI Frontier Reasoning Model (Gemini 2.5 Flash)
-    synthesis: process.env.GEMINI_SYNTHESIS_MODEL || "gemini-2.5-flash",    // Intelligence summaries & video metadata (Flash-Lite)
-    consistency: process.env.GEMINI_CONSISTENCY_MODEL || "gemini-2.5-flash",  // Contradiction detection (Flash-Lite)
-    translation: process.env.GEMINI_TRANSLATION_MODEL || "gemini-2.5-flash",  // Translation lane (worker)
-    profiling: process.env.GEMINI_PROFILING_MODEL || "gemini-2.5-flash", // Speaker profiling (worker: Flash-Lite)
-    moderation: process.env.GEMINI_MODERATION_MODEL || "gemini-2.5-flash",   // Multimodal video, channel, and topic moderation (Flash)
-    fastTier: process.env.GEMINI_FAST_TIER_MODEL || "gemini-2.5-flash",     // Instant lightweight verification (Flash-Lite)
-    queryDecomposition: process.env.GEMINI_QUERY_MODEL || "gemini-2.5-flash", // Search query decomposition (Flash-Lite)
+    extraction: GEMINI_MODELS.extraction.model,
+    verification: GEMINI_MODELS.verification.model,
+    reasoning: GEMINI_MODELS.reasoning.model,
+    synthesis: process.env.GEMINI_SYNTHESIS_MODEL || GEMINI_MODELS.extraction.model,
+    consistency: process.env.GEMINI_CONSISTENCY_MODEL || GEMINI_MODELS.extraction.model,
+    translation: process.env.GEMINI_TRANSLATION_MODEL || GEMINI_MODELS.extraction.model,
+    profiling: process.env.GEMINI_PROFILING_MODEL || GEMINI_MODELS.extraction.model,
+    moderation: process.env.GEMINI_MODERATION_MODEL || GEMINI_MODELS.verification.model,
+    fastTier: process.env.GEMINI_FAST_TIER_MODEL || GEMINI_MODELS.extraction.model,
+    queryDecomposition: process.env.GEMINI_QUERY_MODEL || GEMINI_MODELS.extraction.model,
   },
 
   /**
@@ -83,7 +142,7 @@ export const PIPELINE_CONFIG = {
   },
 
   /** @deprecated Use GEMINI_MODELS[role] instead. Kept for backward compat. */
-  GEMINI_MODEL: "gemini-2.5-flash",
+  GEMINI_MODEL: "gemini-3.5-flash-lite",
 
   GROUNDING_MODE: "auto", // 'auto' | 'always' | 'never'
   CONSTRAINT_BASED_VERIFICATION: true, // v10.0: Prohibit AI training data in fact checks
@@ -132,7 +191,7 @@ export const PIPELINE_CONFIG = {
   /**
    * 🎯 SENSITIVE CLAIM DOMAINS (Risk-Based Dynamic Routing)
    *
-   * Claims in these domains are routed to verification model (gemini-2.5-flash).
+   * Claims in these domains are routed to verification model (gemini-3.5-flash-lite).
    */
   SENSITIVE_DOMAINS: [
     "war", "election", "health", "death", "finance",
@@ -160,7 +219,7 @@ export const DEEP_RESEARCH_CONFIG = {
   BATCH_SIZE_GROUNDING: 10,         // parallel claims per Gemini call
   MAX_CLAIMS_INSTITUTIONAL: 50,     // cost-conscious cap for institutional tier
   MAX_CLAIMS_STANDARD: 35,          // cost-conscious cap for standard tier
-  FORCE_PRO_MODEL: false,           // cost-effective: uses gemini-2.5-flash
+  FORCE_PRO_MODEL: false,           // cost-effective: uses gemini-3.5-flash-lite
   MIN_SOURCES_PER_CLAIM: 2,         // minimum sources required to mark a claim as grounded
   SOURCE_DIVERSITY_REQUIRED: true,  // reject results where all sources are the same domain
 } as const;

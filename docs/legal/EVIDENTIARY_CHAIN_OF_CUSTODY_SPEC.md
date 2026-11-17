@@ -53,7 +53,7 @@ The following JSON structure must be exported by the platform when responding to
   "factCheckAuditTrail": {
     "pipelineRunId": "run_fact_987654321",
     "pipelineVersion": "v11.0-path1",
-    "engine": "Vertex AI Gemini 2.5 Flash / Pro",
+    "engine": "Vertex AI Gemini 3.5 Flash Lite / Pro",
     "triageResult": {
       "provisionalScore": 42.5,
       "triageDurationMs": 48200,

@@ -2323,7 +2323,7 @@ export const seoServer = onRequest(
       </div>
       <div style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;">
         <h4 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">Multilingual Dubbed Ads</h4>
-        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Leverage our AI voice cloning and lip-sync pipeline to broadcast your advertisement in any regional dialect.</p>
+        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Leverage our AI voice cloning and dubbing pipeline to broadcast your advertisement in any regional dialect.</p>
       </div>
     </div>
 

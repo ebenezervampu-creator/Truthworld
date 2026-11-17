@@ -44,6 +44,10 @@ class ClaimStreamController extends BaseController {
   final RxInt disputedCount = 0.obs;
   final RxInt unprovenCount = 0.obs;
 
+  /// In-memory cache keyed by stable claim ID or occurrence hash to enforce monotonic progression.
+  /// Prevents out-of-order network packets from regressing a FINALIZED verdict back to a loading state.
+  final Map<String, ClaimResult> _claimsById = {};
+
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
 
   static ClaimStreamController getOrCreate(String videoId) {
@@ -85,11 +89,18 @@ class ClaimStreamController extends BaseController {
             hasStreamError.value = false;
 
             if (snapshot.docs.isEmpty) {
+              _claimsById.clear();
+              claims.clear();
+              confirmedCount.value = 0;
+              falseCount.value = 0;
+              disputedCount.value = 0;
+              unprovenCount.value = 0;
               statusMessage.value = 'Analyzing content for verifiable facts...';
               return;
             }
 
             final parsedClaims = <ClaimResult>[];
+            final currentDocKeys = <String>{};
             var cCount = 0;
             var fCount = 0;
             var dCount = 0;
@@ -97,13 +108,39 @@ class ClaimStreamController extends BaseController {
 
             for (final doc in snapshot.docs) {
               final data = doc.data();
-              final claim = ClaimResult.fromMap(data);
-              parsedClaims.add(claim);
+              if (!data.containsKey('claimId') && doc.id.isNotEmpty) {
+                data['claimId'] = doc.id;
+              }
+              final incoming = ClaimResult.fromMap(data);
+              final claimKey = (incoming.claimId != null &&
+                      incoming.claimId!.isNotEmpty)
+                  ? incoming.claimId!
+                  : '${incoming.text}_${(incoming.start ?? 0.0).toStringAsFixed(1)}';
 
-              final vLower = claim.verdict.toLowerCase();
-              if (vLower == 'verified_true' || vLower == 'mostly_true' || vLower == 'true') {
+              currentDocKeys.add(claimKey);
+
+              final existing = _claimsById[claimKey];
+              ClaimResult effectiveClaim = incoming;
+
+              // Monotonic Guard: Prevent out-of-order packets from regressing
+              // a higher state level back to an earlier one
+              // (e.g. FINALIZED [3] -> DEEP_VERIFYING [2] / PROVISIONAL [1] / EXTRACTED [0]).
+              if (existing != null && existing.stateLevel > incoming.stateLevel) {
+                effectiveClaim = existing;
+              } else {
+                _claimsById[claimKey] = incoming;
+              }
+
+              parsedClaims.add(effectiveClaim);
+
+              final vLower = effectiveClaim.verdict.toLowerCase();
+              if (vLower == 'verified_true' ||
+                  vLower == 'mostly_true' ||
+                  vLower == 'true') {
                 cCount++;
-              } else if (vLower == 'false_claim' || vLower == 'false' || vLower == 'misleading') {
+              } else if (vLower == 'false_claim' ||
+                  vLower == 'false' ||
+                  vLower == 'misleading') {
                 fCount++;
               } else if (vLower == 'disputed' || vLower == 'inconclusive') {
                 dCount++;
@@ -112,8 +149,13 @@ class ClaimStreamController extends BaseController {
               }
             }
 
+            // Purge deleted/pruned claims from tracking map
+            _claimsById.removeWhere((key, _) => !currentDocKeys.contains(key));
+
             // Deterministic timeline ordering: sort by start offset ascending
-            parsedClaims.sort((a, b) => (a.start ?? 0.0).compareTo(b.start ?? 0.0));
+            parsedClaims.sort(
+              (a, b) => (a.start ?? 0.0).compareTo(b.start ?? 0.0),
+            );
 
             claims.assignAll(parsedClaims);
             confirmedCount.value = cCount;
@@ -122,9 +164,18 @@ class ClaimStreamController extends BaseController {
             unprovenCount.value = uCount;
 
             final total = parsedClaims.length;
-            statusMessage.value = total == 1
-                ? '1 claim monitored'
-                : '$total claims monitored';
+            final inProgressCount =
+                parsedClaims.where((c) => !c.isFinalized).length;
+
+            if (inProgressCount > 0) {
+              statusMessage.value = inProgressCount == 1
+                  ? 'Verifying 1 claim in real time...'
+                  : 'Verifying $inProgressCount claims in real time...';
+            } else {
+              statusMessage.value = total == 1
+                  ? '1 claim monitored'
+                  : '$total claims monitored';
+            }
           },
           onError: (dynamic error, StackTrace stack) {
             isConnecting.value = false;
@@ -157,6 +208,7 @@ class ClaimStreamController extends BaseController {
   @override
   void onClose() {
     _subscription?.cancel();
+    _claimsById.clear();
     super.onClose();
   }
 }

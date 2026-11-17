@@ -631,10 +631,17 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   }) {
     return Obx(() {
       final progress = controller.aiJobProgress.value;
-      final status = controller.aiJobStatus.value.isNotEmpty
-          ? controller.aiJobStatus.value
-          : 'Transcribing dialogue & preparing multilingual subtitles...';
-      final isDone = progress >= 100;
+      final allLangsReady = controller.aiTargetLanguages.isNotEmpty &&
+          controller.aiTargetLanguages.every((l) =>
+              controller.aiLanguageStatuses[l] == 'completed' ||
+              controller.aiLanguageStatuses[normalizeLanguageCode(l)] == 'completed');
+      final isDone = progress >= 100 || allLangsReady;
+      final displayProgress = isDone ? 100 : progress;
+      final status = isDone
+          ? 'Subtitles generated successfully!'
+          : (controller.aiJobStatus.value.isNotEmpty
+              ? controller.aiJobStatus.value
+              : 'Transcribing dialogue & preparing multilingual subtitles...');
       final isPaused = controller.isAiJobPaused.value;
       final elapsed = controller.aiElapsedSeconds.value;
       final elapsedMinutes = (elapsed ~/ 60).toString().padLeft(2, '0');
@@ -849,7 +856,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                         Text(
                           isDone
                               ? 'Pipeline Completed'
-                              : controller.aiCurrentStageName.value,
+                              : (controller.aiCurrentStageName.value.isNotEmpty
+                                  ? controller.aiCurrentStageName.value
+                                  : 'Precision Timestamp Alignment & VTT Export'),
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -857,7 +866,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '$progress%',
+                          '$displayProgress%',
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -870,8 +879,8 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(
-                        value: progress > 0
-                            ? (progress / 100.0).clamp(0.0, 1.0)
+                        value: displayProgress > 0
+                            ? (displayProgress / 100.0).clamp(0.0, 1.0)
                             : null,
                         backgroundColor: AppColors.bgSurface,
                         valueColor: AlwaysStoppedAnimation<Color>(
@@ -888,22 +897,22 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                     _buildStepProgressRow(
                       stepNumber: '1',
                       title: 'Speech Extraction & Transcription',
-                      isComplete: progress >= 35,
-                      isActive: progress < 35 && !isDone && !isPaused,
+                      isComplete: displayProgress >= 35 || isDone,
+                      isActive: displayProgress < 35 && !isDone && !isPaused,
                     ),
                     const SizedBox(height: 10),
                     _buildStepProgressRow(
                       stepNumber: '2',
                       title: 'Neural Multilingual Translation',
-                      isComplete: progress >= 75,
-                      isActive: progress >= 35 && progress < 75 && !isDone && !isPaused,
+                      isComplete: displayProgress >= 75 || isDone,
+                      isActive: displayProgress >= 35 && displayProgress < 75 && !isDone && !isPaused,
                     ),
                     const SizedBox(height: 10),
                     _buildStepProgressRow(
                       stepNumber: '3',
                       title: 'Precision Timestamp Alignment & VTT Export',
-                      isComplete: progress >= 100,
-                      isActive: progress >= 75 && !isDone && !isPaused,
+                      isComplete: isDone,
+                      isActive: displayProgress >= 75 && !isDone && !isPaused,
                     ),
                     const SizedBox(height: 22),
 
@@ -1424,7 +1433,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Unified cinema-grade subtitles powered by Universal 3.5 Pro, Sarvam AI Indic, Google Chirp 2, and Gemini 2.5 Flash.',
+            'Unified cinema-grade subtitles powered by AssemblyAI Universal 3.5 Pro (18 Languages) and Google Cloud Translation v3.',
             style: TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
@@ -1440,9 +1449,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             badgeColor: AppColors.brand,
             badgeTextColor: Colors.black, // High contrast: black on brand
             modelsDescription:
-                'Universal 3.5 Pro + Sarvam Indic + Google Cloud Chirp 2 • Gemini 2.5 Flash',
+                'AssemblyAI Universal 3.5 Pro (18 Languages) • Google Cloud Translation v3',
             featuresDescription:
-                'Frontier reasoning, cultural transcreation, reading pacing & precision timing',
+                'Cultural transcreation, reading pacing & precision timing',
             isSelected: true,
             onTap: () => selectedTier.value = 'ultra',
           ),
@@ -1658,39 +1667,35 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             const SizedBox(height: 10),
             Divider(height: 1, color: borderColor),
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              alignment: WrapAlignment.spaceBetween,
               children: [
-                const Expanded(
-                  child: Text(
-                    'Tier: Ultra Subtitles (\$0.50 / 10m)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                const Text(
+                  'Tier: Ultra Subtitles (\$0.50 / 10m)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 8),
                 Text(
-                  'Gemini 2.5 Flash',
+                  'Google Cloud Translation v3',
                   style: TextStyle(fontSize: 12, color: textSecondaryColor),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              alignment: WrapAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Text(
-                    'Languages: ${selectedLangs.length} selected',
-                    style: TextStyle(fontSize: 12, color: textSecondaryColor),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                Text(
+                  'Languages: ${selectedLangs.length} selected',
+                  style: TextStyle(fontSize: 12, color: textSecondaryColor),
                 ),
-                const SizedBox(width: 8),
                 Text(
                   'Duration: ${durationSecs ~/ 60}m ${durationSecs % 60}s',
                   style: TextStyle(fontSize: 12, color: textSecondaryColor),
@@ -1698,33 +1703,46 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Icon(
-                  Icons.payments_outlined,
-                  size: 16,
-                  color: isInsufficient ? AppColors.warning : textSecondaryColor,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Channel Revenue:',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isInsufficient ? AppColors.warning : textSecondaryColor,
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(
+                            Icons.payments_outlined,
+                            size: 16,
+                            color: isInsufficient ? AppColors.warning : textSecondaryColor,
+                          ),
+                        ),
+                      ),
+                      TextSpan(
+                        text: 'Revenue: ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isInsufficient ? AppColors.warning : textSecondaryColor,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '\$${bal.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isInsufficient ? AppColors.warning : Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  '\$${bal.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: isInsufficient ? AppColors.warning : Colors.white,
-                  ),
-                ),
-                const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: isInsufficient
                         ? AppColors.info.withValues(alpha: 0.15)
@@ -1732,7 +1750,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    isInsufficient ? 'Direct Pay Ready' : 'Deduct from Revenue',
+                    isInsufficient ? 'Direct Pay' : 'Deduct Revenue',
                     style: TextStyle(
                       color: isInsufficient ? AppColors.info : AppColors.success,
                       fontSize: 11,
@@ -1883,6 +1901,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             ),
           ),
           style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
             disabledBackgroundColor: AppColors.bgSurfaceHover,

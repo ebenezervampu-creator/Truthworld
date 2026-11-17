@@ -23,7 +23,8 @@ class HomeFeedController extends HomeFeedControllerBase
         HomeFeedAlgorithmTabsMixin,
         HomeFeedCategoryTabsMixin,
         HomeFeedCommunityCarouselMixin,
-        HomeFeedScrollMixin {
+        HomeFeedScrollMixin,
+        HomeFeedYouTubeRefreshMixin {
   @override
   late final AuthService authService =
       Get.isRegistered<AuthService>() ? Get.find<AuthService>() : AuthService();
@@ -191,35 +192,9 @@ class HomeFeedController extends HomeFeedControllerBase
     }
   }
 
-  bool _isRefreshing = false;
-
-  /// Manually refresh feed from network, bypassing stale cache and re-ranking
+  /// Manually refresh feed from network, bypassing stale cache and re-ranking via YouTube refresh pipeline
   Future<void> refreshFeed({bool forceNetwork = true}) async {
-    final cat = selectedCategory;
-    if (forceNetwork) {
-      feedCacheManager.invalidateCategory(cat, userId: currentUserId);
-    }
-    lastDocument = null;
-    rxHasMore.value = true;
-    if (cat == 'All' || cat.isEmpty) {
-      await fetchMainFeedVideos(forceNetwork: forceNetwork);
-      if (authService.isAuthenticated.value) {
-        fetchCommunityPosts().then((_) => mixHomeFeed());
-      }
-    } else if (cat == 'Unexplored' || cat == '🧭 Unexplored') {
-      await fetchUnexploredTabVideos();
-    } else if (cat == 'Trending' || cat == '🔥 Trending') {
-      await fetchTrendingTabVideos();
-    } else if (cat == 'Popular' || cat == '⭐ Popular') {
-      await fetchPopularTabVideos();
-    } else if (cat == 'New' || cat == '✨ New') {
-      await fetchNewTabVideos();
-    } else if (cat == 'Flip Coin' || cat == '🪙 Flip Coin') {
-      await fetchFlipCoinTabVideos();
-    } else {
-      await fetchCategoryTabVideos(cat);
-    }
-    mixHomeFeed();
+    await executeYouTubeFeedRefresh(forceNetwork: forceNetwork);
   }
 
   Future<void> fetchCategoryContent(String category) async {
@@ -229,38 +204,13 @@ class HomeFeedController extends HomeFeedControllerBase
     await fetchInitialVideosInternal();
   }
 
+  /// Refreshes the Home feed exactly how YouTube handles pull-to-refresh:
+  /// - Records currently seen videos into session impression memory
+  /// - Promotes fresh unseen candidate videos to the top
+  /// - In small catalogs, rotates the candidate window deterministically so top videos change
+  /// - Updates persistent cache for offline resilience
+  /// - Smoothly resets scroll offset to top
   Future<void> refreshHomeFeed() async {
-    if (_isRefreshing) return;
-    _isRefreshing = true;
-    try {
-      final category = selectedCategory;
-      if (category == 'Posts') {
-        isLoadingVideos.value = true;
-        videos.clear();
-        communityPosts.clear();
-        lastDocument = null;
-        rxHasMore.value = true;
-        await fetchInitialCommunityPostsTab();
-      } else if (category == 'Topics' || category == 'Explore Topics') {
-        isLoadingVideos.value = false;
-        if (Get.isRegistered<HomeDiscoveryController>()) {
-          await Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
-        }
-      } else {
-        await refreshFeed();
-        if (category == 'All' && Get.isRegistered<HomeDiscoveryController>()) {
-          await Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
-        }
-      }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'HomeFeedController.refreshHomeFeed',
-      );
-    } finally {
-      _isRefreshing = false;
-      isLoadingVideos.value = false;
-    }
+    await executeYouTubeFeedRefresh(forceNetwork: true);
   }
 }

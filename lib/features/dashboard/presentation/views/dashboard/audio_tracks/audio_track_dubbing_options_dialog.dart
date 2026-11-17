@@ -4,11 +4,13 @@ import 'package:get/get.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/ai_dubbing_tab_view.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/direct_track_tab_view.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_language_bar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_mode_switcher.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_options_state.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Modal dialog for configuring AI Audio Dubbing and Direct Audio Tracks.
@@ -17,8 +19,8 @@ import 'package:truthworld/theme/app_theme.dart';
 class AudioTrackDubbingOptionsDialog extends StatelessWidget {
   AudioTrackDubbingOptionsDialog({
     required this.controller,
-    required this.initialLangCode,
     required this.isDarkMode,
+    this.initialLangCode = '',
     this.allowLanguageSwitch = true,
     this.initialTierId,
     this.initialMediaType = 'audio',
@@ -134,6 +136,11 @@ class AudioTrackDubbingOptionsDialog extends StatelessWidget {
 
                 const SizedBox(height: 14),
 
+                // Original Video Language Indicator Card with Change Action
+                _buildOriginalLanguageBar(context, colors, typography),
+
+                const SizedBox(height: 14),
+
                 // 2. Target Language(s) Selector Card
                 DubbingLanguageBar(state: state),
 
@@ -160,5 +167,84 @@ class AudioTrackDubbingOptionsDialog extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildOriginalLanguageBar(
+    BuildContext context,
+    TWColors colors,
+    TWTypography typography,
+  ) {
+    return Obx(() {
+      final currentVideo = controller.selectedVideo.value;
+      final baseLang = normalizeLanguageCode(currentVideo?.language ?? 'en');
+      final baseLangName = controller.getLanguageName(baseLang);
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: colors.surfaceInput,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+        ),
+        child: Row(
+          children: [
+            buildLanguageFlag(baseLang, width: 22, height: 15),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Original Video Language',
+                    style: typography.bodySmall.copyWith(
+                      fontSize: 11,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    baseLangName,
+                    style: typography.body.copyWith(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () {
+                AudioTracksDialogs.showOriginalLanguageSelectorModal(
+                  context: context,
+                  controller: controller,
+                  isDarkMode: isDarkMode,
+                );
+              },
+              icon: Icon(Icons.edit_rounded, size: 12, color: colors.textPrimary),
+              label: Text(
+                'Change',
+                style: typography.label.copyWith(
+                  color: colors.textPrimary,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }

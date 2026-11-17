@@ -32,18 +32,24 @@ export interface CursorPayload {
   category: string;
   lang: string;
   limit: number;
+  topic?: string;
+  channelId?: string;
   issuedAt: number;
   expiresAt: number;
   version: number;
 }
 
 export interface FeedResponsePayload {
-  feed: Record<string, any>[];
+  feed?: Record<string, any>[];
+  topics?: Record<string, any>[];
+  channels?: Record<string, any>[];
   count: number;
   nextCursor?: string | null;
-  hasMore: boolean;
+  hasMore?: boolean;
   category: string;
-  lang: string;
+  lang?: string;
+  topic?: string;
+  channelId?: string;
   cachedAt?: string;
   edgeServed?: boolean;
   fromL1Cache?: boolean;
@@ -97,7 +103,9 @@ export function verifyAndDecodeCursor(
   expectedFeedType: string,
   expectedCategory: string,
   expectedLang: string,
-  expectedLimit?: number
+  expectedLimit?: number,
+  expectedTopic?: string,
+  expectedChannelId?: string
 ): CursorPayload | null {
   if (!token || typeof token !== "string" || !token.includes(".")) {
     return null;
@@ -154,6 +162,24 @@ export function verifyAndDecodeCursor(
       return null;
     }
 
+    if (expectedTopic && payload.topic !== expectedTopic) {
+      console.warn("[publicFeedServer] Cursor topic mismatch. Rejecting cross-topic cursor.");
+      return null;
+    }
+    if (!expectedTopic && payload.topic) {
+      console.warn("[publicFeedServer] Unexpected topic in cursor. Rejecting.");
+      return null;
+    }
+
+    if (expectedChannelId && payload.channelId !== expectedChannelId) {
+      console.warn("[publicFeedServer] Cursor channelId mismatch. Rejecting cross-channel cursor.");
+      return null;
+    }
+    if (!expectedChannelId && payload.channelId) {
+      console.warn("[publicFeedServer] Unexpected channelId in cursor. Rejecting.");
+      return null;
+    }
+
     return payload;
   } catch {
     return null;
@@ -188,6 +214,9 @@ function sanitizePublicVideoItem(data: Record<string, any>, id: string): Record<
   ) {
     return null;
   }
+  if (data.visibility && data.visibility.toLowerCase() !== "public") {
+    return null;
+  }
   const clean: Record<string, any> = { id, ...data };
   delete clean.internalModerationDecision;
   delete clean.internalNotes;
@@ -196,6 +225,51 @@ function sanitizePublicVideoItem(data: Record<string, any>, id: string): Record<
   delete clean.storagePath;
   delete clean.moderatorUid;
   return clean;
+}
+
+function sanitizePublicTopicItem(data: Record<string, any>, id: string): Record<string, any> | null {
+  if (data.isDeleted === true || data.status === "deleted" || data.status === "archived") {
+    return null;
+  }
+  return {
+    id,
+    slug: data.slug || id,
+    name: data.name || "",
+    category: data.category || "General",
+    trendingScore: Number(data.trendingScore) || 0,
+    videoCount: Number(data.videoCount || data.effectiveVideoCount) || 0,
+    followerCount: Number(data.followerCount) || 0,
+    isFeatured: Boolean(data.isFeatured),
+    iconUrl: data.iconUrl || "",
+    bannerUrl: data.bannerUrl || "",
+  };
+}
+
+function sanitizePublicChannelItem(data: Record<string, any>, id: string): Record<string, any> | null {
+  const isSuspended =
+    data.status === "suspended" ||
+    data.status === "banned" ||
+    data.status === "deleted" ||
+    data.status === "onHold" ||
+    data.status === "hold";
+  const vis = (data.visibility || "").toLowerCase();
+  const isPrivate = vis === "private" || vis === "unlisted" || data.isPublic === false;
+  if (isSuspended || isPrivate) {
+    return null;
+  }
+  return {
+    id,
+    name: data.displayName || data.name || data.channelName || "",
+    handle: data.handle || data.customUrl || "",
+    avatarUrl: data.avatarUrl || data.profile?.photoUrl || "",
+    bannerUrl: data.bannerUrl || data.profile?.bannerUrl || "",
+    category: data.category || data.profile?.category || "General",
+    subscriberCount: Number(data.subscriberCount || data.stats?.subscriberCount) || 0,
+    videoCount: Number(data.videoCount || data.stats?.videoCount) || 0,
+    isVerified: Boolean(data.isVerified || data.verification?.isVerified),
+    channelRating: Number(data.reputation?.channelRating ?? data.reputation?.avgTrustIndex ?? 0),
+    trend30d: Number(data.reputation?.trend30d ?? 0),
+  };
 }
 
 // In-flight Promise coalescing map to eliminate thundering-herd Firestore reads
@@ -228,11 +302,9 @@ async function executeSingleFlight(
 export const publicFeedServer = onRequest(
   {
     region: "asia-south1",
-    cpu: 1,
     memory: "256MiB",
     timeoutSeconds: 15,
-    maxInstances: 5,
-    concurrency: 50,
+    maxInstances: 10,
   },
   async (req: Request, res: Response): Promise<void> => {
     applySecurityHeaders(res);
@@ -264,7 +336,14 @@ export const publicFeedServer = onRequest(
 
     try {
       const path = (req.path || "").toLowerCase();
-      const feedType = path.includes("trending") ? "trending" : "home";
+
+      // Check discovery surfaces
+      const isDiscoveryTopics =
+        path.includes("discovery/topics") ||
+        (path.includes("discovery") && req.query.surface === "topics");
+      const isDiscoveryChannels =
+        path.includes("discovery/channels") ||
+        (path.includes("discovery") && req.query.surface === "channels");
 
       // 1. Parameter Normalization
       const rawCategory = typeof req.query.category === "string" ? req.query.category.trim().toLowerCase() : "all";
@@ -274,31 +353,95 @@ export const publicFeedServer = onRequest(
       const lang = rawLang.length > 0 ? rawLang : "all";
 
       const rawLimit = parseInt(req.query.limit as string, 10);
-      const limit = isNaN(rawLimit) ? 24 : Math.min(Math.max(rawLimit, 1), 50);
+      const defaultLimit = isDiscoveryTopics || isDiscoveryChannels ? 20 : 24;
+      const limit = isNaN(rawLimit) ? defaultLimit : Math.min(Math.max(rawLimit, 1), 50);
 
+      let feedType: "home" | "trending" | "explore" | "topic" | "channel" = "home";
+      let topicSlug: string | undefined = undefined;
+      let channelId: string | undefined = undefined;
+
+      if (!isDiscoveryTopics && !isDiscoveryChannels) {
+        // Extract topic
+        const topicMatch = path.match(/\/topic\/([^/?#]+)/i);
+        if (topicMatch) {
+          feedType = "topic";
+          topicSlug = decodeURIComponent(topicMatch[1]).trim().toLowerCase().replace(/^t\//, "");
+        } else if (typeof req.query.topic === "string" && req.query.topic.trim().length > 0) {
+          feedType = "topic";
+          topicSlug = req.query.topic.trim().toLowerCase().replace(/^t\//, "");
+        }
+
+        // Extract channel
+        const channelMatch = path.match(/\/channel\/([^/?#]+)/i);
+        if (channelMatch) {
+          feedType = "channel";
+          channelId = decodeURIComponent(channelMatch[1]).trim();
+        } else if (typeof req.query.channelId === "string" && req.query.channelId.trim().length > 0) {
+          feedType = "channel";
+          channelId = req.query.channelId.trim();
+        }
+
+        // Explore, Trending, or Home
+        if (!topicSlug && !channelId) {
+          if (path.includes("explore") || req.query.feedType === "explore") {
+            feedType = "explore";
+          } else if (path.includes("trending") || req.query.feedType === "trending") {
+            feedType = "trending";
+          } else {
+            feedType = "home";
+          }
+        }
+      }
+
+      // Validate cursor if provided on video feeds
       const rawCursor = typeof req.query.cursor === "string" ? req.query.cursor.trim() : undefined;
-
-      // Validate cursor if provided
       let validatedCursor: CursorPayload | null = null;
-      if (rawCursor) {
-        validatedCursor = verifyAndDecodeCursor(rawCursor, feedType, category, lang, limit);
+      if (rawCursor && !isDiscoveryTopics && !isDiscoveryChannels) {
+        validatedCursor = verifyAndDecodeCursor(
+          rawCursor,
+          feedType,
+          category,
+          lang,
+          limit,
+          topicSlug,
+          channelId
+        );
         if (!validatedCursor) {
-          // If invalid, expired, or tampered cursor, return bad request
           res.status(400).json({ error: "Invalid, expired, or mismatched pagination cursor" });
           return;
         }
       }
 
       // Build normalized cache key (excludes all tracking parameters like utm_*, fbclid)
-      const cursorKey = validatedCursor ? `_c_${validatedCursor.lastId}_${validatedCursor.timestamp}` : "_p1";
-      const cacheKey = `edge_feed_${feedType}_${category}_${lang}_${limit}${cursorKey}`;
+      let cacheKey = "";
+      if (isDiscoveryTopics) {
+        cacheKey = `edge_disc_topics_${category}_${limit}`;
+      } else if (isDiscoveryChannels) {
+        cacheKey = `edge_disc_channels_${category}_${limit}`;
+      } else {
+        const cursorKey = validatedCursor
+          ? `_c_${validatedCursor.lastId}_${validatedCursor.timestamp}`
+          : "_p1";
+        if (feedType === "topic") {
+          cacheKey = `edge_feed_topic_${topicSlug}_${lang}_${limit}${cursorKey}`;
+        } else if (feedType === "channel") {
+          cacheKey = `edge_feed_channel_${channelId}_${limit}${cursorKey}`;
+        } else {
+          cacheKey = `edge_feed_${feedType}_${category}_${lang}_${limit}${cursorKey}`;
+        }
+      }
 
       // Check L1 In-Process Memory Cache
       const cached = getCache<FeedResponsePayload>(cacheKey);
       let payload: FeedResponsePayload;
       let isL1Hit = false;
 
-      if (cached && Array.isArray(cached.feed)) {
+      if (
+        cached &&
+        (Array.isArray(cached.feed) ||
+          Array.isArray(cached.topics) ||
+          Array.isArray(cached.channels))
+      ) {
         payload = cached;
         isL1Hit = true;
       } else {
@@ -307,6 +450,269 @@ export const publicFeedServer = onRequest(
           const db = admin.firestore();
           const now = Date.now();
 
+          // 1. Featured & Trending Topics Directory
+          if (isDiscoveryTopics) {
+            let query: admin.firestore.Query = db.collection("topics");
+            if (category !== "all") {
+              query = query.where("category", "==", category);
+            }
+            query = query.orderBy("trendingScore", "desc").limit(limit);
+            const snap = await query.get();
+            const cleanTopics = snap.docs
+              .map((doc) => sanitizePublicTopicItem(doc.data(), doc.id))
+              .filter((t): t is NonNullable<typeof t> => t !== null);
+
+            return {
+              topics: cleanTopics,
+              count: cleanTopics.length,
+              category,
+              cachedAt: new Date().toISOString(),
+              edgeServed: true,
+            };
+          }
+
+          // 2. Creator Leaderboard & Discovery
+          if (isDiscoveryChannels) {
+            let query: admin.firestore.Query = db
+              .collection("channels")
+              .where("status", "==", "active");
+            if (category !== "all") {
+              query = query.where("category", "==", category);
+            }
+            query = query.orderBy("subscriberCount", "desc").limit(limit);
+            const snap = await query.get();
+            const cleanChannels = snap.docs
+              .map((doc) => sanitizePublicChannelItem(doc.data(), doc.id))
+              .filter((c): c is NonNullable<typeof c> => c !== null);
+
+            return {
+              channels: cleanChannels,
+              count: cleanChannels.length,
+              category,
+              cachedAt: new Date().toISOString(),
+              edgeServed: true,
+            };
+          }
+
+          // 3. Topic Videos Feed
+          if (feedType === "topic") {
+            let topicQuery: admin.firestore.Query = db
+              .collection("videos")
+              .where("topics", "array-contains", topicSlug)
+              .orderBy("uploadedAt", "desc")
+              .orderBy(docIdField, "desc");
+
+            if (validatedCursor) {
+              topicQuery = topicQuery.startAfter(
+                admin.firestore.Timestamp.fromMillis(validatedCursor.timestamp),
+                validatedCursor.lastId
+              );
+            }
+
+            const snap = await topicQuery.limit(limit + 1).get();
+            const docs = snap.docs;
+            const hasMore = docs.length > limit;
+            const slice = hasMore ? docs.slice(0, limit) : docs;
+
+            let lastTimestamp = now;
+            let lastDocId = "";
+            const cleanFeed = slice
+              .map((doc) => {
+                const clean = sanitizePublicVideoItem(doc.data(), doc.id);
+                if (clean) {
+                  lastTimestamp = toEpochMs(clean.uploadedAt || clean.createdAt, now);
+                  lastDocId = doc.id;
+                }
+                return clean;
+              })
+              .filter((v): v is NonNullable<typeof v> => v !== null);
+
+            let nextCursor: string | null = null;
+            if (hasMore && lastDocId) {
+              nextCursor = createSignedCursor({
+                lastId: lastDocId,
+                timestamp: lastTimestamp,
+                feedType,
+                category,
+                lang,
+                limit,
+                topic: topicSlug,
+                issuedAt: now,
+                expiresAt: now + 24 * 60 * 60 * 1000,
+                version: 1,
+              });
+            }
+
+            return {
+              feed: cleanFeed,
+              count: cleanFeed.length,
+              nextCursor,
+              hasMore,
+              category,
+              lang,
+              topic: topicSlug,
+              cachedAt: new Date().toISOString(),
+              edgeServed: true,
+            };
+          }
+
+          // 4. Channel Public Uploads Feed
+          if (feedType === "channel") {
+            let chanQuery: admin.firestore.Query = db
+              .collection("videos")
+              .where("channelId", "==", channelId)
+              .orderBy("createdAt", "desc")
+              .orderBy(docIdField, "desc");
+
+            if (validatedCursor) {
+              chanQuery = chanQuery.startAfter(
+                admin.firestore.Timestamp.fromMillis(validatedCursor.timestamp),
+                validatedCursor.lastId
+              );
+            }
+
+            const snap = await chanQuery.limit(limit + 1).get();
+            const docs = snap.docs;
+            const hasMore = docs.length > limit;
+            const slice = hasMore ? docs.slice(0, limit) : docs;
+
+            let lastTimestamp = now;
+            let lastDocId = "";
+            const cleanFeed = slice
+              .map((doc) => {
+                const clean = sanitizePublicVideoItem(doc.data(), doc.id);
+                if (clean) {
+                  lastTimestamp = toEpochMs(clean.createdAt || clean.uploadedAt, now);
+                  lastDocId = doc.id;
+                }
+                return clean;
+              })
+              .filter((v): v is NonNullable<typeof v> => v !== null);
+
+            let nextCursor: string | null = null;
+            if (hasMore && lastDocId) {
+              nextCursor = createSignedCursor({
+                lastId: lastDocId,
+                timestamp: lastTimestamp,
+                feedType,
+                category,
+                lang,
+                limit,
+                channelId,
+                issuedAt: now,
+                expiresAt: now + 24 * 60 * 60 * 1000,
+                version: 1,
+              });
+            }
+
+            return {
+              feed: cleanFeed,
+              count: cleanFeed.length,
+              nextCursor,
+              hasMore,
+              category,
+              lang,
+              channelId,
+              cachedAt: new Date().toISOString(),
+              edgeServed: true,
+            };
+          }
+
+          // 5. Explore Feed (Diverse Multi-Category Interleaving)
+          if (feedType === "explore") {
+            let exploreQuery: admin.firestore.Query = db
+              .collection("videos")
+              .where("status", "==", "published")
+              .where("visibility", "==", "public");
+
+            if (category !== "all") {
+              exploreQuery = exploreQuery.where("category", "==", category);
+            }
+            if (lang !== "all") {
+              exploreQuery = exploreQuery.where("language", "==", lang);
+            }
+
+            exploreQuery = exploreQuery
+              .orderBy("createdAt", "desc")
+              .orderBy(docIdField, "desc");
+
+            if (validatedCursor) {
+              exploreQuery = exploreQuery.startAfter(
+                admin.firestore.Timestamp.fromMillis(validatedCursor.timestamp),
+                validatedCursor.lastId
+              );
+            }
+
+            const snap = await exploreQuery.limit(limit + 1).get();
+            const docs = snap.docs;
+            const hasMore = docs.length > limit;
+            const slice = hasMore ? docs.slice(0, limit) : docs;
+
+            let lastTimestamp = now;
+            let lastDocId = "";
+            const cleanedItems = slice
+              .map((doc) => {
+                const clean = sanitizePublicVideoItem(doc.data(), doc.id);
+                if (clean) {
+                  lastTimestamp = toEpochMs(clean.createdAt, now);
+                  lastDocId = doc.id;
+                }
+                return clean;
+              })
+              .filter((v): v is NonNullable<typeof v> => v !== null);
+
+            let finalFeed = cleanedItems;
+            if (category === "all" && cleanedItems.length > 2) {
+              const categoryBuckets = new Map<string, Record<string, any>[]>();
+              for (const item of cleanedItems) {
+                const cat = item.category || "General";
+                if (!categoryBuckets.has(cat)) {
+                  categoryBuckets.set(cat, []);
+                }
+                categoryBuckets.get(cat)!.push(item);
+              }
+              const interleaved: Record<string, any>[] = [];
+              let added = true;
+              while (added) {
+                added = false;
+                for (const bucket of categoryBuckets.values()) {
+                  if (bucket.length > 0) {
+                    interleaved.push(bucket.shift()!);
+                    added = true;
+                  }
+                }
+              }
+              finalFeed = interleaved;
+            }
+
+            let nextCursor: string | null = null;
+            if (hasMore && lastDocId) {
+              nextCursor = createSignedCursor({
+                lastId: lastDocId,
+                timestamp: lastTimestamp,
+                feedType,
+                category,
+                lang,
+                limit,
+                issuedAt: now,
+                expiresAt: now + 24 * 60 * 60 * 1000,
+                version: 1,
+              });
+            }
+
+            return {
+              feed: finalFeed,
+              count: finalFeed.length,
+              nextCursor,
+              hasMore,
+              category,
+              lang,
+              cachedAt: new Date().toISOString(),
+              edgeServed: true,
+            };
+          }
+
+          // 6. Trending Feed
           if (feedType === "trending") {
             const TRENDING_GRAVITY = 1.5;
             const TRENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -335,7 +741,6 @@ export const publicFeedServer = onRequest(
               );
             }
 
-            // Fetch +1 to determine hasMore accurately
             const snap = await trendQuery.limit(limit + 1).get();
             const docs = snap.docs;
             const hasMore = docs.length > limit;
@@ -377,7 +782,6 @@ export const publicFeedServer = onRequest(
               });
             }
 
-            // Strip internal helper fields before serializing
             const cleanFeed = scored.map((item) => {
               const { _rawTimestamp, _docId, ...rest } = item;
               return rest;
@@ -393,79 +797,78 @@ export const publicFeedServer = onRequest(
               cachedAt: new Date().toISOString(),
               edgeServed: true,
             };
-          } else {
-            // Default Chronological Home Feed
-            let query: admin.firestore.Query = db
-              .collection("videos")
-              .where("status", "==", "published")
-              .where("visibility", "==", "public");
+          }
 
-            if (category !== "all") {
-              query = query.where("category", "==", category);
-            }
+          // 7. Default Chronological Home Feed
+          let query: admin.firestore.Query = db
+            .collection("videos")
+            .where("status", "==", "published")
+            .where("visibility", "==", "public");
 
-            if (lang !== "all") {
-              query = query.where("language", "==", lang);
-            }
+          if (category !== "all") {
+            query = query.where("category", "==", category);
+          }
 
-            // Deterministic Compound Ordering: createdAt desc, docId desc
-            query = query
-              .orderBy("createdAt", "desc")
-              .orderBy(docIdField, "desc");
+          if (lang !== "all") {
+            query = query.where("language", "==", lang);
+          }
 
-            if (validatedCursor) {
-              query = query.startAfter(
-                admin.firestore.Timestamp.fromMillis(validatedCursor.timestamp),
-                validatedCursor.lastId
-              );
-            }
+          // Deterministic Compound Ordering: createdAt desc, docId desc
+          query = query
+            .orderBy("createdAt", "desc")
+            .orderBy(docIdField, "desc");
 
-            // Fetch +1 to check hasMore
-            const snap = await query.limit(limit + 1).get();
-            const docs = snap.docs;
-            const hasMore = docs.length > limit;
-            const slice = hasMore ? docs.slice(0, limit) : docs;
+          if (validatedCursor) {
+            query = query.startAfter(
+              admin.firestore.Timestamp.fromMillis(validatedCursor.timestamp),
+              validatedCursor.lastId
+            );
+          }
 
-            let lastTimestamp = now;
-            let lastDocId = "";
+          const snap = await query.limit(limit + 1).get();
+          const docs = snap.docs;
+          const hasMore = docs.length > limit;
+          const slice = hasMore ? docs.slice(0, limit) : docs;
 
-            const cleanFeed = slice
-              .map((doc) => {
-                const clean = sanitizePublicVideoItem(doc.data(), doc.id);
-                if (clean) {
-                  lastTimestamp = toEpochMs(clean.createdAt, now);
-                  lastDocId = doc.id;
-                }
-                return clean;
-              })
-              .filter((v): v is NonNullable<typeof v> => v !== null);
+          let lastTimestamp = now;
+          let lastDocId = "";
 
-            let nextCursor: string | null = null;
-            if (hasMore && lastDocId) {
-              nextCursor = createSignedCursor({
-                lastId: lastDocId,
-                timestamp: lastTimestamp,
-                feedType,
-                category,
-                lang,
-                limit,
-                issuedAt: now,
-                expiresAt: now + 24 * 60 * 60 * 1000, // 24 hours
-                version: 1,
-              });
-            }
+          const cleanFeed = slice
+            .map((doc) => {
+              const clean = sanitizePublicVideoItem(doc.data(), doc.id);
+              if (clean) {
+                lastTimestamp = toEpochMs(clean.createdAt, now);
+                lastDocId = doc.id;
+              }
+              return clean;
+            })
+            .filter((v): v is NonNullable<typeof v> => v !== null);
 
-            return {
-              feed: cleanFeed,
-              count: cleanFeed.length,
-              nextCursor,
-              hasMore,
+          let nextCursor: string | null = null;
+          if (hasMore && lastDocId) {
+            nextCursor = createSignedCursor({
+              lastId: lastDocId,
+              timestamp: lastTimestamp,
+              feedType,
               category,
               lang,
-              cachedAt: new Date().toISOString(),
-              edgeServed: true,
-            };
+              limit,
+              issuedAt: now,
+              expiresAt: now + 24 * 60 * 60 * 1000, // 24 hours
+              version: 1,
+            });
           }
+
+          return {
+            feed: cleanFeed,
+            count: cleanFeed.length,
+            nextCursor,
+            hasMore,
+            category,
+            lang,
+            cachedAt: new Date().toISOString(),
+            edgeServed: true,
+          };
         });
       }
 

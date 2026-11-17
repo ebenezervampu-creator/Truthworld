@@ -188,5 +188,85 @@ void main() {
         expect(find.text('Clear All'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'showSpokenLanguagePicker renders properly in single language mode without GetX Obx exceptions',
+      (tester) async {
+        final uploadCtrl = Get.put(UploadController());
+        uploadCtrl.selectedChannel.value = createChannel();
+        uploadCtrl.isMultilingualSpoken.value = false;
+        uploadCtrl.primarySpokenLanguage.value = 'auto';
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => ElevatedButton(
+                  onPressed: () => showSpokenLanguagePicker(
+                    context: ctx,
+                    controller: uploadCtrl,
+                  ),
+                  child: const Text('Open Spoken Language Picker'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Spoken Language Picker'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Select Spoken Video Language ("From")'), findsOneWidget);
+        expect(find.text('Auto-Detect'), findsOneWidget);
+        expect(find.text('Hindi'), findsOneWidget);
+
+        // Tap a language to select it in single language mode
+        await tester.tap(find.text('Hindi'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(uploadCtrl.primarySpokenLanguage.value, 'hi');
+      },
+    );
+
+    testWidgets(
+      'showSpokenLanguagePicker renders properly in multilingual mode without GetX Obx exceptions',
+      (tester) async {
+        final uploadCtrl = Get.put(UploadController());
+        uploadCtrl.selectedChannel.value = createChannel();
+        uploadCtrl.isMultilingualSpoken.value = true;
+        uploadCtrl.spokenLanguages.assignAll(['en']);
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => ElevatedButton(
+                  onPressed: () => showSpokenLanguagePicker(
+                    context: ctx,
+                    controller: uploadCtrl,
+                  ),
+                  child: const Text('Open Multilingual Spoken Picker'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Multilingual Spoken Picker'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Select Spoken Video Language ("From")'), findsOneWidget);
+
+        // Toggle Hindi in multilingual mode
+        await tester.tap(find.text('Hindi'));
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(uploadCtrl.spokenLanguages.contains('hi'), isTrue);
+      },
+    );
   });
 }

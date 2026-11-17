@@ -33,22 +33,22 @@ class AnimatedReactionButtonState extends State<AnimatedReactionButton>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 240),
       vsync: this,
     );
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween<double>(
           begin: 1,
-          end: 1.4,
-        ).chain(CurveTween(curve: Curves.easeOut)),
+          end: 1.2,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 40,
       ),
       TweenSequenceItem(
         tween: Tween<double>(
-          begin: 1.4,
+          begin: 1.2,
           end: 1,
-        ).chain(CurveTween(curve: Curves.bounceOut)),
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
         weight: 60,
       ),
     ]).animate(_controller);

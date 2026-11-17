@@ -88,8 +88,6 @@ class CommunityPostUploadScreen extends StatelessWidget {
           ],
         ),
         SizedBox(height: 24),
-        CommunityCopyrightDeclarationCard(),
-        SizedBox(height: 24),
         CommunityUploadActionButtons(),
       ],
     );
@@ -106,8 +104,6 @@ class CommunityPostUploadScreen extends StatelessWidget {
         CommunityPostVisibilitySection(),
         SizedBox(height: 20),
         CommunityPostAdditionalOptions(),
-        SizedBox(height: 20),
-        CommunityCopyrightDeclarationCard(),
         SizedBox(height: 24),
         CommunityUploadActionButtons(),
       ],

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -255,17 +256,19 @@ class VideoTranscriptController extends BaseController {
     // 0. Fast-path memory cache checks
     if (forceRefresh) {
       _transcriptCache.remove(video.id);
-    } else if (_transcriptCache.containsKey(video.id) && _transcriptCache[video.id]!.isNotEmpty) {
+    } else if (_transcriptCache.containsKey(video.id)) {
       final cachedSegs = _transcriptCache[video.id]!;
-      transcriptSegments.assignAll(cachedSegs);
-      if (playerCtrl != null) {
-        playerCtrl.subtitleSegments.assignAll(cachedSegs);
-        playerCtrl.startSubtitleSyncTimer();
-        playerCtrl.syncActiveSubtitle();
-      }
-      if (isTranscriptVisible.value) {
-        final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
-        syncToCurrentPosition(currentPos, forceScroll: true);
+      if (cachedSegs.isNotEmpty) {
+        transcriptSegments.assignAll(cachedSegs);
+        if (playerCtrl != null) {
+          playerCtrl.subtitleSegments.assignAll(cachedSegs);
+          playerCtrl.startSubtitleSyncTimer();
+          playerCtrl.syncActiveSubtitle();
+        }
+        if (isTranscriptVisible.value) {
+          final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
+          syncToCurrentPosition(currentPos, forceScroll: true);
+        }
       }
       isLoadingTranscript.value = false;
       playerCtrl?.isLoadingSubtitles.value = false;
@@ -419,35 +422,17 @@ class VideoTranscriptController extends BaseController {
         }
       }
 
-      // 4.5 Check Firestore transcripts collection directly for video.id
-      try {
-        final directTranscriptSnap = await FirebaseFirestore.instance
-            .collection('transcripts')
-            .doc(video.id)
-            .get();
-        if (directTranscriptSnap.exists && directTranscriptSnap.data() != null) {
-          final tData = directTranscriptSnap.data()!;
-          if (tData['utterances'] != null || tData['segments'] != null || tData['words'] != null) {
-            final segs = await parseTranscriptContent(jsonEncode(tData));
-            if (segs.isNotEmpty) {
-              applySegments(segs);
-              return;
-            }
-          }
-        }
-      } catch (_) {}
-
-      // 4.6 Check Firestore transcripts collection for jobId (if present)
-      if (retrievedJobId != null && retrievedJobId.isNotEmpty && retrievedJobId != video.id) {
+      // 4.5 Check Firestore transcripts collection directly for video.id (authenticated users only)
+      if (FirebaseAuth.instance.currentUser != null) {
         try {
-          final jobTranscriptSnap = await FirebaseFirestore.instance
+          final directTranscriptSnap = await FirebaseFirestore.instance
               .collection('transcripts')
-              .doc(retrievedJobId)
+              .doc(video.id)
               .get();
-          if (jobTranscriptSnap.exists && jobTranscriptSnap.data() != null) {
-            final jData = jobTranscriptSnap.data()!;
-            if (jData['utterances'] != null || jData['segments'] != null || jData['words'] != null) {
-              final segs = await parseTranscriptContent(jsonEncode(jData));
+          if (directTranscriptSnap.exists && directTranscriptSnap.data() != null) {
+            final tData = directTranscriptSnap.data()!;
+            if (tData['utterances'] != null || tData['segments'] != null || tData['words'] != null) {
+              final segs = await parseTranscriptContent(jsonEncode(tData));
               if (segs.isNotEmpty) {
                 applySegments(segs);
                 return;
@@ -455,10 +440,29 @@ class VideoTranscriptController extends BaseController {
             }
           }
         } catch (_) {}
+
+        // 4.6 Check Firestore transcripts collection for jobId (if present)
+        if (retrievedJobId != null && retrievedJobId.isNotEmpty && retrievedJobId != video.id) {
+          try {
+            final jobTranscriptSnap = await FirebaseFirestore.instance
+                .collection('transcripts')
+                .doc(retrievedJobId)
+                .get();
+            if (jobTranscriptSnap.exists && jobTranscriptSnap.data() != null) {
+              final jData = jobTranscriptSnap.data()!;
+              if (jData['utterances'] != null || jData['segments'] != null || jData['words'] != null) {
+                final segs = await parseTranscriptContent(jsonEncode(jData));
+                if (segs.isNotEmpty) {
+                  applySegments(segs);
+                  return;
+                }
+              }
+            }
+          } catch (_) {}
+        }
       }
 
       // 5. Canonical fallback probe into Cloud Storage if Firestore URL metadata was absent
-      final storage = FirebaseStorage.instance;
       final probePaths = <String>[
         'transcripts/${video.id}/full.json',
         if (videoLangCode.isNotEmpty && videoLangCode != 'en') ...[
@@ -490,8 +494,8 @@ class VideoTranscriptController extends BaseController {
       final probeFutures = probePaths.map((p) async {
         try {
           final data = await StorageUtils.getDataWithTimeout(
-            storage.ref(p),
-            timeout: const Duration(milliseconds: 2000),
+            FirebaseStorage.instance.ref(p),
+            timeout: const Duration(milliseconds: 1500),
           );
           if (data != null && data.isNotEmpty) {
             return MapEntry<String, Uint8List>(p, data);
@@ -518,6 +522,10 @@ class VideoTranscriptController extends BaseController {
           }
         }
       }
+
+      // No transcript found for this video. Cache empty list so subsequent
+      // calls never re-probe network or Firestore unnecessarily.
+      _transcriptCache[video.id] = const [];
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -594,9 +602,11 @@ class VideoTranscriptController extends BaseController {
   /// If the summary is missing, invalid, or a verbatim transcript snippet, invokes Cloud Function
   /// `getVideoAiSummary` to synthesize a genuine AI summary on demand.
   Future<void> fetchSummary(Video video) async {
+    final videoLang = video.language;
     if (UserFeedbackSanitizer.isValidVideoSummary(
       moderationSummary.value,
       transcriptSegments: transcriptSegments,
+      targetLanguage: videoLang,
     )) {
       return;
     }
@@ -606,6 +616,7 @@ class VideoTranscriptController extends BaseController {
       if (UserFeedbackSanitizer.isValidVideoSummary(
         video.moderationSummary,
         transcriptSegments: transcriptSegments,
+        targetLanguage: videoLang,
       )) {
         moderationSummary.value = video.moderationSummary;
         isLoadingSummary.value = false;
@@ -617,6 +628,7 @@ class VideoTranscriptController extends BaseController {
       if (UserFeedbackSanitizer.isValidVideoSummary(
         credibility.summary,
         transcriptSegments: transcriptSegments,
+        targetLanguage: videoLang,
       )) {
         moderationSummary.value = credibility.summary;
         isLoadingSummary.value = false;
@@ -639,16 +651,19 @@ class VideoTranscriptController extends BaseController {
         if (UserFeedbackSanitizer.isValidVideoSummary(
           modSummary,
           transcriptSegments: transcriptSegments,
+          targetLanguage: videoLang,
         )) {
           candidate = modSummary;
         } else if (UserFeedbackSanitizer.isValidVideoSummary(
           directModSummary,
           transcriptSegments: transcriptSegments,
+          targetLanguage: videoLang,
         )) {
           candidate = directModSummary;
         } else if (UserFeedbackSanitizer.isValidVideoSummary(
           topSummary,
           transcriptSegments: transcriptSegments,
+          targetLanguage: videoLang,
         )) {
           candidate = topSummary;
         }
@@ -671,6 +686,7 @@ class VideoTranscriptController extends BaseController {
         if (UserFeedbackSanitizer.isValidVideoSummary(
           genSummary,
           transcriptSegments: transcriptSegments,
+          targetLanguage: videoLang,
         )) {
           moderationSummary.value = genSummary;
           return;

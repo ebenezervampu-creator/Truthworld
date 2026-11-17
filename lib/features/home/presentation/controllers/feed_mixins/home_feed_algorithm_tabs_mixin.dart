@@ -42,19 +42,12 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
           return scoreB.compareTo(scoreA);
         });
 
-        if (Get.isRegistered<TruthworldAlgorithm>()) {
-          final algorithm = Get.find<TruthworldAlgorithm>();
-          final ranked = algorithm.rankVideos(
-            rawVideos,
-            RecommendationSurface.trending,
-            diversityConfig: DiversityConfig.trending,
-          );
-          final rankedVideos = ranked.map((s) => s.video).toList();
-          videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
-        } else {
-          videos.assignAll(rawVideos);
-        }
-
+        // Apply YouTube-style seen-demotion, refresh epoch variation, and serendipity rotation
+        final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+          candidates: rawVideos,
+          category: 'Trending',
+        );
+        videos.assignAll(refreshed.isNotEmpty ? refreshed : rawVideos);
         saveVideosToCache('Trending');
         if (rawVideos.length < limit) rxHasMore.value = false;
         return;
@@ -143,19 +136,12 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
         return scoreB.compareTo(scoreA);
       });
 
-      if (Get.isRegistered<TruthworldAlgorithm>()) {
-        final algorithm = Get.find<TruthworldAlgorithm>();
-        final ranked = algorithm.rankVideos(
-          rawVideos,
-          RecommendationSurface.trending,
-          diversityConfig: DiversityConfig.trending,
-        );
-        final rankedVideos = ranked.map((s) => s.video).toList();
-        videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
-      } else {
-        videos.assignAll(rawVideos);
-      }
-
+      // Apply YouTube-style seen-demotion, refresh epoch variation, and serendipity rotation
+      final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+        candidates: rawVideos,
+        category: 'Trending',
+      );
+      videos.assignAll(refreshed.isNotEmpty ? refreshed : rawVideos);
       saveVideosToCache('Trending');
       if (rawVideos.length < limit) rxHasMore.value = false;
     } else {
@@ -229,7 +215,12 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
         return metricB.compareTo(metricA);
       });
 
-      videos.assignAll(rawVideos);
+      // Apply YouTube-style seen-demotion, refresh epoch variation, and serendipity rotation
+      final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+        candidates: rawVideos,
+        category: 'Popular',
+      );
+      videos.assignAll(refreshed.isNotEmpty ? refreshed : rawVideos);
       saveVideosToCache('Popular');
       if (rawVideos.length < limit) rxHasMore.value = false;
     } else {
@@ -297,7 +288,12 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
 
       rawVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      videos.assignAll(rawVideos);
+      // Apply YouTube-style seen-demotion, refresh epoch variation, and serendipity rotation
+      final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+        candidates: rawVideos,
+        category: 'New',
+      );
+      videos.assignAll(refreshed.isNotEmpty ? refreshed : rawVideos);
       saveVideosToCache('New');
       if (rawVideos.length < limit) rxHasMore.value = false;
     } else {
@@ -416,10 +412,18 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
           RecommendationSurface.unexplored,
           diversityConfig: DiversityConfig.unexplored,
         );
-        videos.assignAll(ranked.map((s) => s.video).toList());
+        final rankedVideos = ranked.map((s) => s.video).toList();
+        final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+          candidates: rankedVideos.isNotEmpty ? rankedVideos : candidateVideos,
+          category: 'Unexplored',
+        );
+        videos.assignAll(refreshed);
       } else {
-        candidateVideos.shuffle();
-        videos.assignAll(candidateVideos);
+        final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+          candidates: candidateVideos,
+          category: 'Unexplored',
+        );
+        videos.assignAll(refreshed);
       }
 
       pruneWatchedVideosFromUnexplored();
@@ -438,6 +442,14 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
   Future<void> fetchFlipCoinTabVideos() async {
     const limit = 60;
     QuerySnapshot? results;
+
+    // Ensure UserInterestProfile is loaded for authenticated user
+    if (Get.isRegistered<UserInterestProfileService>()) {
+      final profileService = UserInterestProfileService.to;
+      if (profileService.currentProfile == null && authService.uid.isNotEmpty) {
+        await profileService.loadProfile(authService.uid);
+      }
+    }
 
     try {
       results = await firestore
@@ -530,10 +542,20 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
           RecommendationSurface.homeFeedAll,
           diversityConfig: DiversityConfig.homeFeed,
         );
-        videos.assignAll(ranked.map((s) => s.video).toList());
+        final rankedVideos = ranked.map((s) => s.video).toList();
+        final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+          candidates: rankedVideos.isNotEmpty ? rankedVideos : rawVideos,
+          category: 'Flip Coin',
+          isFlipped: true,
+        );
+        videos.assignAll(refreshed);
       } else {
-        rawVideos.shuffle();
-        videos.assignAll(rawVideos);
+        final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+          candidates: rawVideos,
+          category: 'Flip Coin',
+          isFlipped: true,
+        );
+        videos.assignAll(refreshed);
       }
 
       saveVideosToCache('Flip Coin');

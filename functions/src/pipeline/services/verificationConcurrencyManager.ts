@@ -14,8 +14,18 @@
  *    to maximize search quality and avoid token/timeout limits.
  */
 
+import * as admin from "firebase-admin";
 import { logger } from "../utils/logger";
 import { FilteredClaim, VerifiedClaim } from "../types";
+
+const getBreakerDoc = () => {
+  try {
+    if (admin.apps.length > 0) {
+      return admin.firestore().collection("system_status").doc("gemini_circuit_breaker");
+    }
+  } catch (_) {}
+  return null;
+};
 
 /**
  * Token-based semaphore for bounded asynchronous worker concurrency.
@@ -96,6 +106,9 @@ export class ResilientExecutor {
   private static failureCount = 0;
   private static lastFailureTime = 0;
   private static circuitState: "CLOSED" | "OPEN" | "HALF_OPEN" = "CLOSED";
+  private static localBreakerLastSynced = 0;
+  private static readonly BREAKER_SYNC_TTL_MS = 5_000;
+  private static distributedTrippedUntil = 0;
 
   private static readonly CIRCUIT_FAILURE_THRESHOLD = 5;
   private static readonly CIRCUIT_COOLDOWN_MS = 15_000;
@@ -142,13 +155,25 @@ export class ResilientExecutor {
     this.failureCount = 0;
     this.lastFailureTime = 0;
     this.circuitState = "CLOSED";
+    this.distributedTrippedUntil = 0;
+    this.localBreakerLastSynced = 0;
+
+    const doc = getBreakerDoc();
+    if (doc) {
+      doc.set({
+        trippedUntil: 0,
+        resetAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true }).catch(() => {});
+    }
   }
 
   /**
-   * Checks the circuit breaker status.
+   * Checks the circuit breaker status across local and distributed instances.
    */
   private static checkCircuit(): void {
     const now = Date.now();
+
+    // 1. Check local in-memory circuit breaker
     if (this.circuitState === "OPEN") {
       if (now - this.lastFailureTime > this.CIRCUIT_COOLDOWN_MS) {
         this.circuitState = "HALF_OPEN";
@@ -159,14 +184,55 @@ export class ResilientExecutor {
         );
       }
     }
+
+    // 2. Check cross-instance distributed state
+    if (this.distributedTrippedUntil > now) {
+      this.circuitState = "OPEN";
+      throw new CircuitBreakerOpenError(
+        `[ResilientExecutor] Distributed circuit breaker is OPEN across instances. Fast-failing upstream calls to protect API quota.`
+      );
+    }
+
+    // 3. Periodic asynchronous sync with shared Firestore state (throttled by BREAKER_SYNC_TTL_MS)
+    if (now - this.localBreakerLastSynced > this.BREAKER_SYNC_TTL_MS) {
+      this.localBreakerLastSynced = now;
+      const doc = getBreakerDoc();
+      if (doc) {
+        doc.get().then((snap) => {
+          if (snap.exists) {
+            const data = snap.data();
+            const trippedUntil = Number(data?.trippedUntil || 0);
+            if (trippedUntil > Date.now()) {
+              this.distributedTrippedUntil = trippedUntil;
+              this.circuitState = "OPEN";
+            } else if (this.distributedTrippedUntil > 0 && trippedUntil === 0) {
+              this.distributedTrippedUntil = 0;
+              this.circuitState = "CLOSED";
+            }
+          }
+        }).catch(() => {});
+      }
+    }
   }
 
   private static recordSuccess(): void {
     if (this.circuitState === "HALF_OPEN" || this.failureCount > 0) {
       logger.info("[ResilientExecutor] Circuit breaker recovered to CLOSED");
     }
+    const wasTripped = this.circuitState === "OPEN" || this.distributedTrippedUntil > 0;
     this.failureCount = 0;
     this.circuitState = "CLOSED";
+    this.distributedTrippedUntil = 0;
+
+    if (wasTripped) {
+      const doc = getBreakerDoc();
+      if (doc) {
+        doc.set({
+          trippedUntil: 0,
+          recoveredAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true }).catch(() => {});
+      }
+    }
   }
 
   private static recordFailure(): void {
@@ -174,7 +240,17 @@ export class ResilientExecutor {
     this.lastFailureTime = Date.now();
     if (this.failureCount >= this.CIRCUIT_FAILURE_THRESHOLD) {
       this.circuitState = "OPEN";
+      this.distributedTrippedUntil = Date.now() + this.CIRCUIT_COOLDOWN_MS;
       logger.warn(`[ResilientExecutor] Circuit breaker TRIPPED to OPEN after ${this.failureCount} consecutive failures`);
+
+      const doc = getBreakerDoc();
+      if (doc) {
+        doc.set({
+          trippedUntil: this.distributedTrippedUntil,
+          lastTrippedAt: admin.firestore.FieldValue.serverTimestamp(),
+          reason: "consecutive_rate_limits",
+        }, { merge: true }).catch(() => {});
+      }
     }
   }
 

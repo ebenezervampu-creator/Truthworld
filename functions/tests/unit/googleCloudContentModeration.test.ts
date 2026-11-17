@@ -129,7 +129,7 @@ describe('Google Cloud Content Moderation (Decoupled from AssemblyAI Transcript)
           checkedAt: 1700000000000,
           summary: 'Pre-approved by Google Cloud Content Moderation Service via GCS URI.',
           category: 'Technology',
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.5-flash-lite',
         },
       }),
     };

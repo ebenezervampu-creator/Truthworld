@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 
-/// Client for calling Cloud Function `aiSearchAssistant` (backed by Gemini 2.5 Flash)
+/// Client for calling Cloud Function `aiSearchAssistant` (backed by Gemini 3.5 Flash Lite)
 /// with built-in circuit breaker resilience.
 class AiSearchCloudClient {
   AiSearchCloudClient();
@@ -46,7 +46,7 @@ class AiSearchCloudClient {
     }
   }
 
-  /// Calls Cloud Function `aiSearchAssistant` (backed by Gemini 2.5 Flash)
+  /// Calls Cloud Function `aiSearchAssistant` (backed by Gemini 3.5 Flash Lite)
   Future<AiSearchIntent?> callGeminiAssistant(
     String query, {
     SearchScope scope = SearchScope.all,

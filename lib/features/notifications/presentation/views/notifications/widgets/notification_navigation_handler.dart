@@ -8,6 +8,7 @@ import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/notification_service.dart';
 import 'package:truthworld/core/utils/cross_app_launcher.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
@@ -1035,18 +1036,25 @@ class NotificationNavigationHandler {
             return;
           }
         } else if (target.targetApp == AppFlavor.studio) {
-          final tabIndex = target.arguments?['tab'] as int?;
-          if (Get.isRegistered<DashboardController>()) {
-            final ctrl = Get.find<DashboardController>();
-            if (tabIndex != null) {
-              ctrl.selectedIndex.value = tabIndex;
+          if (AppFlavor.isStudio) {
+            final tabIndex = target.arguments?['tab'] as int?;
+            if (Get.isRegistered<DashboardController>()) {
+              final ctrl = Get.find<DashboardController>();
+              if (tabIndex != null) {
+                ctrl.selectedIndex.value = tabIndex;
+              }
+              final videoId = target.arguments?['videoId'] as String?;
+              if (videoId != null && videoId.isNotEmpty) {
+                ctrl.targetVideoId.value = videoId;
+                TruthVerificationDashboardPage.targetVideoId.value = videoId;
+              }
+              ctrl.applyRouteTargetIfPresent();
             }
-            final videoId = target.arguments?['videoId'] as String?;
-            if (videoId != null && videoId.isNotEmpty) {
-              ctrl.targetVideoId.value = videoId;
-              TruthVerificationDashboardPage.targetVideoId.value = videoId;
-            }
-            ctrl.applyRouteTargetIfPresent();
+            RouteStackObserver.navigateToStudio(
+              arguments: target.arguments,
+              parameters: effectiveParams,
+            );
+            return;
           }
         } else if (target.targetApp == AppFlavor.admin) {
           final tab = target.arguments?['tab'] as String?;

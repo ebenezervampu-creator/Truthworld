@@ -198,20 +198,65 @@ abstract class SubtitlesControllerBase extends BaseController
     if (hasPublishedSubtitles(code)) {
       return SubtitleTrackStatus.published;
     }
-    final normCode = normalizeLanguageCode(code);
-    if (isGeneratingAI.value &&
-        (aiTargetLanguages.contains(code) ||
-            aiTargetLanguages.contains(normCode) ||
-            aiLanguageStatuses[code] == 'generating' ||
-            aiLanguageStatuses[normCode] == 'generating')) {
+    if (isLanguageFailed(code)) {
+      return SubtitleTrackStatus.failed;
+    }
+    if (isLanguageGenerating(code)) {
       return SubtitleTrackStatus.generating;
     }
+    final normCode = normalizeLanguageCode(code);
     if ((selectedLanguage.value == code && currentCues.isNotEmpty) ||
         availableLanguages.contains(code) ||
         availableLanguages.contains(normCode)) {
       return SubtitleTrackStatus.draft;
     }
     return SubtitleTrackStatus.notAdded;
+  }
+
+  bool isLanguageGenerating(String code) {
+    final clean = code.trim().toLowerCase();
+    final norm = normalizeLanguageCode(clean);
+    if (generatingSubtitleLanguages.contains(clean) || generatingSubtitleLanguages.contains(norm)) {
+      return true;
+    }
+    final prog = subtitleProgress[clean] ?? subtitleProgress[norm];
+    if (prog != null && prog.isGenerating && !prog.isFailed) {
+      return true;
+    }
+    final status = aiLanguageStatuses[clean] ?? aiLanguageStatuses[norm];
+    if (status != null) {
+      final s = status.toLowerCase();
+      if (s == 'generating' || s == 'translating' || s == 'transcribing' || s == 'aligning' || s == 'queued') {
+        return true;
+      }
+    }
+    if (isGeneratingAI.value && (aiTargetLanguages.contains(clean) || aiTargetLanguages.contains(norm))) {
+      return true;
+    }
+    return false;
+  }
+
+  bool isLanguageFailed(String code) {
+    final clean = code.trim().toLowerCase();
+    final norm = normalizeLanguageCode(clean);
+    if (hasPublishedSubtitles(clean)) {
+      return false;
+    }
+    if (failedSubtitleLanguages.contains(clean) || failedSubtitleLanguages.contains(norm)) {
+      return true;
+    }
+    final prog = subtitleProgress[clean] ?? subtitleProgress[norm];
+    if (prog != null && prog.isFailed) {
+      return true;
+    }
+    final status = (aiLanguageStatuses[clean] ?? aiLanguageStatuses[norm])?.toLowerCase();
+    return status == 'failed';
+  }
+
+  SubtitleTrackProgressState? getSubtitleProgress(String code) {
+    final clean = code.trim().toLowerCase();
+    final norm = normalizeLanguageCode(clean);
+    return subtitleProgress[clean] ?? subtitleProgress[norm];
   }
 
   List<String> get displayLanguages {
@@ -272,6 +317,10 @@ abstract class SubtitlesControllerBase extends BaseController
   final RxString aiJobStatus = ''.obs;
   final RxList<String> aiTargetLanguages = <String>[].obs;
   final RxMap<String, String> aiLanguageStatuses = <String, String>{}.obs;
+  final RxSet<String> generatingSubtitleLanguages = <String>{}.obs;
+  final RxSet<String> failedSubtitleLanguages = <String>{}.obs;
+  final RxMap<String, SubtitleTrackProgressState> subtitleProgress =
+      <String, SubtitleTrackProgressState>{}.obs;
   final RxInt aiQueuePosition = 1.obs;
   final RxInt aiQueueTotal = 1.obs;
   final RxString aiCurrentStageName = 'Speech Extraction & Transcription'.obs;
@@ -282,6 +331,7 @@ abstract class SubtitlesControllerBase extends BaseController
   final RxBool isRegeneratingAI = false.obs;
   StreamSubscription<DocumentSnapshot>? aiJobSubscription;
   StreamSubscription<DocumentSnapshot>? aiVideoSubscription;
+  StreamSubscription<DocumentSnapshot>? aiLocSubscription;
   StreamSubscription<QuerySnapshot>? aiQueueSubscription;
   Timer? aiElapsedTimer;
 
@@ -289,6 +339,7 @@ abstract class SubtitlesControllerBase extends BaseController
   Future<void> cancelAIJob() async {}
   Future<void> togglePauseAIJob() async {}
   Future<void> regenerateAIJob() async {}
+  Future<void> retrySubtitleGeneration(String langCode) async {}
 
   // Cues Search & Filtering
   final RxString searchQueryInCues = ''.obs;
@@ -388,6 +439,7 @@ abstract class SubtitlesControllerBase extends BaseController
     requestsSubscription?.cancel();
     aiJobSubscription?.cancel();
     aiVideoSubscription?.cancel();
+    aiLocSubscription?.cancel();
     aiQueueSubscription?.cancel();
     aiElapsedTimer?.cancel();
   }

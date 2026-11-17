@@ -9,7 +9,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
-import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
@@ -172,22 +171,24 @@ mixin VideoPlaybackFlowMixin on GetxController {
   }
 
   void handoffToMiniplayerOrDispose() {
-    final currentRoute = Get.currentRoute.toLowerCase();
-    final hasWatchInStack = RouteStackObserver.routeStack.isNotEmpty &&
-        (RouteStackObserver.routeStack.last.settings.name?.toLowerCase().contains('watch') ?? false);
-    final isGoingToWatch =
-        currentRoute.contains('watch') ||
-        currentRoute.contains('videoscreen') ||
-        hasWatchInStack ||
-        RouteStackObserver.hasRoute('/watch') ||
-        RouteStackObserver.hasRoute('/videoscreen');
+    // If videoPlayerController is already null, handoff was already performed
+    if (videoPlayerController == null) {
+      disposePlayer();
+      return;
+    }
 
-    final shouldStartMiniplayer =
-        !isGoingToWatch &&
+    final topRouteName = RouteStackObserver.routeStack.isNotEmpty
+        ? (RouteStackObserver.routeStack.last.settings.name?.toLowerCase() ?? '')
+        : '';
+    final isGoingToAnotherWatch =
+        topRouteName.contains('watch') || topRouteName.contains('videoscreen');
+
+    final shouldStartMiniplayer = !isGoingToAnotherWatch &&
         isVpcInitialized &&
-        Get.isRegistered<MiniplayerController>(tag: 'miniplayer');
+        (Get.isRegistered<MiniplayerController>(tag: 'miniplayer') ||
+            Get.isRegistered<MiniplayerController>());
 
-    if (isVpcInitialized) {
+    if (isVpcInitialized && videoPlayerController != null) {
       try {
         final totalDuration = videoPlayerController!.value.duration.inSeconds;
         final watchSeconds = watchStopwatch.elapsed.inSeconds;
@@ -209,13 +210,13 @@ mixin VideoPlaybackFlowMixin on GetxController {
       final durSec = isVpcInitialized && videoPlayerController != null
           ? videoPlayerController!.value.duration.inSeconds
           : video.durationSeconds;
-      final isNearEnd = durSec > 0 &&
-          (pos.inSeconds >= (durSec - 10) || (pos.inSeconds / durSec) >= 0.90);
-      final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
-          WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: durSec);
+      final isEnded = durSec > 0 &&
+          pos.inSeconds >= (durSec - 2) &&
+          !(videoPlayerController?.value.isPlaying ?? false);
 
-      if (isNearEnd || isFullyWatched) {
+      if (isEnded) {
         VideoPlaybackHandoff.clear(video.id);
+        disposePlayer();
         return;
       }
 
@@ -238,14 +239,16 @@ mixin VideoPlaybackFlowMixin on GetxController {
       final activeClipToPlay = activeClip.value;
       final isAudioOnlyToPlay = isAudioOnly.value;
 
-      if (videoPlayerController != null && !kIsWeb) {
+      final vpcToHandoff = videoPlayerController!;
+      videoPlayerController = null;
+      rxVideoPlayerController.value = null;
+
+      if (!kIsWeb) {
         VideoPlaybackHandoff.registerActiveController(
           video.id,
-          videoPlayerController!,
+          vpcToHandoff,
           position: pos,
         );
-        videoPlayerController = null;
-        rxVideoPlayerController.value = null;
       }
 
       try {

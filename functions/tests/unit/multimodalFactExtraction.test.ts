@@ -130,21 +130,5 @@ describe('Multimodal Fact Extraction & Speech-to-Text Language Routing', () => {
     });
   });
 
-  describe('Google Cloud Speech-to-Text for non-Universal Pro languages', () => {
-    it('uses Google Cloud Speech-to-Text for languages without Universal Pro in AssemblyAI (e.g. Telugu)', async () => {
-      const result = await transcriptionLayer.transcribeWithGoogleSpeech(
-        'job_telugu_stt',
-        'user_test_1',
-        'gs://truthworld-media/videos/job_telugu_stt/original.mp4',
-        { primaryLanguage: 'te' } as any,
-        'te'
-      );
 
-      expect(result).toBeDefined();
-      expect(result.detectedLanguage).toBe('te');
-      expect(result.text).toContain('సూర్య గ్రహణం');
-      expect(result.segments.length).toBeGreaterThan(0);
-      expect(result.segments[0].words.length).toBeGreaterThan(0);
-    });
-  });
 });

@@ -1,0 +1,34 @@
+{
+  "glossaryId": "historical_te",
+  "domain": "historical",
+  "sourceLanguage": "en",
+  "targetLanguage": "te",
+  "description": "TruthWorld domain glossary for historical and period drama discourse in Telugu dubbing & subtitles.",
+  "terms": [
+    {
+      "source": "Lord",
+      "target": "ప్రభువా",
+      "context": "historical_period_royal_or_superior_address",
+      "disallowedTransliterations": ["లార్డ్"],
+      "acceptableAlternatives": ["ప్రభూ", "స్వామి"]
+    },
+    {
+      "source": "Captain",
+      "target": "సేనాధిపతి",
+      "context": "military_officer_rank",
+      "acceptableAlternatives": ["కెప్టెన్"]
+    },
+    {
+      "source": "Prisoner",
+      "target": "ఖైదీ",
+      "context": "historical_custody",
+      "acceptableAlternatives": ["బంధీ"]
+    },
+    {
+      "source": "Yes, sir",
+      "target": "చిత్తం",
+      "context": "military_subordinate_acknowledgment",
+      "acceptableAlternatives": ["అలాగే, ప్రభూ"]
+    }
+  ]
+}

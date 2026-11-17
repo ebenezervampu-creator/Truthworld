@@ -10,7 +10,7 @@ import { isGenericHomepageUrl, urlVerificationService } from "./services/urlVeri
 import { evidenceRetrievalService } from "./services/evidenceRetrievalService";
 
 function getActiveChatModel(): string {
-  const base = PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-flash";
+  const base = PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-3.5-flash-lite";
   return PIPELINE_CONFIG.MODEL_ROLLOUT?.ENABLE_NEXT_GEN_MODEL_EXPERIMENT
     ? (PIPELINE_CONFIG.MODEL_ROLLOUT.NEXT_GEN_VERIFICATION_MODEL || base)
     : base;
@@ -705,7 +705,7 @@ async function callGeminiRestApi(
   preferredModel: string = getActiveChatModel(),
   isJson: boolean = true
 ): Promise<string> {
-  const modelsToTry = [preferredModel, "gemini-2.5-flash"].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+  const modelsToTry = [preferredModel, "gemini-3.5-flash-lite"].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
   for (const model of modelsToTry) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -2400,7 +2400,7 @@ CRITICAL INSTRUCTIONS:
 
         const apiKey = process.env.GEMINI_API_KEY || PIPELINE_CONFIG.GEMINI_API_KEY;
         if (apiKey && isClientConnected) {
-          const genText = await callGeminiRestApi(fullPrompt, STREAM_CHAT_SYSTEM_INSTRUCTION, apiKey, "gemini-2.5-flash", false);
+          const genText = await callGeminiRestApi(fullPrompt, STREAM_CHAT_SYSTEM_INSTRUCTION, apiKey, "gemini-3.5-flash-lite", false);
           if (genText && isClientConnected) {
             streamedFullText = genText;
             res.write(`data: ${JSON.stringify({ type: "delta", text: genText })}\n\n`);

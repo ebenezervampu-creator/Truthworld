@@ -201,7 +201,9 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   children: [
                     // 1. Background Track
-                    Container(
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 120),
+                      curve: Curves.easeOutCubic,
                       width: double.infinity,
                       height: barHeight,
                       decoration: BoxDecoration(
@@ -213,7 +215,9 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                     // 2. Buffered Track
                     FractionallySizedBox(
                       widthFactor: buffered,
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        curve: Curves.easeOutCubic,
                         height: barHeight,
                         decoration: BoxDecoration(
                           color: AppColors.playerTimelineBuffered,
@@ -225,7 +229,9 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                     // 3. Played Track (TruthWorld brand white with subtle glow)
                     FractionallySizedBox(
                       widthFactor: played,
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        curve: Curves.easeOutCubic,
                         height: barHeight,
                         decoration: BoxDecoration(
                           color: AppColors.playerTimelinePlayed,
@@ -247,7 +253,9 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                         final chapterFrac = (chapter.startTime.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
                         return Positioned(
                           left: chapterFrac * barWidth - 1,
-                          child: Container(
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            curve: Curves.easeOutCubic,
                             width: 2,
                             height: barHeight,
                             decoration: BoxDecoration(
@@ -270,7 +278,9 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                         final adFrac = ((cueSec * 1000) / dur.inMilliseconds).clamp(0.0, 1.0);
                         return Positioned(
                           left: adFrac * barWidth - 1,
-                          child: Container(
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            curve: Curves.easeOutCubic,
                             width: 2,
                             height: barHeight,
                             decoration: BoxDecoration(

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_mode_switcher.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_options_state.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -589,7 +590,13 @@ void showLanguagePicker(BuildContext context, DubbingOptionsState state) {
                                       )
                                     : null,
                               ),
-                        onTap: isSource ? null : () => state.toggleLanguage(code),
+                        onTap: isSource
+                            ? () {
+                                AppSnackbar.info(
+                                  '${lang.name} is the original spoken language of this video. Use the "Change" option to switch it.',
+                                );
+                              }
+                            : () => state.toggleLanguage(code),
                       );
                     },
                   );
@@ -740,8 +747,10 @@ class DubbingLanguageBar extends StatelessWidget {
       final selectedCodes = state.selectedLangCodes.toList();
       final isMulti = selectedCodes.length > 1;
       final singleCode =
-          selectedCodes.isNotEmpty ? selectedCodes.first : 'te';
-      final singleName = state.controller.getLanguageName(singleCode);
+          selectedCodes.isNotEmpty ? selectedCodes.first : '';
+      final singleName = singleCode.isNotEmpty
+          ? state.controller.getLanguageName(singleCode)
+          : '';
 
       return DubbingOptionCard(
         onTap: state.allowLanguageSwitch
@@ -791,7 +800,7 @@ class DubbingLanguageBar extends StatelessWidget {
                             children: [
                               Flexible(
                                 child: Text(
-                                  'Select languages',
+                                  'Select a language',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: typography.body.copyWith(

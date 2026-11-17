@@ -39,17 +39,17 @@ class PlaylistDialogController extends BaseController
 
   void _initializeAnimations() {
     scaleController = AnimationController(
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 220),
       vsync: this,
     );
 
     listController = AnimationController(
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
-    scaleAnimation = Tween<double>(begin: 0.85, end: 1).animate(
-      CurvedAnimation(parent: scaleController, curve: Curves.easeOutBack),
+    scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+      CurvedAnimation(parent: scaleController, curve: Curves.easeOutCubic),
     );
 
     listAnimation = Tween<double>(begin: 0, end: 1).animate(
@@ -58,7 +58,7 @@ class PlaylistDialogController extends BaseController
 
     scaleController.forward();
     trackTimer(
-      Timer(const Duration(milliseconds: 150), () {
+      Timer(const Duration(milliseconds: 80), () {
         if (!isClosed) {
           listController.forward();
         }

@@ -133,9 +133,6 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
       if (aiDiarizationEnabled.value != s.aiDiarizationEnabled) {
         aiDiarizationEnabled.value = s.aiDiarizationEnabled;
       }
-      if (aiLipSyncEnabled.value != s.aiLipSyncEnabled) {
-        aiLipSyncEnabled.value = s.aiLipSyncEnabled;
-      }
       if (aiSummaryEnabled.value != s.aiSummaryEnabled) {
         aiSummaryEnabled.value = s.aiSummaryEnabled;
       }
@@ -297,7 +294,6 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
     addWorker(ever(aiGenerateSubtitles, (v) => syncPrimitiveToState((s) => s.copyWith(aiGenerateSubtitles: v))));
     addWorker(ever(aiGenerateDubbing, (v) => syncPrimitiveToState((s) => s.copyWith(aiGenerateDubbing: v))));
     addWorker(ever(aiDiarizationEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiDiarizationEnabled: v))));
-    addWorker(ever(aiLipSyncEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiLipSyncEnabled: v))));
     addWorker(ever(aiSummaryEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiSummaryEnabled: v))));
     addWorker(ever(aiFactCheckEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiFactCheckEnabled: v))));
     addWorker(ever(aiFactCheckTier, (v) => syncPrimitiveToState((s) => s.copyWith(aiFactCheckTier: v))));
@@ -471,8 +467,6 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   final RxBool aiGenerateDubbing = false.obs;
   @override
   final RxBool aiDiarizationEnabled = false.obs;
-  @override
-  final RxBool aiLipSyncEnabled = false.obs;
   @override
   final RxBool aiSummaryEnabled = true.obs;
   // Spoken Language Configuration ("From")

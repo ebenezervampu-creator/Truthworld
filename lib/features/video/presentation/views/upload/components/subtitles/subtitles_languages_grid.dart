@@ -37,7 +37,7 @@ class SubtitlesLanguagesGrid extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Select target languages for context-aware subtitle translation and closed-caption tracks (135+ supported via Google Cloud + Gemini 2.5 Flash).',
+          'Select target languages for context-aware subtitle translation and closed-caption tracks (135+ supported via Google Cloud Translation v3).',
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.6),
             fontSize: 12,

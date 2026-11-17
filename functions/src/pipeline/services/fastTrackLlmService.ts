@@ -79,7 +79,7 @@ export class FastTrackLlmService {
     try {
       const genAI = getVertexAI();
       const model = genAI.getGenerativeModel({
-        model: PIPELINE_CONFIG.GEMINI_MODELS?.fastTier || "gemini-2.5-flash",
+        model: PIPELINE_CONFIG.GEMINI_MODELS?.fastTier || "gemini-3.5-flash-lite",
         generationConfig: {
           temperature: 0.0,
           responseMimeType: "application/json",

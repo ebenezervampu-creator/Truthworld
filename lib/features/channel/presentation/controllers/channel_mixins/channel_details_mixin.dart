@@ -15,6 +15,7 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_controller_base.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
+import 'package:truthworld/features/home/data/datasources/edge_feed_remote_data_source.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -350,6 +351,35 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     }
     isLoadingVideos.value = true;
     try {
+      // Step 0: Edge-first delivery for public channel uploads
+      if (videoSortFilter.value == 'Latest' || videoSortFilter.value.isEmpty) {
+        try {
+          final edgeDataSource = EdgeFeedRemoteDataSource();
+          final edgeResponse = await edgeDataSource.fetchChannelFeed(
+            selectedChannel.value!.channelId,
+            limit: 12,
+          );
+          if (edgeResponse.videos.isNotEmpty) {
+            final isOwner = isOwnerOfCurrentChannel;
+            final mapped = edgeResponse.videos
+                .map(Video.fromEntity)
+                .where((v) => VideoVisibilityPolicy.isVisibleForChannel(v, isChannelOwner: isOwner))
+                .toList();
+            if (mapped.isNotEmpty) {
+              videos.value = mapped;
+              lastVideoDocument.value = null;
+              hasVideos.value = true;
+              if (channelVideoCount.value == 0) {
+                channelVideoCount.value = mapped.length;
+              }
+              return;
+            }
+          }
+        } catch (edgeErr, edgeStack) {
+          ErrorHandler.log(edgeErr, stackTrace: edgeStack, tag: 'ChannelDetailsMixin.loadInitialVideos.edge');
+        }
+      }
+
       var query = firestore
           .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: selectedChannel.value!.channelId);

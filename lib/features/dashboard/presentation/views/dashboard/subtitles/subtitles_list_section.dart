@@ -82,6 +82,38 @@ class SubtitlesListSection extends StatelessWidget {
         }
       }
 
+      // Add target video dubbing languages
+      for (final lang in currentVideo.dubbingLanguages) {
+        final code = normalizeLanguageCode(lang);
+        if (!orderedLanguages.contains(code)) {
+          orderedLanguages.add(code);
+        }
+      }
+
+      // Add actively generating languages from controller
+      for (final lang in controller.generatingSubtitleLanguages) {
+        final code = normalizeLanguageCode(lang);
+        if (!orderedLanguages.contains(code)) {
+          orderedLanguages.add(code);
+        }
+      }
+
+      // Add failed subtitle languages from controller
+      for (final lang in controller.failedSubtitleLanguages) {
+        final code = normalizeLanguageCode(lang);
+        if (!orderedLanguages.contains(code)) {
+          orderedLanguages.add(code);
+        }
+      }
+
+      // Add AI target languages from controller
+      for (final lang in controller.aiTargetLanguages) {
+        final code = normalizeLanguageCode(lang);
+        if (!orderedLanguages.contains(code)) {
+          orderedLanguages.add(code);
+        }
+      }
+
       return ListView(
         padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
@@ -228,22 +260,22 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
           (isBaseTrack && currentVideo.transcriptionUrl.isNotEmpty) ||
           (controller.resolveSubtitleUrlForLanguage(currentVideo, langCode)?.isNotEmpty ?? false);
 
-      final isGenerating = controller.isGeneratingAI.value &&
-          (controller.aiTargetLanguages.contains(langCode) ||
-              controller.aiTargetLanguages.contains(normCode) ||
-              controller.aiLanguageStatuses[langCode] == 'generating' ||
-              controller.aiLanguageStatuses[normCode] == 'generating');
+      final isGenerating = controller.isLanguageGenerating(langCode);
+      final isFailed = controller.isLanguageFailed(langCode);
 
       final isDraft = !hasSubtitles &&
           !isGenerating &&
+          !isFailed &&
           controller.selectedLanguage.value == langCode &&
           controller.currentCues.isNotEmpty;
 
-      final isNotAdded = !hasSubtitles && !isGenerating && !isDraft;
+      final isNotAdded = !hasSubtitles && !isGenerating && !isFailed && !isDraft;
 
       final String statusText;
       if (isGenerating) {
         statusText = 'Generating...';
+      } else if (isFailed) {
+        statusText = 'Failed';
       } else if (hasSubtitles) {
         statusText = 'Published';
       } else if (isDraft) {
@@ -287,7 +319,37 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _buildStatusBadge(statusText),
-                if (isNotAdded) ...[
+                if (isFailed) ...[
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => controller.retrySubtitleGeneration(langCode),
+                    icon: const Icon(
+                      Icons.replay_rounded,
+                      size: 14,
+                      color: Colors.black,
+                    ),
+                    label: const Text(
+                      'Retry',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                ] else if (isNotAdded) ...[
                   const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: () {
@@ -335,6 +397,8 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                   ),
                   onSelected: (action) {
                     switch (action) {
+                      case 'retry':
+                        controller.retrySubtitleGeneration(langCode);
                       case 'edit_cues':
                         controller.switchLanguage(langCode);
                         showSubtitlesCuesEditorModal(
@@ -389,6 +453,25 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                         : null;
 
                     return [
+                    if (isFailed)
+                      const PopupMenuItem(
+                        value: 'retry',
+                        child: Row(
+                          children: [
+                            Icon(Icons.replay_rounded,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Retry Subtitle Generation',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     if (!isGenerating) ...[
                       const PopupMenuItem(
                         value: 'edit_cues',
@@ -547,9 +630,11 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
 
             const SizedBox(height: 14),
 
-            // In-card Content: Generating Progress, Not-Added Notice, or Cues Quick Actions Bar
+            // In-card Content: Generating Progress, Failed Notice, Not-Added Notice, or Cues Quick Actions Bar
             if (isGenerating)
-              _buildGeneratingProgressArea(context)
+              _buildGeneratingProgressArea(context, langCode)
+            else if (isFailed)
+              _buildFailedNoticeArea(context, langCode)
             else if (isNotAdded)
               Container(
                 padding:
@@ -718,6 +803,10 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
         badgeBg = const Color(0xFF1E3A8A).withValues(alpha: 0.25);
         badgeBorder = AppColors.info.withValues(alpha: 0.5);
         badgeText = AppColors.textLink;
+      case 'failed':
+        badgeBg = const Color(0xFF7F1D1D).withValues(alpha: 0.25);
+        badgeBorder = const Color(0xFFEF4444).withValues(alpha: 0.5);
+        badgeText = const Color(0xFFF87171);
       case 'draft':
         badgeBg = const Color(0xFF78350F).withValues(alpha: 0.25);
         badgeBorder = const Color(0xFFD97706).withValues(alpha: 0.5);
@@ -746,15 +835,64 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
     );
   }
 
-  Widget _buildGeneratingProgressArea(BuildContext context) {
+  Widget _buildStepChip(String label, bool isActive, bool isDone) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: isDone
+            ? const Color(0xFF065F46).withValues(alpha: 0.25)
+            : (isActive
+                ? const Color(0xFF1E3A8A).withValues(alpha: 0.4)
+                : AppColors.bgSurface),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isDone
+              ? const Color(0xFF059669).withValues(alpha: 0.6)
+              : (isActive
+                  ? AppColors.textLink.withValues(alpha: 0.6)
+                  : AppColors.bgElevated),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isDone)
+            const Padding(
+              padding: EdgeInsets.only(right: 3),
+              child: Icon(Icons.check, size: 10, color: AppColors.success),
+            ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: isActive || isDone ? FontWeight.bold : FontWeight.normal,
+              color: isDone
+                  ? AppColors.success
+                  : (isActive ? Colors.white : AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGeneratingProgressArea(BuildContext context, String langCode) {
     return Obx(() {
-      final stageTitle = controller.aiCurrentStageName.value.isNotEmpty
-          ? controller.aiCurrentStageName.value
-          : 'Extracting speech and timing...';
-      final progressPercent = controller.aiJobProgress.value;
+      final progressState = controller.getSubtitleProgress(langCode);
+      final stageTitle = progressState?.stageTitle.isNotEmpty == true
+          ? progressState!.stageTitle
+          : (controller.aiCurrentStageName.value.isNotEmpty
+              ? controller.aiCurrentStageName.value
+              : 'Generating subtitles in ${controller.getLanguageName(langCode)}...');
+      final progressPercent = (controller.isGeneratingAI.value && controller.aiJobProgress.value > 0)
+          ? controller.aiJobProgress.value
+          : (progressState?.progress ?? controller.aiJobProgress.value);
+      final step = progressState?.stageStep ??
+          (progressPercent < 35 ? 1 : (progressPercent < 75 ? 2 : 3));
+      final eta = progressState?.etaText ?? '~1-2 min';
 
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.bgPage,
           borderRadius: BorderRadius.circular(8),
@@ -783,7 +921,7 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                   '$progressPercent%',
                   style: const TextStyle(
                     color: AppColors.textLink,
-                    fontSize: 12,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -797,14 +935,116 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                 backgroundColor: AppColors.bgSurface,
                 valueColor:
                     const AlwaysStoppedAnimation<Color>(AppColors.textLink),
+                minHeight: 5,
               ),
             ),
+            const SizedBox(height: 9),
+            Row(
+              children: [
+                _buildStepChip('1. Transcribe', step == 1, step > 1),
+                const SizedBox(width: 5),
+                _buildStepChip('2. Translate', step == 2, step > 2),
+                const SizedBox(width: 5),
+                _buildStepChip('3. Align & Export', step == 3, step > 3),
+              ],
+            ),
             const SizedBox(height: 8),
-            const Text(
-              'Runs in background • Safe to leave or close app',
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.textSecondary,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Runs in background • Safe to leave or close app',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (eta.isNotEmpty)
+                  Text(
+                    eta,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildFailedNoticeArea(BuildContext context, String langCode) {
+    return Obx(() {
+      final progressState = controller.getSubtitleProgress(langCode);
+      final errorMessage = (progressState?.errorMessage?.isNotEmpty == true)
+          ? progressState!.errorMessage!
+          : 'Subtitle generation for ${controller.getLanguageName(langCode)} was unable to complete. Tap Retry to generate again.';
+
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF450A0A).withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Color(0xFFF87171),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    errorMessage,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () => controller.retrySubtitleGeneration(langCode),
+                icon: const Icon(
+                  Icons.replay_rounded,
+                  size: 14,
+                  color: Colors.black,
+                ),
+                label: const Text(
+                  'Retry Subtitles',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
               ),
             ),
           ],

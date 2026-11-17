@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:flutter/foundation.dart';
@@ -12,6 +13,7 @@ import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
@@ -37,6 +39,30 @@ class StudioMediaDownloadService {
         .replaceAll(' ', '_');
   }
 
+  /// Checks whether a dubbed URL is an authentic, rendered dubbed video rather than
+  /// an unrendered fallback pointing to the master original video stream.
+  static bool _isGenuineDubbedVideoUrl({
+    required String? dubbedUrl,
+    required String? sourceVideoUrl,
+    required String? originalUrl,
+  }) {
+    if (dubbedUrl == null || dubbedUrl.trim().isEmpty) return false;
+    final clean = dubbedUrl.trim();
+    if (sourceVideoUrl != null && sourceVideoUrl.trim().isNotEmpty) {
+      if (clean == sourceVideoUrl.trim()) return false;
+    }
+    if (originalUrl != null && originalUrl.trim().isNotEmpty) {
+      if (clean == originalUrl.trim()) return false;
+    }
+    final lower = clean.toLowerCase();
+    if (lower.endsWith('original.mp4') ||
+        lower.contains('/original.mp4') ||
+        lower.contains('%2foriginal.mp4')) {
+      return false;
+    }
+    return true;
+  }
+
   /// Downloads the complete MP4 video in the specified language.
   /// If a pre-rendered dubbed video already exists, downloads it directly.
   /// If only the audio track exists, generates the synchronized MP4 video via
@@ -50,9 +76,15 @@ class StudioMediaDownloadService {
     AudioTrackOption? track,
     AudioTracksController? tracksController,
   }) async {
+    final rawBaseLang = video.language.isNotEmpty ? video.language : 'en';
+    final normBase = normalizeLanguageCode(rawBaseLang);
+    final normCode = normalizeLanguageCode(langCode);
+
     final isBaseTrack = track?.isEmbedded == true ||
-        langCode == video.language ||
-        langCode == '__original__';
+        langCode == '__original__' ||
+        langCode == 'original' ||
+        normCode == normBase ||
+        langCode == video.language;
 
     // 1. Base original master video
     if (isBaseTrack) {
@@ -69,27 +101,70 @@ class StudioMediaDownloadService {
         ErrorHandler.log(e, stackTrace: s, tag: '$_logTag.resolveBaseUrl');
       }
 
+      if (downloadUrl.startsWith('gs://')) {
+        final fast = StorageUtils.getFastDownloadUrl(downloadUrl);
+        if (fast.isNotEmpty) downloadUrl = fast;
+      }
+
       final fileName = '${cleanTitle}_original_video.mp4';
       await DownloadHelper.downloadFromUrl(downloadUrl, fileName);
       AppSnackbar.success('Downloading $langLabel Video: $fileName');
       return;
     }
 
-    // 2. Check for an existing pre-rendered dubbed video URL
+    // 2. Check for an existing pre-rendered dubbed video URL (Must be genuine, not master)
     final cachedLoc = VideoMediaService.localizationCache[video.id];
     final controllerVideo = tracksController?.selectedVideo.value;
     final directDubbed = track?.videoUrl ??
         video.dubbedVideos[langCode] ??
+        video.dubbedVideos[normCode] ??
         cachedLoc?.dubbedVideos[langCode] ??
-        controllerVideo?.dubbedVideos[langCode];
+        cachedLoc?.dubbedVideos[normCode] ??
+        controllerVideo?.dubbedVideos[langCode] ??
+        controllerVideo?.dubbedVideos[normCode];
 
-    if (directDubbed != null && directDubbed.trim().isNotEmpty) {
-      var downloadUrl = directDubbed.trim();
+    var resolvedDubbedUrl = directDubbed;
+    var isGenuineDub = _isGenuineDubbedVideoUrl(
+      dubbedUrl: resolvedDubbedUrl,
+      sourceVideoUrl: video.videoUrl,
+      originalUrl: video.originalUrl,
+    );
+
+    // Fast Firestore fallback if not in local cache
+    if (!isGenuineDub || resolvedDubbedUrl == null || resolvedDubbedUrl.trim().isEmpty) {
+      try {
+        final locDoc = await FirebaseFirestore.instance
+            .collection('video_localizations')
+            .doc(video.id)
+            .get();
+        if (locDoc.exists && locDoc.data() != null) {
+          final locData = locDoc.data()!;
+          final locDubbed = Map<String, dynamic>.from(locData['dubbedVideos'] ?? {});
+          final candidate = (locDubbed[langCode] ?? locDubbed[normCode]) as String?;
+          if (_isGenuineDubbedVideoUrl(
+            dubbedUrl: candidate,
+            sourceVideoUrl: video.videoUrl,
+            originalUrl: video.originalUrl,
+          )) {
+            resolvedDubbedUrl = candidate;
+            isGenuineDub = true;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (isGenuineDub && resolvedDubbedUrl != null && resolvedDubbedUrl.trim().isNotEmpty) {
+      var downloadUrl = resolvedDubbedUrl.trim();
       try {
         final resolved = await StorageUtils.resolveUrl(downloadUrl);
         if (resolved.isNotEmpty) downloadUrl = resolved;
       } catch (e, s) {
         ErrorHandler.log(e, stackTrace: s, tag: '$_logTag.resolveDubbedUrl');
+      }
+
+      if (downloadUrl.startsWith('gs://')) {
+        final fast = StorageUtils.getFastDownloadUrl(downloadUrl);
+        if (fast.isNotEmpty) downloadUrl = fast;
       }
 
       final fileName = '${cleanTitle}_${langCode}_dubbed_video.mp4';
@@ -102,14 +177,22 @@ class StudioMediaDownloadService {
     // Resolve audio stream URL
     final audioTrackUrl = track?.audioUrl ??
         video.audioTracks[langCode] ??
+        video.audioTracks[normCode] ??
         cachedLoc?.audioTracks[langCode] ??
+        cachedLoc?.audioTracks[normCode] ??
         controllerVideo?.audioTracks[langCode] ??
+        controllerVideo?.audioTracks[normCode] ??
         '';
 
     final sourceVideoUrl = video.videoUrl.isNotEmpty ? video.videoUrl : video.originalUrl;
 
     if (sourceVideoUrl.isEmpty) {
       AppSnackbar.warning('Master video stream is not available.');
+      return;
+    }
+
+    if (audioTrackUrl.isEmpty) {
+      AppSnackbar.warning('Audio track for $langLabel is not available. Please generate or upload the audio track first.');
       return;
     }
 
@@ -129,7 +212,7 @@ class StudioMediaDownloadService {
       final response = await callable.call<Map<String, dynamic>>({
         'videoId': video.id,
         'language': langCode,
-      }).timeout(const Duration(seconds: 60));
+      }).timeout(const Duration(seconds: 180));
 
       final data = response.data;
       final videoUrl = data['videoUrl'] as String?;
@@ -141,7 +224,8 @@ class StudioMediaDownloadService {
         if (VideoMediaService.localizationCache[video.id] != null) {
           final current = VideoMediaService.localizationCache[video.id]!;
           final updatedDubbed = Map<String, String>.from(current.dubbedVideos)
-            ..[langCode] = finalVideoUrl;
+            ..[langCode] = finalVideoUrl
+            ..[normCode] = finalVideoUrl;
           VideoMediaService.localizationCache[video.id] =
               current.copyWith(dubbedVideos: updatedDubbed);
         }
@@ -152,7 +236,12 @@ class StudioMediaDownloadService {
           if (resolved.isNotEmpty) downloadUrl = resolved;
         } catch (_) {}
 
-        final fileName = '${cleanTitle}_${langCode}_video.mp4';
+        if (downloadUrl.startsWith('gs://')) {
+          final fast = StorageUtils.getFastDownloadUrl(downloadUrl);
+          if (fast.isNotEmpty) downloadUrl = fast;
+        }
+
+        final fileName = '${cleanTitle}_${langCode}_dubbed_video.mp4';
         await DownloadHelper.downloadFromUrl(downloadUrl, fileName);
         AppSnackbar.success('Downloading $langLabel Video: $fileName');
         return;
@@ -165,12 +254,11 @@ class StudioMediaDownloadService {
       );
     }
 
-    // Attempt B: On-device FFmpeg Remuxing (Android, iOS, macOS, Windows)
+    // Attempt B: On-device FFmpeg Remuxing (Android, iOS, macOS)
     if (!kIsWeb &&
         (Platform.isAndroid ||
             Platform.isIOS ||
-            Platform.isMacOS ||
-            Platform.isWindows) &&
+            Platform.isMacOS) &&
         audioTrackUrl.isNotEmpty) {
       try {
         var resolvedVid = sourceVideoUrl;
@@ -223,7 +311,7 @@ class StudioMediaDownloadService {
             returnCode.isValueSuccess() &&
             await File(outPath).exists() &&
             await File(outPath).length() > 1024) {
-          final fileName = '${cleanTitle}_${langCode}_video.mp4';
+          final fileName = '${cleanTitle}_${langCode}_dubbed_video.mp4';
           await Share.shareXFiles(
             [XFile(outPath, mimeType: 'video/mp4', name: fileName)],
             text: '${video.title} ($langLabel Video)',
@@ -240,19 +328,15 @@ class StudioMediaDownloadService {
       }
     }
 
-    // Attempt C: Safe Fallback — Direct Download with Language Filename
-    var fallbackUrl = sourceVideoUrl;
-    try {
-      final resolved = await StorageUtils.resolveUrl(sourceVideoUrl);
-      if (resolved.isNotEmpty) fallbackUrl = resolved;
-    } catch (_) {}
-
-    final fileName = '${cleanTitle}_${langCode}_video.mp4';
-    await DownloadHelper.downloadFromUrl(fallbackUrl, fileName);
-    AppSnackbar.success('Downloading $langLabel Video: $fileName');
+    // Attempt C: Safe Fallback — Zero Falsehood Policy: Never download original video as dubbed!
+    AppSnackbar.warning(
+      'Unable to render $langLabel video right now. You can download the $langLabel audio track (.mp3) directly using the Audio option.',
+    );
   }
 
   /// Downloads the isolated MP3 audio track for the specified language.
+  /// For base/original language tracks where audio is multiplexed inside the original MP4,
+  /// seamlessly extracts or resolves the master audio reference.
   static Future<void> downloadAudioTrack({
     required Video video,
     required String langCode,
@@ -264,14 +348,56 @@ class StudioMediaDownloadService {
     final cachedLoc = VideoMediaService.localizationCache[video.id];
     final controllerVideo = tracksController?.selectedVideo.value;
 
-    final targetAudio = track?.audioUrl ??
-        video.audioTracks[langCode] ??
-        cachedLoc?.audioTracks[langCode] ??
-        controllerVideo?.audioTracks[langCode] ??
-        (langCode == video.language ? video.videoUrl : '');
+    final rawBaseLang = video.language.isNotEmpty ? video.language : 'en';
+    final normBase = normalizeLanguageCode(rawBaseLang);
+    final normCode = normalizeLanguageCode(langCode);
+
+    final isBaseTrack = track?.isEmbedded == true ||
+        langCode == '__original__' ||
+        langCode == 'original' ||
+        normCode == normBase ||
+        langCode == video.language;
+
+    // 1. Direct track audio URL
+    var targetAudio = track?.audioUrl ?? '';
+
+    // 2. Language-specific audio track from model / cache / controller
+    if (targetAudio.isEmpty) {
+      targetAudio = video.audioTracks[langCode] ??
+          video.audioTracks[normCode] ??
+          cachedLoc?.audioTracks[langCode] ??
+          cachedLoc?.audioTracks[normCode] ??
+          controllerVideo?.audioTracks[langCode] ??
+          controllerVideo?.audioTracks[normCode] ??
+          '';
+    }
+
+    // 3. For base/original track, check original audio fallbacks
+    if (targetAudio.isEmpty && isBaseTrack) {
+      targetAudio = video.audioTracks['original'] ??
+          video.audioTracks['__original__'] ??
+          video.audioTracks['base'] ??
+          video.audioTracks[video.language] ??
+          video.audioTracks[rawBaseLang] ??
+          video.audioTracks[normBase] ??
+          cachedLoc?.audioTracks['original'] ??
+          cachedLoc?.audioTracks['__original__'] ??
+          cachedLoc?.audioTracks['base'] ??
+          cachedLoc?.audioTracks[video.language] ??
+          cachedLoc?.audioTracks[rawBaseLang] ??
+          cachedLoc?.audioTracks[normBase] ??
+          controllerVideo?.audioTracks['original'] ??
+          controllerVideo?.audioTracks[normBase] ??
+          '';
+
+      // 4. Fallback to master video stream (contains the native master audio)
+      if (targetAudio.isEmpty) {
+        targetAudio = video.videoUrl.isNotEmpty ? video.videoUrl : video.originalUrl;
+      }
+    }
 
     if (targetAudio.isEmpty) {
-      AppSnackbar.warning('Audio track URL is not available.');
+      AppSnackbar.warning('Audio track for $langLabel is not available.');
       return;
     }
 
@@ -283,10 +409,16 @@ class StudioMediaDownloadService {
       ErrorHandler.log(e, stackTrace: s, tag: '$_logTag.resolveAudioUrl');
     }
 
-    final ext = (targetAudio.endsWith('.mp4') || targetAudio.contains('.mp4?'))
-        ? 'mp4'
-        : 'mp3';
-    final fileName = '${cleanTitle}_${langCode}_audio.$ext';
+    if (downloadUrl.startsWith('gs://')) {
+      final fast = StorageUtils.getFastDownloadUrl(downloadUrl);
+      if (fast.isNotEmpty) downloadUrl = fast;
+    }
+
+    final lower = downloadUrl.toLowerCase();
+    final isMp3 = lower.contains('.mp3');
+    final ext = isMp3 ? 'mp3' : 'mp4';
+    final suffix = isBaseTrack ? 'original_audio' : '${langCode}_audio';
+    final fileName = '${cleanTitle}_$suffix.$ext';
     await DownloadHelper.downloadFromUrl(downloadUrl, fileName);
     AppSnackbar.success('Downloading $langLabel Audio Track: $fileName');
   }

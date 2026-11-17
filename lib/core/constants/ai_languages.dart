@@ -1,8 +1,8 @@
 /// Authoritative repository of AI-supported languages across TruthWorld:
-/// - Source / Spoken Audio ("From"): Same 39 languages supported for both Subtitles and Dubbing,
-///   powered by AssemblyAI Universal-3.5 Pro (17 Global + Hindi & English) and Sarvam AI Saaras v4 (22 Indic languages).
+/// - Source / Spoken Audio ("From"): 18 languages supported for Dubbing, Subtitles, and Audio Tracks,
+///   powered strictly by AssemblyAI Universal-3.5 Pro (English, Hindi, Spanish, French, German, Italian, Portuguese, Arabic, Chinese, Japanese, Dutch, Turkish, Vietnamese, Hebrew, Swedish, Danish, Norwegian, Finnish).
 /// - AI Audio Dubbing Output ("To"): 78 Languages supported by ElevenLabs v4 model (eleven_v4).
-/// - Subtitles Output ("To"): 135+ Languages supported by Google Cloud Translation API with Gemini 2.5 Flash.
+/// - Subtitles Output ("To"): 135+ Languages supported by Google Cloud Translation API v3.
 class AILanguage {
   const AILanguage({
     required this.code,

@@ -13,21 +13,21 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
   });
 
   describe("1. PIPELINE_CONFIG Model Topology", () => {
-    it("should configure gemini-2.5-flash as the default reasoning model on Vertex AI", () => {
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.reasoning).toBe("gemini-2.5-flash");
+    it("should configure reasoning model on Vertex AI", () => {
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.reasoning).toBe("gemini-4-hydrogen");
     });
 
-    it("should configure gemini-2.5-flash for worker and query micro-tasks by default", () => {
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.profiling).toBe("gemini-2.5-flash");
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.fastTier).toBe("gemini-2.5-flash");
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition).toBe("gemini-2.5-flash");
+    it("should configure gemini-3.5-flash-lite for worker and query micro-tasks by default", () => {
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.profiling).toBe("gemini-3.5-flash-lite");
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.fastTier).toBe("gemini-3.5-flash-lite");
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition).toBe("gemini-3.5-flash-lite");
     });
 
-    it("should preserve gemini-2.5-flash for bulk extraction and verification workhorse tasks", () => {
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.extraction).toBe("gemini-2.5-flash");
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.verification).toBe("gemini-2.5-flash");
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.synthesis).toBe("gemini-2.5-flash");
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.moderation).toBe("gemini-2.5-flash");
+    it("should configure gemini-3.5-flash-lite for bulk extraction and synthesis workhorse tasks", () => {
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.extraction).toBe("gemini-3.5-flash-lite");
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.verification).toBe("gemini-3.8-flash");
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.synthesis).toBe("gemini-3.5-flash-lite");
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.moderation).toBe("gemini-3.8-flash");
     });
 
     it("should have Vertex AI context caching enabled by default", () => {
@@ -56,7 +56,7 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
       const engine = new CostEngine();
       const recordCostSpy = jest.spyOn(engine as any, "recordCost").mockResolvedValue(undefined);
 
-      // 100k total tokens: 80k cached input, 10k non-cached input, 10k output on Reasoning (Gemini 2.5 Flash)
+      // 100k total tokens: 80k cached input, 10k non-cached input, 10k output on Reasoning (Gemini 3.5 Flash Lite)
       await engine.recordGeminiCost(
         "job_test_123",
         "user_test_456",
@@ -83,7 +83,7 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
   });
 
   describe("3. AI Search Worker Model Selection", () => {
-    it("should invoke getGenerativeModel with gemini-2.0-flash-lite for query decomposition", async () => {
+    it("should invoke getGenerativeModel with gemini-3.5-flash-lite for query decomposition", async () => {
       const mockGenerateContent = jest.fn().mockResolvedValue({
         response: {
           candidates: [
@@ -110,7 +110,7 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
 
       expect(getGenerativeModelMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition || "gemini-2.5-flash",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition || "gemini-3.5-flash-lite",
         })
       );
     });

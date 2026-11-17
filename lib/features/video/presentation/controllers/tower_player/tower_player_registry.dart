@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/pip_service.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 
@@ -72,6 +73,13 @@ class TowerPlayerRegistry {
         } catch (_) {}
         p.isPlaying.value = false;
       }
+      if (p != except) {
+        try {
+          if (p.audioTrackController != null && p.audioTrackController!.value.isPlaying) {
+            p.audioTrackController!.pause();
+          }
+        } catch (_) {}
+      }
     }
     if (Get.isRegistered<AudioOnlyService>()) {
       try {
@@ -81,6 +89,22 @@ class TowerPlayerRegistry {
         }
       } catch (_) {}
     }
+    // Pause any active miniplayer instance to prevent dual-playback bleed
+    try {
+      if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
+        final mini = Get.find<MiniplayerController>(tag: 'miniplayer');
+        if (mini.isPlaying.value || (mini.internalVpc?.value.isPlaying ?? false)) {
+          mini.internalVpc?.pause();
+          mini.isPlaying.value = false;
+        }
+      } else if (Get.isRegistered<MiniplayerController>()) {
+        final mini = Get.find<MiniplayerController>();
+        if (mini.isPlaying.value || (mini.internalVpc?.value.isPlaying ?? false)) {
+          mini.internalVpc?.pause();
+          mini.isPlaying.value = false;
+        }
+      }
+    } catch (_) {}
   }
 
   /// Initialize native PiP method channel listener via PipService

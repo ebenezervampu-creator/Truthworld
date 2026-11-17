@@ -56,7 +56,7 @@ describe('🌍 Translation & Cultural Localization Engine', () => {
 
     it('escalates segments containing tech brands and AI entity terms to ensure clean transliteration', () => {
       const hasBrand = (translationService as any).shouldEscalateToPremium(
-        'We tested Anthropic Claude 3.5 Sonnet against Google Gemini 2.5 Flash on GPU clusters.',
+        'We tested Anthropic Claude 3.5 Sonnet against Google Gemini 3.5 Flash Lite on GPU clusters.',
         6000
       );
       expect(hasBrand).toBe(true);

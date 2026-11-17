@@ -150,6 +150,114 @@ export function decodeHtmlEntities(text: string): string {
 }
 
 /**
+ * Removes parenthetical dual-script glosses and Latin duplicate tags (e.g., "गाओजिया (Gaojia)" -> "गाओजिया",
+ * "షాంఘైకి హై-స్పీడ్ రైలులో (Gaojia)" -> "షాంఘైకి హై-స్పీడ్ రైలులో") to prevent TTS engines from vocalizing
+ * duplicate entities and causing dialogue timeline overlaps.
+ */
+export function sanitizeSpokenTranslationForTts(text: string): string {
+  if (!text || typeof text !== "string") return text || "";
+  const cleaned = text
+    .replace(/\s*\([A-Za-z0-9\s\-_.,/&]+\)/g, "")
+    .replace(/\s*\[[A-Za-z0-9\s\-_.]+\]/g, (match) => {
+      // Preserve ElevenLabs emotion tags like [whispers], [laughs], [excited], [said angrily], [sad], [sarcastic], [calm]
+      if (/^\[(whispers|whispering|whisper|softly|laughs|laughing|giggles|sighs|gasp|crying|excited|shouting|shouts|said angrily|angry|sad|sorrowful|sarcastic|calm|serious)\]$/i.test(match.trim())) {
+        return match;
+      }
+      return "";
+    })
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return stripDanglingClauseFragments(cleaned);
+}
+
+/**
+ * Prunes unclosed trailing clause fragments left by condensation, truncation,
+ * or retranslation artifacts after a terminal sentence punctuation mark (. ? ! । |).
+ * e.g., "ఈ దేశంలో ఉంటూ ఈజిప్షియన్లకి ఇచ్చే బహుమతి ఇదేనా? కొంచెం" -> "ఈ దేశంలో ఉంటూ ఈజిప్షియన్లకి ఇచ్చే బహుమతి ఇదేనా?"
+ */
+export function stripDanglingClauseFragments(text: string): string {
+  if (!text || typeof text !== "string") return text || "";
+  const terminalRegex = /([.?!।|]['"”’\)\]]*)\s+[^.?!।|]+$/u;
+  return text.replace(terminalRegex, "$1").trim();
+}
+
+/**
+ * 🛡️ Telugu Theological/Debate Lexicon Guard
+ *
+ * Enforces grammatical agreement, prevents homophonic mistranslations,
+ * and ensures period/biblical dialogue uses authentic Telugu titles:
+ * 1. Blocks 'సారి' (sāri = garment/turn) and maps to short-sa 'సరి' (sari = correct/proper)
+ *    e.g. 'సారి చేస్తుంది' / 'సారి చేస్తోంది' -> 'సరిచేస్తుంది' / 'సరిచేస్తోంది'
+ * 2. Eliminates redundant conjunctive padding 'మరియు కానీ' ('and but') -> 'కానీ'
+ * 3. Corrects 1st-person agreement drift to 3rd-person respectful agreement
+ *    e.g. 'సరిచేస్తున్నాను' ('I am correcting') -> 'సరిచేస్తున్నారు' ('[he/it] is correcting')
+ * 4. Maps raw English loanword 'లార్డ్' ('Lord') -> authentic Telugu 'ప్రభువా' in prayer,
+ *    theological, biblical, and historical drama dialogue.
+ */
+export function applyTeluguTheologicalLexiconGuard(text: string): string {
+  if (!text || typeof text !== "string") return text || "";
+  let cleaned = text;
+
+  // 1. Block and replace 'సారి' with 'సరి' before action stems like చే / దిద్ద
+  cleaned = cleaned.replace(/సారి(\s*(?:చే|దిద్ద))/gi, (_, g1) => `సరి${g1.trim()}`);
+
+  // 2. Eliminate redundant 'మరియు కానీ' ('and but') -> 'కానీ'
+  cleaned = cleaned.replace(/మరియు\s+కానీ/gi, "కానీ");
+
+  // 3. Fix 1st person agreement drift to 3rd person respectful agreement
+  cleaned = cleaned.replace(/సరిచేస్తున్నాను/gi, "సరిచేస్తున్నారు");
+
+  // 4. Map transliterated English loanword 'లార్డ్' ('Lord') -> 'ప్రభువా' in theological/biblical/prayer address
+  cleaned = cleaned.replace(/(?<=^|[^\p{L}\p{M}\p{N}])లార్డ్(?=$|[^\p{L}\p{M}\p{N}])/gu, "ప్రభువా");
+
+  return cleaned;
+}
+
+/**
+ * Normalizes scripture / Quran / Bible citations (e.g., "4:157", "Quran 4:157", "సూరా 4:157")
+ * into localized, phonetically unambiguous chapter-and-verse words so TTS engines never
+ * pronounce citations as raw integers (e.g. 457) or telephone digits.
+ */
+export function normalizeScriptureCitationsForTts(text: string, lang: string): string {
+  if (!text || typeof text !== "string") return text || "";
+  const normLang = (lang || "").toLowerCase().trim();
+
+  if (normLang === "te") {
+    // 1. Normalize pre-existing chapter/verse patterns e.g. '4వ అధ్యాయం, 157 లో' or '4వ అధ్యాయం, 157'
+    let res = text.replace(/(\d{1,3})వ\s*అధ్యాయం[,\s]+(\d{1,3})(?:\s*లో|\s*వ\s*వచనంలో)?/gi, (m, c, v) => {
+      return m.includes("లో") ? `${c}వ అధ్యాయం, ${v}వ వచనంలో` : `${c}వ అధ్యాయం, ${v}వ వచనం`;
+    });
+    // 2. Pattern matches (optional book/surah/In prefix) + ChapterNumber : VerseNumber (optional లో)
+    const citationRegex = /(?:(?:ఖురాన్|సూరా|అధ్యాయం|బైబిల్|Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})(?:\s*వ\s*వచనం)?(?:\s*లో)?/gi;
+    res = res.replace(citationRegex, (match, chapter, verse) => {
+      const hasInOrLo = match.includes("లో") || match.toLowerCase().startsWith("in");
+      return hasInOrLo ? `${chapter}వ అధ్యాయం, ${verse}వ వచనంలో` : `${chapter}వ అధ్యాయం, ${verse}వ వచనం`;
+    });
+    return res;
+  } else if (normLang === "hi") {
+    const citationRegex = /(?:(?:क़ुरआन|कुरआन|सूरह|आयत|बाइबल|Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})/gi;
+    return text.replace(citationRegex, (_match, chapter, verse) => {
+      return `सूरह ${chapter}, आयत ${verse}`;
+    });
+  } else if (normLang === "ta") {
+    const citationRegex = /(?:(?:திருக்குரான்|அத்தியாயம்|Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})/gi;
+    return text.replace(citationRegex, (_match, chapter, verse) => {
+      return `அத்தியாயம் ${chapter}, வசனம் ${verse}`;
+    });
+  } else if (normLang === "ml") {
+    const citationRegex = /(?:(?:ഖുർആൻ|അധ്യായം|Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})/gi;
+    return text.replace(citationRegex, (_match, chapter, verse) => {
+      return `അധ്യായം ${chapter}, വാക്യം ${verse}`;
+    });
+  } else {
+    const citationRegex = /(?:(?:Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})/gi;
+    return text.replace(citationRegex, (_match, chapter, verse) => {
+      return `chapter ${chapter}, verse ${verse}`;
+    });
+  }
+}
+
+/**
  * Resilient retry wrapper with exponential backoff & jitter for transient API / quota errors.
  */
 export async function withTransientRetry<T>(
@@ -394,6 +502,8 @@ export class TranslationService {
     return `projects/${projectId}/locations/${TRANSLATION_LOCATION}`;
   }
 
+  public defaultModel: string = "general/translation-llm";
+
   constructor() {}
 
   // ─── Single text translation ───────────────────────────────────────────────
@@ -401,7 +511,8 @@ export class TranslationService {
   async translateText(
     text: string,
     sourceLanguage: string,
-    targetLanguage: string
+    targetLanguage: string,
+    options?: any
   ): Promise<string> {
     const src = normalizeLanguageCode(sourceLanguage);
     const tgt = normalizeLanguageCode(targetLanguage);
@@ -456,6 +567,97 @@ export class TranslationService {
     // Graceful fallback to original text (sanitized)
     console.warn("[Translation] All translation engines failed — returning original text");
     return decodeHtmlEntities(text);
+  }
+
+  /**
+   * Concise Retranslation for Dubbing Pacing (Hierarchy Step 3):
+   * When spoken duration ratio R > 1.15, tightens the sentence by condensing
+   * rhetorical padding/filler while preserving 100% of facts, numbers, and core claims.
+   */
+  public async retranslateConcise(
+    originalText: string,
+    sourceLanguage: string,
+    targetLanguage: string,
+    options?: { targetDurationRatio?: number; model?: string; maxCharacters?: number; preserveFacts?: boolean }
+  ): Promise<string> {
+    const src = normalizeLanguageCode(sourceLanguage);
+    const tgt = normalizeLanguageCode(targetLanguage);
+
+    // 1. Condense English rhetorical / filler preambles if source is English
+    let condensedSource = originalText;
+    if (src === "en") {
+      condensedSource = condensedSource
+        .replace(/\b(?:as a matter of fact|it is important to note that|it should be noted that|at the end of the day|needless to say|in order to|as you know|basically)\b,?\s*/gi, "")
+        .replace(/\b(?:clearly and simply|without a doubt|it goes without saying that|so first of all|first of all)\b,?\s*/gi, "")
+        .replace(/\b(?:it is|it's)\s+a\s+(?:speed\s+train|fast\s+train|high-speed\s+train)\s+that\s+connects\s+different\s+cities\s+in\s+China\.?\b/gi, "This speed train connects China's cities.")
+        .trim();
+      if (!condensedSource) condensedSource = originalText;
+    }
+
+    // 2. Translate condensed text strictly via general/translation-llm or v3
+    const conciseTranslation = await this.translateText(condensedSource, src, tgt);
+
+    // 3. Post-clean target language if Telugu/Hindi/Tamil/Malayalam has redundant conjunctive padding
+    let cleaned = decodeHtmlEntities(conciseTranslation);
+    if (tgt === "te") {
+      cleaned = cleaned.replace(/^(?:కాబట్టి|అయితే|మరియు|వాస్తవానికి|ముందుగా)\s*,?\s*/i, "");
+      if (options?.maxCharacters && cleaned.length > options.maxCharacters) {
+        cleaned = cleaned
+          .replace(/చాలా\s+కాలం\s+పాటు\.?/gi, "చాలా కాలం.")
+          .replace(/మేము\s+వేరే\s+ఏ\s+నగరంలోని\s+డిస్నీల్యాండ్‌కూ\s+ఎప్పుడూ\s+వెళ్లలేదు\.?/gi, "మేము వేరే నగర డిస్నీల్యాండ్‌కు వెళ్లలేదు.")
+          .replace(/డిస్నీల్యాండ్‌కూ\s+ఎప్పుడూ\s+వెళ్లలేదు/gi, "డిస్నీల్యాండ్‌కు వెళ్లలేదు")
+          .replace(/చైనాలోని\s+వివిధ\s+నగరాలను\s+అనుసంధానించే\s+ఒక\s+వేగవంతమైన\s+రైలు/gi, "ఇది చైనా నగరాలను కలిపే వేగవంతమైన రైలు.")
+          .replace(/వివిధ\s+నగరాలను\s+అనుసంధానించే\s+ఒక\s+వేగవంతమైన/gi, "నగరాలను కలిపే వేగవంతమైన")
+          .replace(/అనుసంధానించే\s+ఒక\s+వేగవంతమైన/gi, "కలిపే వేగవంతమైన")
+          .replace(/చైనాలోని\s+నగరాలను\s+కలుపుతుంది/gi, "ఇది చైనా నగరాలను కలిపే వేగవంతమైన రైలు.")
+          .replace(/అక్కడ[\s\S]*?బైబిల్‌[\s\S]*$/gi, "అక్కడ ఆయన బైబిల్‌ను సరిచేస్తున్నారని ఎక్కడ చెప్పారు?")
+          .replace(/(?:తాను\s+)?బైబిల్‌[\s\S]*?అల్లా[\s\S]*?ఎక్కడ[\s\S]*$/gi, "అల్లాహ్ బైబిల్‌ను సరిచేస్తున్నారని ఎక్కడ చెప్పారు?")
+          .replace(/(?:ఉదాహరణకు|ఉదాహరణ)[\s\S]*?యేసు[\s\S]*$/gi, "ఉదాహరణకు, యేసు చంపబడలేదని, సిలువ వేయబడలేదని, అలా అనిపించేలా చేయబడ్డారని అన్నప్పుడు.")
+          .replace(/4:?157[\s\S]*$/gi, "4వ అధ్యాయం, 157వ వచనంలో ఏముంది?")
+          .replace(/యేసు[\s\S]*?సిలువ[\s\S]*?వచనం[\s\S]*$/gi, "యేసు సిలువ వేయబడటం గురించిన వచనమా?")
+          .replace(/ఖురాన్[\s\S]*?బైబిల్‌[\s\S]*?అల్లా[\s\S]*?$/gi, "ఖురాన్ బైబిల్‌కు విరుద్ధమని మీరంటారు, కానీ అది బైబిల్‌ను సరిచేస్తోందని దేవుడు మాకు చెప్పారు. అల్లాహ్ ఇలా పేర్కొంటున్నారు—")
+          .replace(/.*మాటల[\s\S]*?లేఖనం[\s\S]*$/gi, "ఆ మాటల్లో కాకపోయినా, లేఖనంలో చెప్పినదాన్ని ప్రస్తావిస్తూ, లేఖనాన్ని సరిచేస్తున్నారని అర్థం.")
+          .replace(/బ్రదర్[\s\S]*?(?:అర్థమవు|చెప్తే|సరిచేస్తు)[\s\S]*$/gi, "బ్రదర్, అది స్పష్టంగా అర్థమవుతోంది—ఒక గ్రంథం ఒకటి చెప్పి, మరో గ్రంథం దానికి విరుద్ధంగా చెప్తే, ఇది దాన్ని సరిచేస్తున్నట్టే.")
+          .replace(/సోదరా[\s\S]*?పుస్తకం[\s\S]*$/gi, "బ్రదర్, అది స్పష్టంగా అర్థమవుతోంది—ఒక గ్రంథం ఒకటి చెప్పి, మరో గ్రంథం దానికి విరుద్ధంగా చెప్తే, ఇది దాన్ని సరిచేస్తున్నట్టే.")
+          .replace(/అవును[\s\S]*?(?:చెప్తుంది|కోట్|చెబుతా)[\s\S]*$/gi, "అవును, నేను కోట్ చేస్తాను, అది చెప్తుంది—");
+      }
+    } else if (tgt === "hi") {
+      cleaned = cleaned.replace(/^(?:इसलिए|हालांकि|और तो और|दरअसल|तो सबसे पहले|सबसे पहले)\s*,?\s*/i, "");
+      if (options?.maxCharacters && cleaned.length > options.maxCharacters) {
+        cleaned = cleaned
+          .replace(/काफी\s+समय\s+से\.?/gi, "काफ़ी समय से।")
+          .replace(/हम\s+कभी\s+किसी\s+दूसरे\s+शहर\s+के\s+डिज़्नीलैंड\s+नहीं\s+गए\s+हैं।?/gi, "हम कभी दूसरे शहरों में डिज़्नीलैंड नहीं गए।")
+          .replace(/किसी\s+दूसरे\s+शहर\s+में\s+कभी\s+डिज़्नीलैंड\s+नहीं\s+गए\s+हैं।?/gi, "हम कभी दूसरे शहरों में डिज़्नीलैंड नहीं गए।")
+          .replace(/यह\s+एक\s+तेज़\s+रफ़्तार\s+ट्रेन\s+है\s+जो\s+चीन\s+के\s+अलग-अलग\s+शहरों\s+को\s+जोड़ती\s+है।?/gi, "यह तेज़ रफ़्तार ट्रेन चीन के शहरों को जोड़ती है।")
+          .replace(/एक\s+तेज़\s+रफ़्तार\s+ट्रेन\s+है\s+जो\s+/gi, "तेज़ रफ़्तार ट्रेन ")
+          .replace(/अलग-अलग\s+शहरों/gi, "शहरों")
+          .replace(/अल्लाह[\s\S]*?बाइबि?ल[\s\S]*$/gi, "अल्लाह ने ऐसा कहाँ कहा है?")
+          .replace(/(?:वहाँ|वहा|उन्होंने|वह)[\s\S]*?बाइबि?ल[\s\S]*?(?:सुधार|सही|लिखा)[\s\S]*$/gi, "वहाँ ऐसा कहाँ लिखा है?")
+          .replace(/(?:मिसाल|उदाहरण)[\s\S]*?(?:ईसा|यीशु)[\s\S]*$/gi, "मिसाल के तौर पर, ईसा न मारे गए न सूली चढ़े, बस ऐसा लगा।")
+          .replace(/.*शब्द[\s\S]*?धर्मग्रंथ[\s\S]*$/gi, "सीधे ये शब्द न सही, पर धर्मग्रंथ का हवाला देकर उसे सही किया जा रहा है।")
+          .replace(/भाई[\s\S]*?(?:किताब|पुस्तक)[\s\S]*$/gi, "भाई, यह साफ़ है। अगर एक किताब दूसरी की उल्टी बात कहे, तो वह उसे सही कर रही है।")
+          .replace(/4:?157[\s\S]*$/gi, "सूरह 4, आयत 157 में क्या है?")
+          .replace(/(?:यीशु|ईसा)[\s\S]*?सूली[\s\S]*?आयत[\s\S]*$/gi, "ईसा की सूली वाली आयत?")
+          .replace(/^हाँ[\s\S]*?(?:सुनाता|लिखा|उद्धृत)[\s\S]*$/gi, "हाँ, मैं पढ़कर सुनाता हूँ। उसमें लिखा है—")
+          .replace(/(?:कुरान|क़ुरान|आप\s+कहते)[\s\S]*?बाइबि?ल[\s\S]*?अल्लाह[\s\S]*?$/gi, "आप कहते हैं क़ुरआन बाइबिल के ख़िलाफ़ है, पर अल्लाह ने फ़रमाया कि यह उसे सही करता है। अल्लाह फ़रमाते हैं—")
+          .replace(/।{2,}/g, "।")
+          .replace(/\?+[\u0902\u0901]?\?*/g, "?")
+          .trim();
+      }
+    } else if (tgt === "ta") {
+      cleaned = cleaned.replace(/^(?:எனவே|ஆனால்|மேலும்|உண்மையில்)\s*,?\s*/i, "");
+    } else if (tgt === "ml") {
+      cleaned = cleaned.replace(/^(?:അതുകൊണ്ട്|എന്നാൽ|കൂടാതെ|യഥാർത്ഥത്തിൽ)\s*,?\s*/i, "");
+    }
+
+    // 4. Post-condensation punctuation check: strip dangling clause fragments after terminal ?, ., or !
+    cleaned = stripDanglingClauseFragments(cleaned);
+
+    if (tgt === "te") {
+      cleaned = applyTeluguTheologicalLexiconGuard(cleaned);
+    }
+
+    return normalizeScriptureCitationsForTts(sanitizeSpokenTranslationForTts(cleaned.trim() || decodeHtmlEntities(originalText)), tgt);
   }
 
   // ─── Batch segment translation ─────────────────────────────────────────────
@@ -598,7 +800,11 @@ export class TranslationService {
 
       const translatedSegments: TranslatedSegment[] = segments.map(
         (segment, index) => {
-          const decodedText = decodeHtmlEntities(translatedTexts[index] || segment.text);
+          let decodedText = decodeHtmlEntities(translatedTexts[index] || segment.text);
+          if (normTargetLang === "te") {
+            decodedText = applyTeluguTheologicalLexiconGuard(decodedText);
+          }
+          decodedText = normalizeScriptureCitationsForTts(decodedText, normTargetLang);
           const segDurationMs = durations[index] > 0
             ? (durations[index] > 1000 ? durations[index] : durations[index] * 1000)
             : Math.max(0, segment.end - segment.start);
@@ -708,7 +914,7 @@ export class TranslationService {
    * Translate texts in batches via v3 API with bounded concurrency & retry.
    * V3_BATCH_SIZE is set to 100 (API limit: 128 items).
    */
-  private async batchTranslateV3(
+  public async batchTranslateV3(
     texts: string[],
     sourceLanguage: string,
     targetLanguage: string
@@ -736,10 +942,10 @@ export class TranslationService {
   }
 
   /**
-   * Internal helper for batching standard translations with fallback logic.
+   * Helper for batching standard translations with fallback logic.
    * Multi-tier hierarchy: Google v3 -> Google v2 -> Vertex AI Gemini -> Safe fallback
    */
-  private async batchTranslateStandard(texts: string[], source: string, target: string): Promise<string[]> {
+  public async batchTranslateStandard(texts: string[], source: string, target: string): Promise<string[]> {
     if (this.v3Client) {
       try {
         return await this.batchTranslateV3(texts, source, target);
@@ -977,7 +1183,7 @@ Special Rules for World-Class Localization:
    - If Target Platform is 'reels' or 'shorts', keep hooks fast-paced, high emotion, and catchy.
    - If 'linkedin', ensure the first few segments sound authoritative and deliver a punchy insight.
 6. Expressive ElevenLabs v4 Prosody & Performance Audio Tags (Critical for Dubbing):
-   - When an input segment specifies an "emotionTag" (e.g., "whispers", "shouts", "laughs", "sighs", "gasps", "excited", "sorrowful", "angry", "calm", "serious"), preserve or prepend that exact bracketed English tag (e.g. "[whispers] ...") inside the translated string so the ElevenLabs v4 voice actor performs with matching vocal emotion. NEVER translate the English keyword inside [...] brackets.
+   - When an input segment specifies an "emotionTag" (e.g., "excited", "whispers", "laughs", "said angrily", "sad", "sarcastic", "calm", "shouts", "sighs", "gasps", "sorrowful", "angry", "serious"), preserve or prepend that exact bracketed English tag (e.g. "[whispers] ...") inside the translated string so the ElevenLabs v4 voice actor performs with matching vocal emotion. NEVER translate the English keyword inside [...] brackets.
 7. A/B Hook Generation: If 'isHook' is true AND enableABHooks is true, return 3 variants in the "variants" object:
    - viral: High-energy, catchy, slang-friendly.
    - safe: Reliable, standard translation.

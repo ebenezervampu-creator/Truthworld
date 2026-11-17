@@ -125,7 +125,7 @@ export const onAdCampaignWritten = onDocumentWritten(
       try {
         const genAI = getVertexAI();
         const model = genAI.getGenerativeModel({
-          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-2.5-flash",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.5-flash-lite",
           systemInstruction: `You are a strict advertisement moderation system for Truthworld. Review the advertisement details (brand name, headline, description, CTA text, CTA target, and media URLs) for violations of the Community Guidelines and Advertising Standards.\n\n${COMMUNITY_GUIDELINES_TEXT}`,
           generationConfig: {
             responseMimeType: "application/json",
@@ -261,7 +261,6 @@ export const triggerAdAIFeatures = onRequest(
       "ASSEMBLYAI_KEY",
       "ELEVENLABS_API_KEY",
       "GOOGLE_TRANSLATION_API_KEY",
-      "SARVAM_API_KEY",
     ],
   },
   async (req, res) => {
@@ -343,7 +342,6 @@ export const generateAllVideoAdsAIFeatures = onRequest(
       "ASSEMBLYAI_KEY",
       "ELEVENLABS_API_KEY",
       "GOOGLE_TRANSLATION_API_KEY",
-      "SARVAM_API_KEY",
     ],
   },
   async (req, res) => {

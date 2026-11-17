@@ -600,24 +600,20 @@ function testSpeakerDiarizationSubtitlesAndVideoMetadata() {
 }
 
 // ----------------------------------------------------------------------
-// FEATURE 11: Transcription Provider Routing Policy (Sarvam AI gating)
+// FEATURE 11: Transcription Provider Routing Policy (AssemblyAI Universal-3.5 Pro strictly 18 languages)
 // ----------------------------------------------------------------------
 function testTranscriptionRoutingPolicy() {
-  console.log("\n--- [Feature 11] Testing Transcription Provider Routing Policy ---");
+  console.log("\n--- [Feature 11] Testing Transcription Provider Routing Policy (AssemblyAI Universal-3.5 Pro 18 Languages) ---");
 
   const ASSEMBLYAI_UNIVERSAL_35_LANGUAGES = new Set([
     "en", "hi", "es", "fr", "de", "it", "pt", "ar", "zh", "ja", "nl", "tr", "vi", "he", "sv", "da", "no", "fi"
-  ]);
-
-  const INDIC_LANGUAGES = new Set([
-    "te", "hi", "ta", "kn", "ml", "mr", "bn", "gu", "pa", "ur", "or", "as"
   ]);
 
   const resolveProvider = (
     lang: string,
     executionPlan: any,
     targetJobData: any = {}
-  ): "assemblyai" | "google-speech" | "sarvam-ai" => {
+  ): { provider: "assemblyai" | "gemini"; isSupported: boolean; requestedDubbing: boolean } => {
     const requestedSubtitles = Boolean(
       executionPlan.genLangSubs === true ||
       (Array.isArray(executionPlan.subtitleLanguages) && executionPlan.subtitleLanguages.length > 0) ||
@@ -627,59 +623,61 @@ function testTranscriptionRoutingPolicy() {
       (targetJobData?.executionPlan as any)?.genLangSubs === true
     );
 
+    const targetDubLangs = Array.isArray(executionPlan.dubbingLanguages) && executionPlan.dubbingLanguages.length > 0
+      ? executionPlan.dubbingLanguages
+      : (Array.isArray((targetJobData?.executionPlan as any)?.dubbingLanguages) ? (targetJobData.executionPlan as any).dubbingLanguages : []);
+
     const requestedDubbing = Boolean(
-      executionPlan.generateDubbing === true ||
-      (Array.isArray(executionPlan.dubbingLanguages) && executionPlan.dubbingLanguages.length > 0) ||
-      (executionPlan.dubbingMode && executionPlan.dubbingMode !== "none") ||
-      (Array.isArray((executionPlan as any).features) && (executionPlan as any).features.includes("dubbing")) ||
-      (Array.isArray(targetJobData?.features) && targetJobData.features.includes("dubbing")) ||
-      (Array.isArray((targetJobData?.executionPlan as any)?.dubbingLanguages) && (targetJobData.executionPlan as any).dubbingLanguages.length > 0) ||
-      (targetJobData?.executionPlan as any)?.generateDubbing === true ||
-      ((targetJobData?.executionPlan as any)?.dubbingMode && (targetJobData.executionPlan as any).dubbingMode !== "none")
+      (
+        executionPlan.generateDubbing === true ||
+        executionPlan.enableDubbing === true ||
+        (targetJobData?.executionPlan as any)?.generateDubbing === true ||
+        (targetJobData?.executionPlan as any)?.enableDubbing === true
+      ) &&
+      targetDubLangs.length > 0
     );
 
-    const needsSubtitlesOrDubbing = requestedSubtitles || requestedDubbing;
-    const isIndic = INDIC_LANGUAGES.has(lang) && lang !== "en";
-    const hasUniversal35 = lang && (!isIndic || !needsSubtitlesOrDubbing)
-      ? ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(lang)
-      : false;
+    const isSupported = ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(lang);
 
-    if (isIndic && needsSubtitlesOrDubbing) {
-      return "sarvam-ai";
-    } else if (hasUniversal35) {
-      return "assemblyai";
-    } else {
-      return "google-speech";
+    if (requestedDubbing && !isSupported && lang !== "auto") {
+      return { provider: "assemblyai", isSupported: false, requestedDubbing: true };
     }
+
+    if (requestedDubbing) {
+      return { provider: "assemblyai", isSupported: true, requestedDubbing: true };
+    }
+
+    // Zero Automatic Dubbing: When dubbing is NOT requested, dubbing is skipped and video transcribes with Gemini
+    return { provider: (isSupported && requestedSubtitles) ? "assemblyai" : "gemini", isSupported: true, requestedDubbing: false };
   };
 
-  // Case 1: Video does NOT need subtitles or dubbing -> Telugu (te)
-  const noSubsTe = resolveProvider("te", { genLangSubs: false, generateDubbing: false });
-  assert(noSubsTe === "google-speech", "Telugu without subtitles/dubbing routes to Google Cloud Chirp (never Sarvam)");
+  // Case 1: Hindi (hi) -> Supported in AssemblyAI Universal-3.5 Pro
+  const subsHi = resolveProvider("hi", { genLangSubs: true, subtitleLanguages: ["en"] });
+  assert(subsHi.provider === "assemblyai" && subsHi.isSupported === true, "Hindi routes strictly to AssemblyAI Universal-3.5 Pro");
 
-  // Case 2: Video does NOT need subtitles or dubbing -> Hindi (hi)
-  const noSubsHi = resolveProvider("hi", { genLangSubs: false, generateDubbing: false });
-  assert(noSubsHi === "assemblyai", "Hindi without subtitles/dubbing routes to AssemblyAI (never Sarvam)");
+  // Case 2: English (en) -> Supported in AssemblyAI Universal-3.5 Pro
+  const dubEn = resolveProvider("en", { generateDubbing: true, dubbingLanguages: ["es"] });
+  assert(dubEn.provider === "assemblyai" && dubEn.isSupported === true, "English routes strictly to AssemblyAI Universal-3.5 Pro");
 
-  // Case 3: Video does NOT need subtitles or dubbing -> English (en)
-  const noSubsEn = resolveProvider("en", { genLangSubs: false, generateDubbing: false });
-  assert(noSubsEn === "assemblyai", "English without subtitles/dubbing routes to AssemblyAI");
+  // Case 3: Spanish (es) -> Supported in AssemblyAI Universal-3.5 Pro
+  const dubEs = resolveProvider("es", { generateDubbing: true, dubbingLanguages: ["fr"] });
+  assert(dubEs.provider === "assemblyai" && dubEs.isSupported === true, "Spanish routes strictly to AssemblyAI Universal-3.5 Pro");
 
-  // Case 4: Video does NOT need subtitles or dubbing -> Tamil (ta)
-  const noSubsTa = resolveProvider("ta", { genLangSubs: false, dubbingMode: "none" });
-  assert(noSubsTa === "google-speech", "Tamil without subtitles/dubbing routes to Google Cloud Chirp (never Sarvam)");
+  // Case 4: Japanese (ja) -> Supported in AssemblyAI Universal-3.5 Pro
+  const dubJa = resolveProvider("ja", { generateDubbing: true, dubbingLanguages: ["en"] });
+  assert(dubJa.provider === "assemblyai" && dubJa.isSupported === true, "Japanese routes strictly to AssemblyAI Universal-3.5 Pro");
 
-  // Case 5: Video DOES need subtitles -> Telugu (te)
-  const withSubsTe = resolveProvider("te", { genLangSubs: true, subtitleLanguages: ["en", "hi"] });
-  assert(withSubsTe === "sarvam-ai", "Telugu with subtitles routes to Sarvam AI");
+  // Case 5: German (de) -> Supported in AssemblyAI Universal-3.5 Pro
+  const subsDe = resolveProvider("de", { genLangSubs: true, subtitleLanguages: ["en"] });
+  assert(subsDe.provider === "assemblyai" && subsDe.isSupported === true, "German routes strictly to AssemblyAI Universal-3.5 Pro");
 
-  // Case 6: Video DOES need dubbing -> Hindi (hi)
-  const withDubHi = resolveProvider("hi", { generateDubbing: true, dubbingLanguages: ["te"] });
-  assert(withDubHi === "sarvam-ai", "Hindi with dubbing routes to Sarvam AI");
+  // Case 6: Non-Universal-3.5 language (e.g. Telugu 'te') for manual dubbing -> Rejected as unsupported for dubbing
+  const unsuppTe = resolveProvider("te", { generateDubbing: true, dubbingLanguages: ["en"] });
+  assert(unsuppTe.isSupported === false, "Languages outside Universal-3.5 Pro 18 languages rejected for dubbing STT");
 
-  // Case 7: Video DOES need dubbing -> English (en)
-  const withDubEn = resolveProvider("en", { generateDubbing: true, dubbingLanguages: ["hi", "te"] });
-  assert(withDubEn === "assemblyai", "English with dubbing routes to AssemblyAI");
+  // Case 7: Non-Universal-3.5 language (e.g. Telugu 'te') without dubbing -> ZERO automatic dubbing, passes smoothly!
+  const zeroAutoDubTe = resolveProvider("te", { generateDubbing: false });
+  assert(zeroAutoDubTe.requestedDubbing === false && zeroAutoDubTe.isSupported === true, "Telugu video without manual dubbing never triggers or fails dubbing");
 }
 
 // ----------------------------------------------------------------------

@@ -158,5 +158,174 @@ void main() {
         throwsA(isA<EdgeFeedException>()),
       );
     });
+
+    test('fetches explore feed from /api/feed/explore with diversity', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/feed/explore');
+        return http.Response(
+          jsonEncode({
+            'feed': [
+              {
+                'id': 'exp_vid_1',
+                'title': 'Explore Video',
+                'category': 'science',
+                'videoUrl': 'https://storage.googleapis.com/test.mp4',
+                'moderationStatus': 'approved',
+                'createdAt': DateTime.now().toIso8601String(),
+              }
+            ],
+            'count': 1,
+            'hasMore': false,
+          }),
+          200,
+        );
+      });
+
+      final dataSource = EdgeFeedRemoteDataSource(
+        client: client,
+        cacheManager: cacheManager,
+        baseUrl: 'https://www.truthworld.in',
+      );
+
+      final res = await dataSource.fetchExploreFeed(limit: 10);
+      expect(res.videos.length, 1);
+      expect(res.videos.first.id, 'exp_vid_1');
+    });
+
+    test('fetches topic feed from /api/feed?topic=science with local caching', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/feed');
+        expect(request.url.queryParameters['topic'], 'science');
+        return http.Response(
+          jsonEncode({
+            'feed': [
+              {
+                'id': 'topic_vid_1',
+                'title': 'Quantum Physics',
+                'category': 'science',
+                'videoUrl': 'https://storage.googleapis.com/test.mp4',
+                'moderationStatus': 'approved',
+                'createdAt': DateTime.now().toIso8601String(),
+              }
+            ],
+            'count': 1,
+            'topic': 'science',
+            'hasMore': false,
+          }),
+          200,
+          headers: {'etag': 'W/"topic_etag_1"'},
+        );
+      });
+
+      final dataSource = EdgeFeedRemoteDataSource(
+        client: client,
+        cacheManager: cacheManager,
+        baseUrl: 'https://www.truthworld.in',
+      );
+
+      final res = await dataSource.fetchTopicFeed('science', limit: 12);
+      expect(res.videos.length, 1);
+      expect(res.videos.first.id, 'topic_vid_1');
+    });
+
+    test('fetches channel uploads from /api/feed?channelId=chan_xyz', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/feed');
+        expect(request.url.queryParameters['channelId'], 'chan_xyz');
+        return http.Response(
+          jsonEncode({
+            'feed': [
+              {
+                'id': 'chan_vid_1',
+                'title': 'Channel Upload',
+                'category': 'science',
+                'videoUrl': 'https://storage.googleapis.com/test.mp4',
+                'moderationStatus': 'approved',
+                'createdAt': DateTime.now().toIso8601String(),
+              }
+            ],
+            'count': 1,
+            'channelId': 'chan_xyz',
+            'hasMore': false,
+          }),
+          200,
+        );
+      });
+
+      final dataSource = EdgeFeedRemoteDataSource(
+        client: client,
+        cacheManager: cacheManager,
+        baseUrl: 'https://www.truthworld.in',
+      );
+
+      final res = await dataSource.fetchChannelFeed('chan_xyz', limit: 12);
+      expect(res.videos.length, 1);
+      expect(res.videos.first.id, 'chan_vid_1');
+    });
+
+    test('fetches discovery topics from /api/discovery/topics', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/discovery/topics');
+        return http.Response(
+          jsonEncode({
+            'topics': [
+              {
+                'id': 't_ai',
+                'slug': 'ai',
+                'name': 'AI',
+                'category': 'Technology',
+                'trendingScore': 99.0,
+                'videoCount': 100,
+                'status': 'active',
+              }
+            ],
+            'count': 1,
+          }),
+          200,
+        );
+      });
+
+      final dataSource = EdgeFeedRemoteDataSource(
+        client: client,
+        cacheManager: cacheManager,
+        baseUrl: 'https://www.truthworld.in',
+      );
+
+      final topics = await dataSource.fetchDiscoveryTopics();
+      expect(topics.length, 1);
+      expect(topics.first.slug, 'ai');
+    });
+
+    test('fetches discovery channels from /api/discovery/channels', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/discovery/channels');
+        return http.Response(
+          jsonEncode({
+            'channels': [
+              {
+                'id': 'c_truth',
+                'name': 'Truth Official',
+                'handle': 'truthofficial',
+                'category': 'News',
+                'subscriberCount': 50000,
+                'status': 'active',
+              }
+            ],
+            'count': 1,
+          }),
+          200,
+        );
+      });
+
+      final dataSource = EdgeFeedRemoteDataSource(
+        client: client,
+        cacheManager: cacheManager,
+        baseUrl: 'https://www.truthworld.in',
+      );
+
+      final channels = await dataSource.fetchDiscoveryChannels();
+      expect(channels.length, 1);
+      expect(channels.first.handle, 'truthofficial');
+    });
   });
 }

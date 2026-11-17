@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/firebase_options.dart';
 
@@ -48,9 +49,13 @@ class StorageUtils {
   static Future<Map<String, String>> getMediaHeaders({
     bool isHlsOrCmaf = false,
     String? userAuthToken,
+    String? targetUrl,
   }) async {
+    final isGoogleStorage = targetUrl != null &&
+        (targetUrl.contains('firebasestorage.googleapis.com') ||
+         targetUrl.contains('storage.googleapis.com'));
+
     final headers = <String, String>{
-      'Connection': 'keep-alive',
       'Origin': 'https://truthworld.in',
       'Referer': 'https://truthworld.in/',
     };
@@ -62,20 +67,25 @@ class StorageUtils {
       headers['Accept'] = '*/*';
     }
 
-    var token = userAuthToken;
-    if (token == null || token.isEmpty) {
-      try {
-        final currentAuthUser = FirebaseAuth.instance.currentUser;
-        if (currentAuthUser != null) {
-          token = await currentAuthUser.getIdToken();
+    // Google Cloud / Firebase Storage REST endpoints do NOT accept Firebase Auth ID tokens in the
+    // Authorization: Bearer header. GCS expects Google Cloud OAuth2 tokens (ya29....), so passing
+    // a Firebase user JWT causes HTTP 401 or HTTP 500 errors.
+    if (!isGoogleStorage) {
+      var token = userAuthToken;
+      if (token == null || token.isEmpty) {
+        try {
+          final currentAuthUser = FirebaseAuth.instance.currentUser;
+          if (currentAuthUser != null) {
+            token = await currentAuthUser.getIdToken();
+          }
+        } catch (_) {
+          // Guest user or offline mode
         }
-      } catch (_) {
-        // Guest user or offline mode
       }
-    }
 
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
     }
 
     try {
@@ -94,9 +104,13 @@ class StorageUtils {
   static Map<String, String> getSyncMediaHeaders({
     bool isHlsOrCmaf = false,
     String? userAuthToken,
+    String? targetUrl,
   }) {
+    final isGoogleStorage = targetUrl != null &&
+        (targetUrl.contains('firebasestorage.googleapis.com') ||
+         targetUrl.contains('storage.googleapis.com'));
+
     final headers = <String, String>{
-      'Connection': 'keep-alive',
       'Origin': 'https://truthworld.in',
       'Referer': 'https://truthworld.in/',
     };
@@ -107,7 +121,7 @@ class StorageUtils {
     } else {
       headers['Accept'] = '*/*';
     }
-    if (userAuthToken != null && userAuthToken.isNotEmpty) {
+    if (!isGoogleStorage && userAuthToken != null && userAuthToken.isNotEmpty) {
       headers['Authorization'] = 'Bearer $userAuthToken';
     }
     if (_cachedAppCheckToken != null && _cachedAppCheckToken!.isNotEmpty) {
@@ -181,7 +195,16 @@ class StorageUtils {
       return clean.startsWith('/') ? clean.substring(1) : clean;
     }
 
-    // 2. Strip firebasestorage.googleapis.com (must be checked BEFORE storage.googleapis.com)
+    // 2. Strip firebasestorage.googleapis.com or raw /o/ path prefixes (e.g. b/<bucket>/o/<path>)
+    if (clean.contains('/o/')) {
+      final oIndex = clean.indexOf('/o/');
+      final rawPath = clean.substring(oIndex + 3);
+      final noQuery = rawPath.split('?').first;
+      final decoded = Uri.tryParse(noQuery) != null ? Uri.decodeComponent(noQuery) : noQuery;
+      return decoded.startsWith('/') ? decoded.substring(1) : decoded;
+    }
+
+    // 3. Strip firebasestorage.googleapis.com without /o/ (rare edge case)
     if (clean.contains('firebasestorage.googleapis.com')) {
       final uri = Uri.tryParse(clean);
       if (uri != null) {
@@ -190,28 +213,33 @@ class StorageUtils {
         if (oIndex != -1 && oIndex + 1 < segments.length) {
           final rawEncoded = segments.sublist(oIndex + 1).join('/');
           final decoded = Uri.decodeComponent(rawEncoded);
-          return decoded.startsWith('/') ? decoded.substring(1) : decoded;
+          final noQuery = decoded.split('?').first;
+          return noQuery.startsWith('/') ? noQuery.substring(1) : noQuery;
         }
       }
     }
 
-    // 3. Strip storage.googleapis.com (direct GCS URLs)
+    // 4. Strip storage.googleapis.com (direct GCS URLs)
     if (clean.contains('storage.googleapis.com')) {
       final uri = Uri.tryParse(clean);
       if (uri != null && uri.pathSegments.length >= 2) {
-        return uri.pathSegments.sublist(1).join('/');
+        final rawPath = uri.pathSegments.sublist(1).join('/');
+        final noQuery = rawPath.split('?').first;
+        return noQuery.startsWith('/') ? noQuery.substring(1) : noQuery;
       }
     }
 
-    // 4. Strip cdn.truthworld.in
+    // 5. Strip cdn.truthworld.in
     if (clean.contains('cdn.truthworld.in')) {
       final uri = Uri.tryParse(clean);
       if (uri != null) {
-        return uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+        final rawPath = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+        return rawPath.split('?').first;
       }
     }
 
-    return clean.startsWith('/') ? clean.substring(1) : clean;
+    final noQuery = clean.split('?').first;
+    return noQuery.startsWith('/') ? noQuery.substring(1) : noQuery;
   }
 
   /// Clears the in-memory fast download URL cache.
@@ -376,25 +404,21 @@ class StorageUtils {
           }
         }
         // Case 2: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<encodedPath>
-        if (uri.host.contains('firebasestorage.googleapis.com')) {
-          try {
-            return FirebaseStorage.instance.refFromURL(clean);
-          } catch (_) {
-            final segments = uri.pathSegments;
-            final bIndex = segments.indexOf('b');
-            final oIndex = segments.indexOf('o');
-            final targetBucket = (bIndex != -1 && bIndex + 1 < segments.length)
-                ? segments[bIndex + 1]
-                : defaultBucket;
-            if (oIndex != -1 && oIndex + 1 < segments.length) {
-              final encodedPath = segments.sublist(oIndex + 1).join('/');
-              final decodedPath = Uri.decodeComponent(encodedPath);
-              if (targetBucket != null && targetBucket.isNotEmpty && targetBucket != defaultBucket) {
-                return FirebaseStorage.instanceFor(bucket: targetBucket)
-                    .ref(decodedPath);
-              }
-              return FirebaseStorage.instance.ref(decodedPath);
+        if (uri.host.contains('firebasestorage.googleapis.com') || uri.path.contains('/o/')) {
+          final segments = uri.pathSegments;
+          final bIndex = segments.indexOf('b');
+          final oIndex = segments.indexOf('o');
+          final targetBucket = (bIndex != -1 && bIndex + 1 < segments.length)
+              ? segments[bIndex + 1]
+              : defaultBucket;
+          if (oIndex != -1 && oIndex + 1 < segments.length) {
+            final encodedPath = segments.sublist(oIndex + 1).join('/');
+            final decodedPath = Uri.decodeComponent(encodedPath);
+            if (targetBucket != null && targetBucket.isNotEmpty && targetBucket != defaultBucket) {
+              return FirebaseStorage.instanceFor(bucket: targetBucket)
+                  .ref(decodedPath);
             }
+            return FirebaseStorage.instance.ref(decodedPath);
           }
         }
       } catch (e, s) {
@@ -405,6 +429,12 @@ class StorageUtils {
         );
       }
       return null;
+    }
+
+    // Case 3: Raw path containing /o/ (e.g. b/<bucket>/o/<path> or /o/<path>)
+    if (clean.contains('/o/')) {
+      final cleanPath = extractCleanPath(clean);
+      return FirebaseStorage.instance.ref(cleanPath);
     }
 
     // Relative storage path: e.g. "videos/.../original.mp4"
@@ -420,7 +450,16 @@ class StorageUtils {
     if (clean.isEmpty) return '';
 
     final cached = _fastUrlCache[clean];
-    if (cached != null && cached.isNotEmpty) return cached;
+    if (cached != null && cached.isNotEmpty) {
+      // Only return cached URL if it already has a download token, is CDN-routed, or is third-party.
+      // Do NOT return cached untokenized Firebase Storage URLs that were generated by getFastDownloadUrl.
+      if (cached.contains('token=') ||
+          cached.contains('cdn.truthworld.in') ||
+          cached.contains('Signature=') ||
+          (!cached.contains('firebasestorage.googleapis.com') && !cached.contains('storage.googleapis.com'))) {
+        return cached;
+      }
+    }
 
     // If it's already an authorized Firebase Storage URL with a download token, use it directly
     if (clean.contains('firebasestorage.googleapis.com') &&
@@ -502,6 +541,37 @@ class StorageUtils {
     Duration timeout = const Duration(seconds: 4),
     int maxSize = 10 * 1024 * 1024,
   }) async {
+    // 1. If public asset (subtitles, transcripts, avatars, thumbnails, etc.),
+    // prefer direct fast HTTPS request via AppHttpClient.
+    // This avoids triggering native Android Firebase Storage StreamDownloadTask
+    // exceptions (FirebaseNoSignedInUserException & 404 stack traces in logcat)
+    // when probing optional or absent candidate files.
+    if (isPublicAsset(ref.fullPath)) {
+      try {
+        final fastUrl = getFastDownloadUrl(ref.fullPath, forceCdn: false);
+        final uri = Uri.tryParse(fastUrl);
+        if (uri != null) {
+          final headers = <String, String>{
+            'Connection': 'keep-alive',
+            'Accept': '*/*',
+          };
+          final token = _cachedAppCheckToken ?? await getAppCheckToken();
+          if (token != null && token.isNotEmpty) {
+            headers['X-Firebase-AppCheck'] = token;
+          }
+          final res = await AppHttpClient.get(uri, headers: headers, timeout: timeout);
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            return res.bodyBytes;
+          }
+          if (res.statusCode == 404) {
+            return null;
+          }
+        }
+      } catch (_) {
+        // Fallback to native SDK if HTTP network transport error occurs
+      }
+    }
+
     try {
       return await ref.getData(maxSize).timeout(timeout);
     } catch (e) {

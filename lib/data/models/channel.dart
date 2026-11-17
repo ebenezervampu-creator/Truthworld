@@ -1043,7 +1043,7 @@ class Channel {
 
   // Standard Channel Constraints (10 min daily upload limit default, expandable by Admin)
   int get maxAllowedVideos => 100000;
-  int get minVideoDurationSeconds => 1; // Allows short media (even 7s) on Truthworld
+  int get minVideoDurationSeconds => 30; // Video duration must be at least 30 seconds on Truthworld
   int get maxDailyVideoDurationSeconds {
     if (customDailyVideoDurationSeconds != null && customDailyVideoDurationSeconds! > 0) {
       return customDailyVideoDurationSeconds!;

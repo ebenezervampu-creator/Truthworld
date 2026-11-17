@@ -244,7 +244,7 @@ export const onContentUploadedForModeration = onObjectFinalized(
         "moderation.detectedLanguage": result.detectedLanguage || "en",
         "moderation.processingTimeMs": result.processingTimeMs,
         "moderation.checkedAt": Date.now(),
-        "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+        "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-3.5-flash-lite",
         "moderation.version": "v3.0-intent-aware",
         category: (result.category && result.category !== "Other")
           ? result.category
@@ -280,7 +280,7 @@ export const onContentUploadedForModeration = onObjectFinalized(
           violation_reason: result.violationReason || null,
           violation_categories: Array.isArray(result.violationCategories) ? result.violationCategories : null,
           detected_language: result.detectedLanguage || "en",
-          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-3.5-flash-lite",
           processing_time_ms: typeof result.processingTimeMs === "number" ? result.processingTimeMs : null,
         });
       } catch (bqErr) {
@@ -770,7 +770,7 @@ export const scheduledContentModerationRetry = onSchedule(
             "moderation.summary": result.summary,
             "moderation.processingTimeMs": result.processingTimeMs,
             "moderation.checkedAt": Date.now(),
-            "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+            "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-3.5-flash-lite",
             "moderation.version": "v3.0-intent-aware",
           });
 
@@ -791,7 +791,7 @@ export const scheduledContentModerationRetry = onSchedule(
               violation_reason: result.violationReason || null,
               violation_categories: Array.isArray(result.violationCategories) ? result.violationCategories : null,
               detected_language: result.detectedLanguage || "en",
-              model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+              model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-3.5-flash-lite",
               processing_time_ms: typeof result.processingTimeMs === "number" ? result.processingTimeMs : null,
             });
           } catch (bqErr) {
@@ -966,7 +966,7 @@ export const resubmitVideoForModeration = onCall(
           "moderation.summary": result.summary,
           "moderation.processingTimeMs": result.processingTimeMs,
           "moderation.checkedAt": Date.now(),
-          "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+          "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-3.5-flash-lite",
           "moderation.version": "v3.0-intent-aware",
           geminiApproved: result.approved,
           isApproved: result.approved,

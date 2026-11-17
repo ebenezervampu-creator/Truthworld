@@ -122,7 +122,44 @@ void main() {
       expect(ctrl.isClosed, isTrue);
     });
 
-    testWidgets('5. CreateContentScreen (Video) renders cleanly via pumpPageInHarness', (tester) async {
+    test('5. canPublishVideo blocks videos with duration less than 30 seconds', () {
+      final uploadCtrl = Get.put(UploadController());
+      Get.put(PlaylistController());
+      final ctrl = Get.put(CreateContentController(uploadType: UploadType.video));
+
+      uploadCtrl.videoUrl.value = 'https://example.com/video.mp4';
+      uploadCtrl.thumbnailUrl.value = 'https://example.com/thumb.jpg';
+      uploadCtrl.selectedCategory.value = 'Technology';
+      uploadCtrl.selectedChannel.value = Channel(
+        id: 'ch-1',
+        name: 'Tech Channel',
+        nameLowercase: 'tech channel',
+        handle: '@tech',
+        handleLowercase: '@tech',
+        description: 'Testing channel',
+        avatarUrl: '',
+        bannerUrl: '',
+        ownerId: 'user-1',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      );
+
+      // Duration < 30s: blocked
+      uploadCtrl.videoDurationSeconds.value = 15;
+      expect(ctrl.canPublishVideo(), isFalse);
+
+      uploadCtrl.videoDurationSeconds.value = 29;
+      expect(ctrl.canPublishVideo(), isFalse);
+
+      // Duration >= 30s: allowed
+      uploadCtrl.videoDurationSeconds.value = 30;
+      expect(ctrl.canPublishVideo(), isTrue);
+
+      uploadCtrl.videoDurationSeconds.value = 120;
+      expect(ctrl.canPublishVideo(), isTrue);
+    });
+
+    testWidgets('6. CreateContentScreen (Video) renders cleanly via pumpPageInHarness', (tester) async {
       addTearDown(() => tester.view.resetPhysicalSize());
       await pumpPageInHarness(
         tester,
@@ -135,7 +172,7 @@ void main() {
       expect(find.byType(CreateContentScreen), findsOneWidget);
     });
 
-    testWidgets('6. CreateContentScreen (Community) renders cleanly via pumpPageInHarness', (tester) async {
+    testWidgets('7. CreateContentScreen (Community) renders cleanly via pumpPageInHarness', (tester) async {
       addTearDown(() => tester.view.resetPhysicalSize());
       await pumpPageInHarness(
         tester,

@@ -146,26 +146,6 @@ class ChannelWalletService {
     discountPercent: discountPercent,
   );
 
-  static double getFlatLipSyncPricePerLanguage({
-    required int durationSeconds,
-    ChannelType channelType = ChannelType.standard,
-  }) => ChannelWalletPricing.getFlatLipSyncPricePerLanguage(
-    durationSeconds: durationSeconds,
-    channelType: channelType,
-  );
-
-  static double calculateLipSyncCost({
-    required int languageCount,
-    int durationSeconds = 0,
-    ChannelType channelType = ChannelType.standard,
-    double discountPercent = 0.0,
-  }) => ChannelWalletPricing.calculateLipSyncCost(
-    languageCount: languageCount,
-    durationSeconds: durationSeconds,
-    channelType: channelType,
-    discountPercent: discountPercent,
-  );
-
   static double getFlatSubtitlePricePerLanguage({
     required ChannelType channelType,
     int durationSeconds = 0,

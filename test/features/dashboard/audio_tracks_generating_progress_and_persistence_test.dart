@@ -138,28 +138,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // 1. Language column
-      expect(find.text('Telugu (తెలుగు)'), findsOneWidget);
+      // 1. Language pill in video player shows generating percentage
+      expect(find.textContaining('Telugu 45%'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
 
-      // 2. Audio track column shows rich generating progress instead of disabled scrubber
-      expect(find.textContaining('Step 2 of 4: Translating speech to Telugu'), findsOneWidget);
-      expect(find.text('45%'), findsWidgets);
-      expect(find.text('~1-2 min'), findsWidgets);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
-
-      // 3. Pipeline step breadcrumbs ('What Next')
-      expect(find.text('1. Transcribe'), findsOneWidget);
-      expect(find.text('2. Translate'), findsOneWidget);
-      expect(find.text('3. Synthesize Voice'), findsOneWidget);
-      expect(find.text('4. Final Sync'), findsOneWidget);
-
-      // 4. Status column shows badge with spinner & progress
-      expect(find.text('Generating...'), findsOneWidget);
-
-      // 5. Tapping progress opens What's Next details modal
-      await tester.ensureVisible(find.textContaining('Step 2 of 4'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('Step 2 of 4'), warnIfMissed: false);
+      // 2. Tapping progress pill opens What's Next details modal
+      await tester.tap(find.textContaining('Telugu 45%'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -171,7 +155,7 @@ void main() {
       expect(find.text('Studio Mastering & Synchronization'), findsOneWidget);
       expect(find.text('Got It'), findsOneWidget);
 
-      await tester.tap(find.text('Got It'));
+      Get.back();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('AI Voice Dubbing Progress'), findsNothing);
@@ -234,9 +218,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Telugu (తెలుగు)'), findsOneWidget);
-      expect(find.textContaining('Step 3 of 4: Synthesizing AI voice in Telugu'), findsOneWidget);
-      expect(find.text('Generating...'), findsOneWidget);
+      expect(find.textContaining('Telugu 60%'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
 
       // Simulate moving away to another tab in Studio (e.g. Subtitles or Analytics)
       await tester.pumpWidget(
@@ -263,9 +246,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // Verify that after coming back, the generating audio track is STILL showing!
-      expect(find.text('Telugu (తెలుగు)'), findsOneWidget);
-      expect(find.text('Generating...'), findsOneWidget);
-      expect(find.textContaining('Step 3 of 4: Synthesizing AI voice in Telugu'), findsOneWidget);
+      expect(find.textContaining('Telugu 60%'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
     });
 
     testWidgets('Generating audio track action menu displays Check Status, Retry Dubbing, and Cancel Generation', (tester) async {
@@ -321,28 +303,72 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Open 3-dots action menu
-      await tester.tap(find.byIcon(Icons.more_vert));
+      // Tapping Spanish generating pill opens progress modal with Check Status and Retry
+      await tester.tap(find.textContaining('Spanish 94%'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Verify the new recovery actions are available
-      expect(find.text('View Pipeline Progress'), findsOneWidget);
-      expect(find.text('Check Status / Refresh'), findsOneWidget);
-      expect(find.text('Retry Dubbing'), findsOneWidget);
-      expect(find.text('Cancel Generation'), findsOneWidget);
+      // Verify the recovery actions are available in the progress modal
+      expect(find.text('AI Voice Dubbing Progress'), findsOneWidget);
+      expect(find.text('Check Status'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
 
-      // Tap Cancel Generation to verify it resets state cleanly
-      await tester.tap(find.text('Cancel Generation'));
+      Get.back();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
+      // Test cancelDubbing resets state cleanly
+      controller.cancelDubbing('es');
       expect(controller.generatingDubLanguages.contains('es'), isFalse);
       expect(controller.currentTracks.first.status, equals('Not added'));
 
       // Allow snackbar animation and timer to finish cleanly
       await tester.pump(const Duration(seconds: 4));
       await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('AudioTracksListSection does not showcase audio track cards with audio progress bar and provides fullscreen', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = Get.put(AudioTracksController());
+      final sampleVideo = createSampleVideo();
+      controller.rxState.value = ViewState.idle;
+      controller.selectedVideo.value = sampleVideo;
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: AudioTracksListSection(
+              video: sampleVideo,
+              controller: controller,
+              textColor: Colors.white,
+              textSecondaryColor: AppColors.textSecondary,
+              surfaceColor: const Color(0xFF161618),
+              borderColor: const Color(0xFF27272A),
+              isDarkMode: true,
+              onAddDubTrack: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Verifies Fullscreen icon exists in video player
+      expect(find.byIcon(Icons.fullscreen_rounded), findsWidgets);
+
+      // Verifies Slider in video player exists
+      expect(find.byType(Slider), findsOneWidget);
+
+      // Verifies + Audio and Download buttons exist
+      expect(find.widgetWithText(ElevatedButton, 'Audio'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Download'), findsOneWidget);
+
+      // Verifies no separate audio track cards with duplicate audio progress sliders below + Audio and Download
+      expect(find.byType(Slider), findsNWidgets(1));
     });
 
     test('Zombie job detection & Cache TTL: jobs older than 5 minutes are discarded and not marked Generating', () {
@@ -375,6 +401,57 @@ void main() {
       );
       final elapsedSec = DateTime.now().difference(expiredJob.startedAt!).inSeconds;
       expect(elapsedSec > 300, isTrue);
+    });
+
+    testWidgets('Video published from Upload Screen with Telugu dubbing enabled immediately displays Telugu tab with progress in Studio', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = Get.put(AudioTracksController());
+      addTearDown(controller.onClose);
+      final sampleVideo = createSampleVideo().copyWith(
+        dubbingLanguages: ['te'],
+      );
+
+      controller.rxState.value = ViewState.idle;
+      await controller.selectVideo(sampleVideo);
+
+      expect(controller.generatingDubLanguages.contains('te'), isTrue);
+      expect(controller.dubbingProgress['te'], isNotNull);
+      expect(controller.availableLanguages.contains('te'), isTrue);
+      expect(
+        controller.currentTracks.any((t) => t.languageCode == 'te' && t.status == 'Generating...'),
+        isTrue,
+      );
+
+      // Verify pill in player renders with percentage progress
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: AudioTracksListSection(
+              video: sampleVideo,
+              controller: controller,
+              textColor: Colors.white,
+              textSecondaryColor: AppColors.textSecondary,
+              surfaceColor: const Color(0xFF161618),
+              borderColor: const Color(0xFF27272A),
+              isDarkMode: true,
+              onAddDubTrack: () {},
+              onAddCommentary: () {},
+              onPickAndUploadSingleDub: (lang) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.textContaining('Telugu 15%'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
+
+      controller.onClose();
     });
   });
 }

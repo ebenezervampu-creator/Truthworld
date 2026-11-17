@@ -37,6 +37,7 @@ class AIFeatures {
     this.genLangSubs = false,
     this.generateDubbing = false,
     this.translationLanguages = const [],
+    this.dubbingLanguages = const [],
     this.tts = const TTSConfig(),
     this.factChecking = false,
     this.factCheckTier = 'standard',
@@ -53,6 +54,7 @@ class AIFeatures {
     genLangSubs: data['genLangSubs'] ?? false,
     generateDubbing: data['generateDubbing'] ?? false,
     translationLanguages: List<String>.from(data['translationLanguages'] ?? []),
+    dubbingLanguages: List<String>.from(data['dubbingLanguages'] ?? []),
     tts: data['tts'] != null
         ? TTSConfig.fromMap(Map<String, dynamic>.from(data['tts'] as Map))
         : const TTSConfig(),
@@ -70,6 +72,7 @@ class AIFeatures {
   final bool genLangSubs; // Google Cloud Translate
   final bool generateDubbing; // ElevenLabs
   final List<String> translationLanguages; // ISO 639-1 codes
+  final List<String> dubbingLanguages;
   final TTSConfig tts;
   final bool factChecking; // Gemini
   final String factCheckTier; // "short" | "standard" | "full_ground"
@@ -85,6 +88,7 @@ class AIFeatures {
     'genLangSubs': genLangSubs,
     'generateDubbing': generateDubbing,
     'translationLanguages': translationLanguages,
+    'dubbingLanguages': dubbingLanguages,
     'tts': tts.toMap(),
     'factChecking': factChecking,
     'factCheckTier': factCheckTier,
@@ -117,39 +121,15 @@ class SpokenLanguageInfo {
   final String region; // 'indic', 'global', 'asian', 'european', 'middle_east_africa'
 }
 
-/// All 39 spoken languages supported by TruthWorld STT pipeline:
-/// - Sarvam AI Saaras v4 (22 Indic languages + English)
-/// - AssemblyAI Universal-3.5 Pro (18 Global languages + Hindi & English)
+/// All 18 spoken languages supported strictly by TruthWorld STT pipeline:
+/// - AssemblyAI Universal-3.5 Pro (18 languages)
 const List<SpokenLanguageInfo> allSpokenLanguages = [
   // Auto
-  SpokenLanguageInfo(code: 'auto', name: 'Auto-Detect', nativeName: 'Auto (Universal-3.5 & Sarvam)', region: 'global'),
+  SpokenLanguageInfo(code: 'auto', name: 'Auto-Detect', nativeName: 'Auto (Universal-3.5 Pro)', region: 'global'),
 
-  // 22 Indic Languages (Sarvam AI Saaras v4)
-  SpokenLanguageInfo(code: 'te', name: 'Telugu', nativeName: 'తెలుగు', region: 'indic'),
-  SpokenLanguageInfo(code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', region: 'indic'),
-  SpokenLanguageInfo(code: 'ta', name: 'Tamil', nativeName: 'தமிழ்', region: 'indic'),
-  SpokenLanguageInfo(code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', region: 'indic'),
-  SpokenLanguageInfo(code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം', region: 'indic'),
-  SpokenLanguageInfo(code: 'bn', name: 'Bengali', nativeName: 'বাংলা', region: 'indic'),
-  SpokenLanguageInfo(code: 'mr', name: 'Marathi', nativeName: 'मराठी', region: 'indic'),
-  SpokenLanguageInfo(code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી', region: 'indic'),
-  SpokenLanguageInfo(code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', region: 'indic'),
-  SpokenLanguageInfo(code: 'or', name: 'Odia', nativeName: 'ଓଡ଼ିଆ', region: 'indic'),
-  SpokenLanguageInfo(code: 'as', name: 'Assamese', nativeName: 'অসমীয়া', region: 'indic'),
-  SpokenLanguageInfo(code: 'ur', name: 'Urdu', nativeName: 'اردو', region: 'indic'),
-  SpokenLanguageInfo(code: 'sa', name: 'Sanskrit', nativeName: 'संस्कृतम्', region: 'indic'),
-  SpokenLanguageInfo(code: 'ne', name: 'Nepali', nativeName: 'नेपाली', region: 'indic'),
-  SpokenLanguageInfo(code: 'sd', name: 'Sindhi', nativeName: 'سنڌي', region: 'indic'),
-  SpokenLanguageInfo(code: 'ks', name: 'Kashmiri', nativeName: 'कॉशुर', region: 'indic'),
-  SpokenLanguageInfo(code: 'kok', name: 'Konkani', nativeName: 'कोंकणी', region: 'indic'),
-  SpokenLanguageInfo(code: 'doi', name: 'Dogri', nativeName: 'डोगरी', region: 'indic'),
-  SpokenLanguageInfo(code: 'mai', name: 'Maithili', nativeName: 'मैथिली', region: 'indic'),
-  SpokenLanguageInfo(code: 'bho', name: 'Bhojpuri', nativeName: 'भोजपुरी', region: 'indic'),
-  SpokenLanguageInfo(code: 'sat', name: 'Santali', nativeName: 'संताली', region: 'indic'),
-  SpokenLanguageInfo(code: 'brx', name: 'Bodo', nativeName: 'बड़ो', region: 'indic'),
-
-  // 17 Global & World Languages (AssemblyAI Universal-3.5 Pro)
+  // The 18 AssemblyAI Universal-3.5 Pro Languages
   SpokenLanguageInfo(code: 'en', name: 'English', nativeName: 'English', region: 'global'),
+  SpokenLanguageInfo(code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', region: 'indic'),
   SpokenLanguageInfo(code: 'es', name: 'Spanish', nativeName: 'Español', region: 'global'),
   SpokenLanguageInfo(code: 'fr', name: 'French', nativeName: 'Français', region: 'global'),
   SpokenLanguageInfo(code: 'de', name: 'German', nativeName: 'Deutsch', region: 'global'),

@@ -8,6 +8,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/search/data/services/engine/typesense_search_engine.dart';
+import 'package:truthworld/features/home/data/datasources/edge_feed_remote_data_source.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -34,9 +35,11 @@ class TopicRepository {
   static final Map<String, DateTime> _cacheTime = {};
   static const Duration _cacheTtl = Duration(minutes: 5);
 
-  TopicRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  TopicRepository({FirebaseFirestore? firestore, EdgeFeedRemoteDataSource? edgeDataSource})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _edgeDataSource = edgeDataSource ?? EdgeFeedRemoteDataSource();
   final FirebaseFirestore _firestore;
+  final EdgeFeedRemoteDataSource? _edgeDataSource;
 
   // ==========================================================================
   // TOPIC QUERIES
@@ -222,6 +225,21 @@ class TopicRepository {
     String orderBy = 'uploadedAt',
     bool descending = true,
   }) async {
+    // Step 0: Edge-first delivery for initial topic video requests
+    if (lastDoc == null && (orderBy == 'uploadedAt' || orderBy == 'createdAt') && descending && _edgeDataSource != null) {
+      try {
+        final edgeResponse = await _edgeDataSource!.fetchTopicFeed(topicSlug, limit: limit);
+        if (edgeResponse.videos.isNotEmpty) {
+          final mappedVideos = edgeResponse.videos.map(Video.fromEntity).where(_isTopicVideoVisible).toList();
+          if (mappedVideos.isNotEmpty) {
+            return TopicVideosPage(videos: mappedVideos, lastDoc: null);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getVideosPageByTopic.edge');
+      }
+    }
+
     try {
       Query query = _firestore
           .collection(FirestoreCollections.videos)
@@ -551,6 +569,19 @@ class TopicRepository {
   }
 
   Future<List<Topic>> fetchFeaturedTopics({int limit = 5}) async {
+    // Step 0: Edge-first delivery for featured/trending topics
+    if (_edgeDataSource != null) {
+      try {
+        final edgeTopics = await _edgeDataSource!.fetchDiscoveryTopics(category: 'all', limit: limit);
+        if (edgeTopics.isNotEmpty) {
+          final list = _deduplicateTopics(edgeTopics);
+          if (list.isNotEmpty) return list;
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchFeaturedTopics.edge');
+      }
+    }
+
     try {
       final snapshot = await _firestore
           .collection(FirestoreCollections.topics)
@@ -573,6 +604,19 @@ class TopicRepository {
     int limit = 20,
     DocumentSnapshot? lastDoc,
   }) async {
+    // Step 0: Edge-first delivery for trending topics
+    if (lastDoc == null && _edgeDataSource != null) {
+      try {
+        final edgeTopics = await _edgeDataSource!.fetchDiscoveryTopics(category: category, limit: limit);
+        if (edgeTopics.isNotEmpty) {
+          final list = _deduplicateTopics(edgeTopics);
+          if (list.isNotEmpty) return TopicPageResult(topics: list, lastDoc: null);
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchTrendingTopicsPage.edge');
+      }
+    }
+
     try {
       Query query = _firestore.collection(FirestoreCollections.topics);
       if (category.toLowerCase() != 'all') {

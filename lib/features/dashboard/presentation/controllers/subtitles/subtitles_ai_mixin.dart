@@ -9,7 +9,9 @@ import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitle_cue_model.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitles_controller_base.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
@@ -113,9 +115,10 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
     final hasExistingSource = video.mediaSubtitles.values.any((s) => s.isNotEmpty) ||
         video.transcriptionUrl.isNotEmpty;
 
+    final initialProgress = hasExistingSource ? 35 : 15;
     isGeneratingAI.value = true;
     isAiJobPaused.value = false;
-    aiJobProgress.value = hasExistingSource ? 35 : 15;
+    aiJobProgress.value = initialProgress;
     aiCurrentStageName.value = hasExistingSource
         ? 'Neural Multilingual Translation'
         : 'Speech Extraction & Transcription';
@@ -124,8 +127,22 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         : 'Initiating cloud speech pipeline...';
 
     for (final lang in targetLanguages) {
-      aiLanguageStatuses[lang] =
-          hasExistingSource ? 'translating' : 'transcribing';
+      final norm = normalizeLanguageCode(lang);
+      final stage = hasExistingSource ? 'translating' : 'transcribing';
+      aiLanguageStatuses[norm] = stage;
+      aiLanguageStatuses[lang] = stage;
+      generatingSubtitleLanguages.add(norm);
+      if (!availableLanguages.contains(norm)) availableLanguages.add(norm);
+      subtitleProgress[norm] = SubtitleTrackProgressState(
+        langCode: norm,
+        progress: initialProgress,
+        stageStep: hasExistingSource ? 2 : 1,
+        totalStepsText: 'Step ${hasExistingSource ? 2 : 1} of 3',
+        stageTitle: hasExistingSource
+            ? 'Translating speech to ${getLanguageName(norm)}'
+            : 'Analyzing audio & transcribing dialogue',
+        etaText: '~15-20 sec',
+      );
     }
 
     startElapsedTimer();
@@ -150,6 +167,8 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
             'videoId': video.id,
             'features': ['subtitles'],
             'targetLanguages': targetLanguages,
+            'sourceLanguage': video.language.isNotEmpty ? normalizeLanguageCode(video.language) : 'en',
+            'primaryLanguage': video.language.isNotEmpty ? normalizeLanguageCode(video.language) : 'en',
             'priorityMode': priorityMode,
             'subtitleTier': subtitleTier,
             'autoChapters': false,
@@ -199,6 +218,8 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
           'videoUrl': video.videoUrl,
           'fileName': video.title,
           'status': 'processing',
+          'sourceLanguage': video.language.isNotEmpty ? normalizeLanguageCode(video.language) : 'en',
+          'primaryLanguage': video.language.isNotEmpty ? normalizeLanguageCode(video.language) : 'en',
           'paidFromRevenue': walletTx != null,
           if (isDirectlyPaid) 'paidDirectly': true,
           if (walletTx != null) 'walletTransactionId': walletTx.id,
@@ -207,6 +228,8 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
           'executionPlan': {
             'jobId': video.id,
             'languages': targetLanguages,
+            'sourceLanguage': video.language.isNotEmpty ? normalizeLanguageCode(video.language) : 'en',
+            'primaryLanguage': video.language.isNotEmpty ? normalizeLanguageCode(video.language) : 'en',
             'generateSubtitles': true,
             'genLangSubs': true,
             'enableSubtitles': true,
@@ -260,124 +283,268 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
   @override
   Future<void> checkAndResumeAIJob(String videoId) async {
     try {
-      final doc = await firestore.collection('video_jobs').doc(videoId).get();
-      if (!doc.exists || doc.data() == null) return;
-      final data = doc.data()!;
+      final currentVideo = selectedVideo.value;
+      final resolvedJobId = (currentVideo?.jobId?.isNotEmpty == true)
+          ? currentVideo!.jobId!
+          : videoId;
+
+      DocumentSnapshot<Map<String, dynamic>>? doc;
+      try {
+        final mainDoc = await firestore.collection('video_jobs').doc(resolvedJobId).get();
+        if (mainDoc.exists && mainDoc.data() != null) {
+          doc = mainDoc;
+        } else if (resolvedJobId != videoId) {
+          final fallbackDoc = await firestore.collection('video_jobs').doc(videoId).get();
+          if (fallbackDoc.exists && fallbackDoc.data() != null) {
+            doc = fallbackDoc;
+          }
+        }
+        if (doc == null) {
+          final query = await firestore
+              .collection('video_jobs')
+              .where('videoId', isEqualTo: videoId)
+              .limit(1)
+              .get();
+          if (query.docs.isNotEmpty) {
+            doc = query.docs.first;
+          }
+        }
+      } catch (e) {
+        logger.warning(
+          'Error fetching video_jobs document ($resolvedJobId / $videoId): $e',
+          tag: SubtitlesControllerBase.subtitlesTag,
+        );
+      }
+
+      final data = doc?.data() ?? <String, dynamic>{};
       final jobStatus = (data['status'] as String?)?.toLowerCase();
       final stages = (data['stages'] as Map<String, dynamic>?) ?? {};
       final onDemand = stages['onDemandAI'] as Map<String, dynamic>?;
       final onDemandStatus = (onDemand?['status'] as String?)?.toLowerCase();
       final outputs = (data['outputs'] as Map<String, dynamic>?) ?? {};
       final outputSubs = (outputs['subtitles'] as Map<String, dynamic>?) ?? {};
+      final executionPlan = (data['executionPlan'] as Map<String, dynamic>?) ?? {};
+      final config = (data['config'] as Map<String, dynamic>?) ?? {};
 
-      final reqLangs = List<String>.from(
-        onDemand?['requestedLanguages'] as List? ??
-            (data['executionPlan']?['languages'] as List? ?? []),
-      );
+      final planLangs = (executionPlan['subtitleLanguages'] as List<dynamic>?)
+              ?.map((e) => e.toString().trim().toLowerCase())
+              .toList() ??
+          (executionPlan['languages'] as List<dynamic>?)
+              ?.map((e) => e.toString().trim().toLowerCase())
+              .toList() ??
+          (config['languages'] as List<dynamic>?)
+              ?.map((e) => e.toString().trim().toLowerCase())
+              .toList() ??
+          [];
+      final onDemandLangs = (onDemand?['requestedLanguages'] as List<dynamic>?)
+              ?.map((e) => e.toString().trim().toLowerCase())
+              .toList() ??
+          [];
+      final videoLangs = (currentVideo?.languages ?? [])
+          .map((e) => e.trim().toLowerCase())
+          .where((l) => normalizeLanguageCode(l) != normalizeLanguageCode(currentVideo?.language ?? 'en'))
+          .toList();
 
-      final video = selectedVideo.value;
-      final currentSubs = video?.mediaSubtitles ?? {};
+      final allJobLangs = <String>{
+        ...planLangs,
+        ...onDemandLangs,
+        ...videoLangs,
+        ...generatingSubtitleLanguages,
+        ...failedSubtitleLanguages,
+      };
 
-      // If all requested target languages are already generated in outputs or video, complete immediately
-      final allDone = reqLangs.isNotEmpty &&
-          reqLangs.every((l) => outputSubs.containsKey(l) || currentSubs.containsKey(l));
+      for (final stageKey in stages.keys) {
+        if (stageKey.startsWith('translating_')) {
+          allJobLangs.add(stageKey.replaceFirst('translating_', '').trim().toLowerCase());
+        }
+      }
 
-      if (allDone || jobStatus == 'completed' || onDemandStatus == 'completed') {
-        isGeneratingAI.value = false;
-        aiJobProgress.value = 100;
-        aiJobStatus.value = 'Subtitles generated successfully!';
-        if (reqLangs.isNotEmpty) {
-          aiTargetLanguages.assignAll(reqLangs);
-          final finalStatuses = <String, String>{};
-          for (final lang in reqLangs) {
-            finalStatuses[lang] = 'completed';
+      // If document is not in Firestore yet, but video indicates pending AI localization
+      if (doc == null || !doc.exists) {
+        if (currentVideo != null &&
+            (currentVideo.status == VideoStatus.processing || currentVideo.jobId?.isNotEmpty == true)) {
+          final pendingLangs = <String>[];
+          for (final l in videoLangs) {
+            final norm = normalizeLanguageCode(l);
+            if (currentVideo.mediaSubtitles.containsKey(l) || currentVideo.mediaSubtitles.containsKey(norm)) {
+              continue;
+            }
+            pendingLangs.add(norm);
+            generatingSubtitleLanguages.add(norm);
+            if (!availableLanguages.contains(norm)) availableLanguages.add(norm);
+            subtitleProgress[norm] = SubtitleTrackProgressState(
+              langCode: norm,
+              stageTitle: 'Preparing subtitle generation in ${getLanguageName(norm)}...',
+              etaText: '~1-2 min',
+            );
           }
-          aiLanguageStatuses.assignAll(finalStatuses);
-        }
-        await refreshSelectedVideoLocalization(reqLangs.isNotEmpty ? reqLangs.first : null);
-        return;
-      }
-
-      // Check Failed or Cancelled states BEFORE processing check to avoid resurrecting dead jobs
-      final isFailed = jobStatus == 'failed' ||
-          onDemandStatus == 'failed' ||
-          stages['subtitles']?['status']?.toString().toLowerCase() == 'failed' ||
-          stages['dubbing']?['status']?.toString().toLowerCase() == 'failed';
-
-      if (isFailed) {
-        logger.info('Previous AI subtitle job failed, clearing generation state', tag: SubtitlesControllerBase.subtitlesTag);
-        isGeneratingAI.value = false;
-        aiJobProgress.value = 0;
-        aiJobStatus.value = '';
-        return;
-      }
-
-      final isCancelled = jobStatus == 'cancelled' ||
-          onDemandStatus == 'cancelled' ||
-          stages['subtitles']?['status']?.toString().toLowerCase() == 'cancelled';
-
-      if (isCancelled) {
-        logger.info('Previous AI subtitle job was cancelled, clearing generation state', tag: SubtitlesControllerBase.subtitlesTag);
-        isGeneratingAI.value = false;
-        aiJobProgress.value = 0;
-        aiJobStatus.value = '';
-        return;
-      }
-
-      final isProcessing = jobStatus == 'processing' ||
-          jobStatus == 'queued' ||
-          jobStatus == 'paused' ||
-          onDemandStatus == 'running' ||
-          onDemandStatus == 'queued' ||
-          onDemandStatus == 'paused';
-
-      if (isProcessing) {
-        final createdAt = (data['createdAt'] as num?)?.toInt() ??
-            (onDemand?['startedAt'] as num?)?.toInt() ??
-            DateTime.now().millisecondsSinceEpoch;
-        final now = DateTime.now().millisecondsSinceEpoch;
-
-        // Auto-recover stale jobs: if no progress updates for > 5 minutes, do not trap creator in progress screen
-        final updatedAt = (data['updatedAt'] as num?)?.toInt() ?? createdAt;
-        if (now - updatedAt > 5 * 60 * 1000) {
-          logger.warning('Stale AI subtitle job detected (>5m without updates), clearing UI state', tag: SubtitlesControllerBase.subtitlesTag);
-          isGeneratingAI.value = false;
-          aiJobProgress.value = 0;
-          aiJobStatus.value = '';
-          return;
-        }
-
-        if (reqLangs.isNotEmpty) {
-          aiTargetLanguages.assignAll(reqLangs);
-          final initialStatuses = <String, String>{};
-          for (final lang in reqLangs) {
-            initialStatuses[lang] = outputSubs.containsKey(lang) ? 'completed' : 'translating';
+          if (pendingLangs.isNotEmpty) {
+            isGeneratingAI.value = true;
+            aiTargetLanguages.assignAll(pendingLangs);
+            aiJobProgress.value = 15;
+            aiJobStatus.value = 'Preparing subtitle generation...';
+            startElapsedTimer();
+            listenToAIJob(videoId, pendingLangs, resolvedJobId);
+            return;
           }
-          aiLanguageStatuses.assignAll(initialStatuses);
+        }
+        return;
+      }
+
+      final currentSubs = currentVideo?.mediaSubtitles ?? {};
+      var anyActivelyRunning = false;
+      final newlyCompleted = <String>[];
+
+      for (final lang in allJobLangs) {
+        final norm = normalizeLanguageCode(lang);
+        final baseNorm = normalizeLanguageCode(currentVideo?.language ?? 'en');
+        if (norm == baseNorm) continue;
+
+        // 1. Check if finished
+        final hasOutputSub = (outputSubs.containsKey(lang) && (outputSubs[lang] as String? ?? '').isNotEmpty) ||
+            (outputSubs.containsKey(norm) && (outputSubs[norm] as String? ?? '').isNotEmpty) ||
+            ((data['outputs.subtitles.$lang'] as String? ?? '').isNotEmpty) ||
+            ((data['outputs.subtitles.$norm'] as String? ?? '').isNotEmpty);
+        final hasVideoSub = (currentSubs.containsKey(lang) && (currentSubs[lang] ?? '').isNotEmpty) ||
+            (currentSubs.containsKey(norm) && (currentSubs[norm] ?? '').isNotEmpty) ||
+            (currentVideo != null && (resolveSubtitleUrlForLanguage(currentVideo, lang)?.isNotEmpty ?? false));
+
+        if (hasOutputSub || hasVideoSub) {
+          generatingSubtitleLanguages.remove(norm);
+          generatingSubtitleLanguages.remove(lang);
+          failedSubtitleLanguages.remove(norm);
+          failedSubtitleLanguages.remove(lang);
+          subtitleProgress.remove(norm);
+          subtitleProgress.remove(lang);
+          aiLanguageStatuses[norm] = 'completed';
+          aiLanguageStatuses[lang] = 'completed';
+          if (!availableLanguages.contains(norm)) availableLanguages.add(norm);
+          newlyCompleted.add(norm);
+          continue;
         }
 
-        final hasExistingSource = (video != null &&
-                (video.mediaSubtitles.isNotEmpty || video.transcriptionUrl.isNotEmpty)) ||
-            stages['transcription']?['status'] == 'completed' ||
-            stages['subtitles'] != null;
+        // 2. Check stage status
+        final transStage = (stages['translating_$lang'] ?? stages['translating_$norm']) as Map<String, dynamic>?;
+        final transStatus = (transStage?['status'] as String?)?.toLowerCase();
+        final subStageStatus = (stages['subtitles']?['status'] as String?)?.toLowerCase();
 
+        // Failure detection
+        final isLangFailed = transStatus == 'failed';
+        final isJobFailed = jobStatus == 'failed' || onDemandStatus == 'failed' || subStageStatus == 'failed';
+
+        if (isLangFailed || isJobFailed) {
+          generatingSubtitleLanguages.remove(norm);
+          generatingSubtitleLanguages.remove(lang);
+          failedSubtitleLanguages.add(norm);
+          aiLanguageStatuses[norm] = 'failed';
+          aiLanguageStatuses[lang] = 'failed';
+          if (!availableLanguages.contains(norm)) availableLanguages.add(norm);
+
+          final rawErr = transStage?['error']?.toString() ??
+              data['error']?.toString() ??
+              stages['subtitles']?['error']?.toString() ?? '';
+          final friendlyError = rawErr.isNotEmpty
+              ? UserFeedbackSanitizer.sanitizeMessage(rawErr)
+              : 'Subtitle generation for ${getLanguageName(norm)} encountered an issue. Tap Retry to generate again.';
+
+          subtitleProgress[norm] = SubtitleTrackProgressState(
+            langCode: norm,
+            progress: 0,
+            totalStepsText: 'Failed',
+            stageTitle: 'Generation Failed',
+            etaText: 'Failed',
+            isGenerating: false,
+            isFailed: true,
+            errorMessage: friendlyError,
+          );
+          continue;
+        }
+
+        // Processing detection: accepted, queued, pending, running, processing, in_progress
+        final isProcessing = jobStatus == 'accepted' ||
+            jobStatus == 'queued' ||
+            jobStatus == 'pending' ||
+            jobStatus == 'running' ||
+            jobStatus == 'processing' ||
+            jobStatus == 'in_progress' ||
+            transStatus == 'running' ||
+            transStatus == 'pending' ||
+            transStatus == 'queued' ||
+            transStatus == 'processing' ||
+            onDemandStatus == 'running' ||
+            onDemandStatus == 'queued';
+
+        if (isProcessing) {
+          anyActivelyRunning = true;
+          failedSubtitleLanguages.remove(norm);
+          failedSubtitleLanguages.remove(lang);
+          generatingSubtitleLanguages.add(norm);
+          if (!availableLanguages.contains(norm)) availableLanguages.add(norm);
+
+          final transProgress = (stages['transcription']?['progress'] as num?)?.toInt() ?? 0;
+          final langProg = (transStage?['progress'] as num?)?.toInt();
+          final overallProg = (stages['subtitles']?['progress'] as num?)?.toInt() ??
+              (onDemand?['progress'] as num?)?.toInt() ??
+              (data['progress'] as num?)?.toInt() ?? 0;
+
+          int calcProgress;
+          int stageStep;
+          String stageTitle;
+          String eta;
+
+          if (stages['transcription']?['status'] != 'completed' && overallProg < 35) {
+            stageStep = 1;
+            stageTitle = 'Analyzing audio & transcribing dialogue';
+            final derived = (transProgress > 0 ? (transProgress * 0.35).round() : (overallProg * 0.35).round()).clamp(10, 35);
+            calcProgress = math.max(aiJobProgress.value, derived).clamp(10, 35);
+            eta = '~20-30 sec';
+          } else if (overallProg < 75) {
+            stageStep = 2;
+            stageTitle = 'Translating speech to ${getLanguageName(norm)}';
+            final p = langProg ?? ((overallProg - 35) / 40 * 100).round().clamp(0, 100);
+            final derived = 35 + (p * 0.40).round().clamp(0, 40);
+            calcProgress = math.max(aiJobProgress.value, derived).clamp(35, 75);
+            eta = '~10-15 sec';
+          } else {
+            stageStep = 3;
+            stageTitle = 'Aligning timestamps & formatting captions';
+            final p = (overallProg >= 75) ? overallProg : 75 + (langProg != null ? (langProg * 0.20).round() : 10);
+            calcProgress = math.max(aiJobProgress.value, p).clamp(75, 98);
+            eta = 'Finalizing shortly...';
+          }
+
+          subtitleProgress[norm] = SubtitleTrackProgressState(
+            langCode: norm,
+            progress: calcProgress,
+            stageStep: stageStep,
+            totalStepsText: 'Step $stageStep of 3',
+            stageTitle: stageTitle,
+            etaText: eta,
+          );
+          aiLanguageStatuses[norm] = stageStep == 1 ? 'transcribing' : (stageStep == 2 ? 'translating' : 'aligning');
+        }
+      }
+
+      if (anyActivelyRunning) {
         isGeneratingAI.value = true;
-        isAiJobPaused.value = jobStatus == 'paused' || onDemandStatus == 'paused';
-        final rawProgress = (stages['subtitles']?['progress'] as num?)?.toInt() ??
-            (onDemand?['progress'] as num?)?.toInt() ??
-            (hasExistingSource ? 35 : 25);
-        final progress = (hasExistingSource && rawProgress < 35) ? 35 : rawProgress;
-        aiJobProgress.value = progress;
-        aiCurrentStageName.value = hasExistingSource
-            ? 'Neural Multilingual Translation'
-            : 'Speech Extraction & Transcription';
-        aiJobStatus.value = isAiJobPaused.value
-            ? 'Subtitle generation is paused'
-            : 'Processing AI subtitles ($progress%)...';
-
+        aiTargetLanguages.assignAll(generatingSubtitleLanguages);
+        final firstActiveProg = subtitleProgress[generatingSubtitleLanguages.first];
+        aiJobProgress.value = firstActiveProg?.progress ?? 25;
+        aiJobStatus.value = firstActiveProg?.stageTitle ?? 'Processing AI subtitles...';
         startElapsedTimer();
+        final createdAt = (data['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
         startQueueMonitor(videoId, createdAt);
-        listenToAIJob(videoId, reqLangs);
+        listenToAIJob(videoId, generatingSubtitleLanguages.toList(), resolvedJobId);
+      } else {
+        isGeneratingAI.value = false;
+        if (newlyCompleted.isNotEmpty) {
+          aiJobProgress.value = 100;
+          aiJobStatus.value = 'Subtitles generated successfully!';
+          await refreshSelectedVideoLocalization(newlyCompleted.first);
+        } else if (failedSubtitleLanguages.isNotEmpty) {
+          aiJobProgress.value = 0;
+          aiJobStatus.value = 'Subtitle generation encountered an issue.';
+        }
       }
     } catch (e) {
       logger.warning(
@@ -387,276 +554,282 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
     }
   }
 
-  void listenToAIJob(String videoId, List<String> targetLanguages) {
+  void listenToAIJob(String videoId, List<String> targetLanguages, [String? actualJobId]) {
     aiJobSubscription?.cancel();
     aiVideoSubscription?.cancel();
+    aiLocSubscription?.cancel();
 
-    void onSubtitlesFinished(List<String> finishedLangs) {
-      if (!isGeneratingAI.value && aiJobProgress.value >= 100) return;
-      isGeneratingAI.value = false;
-      isAiJobPaused.value = false;
-      aiJobProgress.value = 100;
-      aiCurrentStageName.value = 'Precision Timestamp Alignment & VTT Export';
-      aiJobStatus.value = 'Subtitles generated successfully!';
-      for (final l in finishedLangs) {
-        aiLanguageStatuses[l] = 'completed';
-      }
-      showSuccess(
-        'Subtitles ready for ${finishedLangs.join(", ").toUpperCase()}!',
-      );
-      stopElapsedTimer();
-      stopQueueMonitor();
-      aiJobSubscription?.cancel();
-      aiVideoSubscription?.cancel();
-      final newlyGenerated = finishedLangs.firstWhere(
-        (l) => l != (selectedVideo.value?.language ?? 'en'),
-        orElse: () => finishedLangs.isNotEmpty ? finishedLangs.first : 'en',
-      );
-      refreshSelectedVideoLocalization(newlyGenerated);
-    }
+    final currentVideo = selectedVideo.value;
+    final resolvedJobId = (actualJobId?.isNotEmpty == true)
+        ? actualJobId!
+        : ((currentVideo?.jobId?.isNotEmpty == true) ? currentVideo!.jobId! : videoId);
 
-    // Direct Video Document Listener: Instantly detects when DubbingEngine writes subtitles to videos/{videoId}
-    aiVideoSubscription = firestore
-        .collection(FirestoreCollections.videos)
-        .doc(videoId)
-        .snapshots()
-        .listen((vSnap) {
-      if (!vSnap.exists || vSnap.data() == null) return;
-      final vData = vSnap.data()!;
-      final mediaSubtitles = (vData['media'] != null && vData['media']['subtitles'] != null)
-          ? Map<String, String>.from(vData['media']['subtitles'] as Map)
-          : (vData['subtitles'] != null
-              ? Map<String, String>.from(vData['subtitles'] as Map)
-              : (vData['mediaSubtitles'] != null
-                  ? Map<String, String>.from(vData['mediaSubtitles'] as Map)
-                  : <String, String>{}));
-
-      final langs = aiTargetLanguages.isNotEmpty
-          ? aiTargetLanguages.toList()
-          : targetLanguages;
-      if (langs.isNotEmpty && langs.every((l) {
-        final norm = normalizeLanguageCode(l);
-        return mediaSubtitles.containsKey(l) || mediaSubtitles.containsKey(norm);
-      })) {
-        onSubtitlesFinished(langs);
-      }
-    }, onError: (_) {});
-
-    // Video Job Listener: Tracks real-time stage progress across cloud pipeline
-    aiJobSubscription = firestore
-        .collection('video_jobs')
-        .doc(videoId)
-        .snapshots()
-        .listen((snapshot) {
-      if (!snapshot.exists || snapshot.data() == null) return;
-      final data = snapshot.data()!;
+    void processJobSnapshot(Map<String, dynamic> data) {
       final jobStatus = (data['status'] as String?)?.toLowerCase();
       final stages = (data['stages'] as Map<String, dynamic>?) ?? {};
       final onDemand = stages['onDemandAI'] as Map<String, dynamic>?;
-      final dubbing = stages['dubbing'] as Map<String, dynamic>?;
-      final transcription = stages['transcription'] as Map<String, dynamic>?;
-      final subtitlesStage = stages['subtitles'] as Map<String, dynamic>?;
-
-      // Extract resolved target languages
-      final langs = targetLanguages.isNotEmpty
-          ? targetLanguages
-          : List<String>.from(
-              onDemand?['requestedLanguages'] as List? ??
-                  (data['executionPlan']?['languages'] as List? ?? []),
-            );
-      if (langs.isNotEmpty && aiTargetLanguages.isEmpty) {
-        aiTargetLanguages.assignAll(langs);
-      }
-
-      // Check outputs for completed per-language subtitles
+      final onDemandStatus = (onDemand?['status'] as String?)?.toLowerCase();
       final outputs = (data['outputs'] as Map<String, dynamic>?) ?? {};
       final outputSubs = (outputs['subtitles'] as Map<String, dynamic>?) ?? {};
-      final currentSubs = selectedVideo.value?.mediaSubtitles ?? {};
+      final v = selectedVideo.value;
+      final currentSubs = v?.mediaSubtitles ?? {};
+      final executionPlan = (data['executionPlan'] as Map<String, dynamic>?) ?? {};
+      final config = (data['config'] as Map<String, dynamic>?) ?? {};
 
-      // A target language has final subtitles ready if present in outputs or video doc
-      final hasAllFinalSubs = langs.isNotEmpty &&
-          langs.every((l) {
-            final norm = normalizeLanguageCode(l);
-            return outputSubs.containsKey(l) ||
-                outputSubs.containsKey(norm) ||
-                currentSubs.containsKey(l) ||
-                currentSubs.containsKey(norm);
-          });
+      final planLangs = (executionPlan['subtitleLanguages'] as List<dynamic>?)
+              ?.map((e) => e.toString().trim().toLowerCase())
+              .toList() ??
+          (executionPlan['languages'] as List<dynamic>?)
+              ?.map((e) => e.toString().trim().toLowerCase())
+              .toList() ??
+          (config['languages'] as List<dynamic>?)
+              ?.map((e) => e.toString().trim().toLowerCase())
+              .toList() ??
+          [];
+      final onDemandLangs = (onDemand?['requestedLanguages'] as List<dynamic>?)
+              ?.map((e) => e.toString().trim().toLowerCase())
+              .toList() ??
+          [];
 
-      // Handle Cancelled State
-      if (jobStatus == 'cancelled' ||
-          onDemand?['status']?.toString().toLowerCase() == 'cancelled') {
+      final allLangs = <String>{
+        ...targetLanguages.map((e) => e.trim().toLowerCase()),
+        ...planLangs,
+        ...onDemandLangs,
+        ...generatingSubtitleLanguages,
+      };
+
+      for (final stageKey in stages.keys) {
+        if (stageKey.startsWith('translating_')) {
+          allLangs.add(stageKey.replaceFirst('translating_', '').trim().toLowerCase());
+        }
+      }
+
+      final newlyCompletedLangs = <String>[];
+
+      for (final lang in allLangs) {
+        final norm = normalizeLanguageCode(lang);
+        final baseNorm = normalizeLanguageCode(v?.language ?? 'en');
+        if (norm == baseNorm) continue;
+
+        final hasOutputSub = (outputSubs.containsKey(lang) && (outputSubs[lang] as String? ?? '').isNotEmpty) ||
+            (outputSubs.containsKey(norm) && (outputSubs[norm] as String? ?? '').isNotEmpty) ||
+            ((data['outputs.subtitles.$lang'] as String? ?? '').isNotEmpty) ||
+            ((data['outputs.subtitles.$norm'] as String? ?? '').isNotEmpty);
+        final hasVideoSub = (currentSubs.containsKey(lang) && (currentSubs[lang] ?? '').isNotEmpty) ||
+            (currentSubs.containsKey(norm) && (currentSubs[norm] ?? '').isNotEmpty) ||
+            (v != null && (resolveSubtitleUrlForLanguage(v, lang)?.isNotEmpty ?? false));
+
+        if (hasOutputSub || hasVideoSub) {
+          final wasGenerating = generatingSubtitleLanguages.contains(norm) || generatingSubtitleLanguages.contains(lang);
+          generatingSubtitleLanguages.remove(norm);
+          generatingSubtitleLanguages.remove(lang);
+          failedSubtitleLanguages.remove(norm);
+          failedSubtitleLanguages.remove(lang);
+          subtitleProgress.remove(norm);
+          subtitleProgress.remove(lang);
+          aiLanguageStatuses[norm] = 'completed';
+          aiLanguageStatuses[lang] = 'completed';
+          if (!availableLanguages.contains(norm)) availableLanguages.add(norm);
+
+          if (wasGenerating) {
+            newlyCompletedLangs.add(norm);
+          }
+          continue;
+        }
+
+        final transStage = (stages['translating_$lang'] ?? stages['translating_$norm']) as Map<String, dynamic>?;
+        final transStatus = (transStage?['status'] as String?)?.toLowerCase();
+        final subStageStatus = (stages['subtitles']?['status'] as String?)?.toLowerCase();
+
+        final isLangFailed = transStatus == 'failed';
+        final isJobFailed = jobStatus == 'failed' || onDemandStatus == 'failed' || subStageStatus == 'failed';
+
+        if (isLangFailed || isJobFailed) {
+          generatingSubtitleLanguages.remove(norm);
+          generatingSubtitleLanguages.remove(lang);
+          failedSubtitleLanguages.add(norm);
+          aiLanguageStatuses[norm] = 'failed';
+          aiLanguageStatuses[lang] = 'failed';
+          if (!availableLanguages.contains(norm)) availableLanguages.add(norm);
+
+          final rawErr = transStage?['error']?.toString() ??
+              data['error']?.toString() ??
+              stages['subtitles']?['error']?.toString() ?? '';
+          final friendlyError = rawErr.isNotEmpty
+              ? UserFeedbackSanitizer.sanitizeMessage(rawErr)
+              : 'Subtitle generation for ${getLanguageName(norm)} encountered an issue. Tap Retry to generate again.';
+
+          subtitleProgress[norm] = SubtitleTrackProgressState(
+            langCode: norm,
+            progress: 0,
+            totalStepsText: 'Failed',
+            stageTitle: 'Generation Failed',
+            etaText: 'Failed',
+            isGenerating: false,
+            isFailed: true,
+            errorMessage: friendlyError,
+          );
+          continue;
+        }
+
+        // Active processing
+        failedSubtitleLanguages.remove(norm);
+        failedSubtitleLanguages.remove(lang);
+        generatingSubtitleLanguages.add(norm);
+        if (!availableLanguages.contains(norm)) availableLanguages.add(norm);
+
+        final transProgress = (stages['transcription']?['progress'] as num?)?.toInt() ?? 0;
+        final langProg = (transStage?['progress'] as num?)?.toInt();
+        final overallProg = (stages['subtitles']?['progress'] as num?)?.toInt() ??
+            (onDemand?['progress'] as num?)?.toInt() ??
+            (data['progress'] as num?)?.toInt() ?? 0;
+
+        int calcProgress;
+        int stageStep;
+        String stageTitle;
+        String eta;
+
+        if (stages['transcription']?['status'] != 'completed' && overallProg < 35) {
+          stageStep = 1;
+          stageTitle = 'Analyzing audio & transcribing dialogue';
+          final derived = (transProgress > 0 ? (transProgress * 0.35).round() : (overallProg * 0.35).round()).clamp(10, 35);
+          calcProgress = math.max(aiJobProgress.value, derived).clamp(10, 35);
+          eta = '~20-30 sec';
+        } else if (overallProg < 75) {
+          stageStep = 2;
+          stageTitle = 'Translating speech to ${getLanguageName(norm)}';
+          final p = langProg ?? ((overallProg - 35) / 40 * 100).round().clamp(0, 100);
+          final derived = 35 + (p * 0.40).round().clamp(0, 40);
+          calcProgress = math.max(aiJobProgress.value, derived).clamp(35, 75);
+          eta = '~10-15 sec';
+        } else {
+          stageStep = 3;
+          stageTitle = 'Aligning timestamps & formatting captions';
+          final p = (overallProg >= 75) ? overallProg : 75 + (langProg != null ? (langProg * 0.20).round() : 10);
+          calcProgress = math.max(aiJobProgress.value, p).clamp(75, 98);
+          eta = 'Finalizing shortly...';
+        }
+
+        subtitleProgress[norm] = SubtitleTrackProgressState(
+          langCode: norm,
+          progress: calcProgress,
+          stageStep: stageStep,
+          totalStepsText: 'Step $stageStep of 3',
+          stageTitle: stageTitle,
+          etaText: eta,
+        );
+        aiLanguageStatuses[norm] = stageStep == 1 ? 'transcribing' : (stageStep == 2 ? 'translating' : 'aligning');
+      }
+
+      if (generatingSubtitleLanguages.isNotEmpty) {
+        isGeneratingAI.value = true;
+        final firstActiveProg = subtitleProgress[generatingSubtitleLanguages.first];
+        aiJobProgress.value = firstActiveProg?.progress ?? 25;
+        aiJobStatus.value = firstActiveProg?.stageTitle ?? 'Processing AI subtitles...';
+      } else {
         isGeneratingAI.value = false;
-        isAiJobPaused.value = false;
-        aiJobStatus.value = 'Subtitle generation was cancelled.';
+        aiJobProgress.value = 100;
+        aiJobStatus.value = 'Subtitles generated successfully!';
+        aiCurrentStageName.value = 'Precision Timestamp Alignment & VTT Export';
         stopElapsedTimer();
         stopQueueMonitor();
-        aiJobSubscription?.cancel();
-        aiVideoSubscription?.cancel();
-        return;
+        if (newlyCompletedLangs.isNotEmpty) {
+          for (final l in newlyCompletedLangs) {
+            showSuccess('${getLanguageName(l)} subtitles are ready!');
+          }
+          refreshSelectedVideoLocalization(newlyCompletedLangs.first);
+        }
       }
+    }
 
-      // Handle Paused State
-      if (jobStatus == 'paused' ||
-          onDemand?['status']?.toString().toLowerCase() == 'paused') {
-        isAiJobPaused.value = true;
-        aiJobStatus.value = 'Subtitle generation is paused.';
-        return;
-      } else {
-        isAiJobPaused.value = false;
+    aiJobSubscription = firestore
+        .collection('video_jobs')
+        .doc(resolvedJobId)
+        .snapshots()
+        .listen((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return;
+      processJobSnapshot(snapshot.data()!);
+    }, onError: (e) {
+      logger.warning('Error streaming video_jobs ($resolvedJobId): $e', tag: SubtitlesControllerBase.subtitlesTag);
+    });
+
+    if (resolvedJobId != videoId) {
+      aiVideoSubscription = firestore
+          .collection('video_jobs')
+          .doc(videoId)
+          .snapshots()
+          .listen((snapshot) {
+        if (!snapshot.exists || snapshot.data() == null) return;
+        processJobSnapshot(snapshot.data()!);
+      }, onError: (_) {});
+    }
+
+    aiLocSubscription = firestore
+        .collection(FirestoreCollections.videos)
+        .doc(videoId)
+        .collection('media')
+        .doc('localization')
+        .snapshots()
+        .listen((locSnap) {
+      if (!locSnap.exists || locSnap.data() == null) return;
+      final locData = locSnap.data()!;
+      final locSubs = locData['subtitles'] as Map<String, dynamic>? ?? {};
+      final newlyReady = <String>[];
+      for (final l in generatingSubtitleLanguages.toList()) {
+        final norm = normalizeLanguageCode(l);
+        if (locSubs.containsKey(l) || locSubs.containsKey(norm)) {
+          generatingSubtitleLanguages.remove(l);
+          generatingSubtitleLanguages.remove(norm);
+          subtitleProgress.remove(l);
+          subtitleProgress.remove(norm);
+          aiLanguageStatuses[l] = 'completed';
+          aiLanguageStatuses[norm] = 'completed';
+          newlyReady.add(norm);
+        }
       }
-
-      // Handle Completed State: Only complete if all requested subtitle tracks are truly produced!
-      if (hasAllFinalSubs) {
-        onSubtitlesFinished(langs);
-        return;
-      }
-
-      if (onDemand?['status']?.toString().toLowerCase() == 'completed') {
-        if (hasAllFinalSubs) {
-          onSubtitlesFinished(langs);
-        } else {
-          isGeneratingAI.value = false;
+      if (newlyReady.isNotEmpty) {
+        isGeneratingAI.value = generatingSubtitleLanguages.isNotEmpty;
+        if (generatingSubtitleLanguages.isEmpty) {
+          aiJobProgress.value = 100;
+          aiJobStatus.value = 'Subtitles generated successfully!';
+          aiCurrentStageName.value = 'Precision Timestamp Alignment & VTT Export';
           stopElapsedTimer();
           stopQueueMonitor();
-          aiJobSubscription?.cancel();
-          aiVideoSubscription?.cancel();
-          showError('AI subtitle generation completed, but requested tracks were not generated.');
         }
-        return;
-      }
-
-      // Handle Failed or Expired Zombie State
-      final isSubtitlesFailed = subtitlesStage?['status']?.toString().toLowerCase() == 'failed';
-      final isDubbingFailed = (data['executionPlan']?['generateDubbing'] == true) &&
-          dubbing?['status']?.toString().toLowerCase() == 'failed';
-
-      final now = DateTime.now().millisecondsSinceEpoch;
-      int? jobTs;
-      if (onDemand?['startedAt'] is num) {
-        jobTs = (onDemand!['startedAt'] as num).toInt();
-      } else if (data['updatedAt'] is num) {
-        jobTs = (data['updatedAt'] as num).toInt();
-      } else if (data['createdAt'] is num) {
-        jobTs = (data['createdAt'] as num).toInt();
-      }
-      final isZombie = jobTs != null && (now - jobTs) > 5 * 60 * 1000;
-
-      if (isZombie && !hasAllFinalSubs) {
-        isGeneratingAI.value = false;
-        aiJobStatus.value = 'Ready to generate subtitles.';
-        stopElapsedTimer();
-        stopQueueMonitor();
-        aiJobSubscription?.cancel();
-        aiVideoSubscription?.cancel();
-        return;
-      }
-
-      if (jobStatus == 'failed' ||
-          onDemand?['status']?.toString().toLowerCase() == 'failed' ||
-          isSubtitlesFailed ||
-          isDubbingFailed) {
-        isGeneratingAI.value = false;
-        aiJobStatus.value = 'AI generation encountered an issue. You can regenerate anytime.';
-        stopElapsedTimer();
-        stopQueueMonitor();
-        aiJobSubscription?.cancel();
-        aiVideoSubscription?.cancel();
-        return;
-      }
-
-      // ─── DYNAMIC MULTI-STAGE PROGRESS RESOLUTION ───
-      isGeneratingAI.value = true;
-
-      final transStatus = (transcription?['status'] as String?)?.toLowerCase();
-      final transProgress = (transcription?['progress'] as num?)?.toInt() ?? 0;
-      final dubStatus = (dubbing?['status'] as String?)?.toLowerCase();
-      final dubProgress = (dubbing?['progress'] as num?)?.toInt() ?? 0;
-      final subProgress = (subtitlesStage?['progress'] as num?)?.toInt() ?? 0;
-      final onDemandProgress = (onDemand?['progress'] as num?)?.toInt() ?? 0;
-
-      final video = selectedVideo.value;
-      final hasExistingSource = (video != null &&
-              (video.mediaSubtitles.isNotEmpty || video.transcriptionUrl.isNotEmpty)) ||
-          transStatus == 'completed' ||
-          subtitlesStage != null;
-
-      // Check per-language translation stages
-      var activeLangProgressSum = 0;
-      var activeLangCount = 0;
-      for (final l in langs) {
-        if (outputSubs.containsKey(l) || currentSubs.containsKey(l)) {
-          aiLanguageStatuses[l] = 'completed';
-          activeLangProgressSum += 100;
-          activeLangCount++;
-        } else {
-          final transStage = stages['translating_$l'] as Map<String, dynamic>?;
-          if (transStage != null) {
-            final p = (transStage['progress'] as num?)?.toInt() ?? 0;
-            activeLangProgressSum += p;
-            activeLangCount++;
-            aiLanguageStatuses[l] = (p >= 100 || transStage['status'] == 'completed')
-                ? 'completed'
-                : 'translating';
-          } else {
-            aiLanguageStatuses[l] = 'translating';
-          }
+        for (final r in newlyReady) {
+          showSuccess('${getLanguageName(r)} subtitles are ready!');
         }
+        refreshSelectedVideoLocalization(newlyReady.first);
       }
+    }, onError: (_) {});
+  }
 
-      final avgLangProgress = activeLangCount > 0 ? (activeLangProgressSum / activeLangCount).round() : 0;
+  @override
+  Future<void> retrySubtitleGeneration(String langCode) async {
+    final video = selectedVideo.value;
+    if (video == null) {
+      showError('No video selected.');
+      return;
+    }
+    final norm = normalizeLanguageCode(langCode);
+    failedSubtitleLanguages.remove(norm);
+    failedSubtitleLanguages.remove(langCode);
 
-      int calculatedProgress;
-      String currentStageTitle;
-      String detailedStatus;
+    subtitleProgress[norm] = SubtitleTrackProgressState(
+      langCode: norm,
+      stageTitle: 'Preparing subtitle retry in ${getLanguageName(norm)}...',
+      etaText: '~1-2 min',
+    );
+    generatingSubtitleLanguages.add(norm);
+    aiLanguageStatuses[norm] = 'queued';
+    isGeneratingAI.value = true;
+    aiJobProgress.value = 15;
+    aiJobStatus.value = 'Preparing subtitle generation in ${getLanguageName(norm)}...';
 
-      if (!hasExistingSource && transStatus != 'completed' && dubStatus != 'running' && dubStatus != 'completed') {
-        // Stage 1: Speech Extraction & Transcription (Only for brand new videos without audio transcript)
-        currentStageTitle = 'Speech Extraction & Transcription';
-        final base = transProgress > 0 ? transProgress : onDemandProgress;
-        calculatedProgress = (base * 0.35).round().clamp(10, 35);
-        detailedStatus = 'Extracting audio & transcribing dialogue ($calculatedProgress%)...';
-
-        for (final l in langs) {
-          aiLanguageStatuses[l] = 'transcribing';
-        }
-      } else if (subProgress < 75 && dubProgress < 75 && !hasAllFinalSubs) {
-        // Stage 2: Neural Multilingual Translation
-        currentStageTitle = 'Neural Multilingual Translation';
-        final translationMapped = 35 + (avgLangProgress * 0.40).round();
-        final rawProgress = math.max(subProgress, math.max(onDemandProgress, translationMapped));
-        calculatedProgress = math.max(aiJobProgress.value, rawProgress).clamp(35, 74);
-        detailedStatus = 'Translating dialogue into ${langs.length} target languages ($calculatedProgress%)...';
-      } else {
-        // Stage 3: Timestamp Alignment & VTT Export
-        currentStageTitle = 'Precision Timestamp Alignment & VTT Export';
-        final effective = math.max(subProgress, math.max(dubProgress, onDemandProgress));
-        calculatedProgress = (effective >= 75)
-            ? math.max(aiJobProgress.value, effective).clamp(75, 95)
-            : (75 + (avgLangProgress * 0.20).round()).clamp(75, 95);
-        detailedStatus = 'Formatting timestamps & generating standard VTT/SRT ($calculatedProgress%)...';
-
-        for (final l in langs) {
-          if (outputSubs.containsKey(l) || currentSubs.containsKey(l)) {
-            aiLanguageStatuses[l] = 'completed';
-          } else {
-            aiLanguageStatuses[l] = 'aligning';
-          }
-        }
-      }
-
-      aiCurrentStageName.value = currentStageTitle;
-      aiJobProgress.value = calculatedProgress;
-      aiJobStatus.value = detailedStatus;
-    }, onError: (e, stackTrace) {
-      logger.error('Error listening to AI job', error: e, stackTrace: stackTrace, tag: SubtitlesControllerBase.subtitlesTag);
-      isGeneratingAI.value = false;
-      aiJobStatus.value = 'AI generation encountered a connection issue.';
-      stopElapsedTimer();
-      stopQueueMonitor();
-      aiJobSubscription?.cancel();
-      aiVideoSubscription?.cancel();
-    });
+    await triggerSubtitlesGeneration(
+      targetLanguages: [norm],
+      isDirectlyPaid: true,
+    );
   }
 
   @override
@@ -769,12 +942,76 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
     }
   }
 
+  void _syncSubtitleProgress(int prog, int step, String stageTitle, String eta) {
+    final targets = generatingSubtitleLanguages.isNotEmpty ? generatingSubtitleLanguages : aiTargetLanguages;
+    for (final lang in targets) {
+      final norm = normalizeLanguageCode(lang);
+      subtitleProgress[norm] = SubtitleTrackProgressState(
+        langCode: norm,
+        progress: prog,
+        stageStep: step,
+        totalStepsText: 'Step $step of 3',
+        stageTitle: stageTitle,
+        etaText: eta,
+      );
+    }
+  }
+
   void startElapsedTimer() {
     aiElapsedTimer?.cancel();
     aiElapsedSeconds.value = 0;
     aiElapsedTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!isAiJobPaused.value) {
         aiElapsedSeconds.value++;
+
+        final currentProg = aiJobProgress.value;
+        if (currentProg >= 15 && currentProg < 35) {
+          if (aiElapsedSeconds.value % 2 == 0) {
+            final nextProg = (currentProg + 1).clamp(15, 35);
+            aiJobProgress.value = nextProg;
+            aiJobStatus.value = 'Analyzing audio & extracting dialogue ($nextProg%)...';
+            _syncSubtitleProgress(nextProg, 1, aiJobStatus.value, '~15-20 sec');
+          }
+        } else if (currentProg >= 35 && currentProg < 75) {
+          if (aiElapsedSeconds.value % 2 == 0) {
+            final nextProg = (currentProg + 1).clamp(35, 75);
+            final langsCount = aiTargetLanguages.length;
+            aiJobProgress.value = nextProg;
+            aiJobStatus.value = 'Translating dialogue into $langsCount target languages ($nextProg%)...';
+            _syncSubtitleProgress(nextProg, 2, aiJobStatus.value, '~10-15 sec');
+          }
+        } else if (currentProg >= 75 && currentProg < 98) {
+          if (aiElapsedSeconds.value % 2 == 0) {
+            final nextProg = (currentProg + 1).clamp(75, 98);
+            aiJobProgress.value = nextProg;
+            final statusMsg = nextProg >= 92
+                ? 'Finalizing subtitles & precision alignment ($nextProg%)...'
+                : 'Formatting timestamps & generating standard VTT/SRT ($nextProg%)...';
+            aiJobStatus.value = statusMsg;
+            _syncSubtitleProgress(nextProg, 3, statusMsg, 'Finalizing shortly...');
+          }
+        } else if (currentProg >= 98 && currentProg < 100) {
+          // If all target languages are already marked completed in statuses, finalize to 100%
+          final allDone = aiTargetLanguages.isNotEmpty &&
+              aiTargetLanguages.every((l) =>
+                  aiLanguageStatuses[l] == 'completed' ||
+                  aiLanguageStatuses[normalizeLanguageCode(l)] == 'completed');
+          if (allDone) {
+            aiJobProgress.value = 100;
+            isGeneratingAI.value = false;
+            aiJobStatus.value = 'Subtitles generated successfully!';
+            aiCurrentStageName.value = 'Precision Timestamp Alignment & VTT Export';
+            stopElapsedTimer();
+            stopQueueMonitor();
+            if (aiTargetLanguages.isNotEmpty) {
+              refreshSelectedVideoLocalization(aiTargetLanguages.first);
+            }
+          }
+        }
+
+        if (aiElapsedSeconds.value > 0 && aiElapsedSeconds.value % 3 == 0) {
+          checkSilentVideoSubtitles();
+        }
 
         // Hard timeout guard: subtitles must never spin indefinitely (5 minutes max)
         if (aiElapsedSeconds.value > 300) {
@@ -788,28 +1025,6 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
           showError('AI subtitle generation timed out. Please try again.');
           return;
         }
-
-        final currentProg = aiJobProgress.value;
-        if (currentProg >= 35 && currentProg < 74) {
-          if (aiElapsedSeconds.value % 3 == 0) {
-            aiJobProgress.value = (currentProg + 1).clamp(35, 74);
-            final langsCount = aiTargetLanguages.length;
-            aiJobStatus.value = 'Translating dialogue into $langsCount target languages (${aiJobProgress.value}%)...';
-          }
-        } else if (currentProg >= 75 && currentProg < 98) {
-          if (aiElapsedSeconds.value % 4 == 0) {
-            aiJobProgress.value = (currentProg + 1).clamp(75, 98);
-            if (aiJobProgress.value >= 94) {
-              aiJobStatus.value = 'Finalizing subtitles & precision alignment (${aiJobProgress.value}%)...';
-            } else {
-              aiJobStatus.value = 'Formatting timestamps & generating standard VTT/SRT (${aiJobProgress.value}%)...';
-            }
-          }
-        }
-
-        if (aiElapsedSeconds.value > 0 && aiElapsedSeconds.value % 15 == 0) {
-          checkSilentVideoSubtitles();
-        }
       }
     });
   }
@@ -818,9 +1033,19 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
     final video = selectedVideo.value;
     if (video == null || !isGeneratingAI.value) return;
     try {
+      final langs = aiTargetLanguages.isNotEmpty
+          ? aiTargetLanguages.toList()
+          : <String>[];
+      if (langs.isEmpty) return;
+
+      // 1. Check if all target languages are marked completed in aiLanguageStatuses
+      final allCompletedInStatuses = langs.every((l) =>
+          aiLanguageStatuses[l] == 'completed' ||
+          aiLanguageStatuses[normalizeLanguageCode(l)] == 'completed');
+
+      // 2. Check root video document
       final doc = await firestore.collection(FirestoreCollections.videos).doc(video.id).get();
-      if (!doc.exists || doc.data() == null) return;
-      final data = doc.data()!;
+      final data = doc.data() ?? <String, dynamic>{};
       final mediaSubtitles = (data['media'] != null && data['media']['subtitles'] != null)
           ? Map<String, String>.from(data['media']['subtitles'] as Map)
           : (data['subtitles'] != null
@@ -829,27 +1054,62 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
                   ? Map<String, String>.from(data['mediaSubtitles'] as Map)
                   : <String, String>{}));
 
-      final langs = aiTargetLanguages.isNotEmpty
-          ? aiTargetLanguages.toList()
-          : <String>[];
-      final hasAllFinal = langs.isNotEmpty &&
+      // 3. Check media/localization subcollection
+      final locDoc = await firestore
+          .collection(FirestoreCollections.videos)
+          .doc(video.id)
+          .collection('media')
+          .doc('localization')
+          .get()
+          .catchError((_) => doc);
+      final locSubs = (locDoc.data()?['subtitles'] as Map<String, dynamic>?) ?? {};
+
+      // 4. Check video_jobs outputs.subtitles and stages.subtitles
+      final resolvedJobId = (video.jobId?.isNotEmpty == true) ? video.jobId! : video.id;
+      final jobDoc = await firestore
+          .collection('video_jobs')
+          .doc(resolvedJobId)
+          .get()
+          .catchError((_) => doc);
+      final jobData = jobDoc.data() ?? <String, dynamic>{};
+      final jobOutputs = (jobData['outputs'] as Map<String, dynamic>?) ?? {};
+      final jobSubs = (jobOutputs['subtitles'] as Map<String, dynamic>?) ?? {};
+      final jobStages = (jobData['stages'] as Map<String, dynamic>?) ?? {};
+      final subStage = jobStages['subtitles'] as Map<String, dynamic>?;
+      final isSubStageCompleted = subStage?['status'] == 'completed' || subStage?['progress'] == 100;
+
+      final hasAllFinal = allCompletedInStatuses ||
+          isSubStageCompleted ||
           langs.every((l) {
             final norm = normalizeLanguageCode(l);
-            return mediaSubtitles.containsKey(l) || mediaSubtitles.containsKey(norm);
+            return mediaSubtitles.containsKey(l) ||
+                mediaSubtitles.containsKey(norm) ||
+                locSubs.containsKey(l) ||
+                locSubs.containsKey(norm) ||
+                jobSubs.containsKey(l) ||
+                jobSubs.containsKey(norm);
           });
+
       if (hasAllFinal) {
         isGeneratingAI.value = false;
         aiJobProgress.value = 100;
         aiCurrentStageName.value = 'Precision Timestamp Alignment & VTT Export';
         aiJobStatus.value = 'Subtitles generated successfully!';
         for (final l in langs) {
+          final norm = normalizeLanguageCode(l);
           aiLanguageStatuses[l] = 'completed';
+          aiLanguageStatuses[norm] = 'completed';
+          generatingSubtitleLanguages.remove(l);
+          generatingSubtitleLanguages.remove(norm);
+          subtitleProgress.remove(l);
+          subtitleProgress.remove(norm);
         }
         showSuccess('Subtitles ready for ${langs.join(", ").toUpperCase()}!');
         stopElapsedTimer();
         stopQueueMonitor();
         aiJobSubscription?.cancel();
         aiVideoSubscription?.cancel();
+        aiLocSubscription?.cancel();
         final newlyGenerated = langs.firstWhere(
           (l) => normalizeLanguageCode(l) != normalizeLanguageCode(selectedVideo.value?.language ?? 'en'),
           orElse: () => langs.isNotEmpty ? langs.first : 'en',
@@ -872,18 +1132,28 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         .snapshots()
         .listen((snapshot) {
       final docs = snapshot.docs;
-      aiQueueTotal.value = docs.isNotEmpty ? docs.length : 1;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      const maxAgeMs = 15 * 60 * 1000; // 15 mins active window
+      final activeDocs = docs.where((doc) {
+        final d = doc.data();
+        final created = (d['createdAt'] as num?)?.toInt() ?? 0;
+        final updated = (d['updatedAt'] as num?)?.toInt() ?? created;
+        return (now - updated <= maxAgeMs) || (now - created <= maxAgeMs);
+      }).toList();
+
+      aiQueueTotal.value = activeDocs.isNotEmpty ? activeDocs.length : 1;
 
       // Count jobs started before this job to determine queue position
       var position = 1;
-      for (final doc in docs) {
+      for (final doc in activeDocs) {
         if (doc.id == videoId) continue;
         final jobCreated = (doc.data()['createdAt'] as num?)?.toInt() ?? 0;
         if (jobCreated < myCreatedAt && jobCreated > 0) {
           position++;
         }
       }
-      aiQueuePosition.value = position;
+      // If the job is already actively processing in Phase 2 or Phase 3, position is active processing slot (1)
+      aiQueuePosition.value = (aiJobProgress.value >= 35) ? 1 : position.clamp(1, aiQueueTotal.value);
     }, onError: (e) {
       logger.warning('Queue monitor warning: $e', tag: SubtitlesControllerBase.subtitlesTag);
     });

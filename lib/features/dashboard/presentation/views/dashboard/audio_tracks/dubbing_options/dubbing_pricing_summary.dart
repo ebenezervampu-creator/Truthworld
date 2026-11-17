@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_language_bar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_options_state.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -46,15 +48,13 @@ class DubbingPricingSummary extends StatelessWidget {
           activeRate > 0 &&
           bal < activeRate;
 
-      final canSubmit = !loading && selectedCount > 0;
+      final canSubmit = !loading;
 
       final String buttonLabel;
       if (loading) {
         buttonLabel = selectedCount > 1
             ? 'Generating $selectedCount Audio Tracks...'
             : 'Generating...';
-      } else if (selectedCount == 0) {
-        buttonLabel = 'Select Target Language';
       } else if (isInsufficient) {
         buttonLabel = selectedCount > 1
             ? 'Pay \$${activeRate.toStringAsFixed(2)} & Generate $selectedCount Tracks'
@@ -122,7 +122,19 @@ class DubbingPricingSummary extends StatelessWidget {
           SizedBox(
             height: 54,
             child: ElevatedButton.icon(
-              onPressed: canSubmit ? onGenerate : null,
+              onPressed: canSubmit
+                  ? () {
+                      if (selectedCount == 0) {
+                        AppSnackbar.warning(
+                          'Please select a language to generate audio tracks.',
+                          title: 'Select Language',
+                        );
+                        showLanguagePicker(context, state);
+                        return;
+                      }
+                      onGenerate();
+                    }
+                  : null,
               icon: loading
                   ? const SizedBox(
                       width: 16,

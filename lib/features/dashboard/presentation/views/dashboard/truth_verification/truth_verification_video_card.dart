@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
@@ -9,9 +13,16 @@ import 'package:truthworld/features/video/presentation/views/video_analysis_scre
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Clean, professional, high-contrast Video Fact-Check Report Card.
-/// Engineered for zero layout overflows, responsive mobile/desktop layouts,
-/// and instant access to consumer-grade deep analysis + Studio tools.
+/// Clean, high-contrast Video Fact-Check Card for the Fact-Check page.
+///
+/// Designed strictly according to the TruthWorld UI specification:
+/// - When in progress: Shows thumbnail with duration timestamp, title, and
+///   an animated "Fact-check in Progress (X%)" badge (smooth 5%, 10%, 50%, etc.),
+///   along with the more_vertical options menu.
+/// - When fact-check is available: Shows thumbnail with duration timestamp, title,
+///   and interactive "Ai check" text button that navigates directly to the AI Check page.
+/// - Preserves all more_vertical menu features (Approve, Make Private, Re-trigger, Talk to AI, Dispute).
+/// - Zero unwanted clutter or redundant debug text.
 class TruthVerificationVideoCard extends StatelessWidget {
   const TruthVerificationVideoCard({
     required this.video,
@@ -19,6 +30,7 @@ class TruthVerificationVideoCard extends StatelessWidget {
     required this.isDarkMode,
     required this.onToggleApproval,
     required this.onApprove,
+    this.onRetrigger,
     this.onClaimSelected,
     super.key,
   });
@@ -28,6 +40,7 @@ class TruthVerificationVideoCard extends StatelessWidget {
   final bool isDarkMode;
   final void Function(String videoId, bool currentStatus) onToggleApproval;
   final void Function(String videoId) onApprove;
+  final void Function(String videoId)? onRetrigger;
   final void Function(RealExtractedClaim claim)? onClaimSelected;
 
   void _openAiCheck(BuildContext context) {
@@ -110,306 +123,402 @@ class TruthVerificationVideoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: video.hasConcerns
-              ? AppColors.error.withValues(alpha: 0.6)
-              : AppColors.bgSurface,
+          color: isDarkMode ? AppColors.bgSurface : const Color(0xFFE5E7EB),
         ),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _openAiCheck(context),
+          onTap: () {
+            if (video.isFactCheckReady) {
+              _openAiCheck(context);
+            }
+          },
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Video Thumbnail + Title + Status Ribbon
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InkWell(
-                onTap: () => _openAiCheck(context),
-                borderRadius: BorderRadius.circular(8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: 90,
-                    height: 56,
-                    color: AppColors.bgInput,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: video.thumbnailUrl.isNotEmpty
-                              ? Image.network(
-                                  video.thumbnailUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (ctx, err, stack) => const Icon(
-                                    Icons.video_library_rounded,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.video_library_rounded,
-                                  color: AppColors.textSecondary,
-                                ),
-                        ),
-                        Positioned(
-                          bottom: 4,
-                          right: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black87,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              TruthVerificationParser.formatTimestamp(
-                                video.durationSeconds,
-                              ),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InkWell(
-                      onTap: () => _openAiCheck(context),
-                      borderRadius: BorderRadius.circular(4),
-                      child: Text(
-                        video.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: TWTypography.brandFamily,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: isDarkMode
-                              ? AppColors.textPrimary
-                              : Colors.black87,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _buildStatusBadge(),
-                        if (video.hasConcerns)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.error_outline_rounded,
-                                  size: 12,
-                                  color: AppColors.error,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${video.highConcernClaims.length} Concern Alert',
-                                  style: const TextStyle(
-                                    color: AppColors.error,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Thumbnail with duration timestamp
+                _buildThumbnail(context),
+                const SizedBox(width: 12),
 
-          // 2. Timeline scrubber preview (if claims exist)
-          if (video.claims.isNotEmpty) ...[
-            _buildInteractiveTimelineScrubber(context),
-            const SizedBox(height: 10),
-          ],
-
-          // 3. Evidence Resolution Banner (if unresolved concerns or missing sources exist)
-          if (video.hasConcerns || video.needsSourceClaims.isNotEmpty) ...[
-            _buildEvidenceResolutionBanner(),
-            const SizedBox(height: 10),
-          ],
-
-          // 4. Credibility & Evidence Metrics Bar (RESPONSIVE, ZERO OVERFLOW)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.bgInput,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: AppColors.bgSurface,
-              ),
-            ),
-            child: LayoutBuilder(
-              builder: (ctx, constraints) {
-                final isNarrow = constraints.maxWidth < 600;
-                final leftContent = Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      video.hasConcerns
-                          ? Icons.warning_amber_rounded
-                          : (video.needsSourceClaims.isNotEmpty
-                              ? Icons.help_outline_rounded
-                              : (video.verifiedClaims.isNotEmpty
-                                  ? Icons.verified_outlined
-                                  : Icons.fact_check_outlined)),
-                      size: 16,
-                      color: video.hasConcerns
-                          ? AppColors.error
-                          : (video.needsSourceClaims.isNotEmpty
-                              ? AppColors.warning
-                              : (video.verifiedClaims.isNotEmpty
-                                  ? AppColors.success
-                                  : (isDarkMode
-                                      ? AppColors.textSecondary
-                                      : Colors.black54))),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        video.claims.isEmpty
-                            ? 'No Empirical Claims'
-                            : (video.hasConcerns
-                                ? '${video.highConcernClaims.length} Concern${video.highConcernClaims.length == 1 ? "" : "s"}'
-                                : (video.needsSourceClaims.isNotEmpty
-                                    ? '${video.needsSourceClaims.length} Need Source'
-                                    : '${video.verifiedClaims.length} Verified')),
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: TWTypography.uiFamily,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.bold,
-                          color: video.hasConcerns
-                              ? AppColors.error
-                              : (video.needsSourceClaims.isNotEmpty
-                                  ? AppColors.warning
-                                  : (video.verifiedClaims.isNotEmpty
-                                      ? AppColors.success
-                                      : (isDarkMode
-                                          ? AppColors.textSecondary
-                                          : Colors.black87))),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-
-                final rightContent = Text(
-                  video.claims.isEmpty
-                      ? 'No empirical assertions evaluated'
-                      : '${video.claims.length} Claims: ${video.verifiedClaims.length} verified, ${video.needsSourceClaims.length} need source, ${video.highConcernClaims.length} concern',
-                  style: TextStyle(
-                    fontFamily: TWTypography.uiFamily,
-                    fontSize: 11,
-                    color: isDarkMode
-                        ? AppColors.textSecondary
-                        : Colors.black54,
-                  ),
-                );
-
-                if (isNarrow) {
-                  return Column(
+                // 2. Video Title + (Fact-check in Progress or Ai check)
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      leftContent,
-                      const SizedBox(height: 4),
-                      rightContent,
-                    ],
-                  );
-                }
+                      // Video Title
+                      InkWell(
+                        onTap: video.isFactCheckReady
+                            ? () => _openAiCheck(context)
+                            : null,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Text(
+                          video.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: TWTypography.brandFamily,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode
+                                ? AppColors.textPrimary
+                                : Colors.black87,
+                            height: 1.25,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
 
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(child: leftContent),
-                    const SizedBox(width: 10),
-                    Flexible(child: rightContent),
-                  ],
-                );
-              },
+                      // Status presentation:
+                      // If ready: "Ai check" text that navigates to AI check page
+                      // If in progress: "Fact-check in Progress (X%)" with animation
+                      // Else: Needs Fact-Check / Failed fallback
+                      _buildStatusSection(context),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // 3. More vertical icon button & its features
+                _buildMoreMenu(context),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
+        ),
+      ),
+    );
+  }
 
-          // 5. Card Action Buttons (Inspect Full Report + More Vertical Button)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+  Widget _buildThumbnail(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        if (video.isFactCheckReady) {
+          _openAiCheck(context);
+        }
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 104,
+          height: 64,
+          color: AppColors.bgInput,
+          child: Stack(
             children: [
-              ElevatedButton.icon(
-                onPressed: () => _openAiCheck(context),
-                icon: const Icon(
-                  Icons.analytics_outlined,
-                  size: 15,
-                  color: Colors.white,
-                ),
-                label: const Text('Inspect Full Report'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.bgSurface,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
+              Positioned.fill(
+                child: video.thumbnailUrl.isNotEmpty
+                    ? Image.network(
+                        video.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (ctx, err, stack) => const Icon(
+                          Icons.video_library_rounded,
+                          color: AppColors.textSecondary,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.video_library_rounded,
+                        color: AppColors.textSecondary,
+                      ),
+              ),
+              Positioned(
+                bottom: 4,
+                right: 4,
+                child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 9,
+                    horizontal: 4,
+                    vertical: 1.5,
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  textStyle: const TextStyle(
-                    fontFamily: TWTypography.uiFamily,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  child: Text(
+                    TruthVerificationParser.formatTimestamp(
+                      video.durationSeconds,
+                    ),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              _buildMoreMenu(context),
             ],
           ),
-        ],
+        ),
       ),
-    ),
-  ),
-),
+    );
+  }
+
+  Widget _buildStatusSection(BuildContext context) {
+    if (video.isFactCheckReady) {
+      return _buildAiCheckButton(context);
+    }
+    if (video.isFactCheckInProgress) {
+      return _buildInProgressIndicator();
+    }
+    return _buildFallbackStatusBadge(context);
+  }
+
+  Widget _buildAiCheckButton(BuildContext context) {
+    return InkWell(
+      onTap: () => _openAiCheck(context),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isDarkMode ? AppColors.bgSurface : const Color(0xFFF3F4F6),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isDarkMode
+                ? AppColors.bgSurfaceHover
+                : const Color(0xFFD1D5DB),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.auto_awesome_rounded,
+              size: 14,
+              color: isDarkMode ? Colors.white : Colors.black87,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Ai check',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 10,
+              color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInProgressIndicator() {
+    final resolvedJobId = video.jobId?.isNotEmpty == true
+        ? video.jobId!
+        : ((video.video?.jobId?.isNotEmpty == true)
+            ? video.video!.jobId!
+            : video.id);
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection(FirestoreCollections.videoJobs)
+          .doc(resolvedJobId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        int backendProgress = video.calculatedProgress;
+        DateTime? stageUpdatedAt = video.startedAt;
+
+        if (snapshot.hasData && snapshot.data?.exists == true) {
+          final jobData = snapshot.data!.data();
+          final stages = (jobData?['stages'] as Map<String, dynamic>?) ?? {};
+          final credStage = (stages['credibility'] ??
+              stages['factcheck'] ??
+              stages['fact_check'] ??
+              stages['credibilityCheck']) as Map<String, dynamic>?;
+          final p = (credStage?['progress'] as num?)?.toInt() ??
+              (jobData?['factCheckProgress'] as num?)?.toInt();
+          if (p != null && p > 0) {
+            backendProgress = math.max(backendProgress, p.clamp(0, 100));
+          }
+
+          final rawUpdated = credStage?['updatedAt'] ??
+              jobData?['updatedAt'] ??
+              credStage?['startedAt'] ??
+              jobData?['startedAt'];
+          if (rawUpdated is num) {
+            stageUpdatedAt =
+                DateTime.fromMillisecondsSinceEpoch(rawUpdated.toInt());
+          } else if (rawUpdated is Timestamp) {
+            stageUpdatedAt = rawUpdated.toDate();
+          }
+        }
+
+        // Live continuous 1-second interval ticker (zero network writes, purely client-side interpolation)
+        return StreamBuilder<int>(
+          stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
+          builder: (context, _) {
+            final continuousProgress = calculateStagePacedProgress(
+              backendProgress: backendProgress,
+              durationSeconds: video.durationSeconds,
+              isReady: video.isFactCheckReady,
+              stageUpdatedAt: stageUpdatedAt,
+            );
+
+            return _AnimatedProgressBadge(
+              progress: continuousProgress,
+              isDarkMode: isDarkMode,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Computes continuous, granular progress (1%, 2%... 6%, 17%... 100%)
+  /// anchored to the authentic backend milestone stages and elapsed time.
+  static int calculateStagePacedProgress({
+    required int backendProgress,
+    required double durationSeconds,
+    required bool isReady,
+    DateTime? stageUpdatedAt,
+    DateTime? now,
+  }) {
+    if (isReady || backendProgress >= 100) return 100;
+
+    final int bracketStart;
+    final int bracketEnd;
+
+    if (backendProgress >= 70) {
+      bracketStart = 70;
+      bracketEnd = 95;
+    } else if (backendProgress >= 50) {
+      bracketStart = 50;
+      bracketEnd = 70;
+    } else if (backendProgress >= 30) {
+      bracketStart = 30;
+      bracketEnd = 50;
+    } else if (backendProgress >= 10) {
+      bracketStart = 10;
+      bracketEnd = 30;
+    } else {
+      bracketStart = 1;
+      bracketEnd = 10;
+    }
+
+    final effectiveNow = now ?? DateTime.now();
+    final effectiveStageTime = stageUpdatedAt ?? effectiveNow;
+    final diffMs = effectiveNow.difference(effectiveStageTime).inMilliseconds;
+    final elapsedSec = math.max(0.0, diffMs / 1000.0);
+
+    // Approximate stage duration scaled proportionally with media duration
+    final effectiveDuration = durationSeconds > 0 ? durationSeconds : 300.0;
+    final stageDuration =
+        (10.0 + (effectiveDuration * 0.025)).clamp(12.0, 45.0);
+
+    final fraction = (elapsedSec / stageDuration).clamp(0.0, 0.95);
+    final paced =
+        bracketStart + ((bracketEnd - bracketStart) * fraction).toInt();
+    return paced.clamp(bracketStart, bracketEnd);
+  }
+
+  Widget _buildFallbackStatusBadge(BuildContext context) {
+    if (video.factCheckStatus == 'failed') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 12, color: AppColors.error),
+            SizedBox(width: 4),
+            Text(
+              'Fact-Check Failed',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.error,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.warning.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.sync_problem_rounded, size: 12, color: AppColors.warning),
+              SizedBox(width: 4),
+              Text(
+                'Needs Fact-Check',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.warning,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (onRetrigger != null)
+          InkWell(
+            onTap: () => onRetrigger!(video.id),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isDarkMode ? AppColors.bgSurface : Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isDarkMode
+                      ? AppColors.bgSurfaceHover
+                      : const Color(0xFFD1D5DB),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.refresh_rounded,
+                    size: 12,
+                    color: isDarkMode ? Colors.white : Colors.black,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Re-trigger Fact-Check',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isDarkMode ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -423,18 +532,18 @@ class TruthVerificationVideoCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDarkMode ? AppColors.bgDivider : AppColors.textPrimary,
+          color: isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB),
         ),
       ),
       icon: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(7),
         decoration: BoxDecoration(
           color: isDarkMode
               ? AppColors.bgSurfaceHover
-              : AppColors.textPrimary,
+              : const Color(0xFFF3F4F6),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isDarkMode ? AppColors.bgDivider : const Color(0xFFD1D5DB),
+            color: isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB),
           ),
         ),
         child: Icon(
@@ -460,6 +569,10 @@ class TruthVerificationVideoCard extends StatelessWidget {
               );
             } else {
               onToggleApproval(video.id, true);
+            }
+          case 'retrigger_factcheck':
+            if (onRetrigger != null) {
+              onRetrigger!(video.id);
             }
           case 'talk_to_ai':
             TruthVerificationDialogs.showTalkToAiDialog(
@@ -556,6 +669,35 @@ class TruthVerificationVideoCard extends StatelessWidget {
 
         const PopupMenuDivider(),
 
+        // Re-trigger Fact-Check Option
+        PopupMenuItem<String>(
+          value: 'retrigger_factcheck',
+          child: Row(
+            children: [
+              const Icon(
+                Icons.refresh_rounded,
+                size: 18,
+                color: AppColors.info,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  video.isFactCheckReady
+                      ? 'Re-run Fact-Check'
+                      : 'Re-trigger Fact-Check',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         // Talk to AI (Add Sources)
         PopupMenuItem<String>(
           value: 'talk_to_ai',
@@ -612,269 +754,96 @@ class TruthVerificationVideoCard extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _buildStatusBadge() {
-    if (video.isPendingApproval) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.lock_clock_rounded, size: 12, color: AppColors.warning),
-            SizedBox(width: 4),
-            Text(
-              'Pending Creator Review (Private)',
-              style: TextStyle(
-                color: AppColors.warning,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    if (video.isFactCheckApproved) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: AppColors.success.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              size: 12,
-              color: AppColors.success,
-            ),
-            SizedBox(width: 4),
-            Text(
-              'Approved (Visible to Viewers)',
-              style: TextStyle(
-                color: AppColors.success,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.visibility_off_rounded,
-            size: 12,
-            color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+/// Declarative, professional animated progress badge for fact-checks in progress.
+/// Displays smoothly animated percentage (5%, 10%, 50%, etc.) and linear indicator.
+class _AnimatedProgressBadge extends StatelessWidget {
+  const _AnimatedProgressBadge({
+    required this.progress,
+    required this.isDarkMode,
+  });
+
+  final int progress;
+  final bool isDarkMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = isDarkMode
+        ? const Color(0xFF60A5FA)
+        : const Color(0xFF2563EB);
+
+    final bgColor = isDarkMode
+        ? const Color(0xFF1E293B).withValues(alpha: 0.8)
+        : const Color(0xFFEFF6FF);
+
+    final borderColor = isDarkMode
+        ? const Color(0xFF3B82F6).withValues(alpha: 0.35)
+        : const Color(0xFFBFDBFE);
+
+    final textColor = isDarkMode
+        ? const Color(0xFF93C5FD)
+        : const Color(0xFF1D4ED8);
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: progress.toDouble()),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutCubic,
+      builder: (context, animatedValue, _) {
+        final currentPct = animatedValue.toInt();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor),
           ),
-          const SizedBox(width: 4),
-          Text(
-            'Held Private',
-            style: TextStyle(
-              color: isDarkMode ? AppColors.textSecondary : Colors.black54,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInteractiveTimelineScrubber(BuildContext context) {
-    final totalDuration = video.durationSeconds > 0
-        ? video.durationSeconds
-        : 600.0;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgPage : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Interactive Claim Timeline',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: isDarkMode ? AppColors.textSecondary : Colors.black54,
-                ),
-              ),
-              Text(
-                'Tap marker dot to inspect',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isDarkMode
-                      ? AppColors.textTertiary
-                      : Colors.black38,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          LayoutBuilder(
-            builder: (ctx, constraints) {
-              final trackWidth = constraints.maxWidth;
-              return Stack(
-                alignment: Alignment.centerLeft,
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: trackWidth,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? AppColors.bgDivider
-                          : AppColors.textPrimary,
-                      borderRadius: BorderRadius.circular(3),
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
                     ),
                   ),
-                  ...video.claims.map((claim) {
-                    final fraction =
-                        (claim.timestampSeconds / totalDuration).clamp(0.0, 1.0);
-                    final dotX = (fraction * trackWidth).clamp(0.0, trackWidth - 12);
-                    var dotColor = AppColors.success;
-                    if (claim.isHighConcern) {
-                      dotColor = AppColors.error;
-                    } else if (claim.isNeedsSource) {
-                      dotColor = AppColors.warning;
-                    } else if (claim.isDisputed) {
-                      dotColor = Colors.purpleAccent;
-                    }
-
-                    return Positioned(
-                      left: dotX,
-                      child: GestureDetector(
-                        onTap: () {
-                          if (onClaimSelected != null) {
-                            onClaimSelected!(claim);
-                          } else {
-                            TruthVerificationDialogs.showAskAiWhyDialog(
-                              context,
-                              claim,
-                              isDarkMode: isDarkMode,
-                              onProvideSource: (c) => TruthVerificationDialogs
-                                  .showProvideSourceForClaimDialog(
-                                context,
-                                c,
-                                isDarkMode: isDarkMode,
-                                onSubmit: (id, url, notes) {
-                                  c.tier = ClaimEvidenceTier.disputed;
-                                  AppSnackbar.success(
-                                    'Citation queued for evaluation.',
-                                  );
-                                },
-                              ),
-                              onMarkEdit: (c) =>
-                                  TruthVerificationDialogs.showMarkVideoEditDialog(
-                                context,
-                                c,
-                                isDarkMode: isDarkMode,
-                                onSave: (note) {
-                                  c.creatorActionNote = note;
-                                  AppSnackbar.success('Action note saved.');
-                                },
-                              ),
-                            );
-                          }
-                        },
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: dotColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isDarkMode ? Colors.black : Colors.white,
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: dotColor.withValues(alpha: 0.6),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+                  const SizedBox(width: 7),
+                  Text(
+                    'Fact-check in Progress ($currentPct%)',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '00:00',
-                style: TextStyle(fontSize: 9.5, color: AppColors.textTertiary),
               ),
-              Text(
-                TruthVerificationParser.formatTimestamp(totalDuration),
-                style: const TextStyle(
-                  fontSize: 9.5,
-                  color: AppColors.textTertiary,
+              const SizedBox(height: 5),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: SizedBox(
+                  width: 150,
+                  height: 3.5,
+                  child: LinearProgressIndicator(
+                    value: (animatedValue / 100.0).clamp(0.04, 1.0),
+                    backgroundColor: isDarkMode
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                  ),
                 ),
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEvidenceResolutionBanner() {
-    final pendingCount =
-        video.needsSourceClaims.length + video.highConcernClaims.length;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.brandVariant.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppColors.brandVariant.withValues(alpha: 0.25),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.source_outlined,
-            size: 16,
-            color: AppColors.info,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Evidence Resolution: Providing sources resolves $pendingCount pending assertion${pendingCount == 1 ? '' : 's'} to complete verification.',
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.bold,
-                color: AppColors.info,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

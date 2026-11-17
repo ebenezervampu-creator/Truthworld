@@ -1,6 +1,6 @@
 # ============================================================
 #  TruthWorld Web Deploy Script (WebAssembly Ready)
-#  Usage: .\scripts\deploy_web.ps1 [-Target web-app|studio-app|admin-portal|advertiser-app|all] [-NoWasm]
+#  Usage: .\scripts\deploy_web.ps1 [-Target web-app|studio-app|admin-portal|advertiser-app|all|web-app,studio-app] [-NoWasm]
 #         .\scripts\deploy_web.ps1          (defaults to all targets with Wasm enabled)
 #
 #  What it does on every run:
@@ -8,7 +8,8 @@
 #    2. Generates web/version.json  (force-updates every user globally)
 #    3. Builds Flutter web with WebAssembly (--wasm) + JS fallback
 #    4. Copies version.json + .well-known into each build output
-#    5. Deploys to Firebase Hosting (all or selected target)
+#    5. Synchronizes SEO and web metadata files (sitemap, robots, icons, etc.)
+#    6. Deploys to Firebase Hosting (all or selected target)
 # ============================================================
 param(
     [string]$Target = "all",
@@ -131,10 +132,25 @@ function Build-Flavor {
 }
 
 # ── 4. Build selected targets ────────────────────────────────
-$buildWebApp    = $Target -eq "all" -or $Target -eq "web-app"
-$buildStudio    = $Target -eq "all" -or $Target -eq "studio-app"
-$buildAdmin     = $Target -eq "all" -or $Target -eq "admin-portal"
-$buildAdvertiser = $Target -eq "all" -or $Target -eq "advertiser-app"
+$rawTargets = $Target -split ',' | ForEach-Object { $_.Trim().ToLower() }
+$targetList = @()
+foreach ($t in $rawTargets) {
+    switch ($t) {
+        "consumer"   { $targetList += "web-app" }
+        "web"        { $targetList += "web-app" }
+        "web_app"    { $targetList += "web-app" }
+        "studio"     { $targetList += "studio-app" }
+        "studio_app" { $targetList += "studio-app" }
+        "admin"      { $targetList += "admin-portal" }
+        "advertiser" { $targetList += "advertiser-app" }
+        default      { $targetList += $t }
+    }
+}
+$isAll = $Target.ToLower() -eq "all"
+$buildWebApp     = $isAll -or ($targetList -contains "web-app")
+$buildStudio     = $isAll -or ($targetList -contains "studio-app")
+$buildAdmin      = $isAll -or ($targetList -contains "admin-portal")
+$buildAdvertiser = $isAll -or ($targetList -contains "advertiser-app")
 
 if ($buildWebApp) {
     Build-Flavor -EntryPoint "lib/main.dart" -OutputDir "build/web_app" -Label "Web App (Consumer)"
@@ -152,12 +168,20 @@ if ($buildAdvertiser) {
     Build-Flavor -EntryPoint $advertiserEntry -OutputDir "build/web_advertiser" -Label "Advertiser Portal"
 }
 
-# ── 5. Deploy to Firebase Hosting ────────────────────────────
+# ── 5. Synchronize SEO and Web assets ────────────────────────
+$copySeoScript = Join-Path $PSScriptRoot "copy-seo-files.ps1"
+if (Test-Path $copySeoScript) {
+    Step "Synchronizing SEO and Web metadata files"
+    & $copySeoScript
+}
+
+# ── 6. Deploy to Firebase Hosting ────────────────────────────
 Step "Deploying to Firebase Hosting"
-if ($Target -eq "all") {
+if ($isAll) {
     firebase deploy --only "hosting:web-app,hosting:studio-app,hosting:admin-portal,hosting:advertiser-app" --force
 } else {
-    firebase deploy --only "hosting:$Target" --force
+    $deployTargets = ($targetList | ForEach-Object { "hosting:$_" }) -join ","
+    firebase deploy --only $deployTargets --force
 }
 if ($LASTEXITCODE -ne 0) { Fail "Firebase deploy failed" }
 

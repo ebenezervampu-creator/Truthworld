@@ -116,15 +116,15 @@ class _AnimatedLikeButtonState extends State<AnimatedLikeButton>
       TweenSequenceItem(
         tween: Tween<double>(
           begin: 1,
-          end: 1.35,
-        ).chain(CurveTween(curve: Curves.easeOutBack)),
+          end: 1.22,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 45,
       ),
       TweenSequenceItem(
         tween: Tween<double>(
-          begin: 1.35,
+          begin: 1.22,
           end: 1,
-        ).chain(CurveTween(curve: Curves.elasticOut)),
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
         weight: 55,
       ),
     ]).animate(_scaleController);
@@ -398,7 +398,7 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
         tween: Tween<double>(
           begin: 1.08,
           end: 1,
-        ).chain(CurveTween(curve: Curves.elasticOut)),
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
         weight: 60,
       ),
     ]).animate(_scaleController);
@@ -407,22 +407,22 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
       TweenSequenceItem(
         tween: Tween<double>(
           begin: 0,
-          end: -0.22,
-        ).chain(CurveTween(curve: Curves.easeOut)),
+          end: -0.18,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 25,
       ),
       TweenSequenceItem(
         tween: Tween<double>(
-          begin: -0.22,
-          end: 0.22,
-        ).chain(CurveTween(curve: Curves.easeInOut)),
+          begin: -0.18,
+          end: 0.18,
+        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
         weight: 40,
       ),
       TweenSequenceItem(
         tween: Tween<double>(
-          begin: 0.22,
+          begin: 0.18,
           end: 0,
-        ).chain(CurveTween(curve: Curves.elasticOut)),
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 35,
       ),
     ]).animate(_bellController);
@@ -628,7 +628,7 @@ class _AnimatedFollowTopicButtonState extends State<AnimatedFollowTopicButton>
         tween: Tween<double>(
           begin: 1.09,
           end: 1,
-        ).chain(CurveTween(curve: Curves.elasticOut)),
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
         weight: 60,
       ),
     ]).animate(_scaleController);

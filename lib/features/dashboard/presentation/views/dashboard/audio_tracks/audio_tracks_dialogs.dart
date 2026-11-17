@@ -41,11 +41,12 @@ class AudioTracksDialogs {
     required bool isDarkMode,
     String? initialTier = 'audio_track',
     String initialMediaType = 'audio',
+    String initialLangCode = '',
   }) {
     Get.to<void>(
       () => AudioTrackDubbingOptionsPage(
         controller: controller,
-        initialLangCode: 'te',
+        initialLangCode: initialLangCode,
         isDarkMode: isDarkMode,
         initialTierId: initialTier,
         initialMediaType: initialMediaType,
@@ -59,11 +60,12 @@ class AudioTracksDialogs {
     required AudioTracksController controller,
     required bool isDarkMode,
     String initialTier = 'audio_track',
+    String initialLangCode = '',
   }) {
     Get.to<void>(
       () => AudioTrackDubbingOptionsPage(
         controller: controller,
-        initialLangCode: 'te',
+        initialLangCode: initialLangCode,
         isDarkMode: isDarkMode,
         initialTierId: initialTier,
       ),
@@ -1774,15 +1776,18 @@ class AudioTracksDialogs {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              'Overall Progress: $progress%',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                            Expanded(
+                              child: Text(
+                                'Overall Progress: $progress%',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const Spacer(),
+                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
@@ -1932,7 +1937,11 @@ class AudioTracksDialogs {
 
                   const SizedBox(height: 20),
 
-                  Row(
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       OutlinedButton.icon(
                         onPressed: () => controller.checkDubbingStatus(langCode),
@@ -1953,7 +1962,6 @@ class AudioTracksDialogs {
                           ),
                         ),
                       ),
-                      const Spacer(),
                       TextButton(
                         onPressed: () {
                           Navigator.of(dialogContext).pop();
@@ -1968,7 +1976,6 @@ class AudioTracksDialogs {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
                       ElevatedButton(
                         onPressed: () => Navigator.of(dialogContext).pop(),
                         style: ElevatedButton.styleFrom(

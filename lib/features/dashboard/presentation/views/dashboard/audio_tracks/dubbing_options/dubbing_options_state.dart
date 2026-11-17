@@ -8,6 +8,7 @@ import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 
 /// State and logic coordinator for AI Dubbing & Direct Audio Track options.
 /// Follows 100% GetX reactive architecture, Zero setState, and supports multi-language selection.
@@ -16,7 +17,7 @@ class DubbingOptionsState {
 
   DubbingOptionsState({
     required this.controller,
-    required this.initialLangCode,
+    this.initialLangCode = '',
     this.allowLanguageSwitch = true,
     this.initialTierId,
     this.initialMediaType = 'audio',
@@ -33,10 +34,15 @@ class DubbingOptionsState {
     }
 
     final normalizedInitial = initialLangCode.trim().toLowerCase();
-    final effectiveInitial = normalizedInitial.isNotEmpty ? normalizedInitial : 'te';
+    final effectiveInitial = normalizedInitial;
     selectedLangCode.value = effectiveInitial;
-    selectedLangCodes.assignAll([effectiveInitial]);
-    activeDirectLangCode.value = effectiveInitial;
+    if (effectiveInitial.isNotEmpty) {
+      selectedLangCodes.assignAll([effectiveInitial]);
+      activeDirectLangCode.value = effectiveInitial;
+    } else {
+      selectedLangCodes.clear();
+      activeDirectLangCode.value = '';
+    }
     loadChannelBalance();
   }
 
@@ -47,9 +53,9 @@ class DubbingOptionsState {
   final String initialMediaType;
 
   // Reactive states (Zero setState policy)
-  final RxString selectedLangCode = 'te'.obs;
+  final RxString selectedLangCode = ''.obs;
   final RxList<String> selectedLangCodes = <String>[].obs;
-  final RxString activeDirectLangCode = 'te'.obs;
+  final RxString activeDirectLangCode = ''.obs;
   final RxInt selectedTab = 0.obs; // 0: AI Dubbing, 1: Direct Audio Track
   final RxString selectedDubbingTier = 'audio_track'.obs;
   final RxString selectedMediaMode = 'audio'.obs; // 'audio'
@@ -66,10 +72,10 @@ class DubbingOptionsState {
   final Rx<Channel?> currentChannel = Rx<Channel?>(null);
 
   String get videoBaseLang =>
-      (controller.selectedVideo.value?.language ?? '').trim().toLowerCase();
+      normalizeLanguageCode(controller.selectedVideo.value?.language ?? 'en');
 
   bool isSourceLanguage(String code) {
-    final clean = code.trim().toLowerCase();
+    final clean = normalizeLanguageCode(code);
     return videoBaseLang.isNotEmpty && clean == videoBaseLang;
   }
 
@@ -207,7 +213,7 @@ class DubbingOptionsState {
 
     if (targetCodes.isEmpty) {
       AppSnackbar.warning(
-        'Please select at least one target language to generate audio tracks.',
+        'Please select a language to generate audio tracks.',
         title: 'Select Language',
       );
       return;

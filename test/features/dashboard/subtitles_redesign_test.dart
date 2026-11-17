@@ -6,6 +6,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/subtitles
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_cues_table.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_header_bar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_languages_sidebar.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_list_section.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_nav_tabs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_selected_video_card.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_transcripts_view.dart';
@@ -134,6 +135,12 @@ void main() {
       expect(controller.getLanguageStatus('te'), SubtitleTrackStatus.published);
       expect(controller.getLanguageStatus('hi'), SubtitleTrackStatus.draft);
       expect(controller.getLanguageStatus('kn'), SubtitleTrackStatus.notAdded);
+
+      controller.generatingSubtitleLanguages.add('ta');
+      expect(controller.getLanguageStatus('ta'), SubtitleTrackStatus.generating);
+
+      controller.failedSubtitleLanguages.add('ml');
+      expect(controller.getLanguageStatus('ml'), SubtitleTrackStatus.failed);
     });
   });
 
@@ -273,6 +280,122 @@ void main() {
       expect(find.text('Transcript: English (Original)'), findsOneWidget);
       expect(find.text('Copy text'), findsOneWidget);
       expect(find.text('Download TXT'), findsOneWidget);
+    });
+
+    testWidgets('SubtitlesListSection renders Generating... with progress % and stage for Telugu', (tester) async {
+      final controller = Get.put(SubtitlesController());
+      final video = Video.empty().copyWith(
+        id: 'test_vid_te_1',
+        title: 'Truthworld Video with Telugu Subtitles',
+        vDurationValue: const Duration(minutes: 5),
+        createdAt: Timestamp.now(),
+        mediaSubtitles: {
+          'en': 'https://storage.googleapis.com/sub_en.vtt',
+        },
+        languages: ['te'],
+      );
+
+      controller.selectedVideo.value = video;
+      controller.availableLanguages.assignAll(['en', 'te']);
+      controller.generatingSubtitleLanguages.add('te');
+      controller.subtitleProgress['te'] = const SubtitleTrackProgressState(
+        langCode: 'te',
+        progress: 45,
+        stageStep: 2,
+        totalStepsText: 'Step 2 of 3',
+        stageTitle: 'Translating speech to Telugu',
+        etaText: '~15-20 sec',
+        isGenerating: true,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 700,
+              child: SubtitlesListSection(
+                video: video,
+                controller: controller,
+                textColor: Colors.white,
+                textSecondaryColor: Colors.grey,
+                surfaceColor: Colors.black,
+                borderColor: Colors.grey,
+                isDarkMode: true,
+                onAddSubtitles: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Telugu (తెలుగు)'), findsOneWidget);
+      expect(find.text('Generating...'), findsOneWidget);
+      expect(find.text('45%'), findsOneWidget);
+      expect(find.text('Translating speech to Telugu'), findsOneWidget);
+      expect(find.text('1. Transcribe'), findsOneWidget);
+      expect(find.text('2. Translate'), findsOneWidget);
+      expect(find.text('3. Align & Export'), findsOneWidget);
+    });
+
+    testWidgets('SubtitlesListSection renders Failed badge, friendly error message and Retry button', (tester) async {
+      final controller = Get.put(SubtitlesController());
+      final video = Video.empty().copyWith(
+        id: 'test_vid_te_fail',
+        title: 'Truthworld Video with Failed Telugu Subtitles',
+        vDurationValue: const Duration(minutes: 5),
+        createdAt: Timestamp.now(),
+        mediaSubtitles: {
+          'en': 'https://storage.googleapis.com/sub_en.vtt',
+        },
+        languages: ['te'],
+      );
+
+      controller.selectedVideo.value = video;
+      controller.availableLanguages.assignAll(['en', 'te']);
+      controller.failedSubtitleLanguages.add('te');
+      controller.subtitleProgress['te'] = const SubtitleTrackProgressState(
+        langCode: 'te',
+        progress: 0,
+        stageStep: 1,
+        totalStepsText: 'Failed',
+        stageTitle: 'Generation Failed',
+        etaText: 'Failed',
+        isGenerating: false,
+        isFailed: true,
+        errorMessage: 'Subtitle generation for Telugu was unable to complete. Tap Retry to generate again.',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 700,
+              child: SubtitlesListSection(
+                video: video,
+                controller: controller,
+                textColor: Colors.white,
+                textSecondaryColor: Colors.grey,
+                surfaceColor: Colors.black,
+                borderColor: Colors.grey,
+                isDarkMode: true,
+                onAddSubtitles: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Telugu (తెలుగు)'), findsOneWidget);
+      expect(find.text('Failed'), findsOneWidget);
+      expect(find.text('Subtitle generation for Telugu was unable to complete. Tap Retry to generate again.'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('Retry Subtitles'), findsOneWidget);
     });
   });
 }

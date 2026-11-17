@@ -1,5 +1,5 @@
-# ==============================================================================
-# TruthWorld: Rotate & Clean AI Secrets (Sarvam AI, AssemblyAI, ElevenLabs)
+﻿# ==============================================================================
+# TruthWorld: Rotate & Clean AI Secrets (AssemblyAI, ElevenLabs)
 # Project: truthworld-1
 # ==============================================================================
 
@@ -8,7 +8,6 @@ param(
     [string]$ProjectId = "truthworld-1",
     [string]$AssemblyAiKey = "",
     [string]$ElevenLabsApiKey = "",
-    [string]$SarvamApiKey = "",
     [switch]$Interactive,
     [switch]$DestroyOldVersions,
     [switch]$UpdateLocalEnv
@@ -20,7 +19,7 @@ Write-Host " Target Project: $ProjectId" -ForegroundColor Cyan
 Write-Host "==========================================================`n" -ForegroundColor Cyan
 
 # 1. Interactive input if requested or parameters empty
-if ($Interactive -or (-not $AssemblyAiKey -and -not $ElevenLabsApiKey -and -not $SarvamApiKey)) {
+if ($Interactive -or (-not $AssemblyAiKey -and -not $ElevenLabsApiKey)) {
     Write-Host "Please enter the new production API keys (press Enter to skip any key):" -ForegroundColor Yellow
 
     if (-not $AssemblyAiKey) {
@@ -36,14 +35,6 @@ if ($Interactive -or (-not $AssemblyAiKey -and -not $ElevenLabsApiKey -and -not 
         if ($sec) {
             $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
             $ElevenLabsApiKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-        }
-    }
-
-    if (-not $SarvamApiKey) {
-        $sec = Read-Host -AsSecureString "Enter New Sarvam AI API Key"
-        if ($sec) {
-            $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
-            $SarvamApiKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
         }
     }
 }
@@ -115,7 +106,6 @@ function Rotate-Secret {
 # Rotate production secrets
 Rotate-Secret -SecretName "ASSEMBLYAI_KEY" -SecretValue $AssemblyAiKey -PurgeOld $DestroyOldVersions
 Rotate-Secret -SecretName "ELEVENLABS_API_KEY" -SecretValue $ElevenLabsApiKey -PurgeOld $DestroyOldVersions
-Rotate-Secret -SecretName "SARVAM_API_KEY" -SecretValue $SarvamApiKey -PurgeOld $DestroyOldVersions
 
 # Optional local .env.local update for testing
 if ($UpdateLocalEnv) {
@@ -126,14 +116,12 @@ if ($UpdateLocalEnv) {
     if (Test-Path $envLocalPath) {
         $lines = Get-Content $envLocalPath | Where-Object {
             $_ -notmatch "^ASSEMBLYAI_KEY=" -and
-            $_ -notmatch "^ELEVENLABS_API_KEY=" -and
-            $_ -notmatch "^SARVAM_API_KEY="
+            $_ -notmatch "^ELEVENLABS_API_KEY="
         }
     }
     
     if ($AssemblyAiKey) { $lines += "ASSEMBLYAI_KEY=$AssemblyAiKey" }
     if ($ElevenLabsApiKey) { $lines += "ELEVENLABS_API_KEY=$ElevenLabsApiKey" }
-    if ($SarvamApiKey) { $lines += "SARVAM_API_KEY=$SarvamApiKey" }
     
     Set-Content -Path $envLocalPath -Value $lines -Encoding utf8
     Write-Host "  [✓] Local .env.local updated with new testing keys." -ForegroundColor Green
@@ -143,5 +131,5 @@ Write-Host "`n==========================================================" -Foreg
 Write-Host " [✓] Secret rotation workflow complete!" -ForegroundColor Green
 Write-Host " Next steps:" -ForegroundColor White
 Write-Host " 1. Deploy Cloud Functions with latest secrets: cd functions; npm run deploy" -ForegroundColor White
-Write-Host " 2. Revoke/Delete old keys in external dashboards (Sarvam, AssemblyAI, ElevenLabs)" -ForegroundColor White
+Write-Host " 2. Revoke/Delete old keys in external dashboards (AssemblyAI, ElevenLabs)" -ForegroundColor White
 Write-Host "==========================================================`n" -ForegroundColor Cyan

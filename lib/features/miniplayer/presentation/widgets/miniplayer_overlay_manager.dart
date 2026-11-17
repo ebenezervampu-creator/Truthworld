@@ -21,12 +21,6 @@ class MiniplayerOverlayManager extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Overlay(
-      initialEntries: [
-        OverlayEntry(
-          builder: (context) => const MiniplayerWidget(),
-        ),
-      ],
-    );
+    return const MiniplayerWidget();
   }
 }

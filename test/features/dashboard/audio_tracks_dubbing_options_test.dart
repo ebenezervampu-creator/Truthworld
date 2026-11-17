@@ -117,6 +117,59 @@ void main() {
     );
 
     testWidgets(
+      'Never shows predefined Telugu language for Audio tracks generation and shows "Select a language" instead',
+      (tester) async {
+        tester.view.physicalSize = const Size(500, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final controller = Get.put(AudioTracksController());
+        controller.rxState.value = ViewState.idle;
+        controller.selectedVideo.value = buildSampleVideo();
+
+        // Created without initialLangCode (as when launching Audio tracks generation)
+        final page = AudioTrackDubbingOptionsPage(
+          controller: controller,
+          isDarkMode: true,
+        );
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: buildAppTheme(),
+            home: page,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(page.selectedLangCodes, isEmpty);
+        expect(page.selectedLangCode.value, isEmpty);
+        expect(find.text('Telugu (తెలుగు)'), findsNothing);
+        expect(find.text('Select a language'), findsOneWidget);
+        expect(find.text('Target Language'), findsOneWidget);
+        expect(find.text('Generate Audio Track'), findsOneWidget);
+
+        // Tapping 'Select a language' opens the target language picker
+        await tester.tap(find.text('Select a language'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Select Target Languages'), findsOneWidget);
+
+        // Select Hindi
+        await tester.tap(find.text('Indian'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Hindi (हिन्दी)'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Done'));
+        await tester.pumpAndSettle();
+
+        expect(page.selectedLangCodes, ['hi']);
+        expect(find.text('Hindi (हिन्दी)'), findsOneWidget);
+        expect(find.text('Select a language'), findsNothing);
+      },
+    );
+
+    testWidgets(
       'AudioTrackDubbingOptionsDialog renders AI Dubbing options and updates switches & voice gender sheet',
       (tester) async {
         final controller = Get.put(AudioTracksController());
@@ -371,7 +424,7 @@ void main() {
     );
 
     testWidgets(
-      'AudioTracksListSection tapping Add opens AudioTrackDubbingOptionsPage for target language',
+      'showAudioTrackDubbingOptionsModal opens AudioTrackDubbingOptionsPage for target language',
       (tester) async {
         tester.view.physicalSize = const Size(900, 760);
         tester.view.devicePixelRatio = 1.0;
@@ -383,40 +436,22 @@ void main() {
         controller.rxState.value = ViewState.idle;
         controller.videos.value = [sampleVideo];
         controller.selectedVideo.value = sampleVideo;
-        controller.currentTracks.value = [
-          AudioTrackItem(
-            id: 'track_kn',
-            languageCode: 'kn',
-            languageName: 'Kannada (ಕನ್ನಡ)',
-            audioUrl: '',
-            status: 'Not added',
-          ),
-        ];
 
         await tester.pumpWidget(
           GetMaterialApp(
             theme: buildAppTheme(),
-            home: Scaffold(
-              body: SizedBox(
-                height: 600,
-                child: AudioTracksListSection(
-                  video: sampleVideo,
-                  controller: controller,
-                  textColor: Colors.white,
-                  textSecondaryColor: Colors.white70,
-                  surfaceColor: Colors.black,
-                  borderColor: Colors.white12,
-                  isDarkMode: true,
-                  onAddDubTrack: () {},
-                  onAddCommentary: () {},
-                  onPickAndUploadSingleDub: (langCode) async {
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: ElevatedButton(
+                  onPressed: () {
                     AudioTracksDialogs.showAudioTrackDubbingOptionsModal(
-                      context: Get.context!,
+                      context: context,
                       controller: controller,
-                      langCode: langCode,
+                      langCode: 'kn',
                       isDarkMode: true,
                     );
                   },
+                  child: const Text('Add'),
                 ),
               ),
             ),
@@ -424,7 +459,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final addFinder = find.text('Add');
+        final addFinder = find.widgetWithText(ElevatedButton, 'Add');
         expect(addFinder, findsOneWidget);
         await tester.tap(addFinder);
         await tester.pumpAndSettle();

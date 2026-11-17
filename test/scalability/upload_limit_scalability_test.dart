@@ -112,14 +112,25 @@ void main() {
       expect(blockedResult.message, contains('Daily limit exceeded'));
     });
 
-    test('Zero-duration upload (0s) with 0s used — VALID (edge case)', () {
+    test('Zero-duration upload (0s) with 0s used — VALID (edge case with enforceMinimumDuration: false)', () {
       final channel = _makeStandardChannel('ch_zero_duration');
       final result = ContentValidator.validateChannelVideoUpload(
         channel,
         durationSeconds: 0,
+        enforceMinimumDuration: false,
       );
       // 0 is not > 600, 0 used is not >= 600, 0+0 is not > 600
       expect(result.isValid, isTrue);
+    });
+
+    test('Zero-duration upload (0s) with enforceMinimumDuration: true — BLOCKED (<30s)', () {
+      final channel = _makeStandardChannel('ch_zero_duration_blocked');
+      final result = ContentValidator.validateChannelVideoUpload(
+        channel,
+        durationSeconds: 0,
+      );
+      expect(result.isValid, isFalse);
+      expect(result.message, equals('Video duration must be at least 30 seconds.'));
     });
 
     test('Partial daily quota used: correct remaining amount in error message', () {
@@ -323,21 +334,34 @@ void main() {
     });
   });
 
-  // ── Group 6: Truthworld Short Media Support (even 7s allowed, no 2-min limit) ─────
+  // ── Group 6: Truthworld Minimum 30s Video Duration Enforcement ─────
 
-  group('Truthworld Short Media Support (Allows Even 7s Video/Audio)', () {
-    test('Standard channel: video of 7s is VALID (allows short media)', () {
+  group('Truthworld Minimum 30s Video Duration Enforcement', () {
+    test('Standard channel: video under 30s (e.g. 7s, 29s) is BLOCKED', () {
       final channel = _makeStandardChannel('ch_min_7s_std');
-      final result = ContentValidator.validateChannelVideoUpload(
+      final result7 = ContentValidator.validateChannelVideoUpload(
         channel,
         durationSeconds: 7,
       );
-      expect(result.isValid, isTrue);
-      expect(result.message, equals('Valid'));
+      expect(result7.isValid, isFalse);
+      expect(result7.message, equals('Video duration must be at least 30 seconds.'));
+
+      final result29 = ContentValidator.validateChannelVideoUpload(
+        channel,
+        durationSeconds: 29,
+      );
+      expect(result29.isValid, isFalse);
+      expect(result29.message, equals('Video duration must be at least 30 seconds.'));
     });
 
-    test('Standard channel: video shorter than 120s (e.g. 45s, 119s) is VALID', () {
+    test('Standard channel: video of 30s or more (e.g. 30s, 45s, 119s) is VALID', () {
       final channel = _makeStandardChannel('ch_min_std');
+      final result30 = ContentValidator.validateChannelVideoUpload(
+        channel,
+        durationSeconds: 30,
+      );
+      expect(result30.isValid, isTrue);
+
       final result45 = ContentValidator.validateChannelVideoUpload(
         channel,
         durationSeconds: 45,
@@ -360,28 +384,29 @@ void main() {
       expect(result.isValid, isTrue);
     });
 
-    test('Custom channel: short video (e.g. 7s or 45s) is VALID', () {
-      final channel = _makeCustomChannel('ch_min_custom');
+    test('Custom channel: video under 30s (e.g. 7s) is BLOCKED', () {
+      final channel = _makeCustomChannel('ch_min_custom_short');
       final result7 = ContentValidator.validateChannelVideoUpload(
         channel,
         durationSeconds: 7,
       );
-      expect(result7.isValid, isTrue);
+      expect(result7.isValid, isFalse);
+      expect(result7.message, equals('Video duration must be at least 30 seconds.'));
+    });
 
+    test('Custom channel: video of 30s or more (e.g. 45s, 120s) is VALID', () {
+      final channel = _makeCustomChannel('ch_min_custom');
       final result45 = ContentValidator.validateChannelVideoUpload(
         channel,
         durationSeconds: 45,
       );
       expect(result45.isValid, isTrue);
-    });
 
-    test('Custom channel: video of 120s or more is VALID', () {
-      final channel = _makeCustomChannel('ch_min_custom_valid');
-      final result = ContentValidator.validateChannelVideoUpload(
+      final result120 = ContentValidator.validateChannelVideoUpload(
         channel,
         durationSeconds: 120,
       );
-      expect(result.isValid, isTrue);
+      expect(result120.isValid, isTrue);
     });
   });
 }

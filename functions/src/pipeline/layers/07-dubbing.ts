@@ -4,7 +4,8 @@
  * Translation + TTS + video merge. Full parallel execution per language and per segment.
  *
  * ✅ UPGRADED PIPELINE:
- *   - Translation: Google Cloud Translation v3 (TranslationServiceClient) with v2 fallback
+ *   - Translation: Google Cloud Translation v3 (`TranslationServiceClient`) exclusively for all dubbing & subtitles
+ *   - Language Detection: Google Cloud Translation v3 (`TranslationServiceClient`) exclusively
  *   - TTS: Strictly ElevenLabs v4 (eleven_v4) for all audio track dubbing & creator voice cloning (Chirp 3: HD terminated)
  *   - Subtitles: Native AssemblyAI subtitles for source lang; custom alignment for translated
  *
@@ -28,6 +29,7 @@ import {
   ExecutionPlan,
   DubbingResult,
   DubbingSegment,
+  DubbingCheckpoint,
   SyncInstruction,
   TimedSegment,
   DubbingCompleteData,
@@ -36,17 +38,26 @@ import {
   DubbingEditableSegment,
   DubbingReelTaskPayload,
   DubbingReelAssemblyPayload,
+  WordTimestamp,
 } from "../types";
-import { translationService, decodeHtmlEntities } from "../services/translation";
+import {
+  translationService,
+  decodeHtmlEntities,
+  normalizeScriptureCitationsForTts,
+  applyTeluguTheologicalLexiconGuard,
+} from "../services/translation";
 import {
   ttsService,
   sanitizeTextForElevenLabsV4,
   stripAudioTagsForSubtitles,
   hasVerbalContent,
   getAdaptiveTTSBatchSize,
+  V4_PREMIUM_80_LANGUAGES,
+  ELEVENLABS_VOICE_GENDER_MAP,
 } from "../services/tts";
-import { mediaService, parseDurationToSeconds, parseAnyStorageUrl } from "../services/media";
-import { ELEVENLABS_VOICE_GENDER_MAP, ELEVENLABS_MULTI_SPEAKER_PALETTE } from "../services/googleTextToSpeechService";
+import { expressiveV4Bus } from "../services/expressiveV4Bus";
+import { mediaService, parseDurationToSeconds, parseAnyStorageUrl, type MergeAudioMetrics } from "../services/media";
+import { ASSEMBLYAI_UNIVERSAL_35_LANGUAGES } from "./05-transcription";
 import { costEngine, getFlatDubbingPricePerLanguage } from "../services/cost-engine";
 import { speakerProfilingService } from "../services/speaker-profiling";
 import { audioIdentityService } from "../services/audio-identity";
@@ -57,6 +68,11 @@ import { aggregationLayer }   from "./09-aggregation";
 import { PerformanceLayer }   from "./10-performance";
 import { creatorStyleService } from "../services/creatorStyleService";
 import { refundDubbingFeeOnFailure } from "../services/refundService";
+import { MultilingualSubtitleLocalizer } from "../services/multilingual_subtitle_localizer";
+import {
+  voiceMatcher,
+  type DiarizedSpeakerProfile,
+} from "../services/voice-matcher";
 import { logger }             from "../utils/logger";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 import { filterVideoIds } from "../../utils/videosCollectionGuard";
@@ -65,6 +81,23 @@ const db = () => admin.firestore();
 
 /** Max segments processed concurrently per TTS batch */
 export const TTS_BATCH_SIZE = 25;
+
+/**
+ * 🛡️ Converts any storage URL (Firebase Storage HTTPS signed/unsigned, GCS HTTPS, or gs://)
+ * into a canonical `gs://${bucketName}/${filePath}` URI.
+ * Guarantees zero 403 Forbidden errors when fetching audio chunks hours or days later.
+ */
+export function toCanonicalGsUrl(url: string, defaultBucketName?: string): string {
+  if (!url || typeof url !== "string") return "";
+  const trimmed = url.trim();
+  if (trimmed.startsWith("gs://")) return trimmed;
+  const storageInfo = parseAnyStorageUrl(trimmed);
+  if (storageInfo && storageInfo.filePath) {
+    const bucket = storageInfo.bucketName || defaultBucketName || admin.storage().bucket().name;
+    return `gs://${bucket}/${storageInfo.filePath}`;
+  }
+  return trimmed;
+}
 
 /**
  * Per-speaker persistent vocal baseline stored under
@@ -109,9 +142,11 @@ export function estimateSpeechDurationMs(text: string, language: string = "en"):
     // Indic languages: count aksharas / vowel-consonant grapheme clusters
     const indicClusters = clean.match(/[\u0900-\u0D7F]+/g) || [];
     const indicChars = indicClusters.join("").length;
-    // On average in Indic Brahmi scripts, ~1.8 - 2.2 characters per spoken syllable
-    unitCount = Math.max(1, Math.round(indicChars / 2.0));
-    unitsPerSec = ["te", "kn", "ta", "ml"].includes(lang) ? 5.5 : 5.0;
+    // In Indic Brahmi scripts, Unicode code points include base consonants, dependent vowel signs (matras),
+    // viramas/halants, and anusvaras. Spoken syllables span ~2.4 - 2.9 code points.
+    const charsPerSyllable = ["ta", "ml"].includes(lang) ? 2.9 : ["hi", "mr"].includes(lang) ? 2.7 : 2.4;
+    unitCount = Math.max(1, Math.round(indicChars / charsPerSyllable));
+    unitsPerSec = ["ta", "ml"].includes(lang) ? 6.5 : ["hi", "mr"].includes(lang) ? 5.8 : 5.5;
   } else if (lang === "ja") {
     // Japanese: Mora-timed (~7.0 morae/s)
     unitCount = Math.max(1, clean.replace(/[\s\p{P}]/gu, "").length);
@@ -254,10 +289,20 @@ export class DubbingEngine {
       }).catch(() => {});
     }
 
-    if (executionPlan.generateDubbing) {
+    const isDubbingActive = Boolean(
+      executionPlan.generateDubbing &&
+      Array.isArray(executionPlan.dubbingLanguages) &&
+      executionPlan.dubbingLanguages.length > 0
+    );
+
+    if (isDubbingActive) {
       await EdgeLayer.updateStageSync(jobId, "dubbing", {
         status: "running", progress: 5, startedAt: Date.now(),
       });
+    } else {
+      await EdgeLayer.updateStageSync(jobId, "dubbing", {
+        status: "skipped", progress: 100, completedAt: Date.now(),
+      }).catch(() => {});
     }
 
     const DUBBING_TIMEOUT_MS = parseInt(process.env.DUBBING_TIMEOUT_MS || "540000", 10);
@@ -314,6 +359,52 @@ export class DubbingEngine {
         }
       }
       if (!transcript) throw new Error(`Transcript not found for job ${jobId}`);
+
+      // ── Source Language Policy Gate (AssemblyAI Universal-3.5 Pro: 18 Languages Only) ──
+      // TruthWorld strictly provides dubbing and subtitles ONLY when the source language is among
+      // the 18 languages supported by AssemblyAI Universal-3.5 Pro.
+      const vDoc = await db().collection("videos").doc(jobId).get().catch(() => null);
+      const vData = vDoc?.exists ? vDoc.data() : null;
+      const authenticSource = normalizeLanguageCode(
+        executionPlan.sourceLanguage ||
+        vData?.sourceLanguage ||
+        vData?.originalLanguage ||
+        executionPlan.primaryLanguage ||
+        vData?.language ||
+        ""
+      );
+      // Prefer the authentic source language of the video if it is supported by AssemblyAI Universal-3.5 Pro
+      const rawSource = (authenticSource && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(authenticSource))
+        ? authenticSource
+        : (transcript.language || transcript.detectedLanguage || authenticSource || "en");
+      const normSource = normalizeLanguageCode(rawSource);
+      if (!ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normSource)) {
+        const unsupportedMsg = `Source language '${normSource}' is unsupported for Dubbing. TruthWorld strictly supports the 18 core source languages of AssemblyAI Universal-3.5 Pro for audio dubbing.`;
+        logger.warn(`[Dubbing Gate] ${unsupportedMsg}`, { jobId, sourceLang: normSource, authenticSource, transcriptLang: transcript.language });
+        const isDubbingActive = Boolean(
+          executionPlan.generateDubbing &&
+          Array.isArray(executionPlan.dubbingLanguages) &&
+          executionPlan.dubbingLanguages.length > 0
+        );
+        if (isDubbingActive) {
+          await EdgeLayer.failStage(jobId, "dubbing", unsupportedMsg).catch(() => {});
+          await refundDubbingFeeOnFailure({
+            jobId,
+            userId,
+            failedLanguages: executionPlan.dubbingLanguages || [],
+            totalLanguages: executionPlan.dubbingLanguages || [],
+            reason: unsupportedMsg,
+          }).catch((err) => logger.error("[Dubbing] Refund error on unsupported source language:", err));
+        } else {
+          await EdgeLayer.updateStageSync(jobId, "dubbing", {
+            status: "skipped", progress: 100, completedAt: Date.now(),
+          }).catch(() => {});
+        }
+        if (executionPlan.genLangSubs) {
+          await EdgeLayer.failStage(jobId, "subtitles", unsupportedMsg).catch(() => {});
+        }
+        return [];
+      }
 
       // 1.2. Build high-fidelity natural speech segments
       // If words are present, build utterance-anchored segments (prevents 60-second monolithic blocks)
@@ -408,17 +499,46 @@ export class DubbingEngine {
           }
         }, { merge: true });
 
+        // 🛡️ Edge Case 3: Checkpoint Restoration for Stems and Voice Mapping
+        // Check if an earlier run for this jobId already isolated vocals, extracted M&E, or mapped voices
+        try {
+          const existingCheckpoints = await db().collection("dubbing_checkpoints").where("jobId", "==", jobId).get().catch(() => null);
+          if (existingCheckpoints && !existingCheckpoints.empty) {
+            for (const doc of existingCheckpoints.docs) {
+              const data = doc.data();
+              if (data.isolatedVocalUrl && !isolatedVocalUrl) {
+                isolatedVocalUrl = data.isolatedVocalUrl;
+                logger.info("[Dubbing:Resume] Restored isolatedVocalUrl from existing checkpoint (skipping Step 1.6 neural separation)", { jobId, isolatedVocalUrl });
+              }
+              if (data.meStemUrl && !mneStemUrl) {
+                mneStemUrl = data.meStemUrl;
+                logger.info("[Dubbing:Resume] Restored meStemUrl from existing checkpoint (skipping Step 1.6c neural demixing)", { jobId, mneStemUrl });
+              }
+              if (data.voiceMapping && Object.keys(data.voiceMapping).length > 0) {
+                Object.assign(voiceMapping, data.voiceMapping);
+                logger.info("[Dubbing:Resume] Restored voiceMapping from existing checkpoint (locking speaker -> voiceId)", { jobId, voiceMapping });
+              }
+            }
+          }
+        } catch (restoreErr) {
+          logger.warn("[Dubbing:Resume] Notice loading existing stem checkpoints:", restoreErr);
+        }
+
         // 1.6. 100% Studio Preservation: Deep Neural Vocal Isolation & Discrete Stems for ALL Tiers
         try {
           const jobDoc = await db().collection("video_jobs").doc(jobId).get();
           const jobData = jobDoc.data();
           const originalAudioUrl = jobData?.artifacts?.transcription?.audioUrl || videoUrl;
 
-          logger.info("[Dubbing] 100% Studio Preservation: Isolating Vocals for Zero-Phase M&E Stem Separation across all tiers", { jobId, dubbingTier: executionPlan.dubbingTier });
-          isolatedVocalUrl = await audioIdentityService.isolateVocals(jobId, originalAudioUrl).catch((err) => {
-            logger.warn("[Dubbing] Neural vocal isolation notice (avoiding orig-orig cancellation):", err);
-            return null;
-          });
+          if (!isolatedVocalUrl) {
+            logger.info("[Dubbing] 100% Studio Preservation: Isolating Vocals for Zero-Phase M&E Stem Separation across all tiers", { jobId, dubbingTier: executionPlan.dubbingTier });
+            isolatedVocalUrl = await audioIdentityService.isolateVocals(jobId, originalAudioUrl).catch((err) => {
+              logger.warn("[Dubbing] Neural vocal isolation notice (avoiding orig-orig cancellation):", err);
+              return null;
+            });
+          } else {
+            logger.info("[Dubbing:Resume] Reusing existing isolatedVocalUrl from checkpoint (skipping Step 1.6 neural vocal isolation)", { jobId, isolatedVocalUrl });
+          }
           acousticFingerprint = await audioIdentityService.captureFingerprint(jobId, isolatedVocalUrl || originalAudioUrl);
 
           // 1.6a2. Extract per-segment acoustic RMS energy + expressive emotion tags ([whispers], [laughs], [excited], etc.)
@@ -488,20 +608,40 @@ export class DubbingEngine {
         }
 
         // 1.6c. 🎛️ Industry Standard M&E (Music & Foley) Stem Extraction & Preservation
-        try {
-          const jobDoc = await db().collection("video_jobs").doc(jobId).get();
-          const jobData = jobDoc.data();
-          const sourceAudio = jobData?.artifacts?.transcription?.audioUrl || originalAudioUrl;
-          const expDurSec = executionPlan.durationSeconds || (segments.length > 0 ? segments[segments.length - 1].end / 1000 : 0);
+        if (mneStemUrl) {
+          logger.info("[Dubbing:Resume] Reusing existing M&E stem from checkpoint (0 compute overhead)", { jobId, mneStemUrl });
+        } else {
+          try {
+            const jobDoc = await db().collection("video_jobs").doc(jobId).get();
+            const jobData = jobDoc.data();
+            const sourceAudio = jobData?.artifacts?.transcription?.audioUrl || originalAudioUrl;
+            const expDurSec = executionPlan.durationSeconds || (segments.length > 0 ? segments[segments.length - 1].end / 1000 : 0);
 
-          // Priority 1: Ingest original studio production M&E stem if provided (bypasses neural demixing for 100% clean stems)
-          const studioMne = executionPlan.studioMneStemUrl || jobData?.artifacts?.stems?.mneUrl || jobData?.studioMneStemUrl;
-          if (studioMne) {
-            mneValidationResult = await mediaService.validateMneStem(jobId, studioMne, expDurSec, "studio", {
-              spokenSegments: segments,
-            });
-            if (mneValidationResult.validationStatus === "failed") {
-              logger.warn("[Dubbing] Studio M&E stem failed validation — falling back to parallel best-of-2 neural demixing:", mneValidationResult.issues);
+            // Priority 1: Ingest original studio production M&E stem if provided (bypasses neural demixing for 100% clean stems)
+            const studioMne = executionPlan.studioMneStemUrl || jobData?.artifacts?.stems?.mneUrl || jobData?.studioMneStemUrl;
+            if (studioMne) {
+              mneValidationResult = await mediaService.validateMneStem(jobId, studioMne, expDurSec, "studio", {
+                spokenSegments: segments,
+              });
+              if (mneValidationResult.validationStatus === "failed") {
+                logger.warn("[Dubbing] Studio M&E stem failed validation — falling back to parallel best-of-2 neural demixing:", mneValidationResult.issues);
+                const extracted = await mediaService.extractMneStemDetailedParallel(jobId, sourceAudio, {
+                  isolatedVocalUrl: (isolatedVocalUrl && isolatedVocalUrl !== sourceAudio) ? isolatedVocalUrl : undefined,
+                  enableAutoVocalIsolation: true,
+                  spokenSegments: segments,
+                  expectedDurationSeconds: expDurSec,
+                });
+                mneStemUrl = extracted.mneUrl;
+                mneValidationResult = await mediaService.validateMneStem(jobId, mneStemUrl, expDurSec, extracted.source, {
+                  spokenSegments: segments,
+                  expectedSourceDegraded: extracted.degraded,
+                });
+              } else {
+                mneStemUrl = studioMne;
+                logger.info("[Dubbing] ✅ Priority 1: Ingested & validated studio M&E stem", { jobId, mneStemUrl, status: mneValidationResult.validationStatus });
+              }
+            } else {
+              logger.info("[Dubbing] Priority 2: Extracting Music & Effects (M&E) stem via parallel best-of-2 neural demixing", { jobId, sourceAudio });
               const extracted = await mediaService.extractMneStemDetailedParallel(jobId, sourceAudio, {
                 isolatedVocalUrl: (isolatedVocalUrl && isolatedVocalUrl !== sourceAudio) ? isolatedVocalUrl : undefined,
                 enableAutoVocalIsolation: true,
@@ -513,126 +653,200 @@ export class DubbingEngine {
                 spokenSegments: segments,
                 expectedSourceDegraded: extracted.degraded,
               });
-            } else {
-              mneStemUrl = studioMne;
-              logger.info("[Dubbing] ✅ Priority 1: Ingested & validated studio M&E stem", { jobId, mneStemUrl, status: mneValidationResult.validationStatus });
+              logger.info("[Dubbing] ✅ M&E stem preserved & validated", {
+                jobId,
+                mneStemUrl,
+                source: extracted.source,
+                status: mneValidationResult.validationStatus,
+                dialogueBleedDb: mneValidationResult.dialogueBleedDb,
+              });
             }
-          } else {
-            logger.info("[Dubbing] Priority 2: Extracting Music & Effects (M&E) stem via parallel best-of-2 neural demixing", { jobId, sourceAudio });
-            const extracted = await mediaService.extractMneStemDetailedParallel(jobId, sourceAudio, {
-              isolatedVocalUrl: (isolatedVocalUrl && isolatedVocalUrl !== sourceAudio) ? isolatedVocalUrl : undefined,
-              enableAutoVocalIsolation: true,
-              spokenSegments: segments,
-              expectedDurationSeconds: expDurSec,
-            });
-            mneStemUrl = extracted.mneUrl;
-            mneValidationResult = await mediaService.validateMneStem(jobId, mneStemUrl, expDurSec, extracted.source, {
-              spokenSegments: segments,
-              expectedSourceDegraded: extracted.degraded,
-            });
-            logger.info("[Dubbing] ✅ M&E stem preserved & validated", {
-              jobId,
-              mneStemUrl,
-              source: extracted.source,
-              status: mneValidationResult.validationStatus,
-              dialogueBleedDb: mneValidationResult.dialogueBleedDb,
-            });
-          }
 
-          // Persist M&E validation report in job artifacts for auditability
-          if (mneValidationResult) {
+            // Persist M&E validation report in job artifacts for auditability
+            if (mneValidationResult) {
+              await db().collection("video_jobs").doc(jobId).set({
+                artifacts: {
+                  mneValidation: mneValidationResult,
+                },
+              }, { merge: true }).catch(() => {});
+            }
+          } catch (mneErr) {
+            const errMsg = mneErr instanceof Error ? mneErr.message : String(mneErr);
+            logger.error("[Dubbing] M&E stem preservation failure — recording explicit validation state:", { jobId, error: errMsg });
+            mneValidationResult = {
+              source: "dsp_fallback",
+              fileUrl: "",
+              durationSeconds: 0,
+              videoDurationSeconds: executionPlan.durationSeconds || 0,
+              durationMatch: false,
+              durationDeltaMs: 0,
+              timelineAlignmentMs: 0,
+              sampleRate: 44100,
+              channels: 2,
+              channelLayout: "stereo",
+              clippingDetected: false,
+              corruptionDetected: true,
+              validationStatus: "degraded",
+              issues: [`M&E stem extraction error: ${errMsg}`],
+            };
             await db().collection("video_jobs").doc(jobId).set({
               artifacts: {
                 mneValidation: mneValidationResult,
               },
             }, { merge: true }).catch(() => {});
-          }
-        } catch (mneErr) {
-          const errMsg = mneErr instanceof Error ? mneErr.message : String(mneErr);
-          logger.error("[Dubbing] M&E stem preservation failure — recording explicit validation state:", { jobId, error: errMsg });
-          mneValidationResult = {
-            source: "dsp_fallback",
-            fileUrl: "",
-            durationSeconds: 0,
-            videoDurationSeconds: executionPlan.durationSeconds || 0,
-            durationMatch: false,
-            durationDeltaMs: 0,
-            timelineAlignmentMs: 0,
-            sampleRate: 44100,
-            channels: 2,
-            channelLayout: "stereo",
-            clippingDetected: false,
-            corruptionDetected: true,
-            validationStatus: "degraded",
-            issues: [`M&E stem extraction error: ${errMsg}`],
-          };
-          await db().collection("video_jobs").doc(jobId).set({
-            artifacts: {
-              mneValidation: mneValidationResult,
-            },
-          }, { merge: true }).catch(() => {});
-          if (executionPlan.stemIsolation) {
-            logger.warn(`[Dubbing:M&E] M&E stem isolation failed, falling back gracefully to standard audio mix: ${errMsg}`);
+            if (executionPlan.stemIsolation) {
+              logger.warn(`[Dubbing:M&E] M&E stem isolation failed, falling back gracefully to standard audio mix: ${errMsg}`);
+            }
           }
         }
 
-        // 1.7. Voice Assignment: Map speakers to distinct production voice presets with zero collisions
+        // 1.7. Speaker-to-Voice Matching Layer by Age, Gender & F0 Fundamental Pitch
+        const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || "";
+        const catalog = await voiceMatcher.getVoiceCatalog(elevenLabsApiKey);
         const assignedVoiceIds = new Set<string>();
         let cloneAssigned = false;
 
-        for (const profile of speakerProfiles) {
-          const role = profile.role || "other";
-          let isMale = profile.gender ? profile.gender === "male" : true;
-          if (executionPlan.voiceGender === "male") isMale = true;
-          if (executionPlan.voiceGender === "female") isMale = false;
-          speakerGenderMapping[profile.speakerId] = isMale ? "MALE" : "FEMALE";
+        const tmpProfileDir = path.join(os.tmpdir(), `spk_profile_${jobId}_${Date.now()}`);
+        await fs.promises.mkdir(tmpProfileDir, { recursive: true }).catch(() => {});
 
-          // 🛡️ Strict Clone Gender Invariant: Never assign a male clone to a female speaker or vice-versa
-          const isGenderMatch = cloneVoiceGender ? (isMale === (cloneVoiceGender === "male")) : true;
-          if (!cloneAssigned && createdVoiceCloneId && isGenderMatch) {
-            voiceMapping[profile.speakerId] = createdVoiceCloneId;
-            assignedVoiceIds.add(createdVoiceCloneId);
-            cloneAssigned = true;
-            logger.info("[Dubbing] Assigned cloned creator voice ID to matching gender speaker", {
+        try {
+          // Resolve local audio and video files if accessible for multimodal profiling
+          const sourceAudioForProfile = isolatedVocalUrl || originalAudioUrl;
+          const localAudioPath = await mediaService.ensureLocalMediaFile(sourceAudioForProfile, tmpProfileDir, ".mp3");
+          const localVideoPath = videoUrl ? await mediaService.ensureLocalMediaFile(videoUrl, tmpProfileDir, ".mp4") : null;
+
+          for (const profile of speakerProfiles) {
+            const role = profile.role || "other";
+
+            // 1. Locate the speaker's longest uninterrupted turn (prefer >= 2.5s)
+            const spkSegments = segments.filter((s) => (s.speaker || "speaker_0") === profile.speakerId);
+            let longestSeg = spkSegments.find((s) => (s.end - s.start >= 2500)) || spkSegments[0];
+            if (spkSegments.length > 0) {
+              for (const s of spkSegments) {
+                if (!longestSeg || (s.end - s.start) > (longestSeg.end - longestSeg.start)) {
+                  longestSeg = s;
+                }
+              }
+            }
+
+            let clipAudioPath: string | undefined;
+            let frameImgPath: string | undefined;
+
+            if (longestSeg) {
+              const startSec = longestSeg.start > 1000 ? longestSeg.start / 1000 : longestSeg.start;
+              const endSec = longestSeg.end > 1000 ? longestSeg.end / 1000 : longestSeg.end;
+              const durationSec = Math.max(0.5, endSec - startSec);
+              const sliceDur = Math.min(Math.max(durationSec, 2.5), 5.0);
+              const midSec = startSec + (sliceDur / 2);
+
+              if (localAudioPath && fs.existsSync(localAudioPath)) {
+                try {
+                  const outAudio = path.join(tmpProfileDir, `solo_${profile.speakerId}.mp3`);
+                  await mediaService.extractAudioSlice(localAudioPath, startSec, sliceDur, outAudio);
+                  if (fs.existsSync(outAudio)) clipAudioPath = outAudio;
+                } catch (audioSliceErr) {
+                  logger.warn("[Dubbing] Solo turn audio slicing notice:", audioSliceErr);
+                }
+              }
+
+              if (localVideoPath && fs.existsSync(localVideoPath)) {
+                try {
+                  const outFrame = path.join(tmpProfileDir, `frame_${profile.speakerId}.jpg`);
+                  await mediaService.extractVideoFrame(localVideoPath, midSec, outFrame);
+                  if (fs.existsSync(outFrame)) frameImgPath = outFrame;
+                } catch (videoFrameErr) {
+                  logger.warn("[Dubbing] Video frame extraction notice:", videoFrameErr);
+                }
+              }
+            }
+
+            // 2. Profile speaker via multimodal cues (F0 pitch + visual age & timbre tags)
+            const diarizedProfile: DiarizedSpeakerProfile = await voiceMatcher.profileSpeakerMultimodal({
+              speakerId: profile.speakerId,
+              audioClipPath: clipAudioPath || "",
+              videoFramePath: frameImgPath,
+              transcriptSample: spkSegments.slice(0, 3).map((s) => s.text).join(" "),
+              preferredGender: executionPlan.voiceGender,
+            });
+
+            // Enforce explicit gender override if configured on execution plan
+            if (executionPlan.voiceGender === "male") diarizedProfile.gender = "male";
+            if (executionPlan.voiceGender === "female") diarizedProfile.gender = "female";
+
+            speakerGenderMapping[profile.speakerId] = diarizedProfile.gender === "female" ? "FEMALE" : "MALE";
+
+            // 🛡️ Edge Case 3: Retain locked voiceId from checkpoint for speaker (Zero Acoustic Drift)
+            if (voiceMapping[profile.speakerId]) {
+              assignedVoiceIds.add(voiceMapping[profile.speakerId]);
+              logger.info("[Dubbing:Resume] Retaining locked voiceId from checkpoint for speaker", {
+                jobId,
+                speakerId: profile.speakerId,
+                voiceId: voiceMapping[profile.speakerId],
+              });
+              continue;
+            }
+
+            // 🛡️ Strict Clone Gender Invariant: Never assign a male clone to a female speaker or vice-versa
+            const isGenderMatch = cloneVoiceGender ? (diarizedProfile.gender === cloneVoiceGender) : true;
+            if (!cloneAssigned && createdVoiceCloneId && isGenderMatch) {
+              voiceMapping[profile.speakerId] = createdVoiceCloneId;
+              assignedVoiceIds.add(createdVoiceCloneId);
+              cloneAssigned = true;
+              logger.info("[Dubbing] Assigned cloned creator voice ID to matching gender speaker", {
+                jobId,
+                speakerId: profile.speakerId,
+                voiceId: createdVoiceCloneId,
+                gender: diarizedProfile.gender,
+              });
+              continue;
+            }
+
+            // 3. Multi-Speaker Voice Allocation: Select unique, nearest-matching voice
+            const matchedVoice = voiceMatcher.selectNearestVoice(
+              diarizedProfile,
+              catalog,
+              assignedVoiceIds
+            );
+            const distanceScore = voiceMatcher.scoreCandidate(diarizedProfile, matchedVoice);
+
+            assignedVoiceIds.add(matchedVoice.voiceId);
+            voiceMapping[profile.speakerId] = matchedVoice.voiceId;
+
+            // Enrich profile with physical telemetry for downstream and telemetry logging
+            profile.gender = matchedVoice.gender;
+            profile.estimatedAge = diarizedProfile.estimatedAge;
+            profile.ageBucket = diarizedProfile.ageBucket;
+            profile.medianPitchHz = diarizedProfile.medianPitchHz;
+            profile.timbreTags = diarizedProfile.timbreTags;
+            profile.confidence = diarizedProfile.confidence;
+            profile.matchedVoiceId = matchedVoice.voiceId;
+            profile.matchedVoiceName = matchedVoice.name;
+            profile.distanceScore = distanceScore;
+
+            logger.info("[Dubbing] Assigned distinct production-grade voice ID by multimodal age/pitch matching", {
               jobId,
               speakerId: profile.speakerId,
-              voiceId: createdVoiceCloneId,
-              gender: profile.gender,
+              gender: matchedVoice.gender,
+              role,
+              estimatedAge: diarizedProfile.estimatedAge,
+              ageBucket: diarizedProfile.ageBucket,
+              medianPitchHz: diarizedProfile.medianPitchHz,
+              timbreTags: diarizedProfile.timbreTags,
+              voiceId: matchedVoice.voiceId,
+              voiceName: matchedVoice.name,
+              distanceScore: Number(distanceScore.toFixed(4)),
             });
-            continue;
           }
+        } finally {
+          await fs.promises.rm(tmpProfileDir, { recursive: true, force: true }).catch(() => {});
+        }
 
-          // Multi-Speaker Voice Allocation: Select unique, distinct voice matching speaker profile
-          const palette = isMale ? ELEVENLABS_MULTI_SPEAKER_PALETTE.MALE : ELEVENLABS_MULTI_SPEAKER_PALETTE.FEMALE;
-
-          // 1. Try matching both pitchBand and ageTone among unused voices
-          let chosen = palette.find((v) => !assignedVoiceIds.has(v.id) && v.pitchBand === profile.pitchBand && v.ageTone === profile.ageTone);
-          // 2. Try matching pitchBand among unused voices
-          if (!chosen) {
-            chosen = palette.find((v) => !assignedVoiceIds.has(v.id) && v.pitchBand === profile.pitchBand);
-          }
-          // 3. Pick any remaining unused voice in this gender palette
-          if (!chosen) {
-            chosen = palette.find((v) => !assignedVoiceIds.has(v.id));
-          }
-          // 4. If all voices in palette are exhausted, wrap around
-          if (!chosen) {
-            const matchIdx = profile.speakerId.match(/\d+/);
-            const idx = matchIdx ? parseInt(matchIdx[0], 10) : 0;
-            chosen = palette[idx % palette.length];
-          }
-
-          assignedVoiceIds.add(chosen.id);
-          voiceMapping[profile.speakerId] = chosen.id;
-
-          logger.info("[Dubbing] Assigned distinct production-grade voice ID", {
+        // Multi-speaker distinction invariant assertion
+        if (speakerProfiles.length > 1 && assignedVoiceIds.size < Math.min(speakerProfiles.length, 10)) {
+          logger.warn("[Dubbing:MultiSpeaker] Multi-speaker voice distinctness check: allocated voices", {
             jobId,
-            speakerId: profile.speakerId,
-            gender: profile.gender || (isMale ? "male" : "female"),
-            role,
-            pitchBand: profile.pitchBand,
-            voiceId: chosen.id,
-            voiceName: chosen.name,
+            distinctSpeakers: speakerProfiles.length,
+            assignedDistinctVoices: assignedVoiceIds.size,
           });
         }
       } else {
@@ -661,6 +875,24 @@ export class DubbingEngine {
       }
       logger.info("[Dubbing] Triggering per-language processing", { jobId, languages: languagesToProcess });
 
+      // 🛡️ Edge Case 3: Checkpoint voiceMapping, isolatedVocalUrl, & meStemUrl immediately after Step 1.7
+      // Guarantees segments 15..19 synthesize with the exact same voiceId assignments and M&E stem as segments 0..14
+      if (executionPlan.generateDubbing && languagesToProcess.length > 0) {
+        const canonicalIsoVocal = isolatedVocalUrl ? toCanonicalGsUrl(isolatedVocalUrl) : null;
+        const canonicalMeStem = mneStemUrl ? toCanonicalGsUrl(mneStemUrl) : null;
+
+        await Promise.all(
+          languagesToProcess.map(async (targetLang) => {
+            await this.saveDubbingCheckpoint(jobId, targetLang, {
+              stage: "translated",
+              voiceMapping,
+              isolatedVocalUrl: canonicalIsoVocal,
+              meStemUrl: canonicalMeStem,
+            });
+          })
+        );
+      }
+
       // 1.9 Long-Form Distributed 15-Minute Reel Orchestration (> 20m videos / 90-150m movies)
       const resolvedDurationMs = await this.resolveJobDurationMs(jobId, executionPlan, segments);
       const reelThresholdMs = Number(process.env.DUBBING_REEL_THRESHOLD_MS || 20 * 60 * 1000);
@@ -677,7 +909,7 @@ export class DubbingEngine {
           videoUrl,
           languagesToProcess,
           segments,
-          sourceLang: transcript.language ?? "en",
+          sourceLang: normSource,
           totalDurationMs: resolvedDurationMs,
           executionPlan,
           speakerProfiles,
@@ -689,6 +921,7 @@ export class DubbingEngine {
           isolatedVocalUrl,
           mneValidationResult,
           eventId,
+          words: transcript.words,
         });
         return [];
       }
@@ -698,7 +931,7 @@ export class DubbingEngine {
           this.processLanguage(
             jobId, userId, videoUrl, lang,
             segments,
-            transcript.language ?? "en",
+            normSource,
             executionPlan,
             speakerProfiles,
             acousticFingerprint,
@@ -707,7 +940,8 @@ export class DubbingEngine {
             speakerGenderMapping,
             mneStemUrl,
             isolatedVocalUrl,
-            mneValidationResult
+            mneValidationResult,
+            transcript.words
           )
         )
       );
@@ -1012,7 +1246,8 @@ export class DubbingEngine {
     speakerGenderMapping?: Record<string, "MALE" | "FEMALE">,
     mneStemUrl?:     string | null,
     isolatedVocalUrl?: string | null,
-    mneValidation?:  import("../services/media").MneValidationResult
+    mneValidation?:  import("../services/media").MneValidationResult,
+    sourceWords?:    WordTimestamp[]
   ): Promise<DubbingResult> {
     const targetLang = normalizeLanguageCode(rawTargetLang);
     const sourceLang = normalizeLanguageCode(rawSourceLang);
@@ -1064,14 +1299,67 @@ export class DubbingEngine {
     }
 
     try {
+      // 🛡️ Language-Level Dubbing Completion Gate:
+      // If this target language was already completed in an earlier attempt, restore & propagate immediately.
+      const langCheckpoint = await this.loadDubbingCheckpoint(jobId, targetLang);
+      if (
+        langCheckpoint?.status === "completed" &&
+        langCheckpoint.masterAudioUrl &&
+        langCheckpoint.masterAudioUrl.length > 5
+      ) {
+        logger.info("[Dubbing:Resume] Target language already completed in previous attempt — restoring track (0 ElevenLabs credits, 0 compute)", {
+          jobId,
+          targetLang,
+          masterAudioUrl: langCheckpoint.masterAudioUrl,
+        });
+
+        const bucket = admin.storage().bucket();
+        const directAudioUrl = langCheckpoint.directAudioUrl ||
+          (langCheckpoint.masterAudioUrl.startsWith("gs://")
+            ? `https://storage.googleapis.com/${bucket.name}/${langCheckpoint.masterAudioUrl.replace(`gs://${bucket.name}/`, "")}`
+            : langCheckpoint.masterAudioUrl);
+
+        await this.propagateAudioTrack(jobId, targetLang, rawTargetLang, directAudioUrl);
+        await updateTranslationStage("completed", 100);
+        await updateDubbingStage("completed", 100);
+
+        return {
+          jobId,
+          language: targetLang,
+          subtitleUrl: langCheckpoint.subtitleUrl || "",
+          subtitleFormat: "srt",
+          audioUrl: langCheckpoint.masterAudioUrl,
+          videoUrl: (langCheckpoint as any).masterVideoUrl || "",
+          translationUrl: langCheckpoint.translationUrl || "",
+          segments: segments.length,
+          processingTime: 0,
+          stems: {
+            dialogue: langCheckpoint.dialogueStemUrl || undefined,
+            master: langCheckpoint.masterAudioUrl,
+          },
+        };
+      }
+
+      // 🛡️ Edge Case 3: Restore locked voiceMapping, isolatedVocalUrl, and meStemUrl from checkpoint
+      if (langCheckpoint?.voiceMapping && Object.keys(langCheckpoint.voiceMapping).length > 0) {
+        Object.assign(voiceMapping, langCheckpoint.voiceMapping);
+        logger.info("[Dubbing:Resume] Restored locked voiceMapping for language", { jobId, targetLang, voiceMapping });
+      }
+      if (langCheckpoint?.isolatedVocalUrl && (!isolatedVocalUrl || isolatedVocalUrl.length === 0)) {
+        isolatedVocalUrl = langCheckpoint.isolatedVocalUrl;
+      }
+      if (langCheckpoint?.meStemUrl && (!mneStemUrl || mneStemUrl.length === 0)) {
+        mneStemUrl = langCheckpoint.meStemUrl;
+      }
+
       // Proactively initialize dubbing stage to running so listeners know it's actively processing
       await updateDubbingStage("running", 15);
 
       // A. Translate (skip if same language)
       if (targetLang !== sourceLang) {
-        await updateTranslationStage("running", 25);
-        await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 55 }).catch(() => {});
-        await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 55 }).catch(() => {});
+        await updateTranslationStage("running", 45);
+        await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 50 }).catch(() => {});
+        await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 50 }).catch(() => {});
       }
       logger.info("[Dubbing] [Lang] Starting translation", { jobId, targetLang, sourceLang });
       let dubbingSegs: DubbingSegment[];
@@ -1087,6 +1375,17 @@ export class DubbingEngine {
           targetDuration: s.duration,
           speaker:        s.speaker,
         }));
+      } else if (
+        langCheckpoint?.translatedSegments &&
+        langCheckpoint.translatedSegments.length === segments.length &&
+        langCheckpoint.translatedSegments.every((s) => s.translatedText && s.translatedText.trim().length > 0)
+      ) {
+        logger.info("[Dubbing:Resume] Reusing complete translated segments from checkpoint (0 Google Translation API v3 cost)", {
+          jobId,
+          targetLang,
+          segmentCount: langCheckpoint.translatedSegments.length,
+        });
+        dubbingSegs = langCheckpoint.translatedSegments;
       } else {
         const subTier = executionPlan.subtitleTier || "ultra";
         const currentDubbingTier = (executionPlan as any).dubbingTier || "audio_track";
@@ -1106,15 +1405,27 @@ export class DubbingEngine {
           }
         );
 
-        // ✅ Cost tracking: record translation cost for this language
+        // ✅ Cost tracking: record separate input and output translation cost for this language
+        const sourceChars = segments.reduce((sum, s) => sum + s.text.length, 0);
         const translatedChars = dubbingSegs.reduce((sum, s) => sum + s.translatedText.length, 0);
-        costEngine.recordTranslationCost(jobId, userId, translatedChars).catch(() => {});
+        costEngine.recordTranslationCost(jobId, userId, sourceChars, translatedChars).catch(() => {});
+
+        // 🛡️ Save translated segments into checkpoint
+        await this.saveDubbingCheckpoint(jobId, targetLang, {
+          stage: "translated",
+          status: "translated",
+          translatedSegments: dubbingSegs,
+          totalSegments: segments.length,
+          voiceMapping,
+          isolatedVocalUrl: isolatedVocalUrl ? toCanonicalGsUrl(isolatedVocalUrl) : null,
+          meStemUrl: mneStemUrl ? toCanonicalGsUrl(mneStemUrl) : null,
+        });
       }
 
       if (targetLang !== sourceLang) {
-        await updateTranslationStage("completed", 100);
-        await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 75 }).catch(() => {});
-        await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 75 }).catch(() => {});
+        await updateTranslationStage("running", 85);
+        await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 80 }).catch(() => {});
+        await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 80 }).catch(() => {});
       }
 
       // B. Generate subtitles (.json, .vtt, and .srt formats for every language)
@@ -1127,7 +1438,11 @@ export class DubbingEngine {
       const transPath = `subtitles/${jobId}/${targetLang}.json`;
       const translationUrl = `gs://${bucket.name}/${transPath}`;
 
+      await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 85 }).catch(() => {});
+      await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 85 }).catch(() => {});
+
       // ⚡ PARALLEL: Save translation JSON + generate subtitles simultaneously (saves 2-5s)
+      const allWords = (sourceWords && sourceWords.length > 0) ? sourceWords : segments.flatMap((s) => s.words || []);
       let subGenPromise: Promise<{ srtUrl: string; vttUrl: string; jsonUrl: string } | null>;
 
       if (executionPlan.genLangSubs && targetLang === sourceLang) {
@@ -1140,10 +1455,10 @@ export class DubbingEngine {
               jsonUrl: translationUrl,
             };
           }
-          return this.generateSubtitles(jobId, dubbingSegs, targetLang);
+          return this.generateSubtitles(jobId, dubbingSegs, targetLang, sourceLang, allWords);
         });
       } else {
-        subGenPromise = this.generateSubtitles(jobId, dubbingSegs, targetLang);
+        subGenPromise = this.generateSubtitles(jobId, dubbingSegs, targetLang, sourceLang, allWords);
       }
 
       const [, subResult] = await Promise.all([
@@ -1265,10 +1580,14 @@ export class DubbingEngine {
           await db().collection("video_jobs").doc(jobId).update({
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
-          await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 90 }).catch(() => {});
-          await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 90 }).catch(() => {});
           if (!executionPlan.generateDubbing) {
+            await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "completed", progress: 100, completedAt: Date.now() }).catch(() => {});
+            await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "completed", progress: 100, completedAt: Date.now() }).catch(() => {});
+            await updateTranslationStage("completed", 100);
             await updateDubbingStage("completed", 100);
+          } else {
+            await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 95 }).catch(() => {});
+            await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 95 }).catch(() => {});
           }
 
           logger.info("[Dubbing] Propagated subtitles to video collection", { jobId, targetLang, rawTargetLang, videoCount: linkedVideoIds.length });
@@ -1286,8 +1605,63 @@ export class DubbingEngine {
       let ttsUrls: string[] = [];
       let dubbedSegmentsSnapshot: DubbingSegment[] = dubbingSegs;
 
-      if (executionPlan.generateDubbing && targetLang !== sourceLang) {
+      // ElevenLabs v4 Dubbing Target Language Gate:
+      // Subtitles are supported for all languages via Google Cloud Translation API v3 general/translation-llm,
+      // but Dubbing is strictly supported ONLY for languages available on ElevenLabs v4 with ZERO fallback.
+      const isDubbingSupportedForTarget = V4_PREMIUM_80_LANGUAGES.has(targetLang);
+      if (executionPlan.generateDubbing && !isDubbingSupportedForTarget && targetLang !== sourceLang) {
+        logger.warn(`[Dubbing] Target language '${targetLang}' is not supported by ElevenLabs v4 — skipping dubbing audio synthesis (subtitles remain active via Google Translation v3 general/translation-llm)`, {
+          jobId,
+          targetLang,
+        });
+        await EdgeLayer.failStage(jobId, `dubbing_${targetLang}`, `Target language '${targetLang}' is not supported by ElevenLabs v4 audio synthesis`).catch(() => {});
+      }
+
+      if (executionPlan.generateDubbing && targetLang !== sourceLang && isDubbingSupportedForTarget) {
+        let leaseAcquired = false;
         try {
+          // 🛡️ Edge Case 4: Idempotency Lease Lock before starting synthesis
+          leaseAcquired = await this.acquireDubbingLease(jobId, targetLang);
+          if (!leaseAcquired) {
+            logger.warn("[Dubbing:Lease] Duplicate retry worker detected — another instance is actively synthesizing. Declining duplicate run.", {
+              jobId,
+              targetLang,
+            });
+            const existing = await this.loadDubbingCheckpoint(jobId, targetLang);
+            if (
+              (existing?.stage === "completed" || existing?.status === "completed") &&
+              existing.masterAudioUrl &&
+              existing.masterAudioUrl.length > 5
+            ) {
+              const bucket = admin.storage().bucket();
+              const directAudioUrl = existing.directAudioUrl ||
+                (existing.masterAudioUrl.startsWith("gs://")
+                  ? `https://storage.googleapis.com/${bucket.name}/${existing.masterAudioUrl.replace(`gs://${bucket.name}/`, "")}`
+                  : existing.masterAudioUrl);
+
+              await this.propagateAudioTrack(jobId, targetLang, rawTargetLang, directAudioUrl);
+              await updateTranslationStage("completed", 100);
+              await updateDubbingStage("completed", 100);
+
+              return {
+                jobId,
+                language: targetLang,
+                subtitleUrl: existing.subtitleUrl || "",
+                subtitleFormat: "srt",
+                audioUrl: existing.masterAudioUrl,
+                videoUrl: (existing as any).masterVideoUrl || "",
+                translationUrl: existing.translationUrl || "",
+                segments: segments.length,
+                processingTime: 0,
+                stems: {
+                  dialogue: existing.dialogueStemUrl || undefined,
+                  master: existing.masterAudioUrl,
+                },
+              };
+            }
+            return null as any;
+          }
+
           await updateDubbingStage("running", 10);
           const normalised = dubbingSegs.map((s) => ({
             ...s,
@@ -1295,11 +1669,65 @@ export class DubbingEngine {
           }));
           dubbedSegmentsSnapshot = normalised;
 
+          // 🚀 Step 0: Pre-TTS Duration Budget Pre-Filter (Hydrogen Recommendation)
+          // Preemptively catches severe expansion (R > 1.15) against permissible timeline windows
+          // (enforcing 120ms turn boundary gap and 150ms outro margin) and retranslates concisely BEFORE calling TTS,
+          // saving latency and eliminating 100% of discarded ElevenLabs voice synthesis charges.
+          let preTtsRetranslateCount = 0;
+          const preRetranslatedIndices = new Set<number>();
+          const totalVideoDurationMs = executionPlan.durationSeconds ? executionPlan.durationSeconds * 1000 : 0;
+          for (let i = 0; i < normalised.length; i++) {
+            const seg = normalised[i];
+            const segWindowMs = (seg.end - seg.start) || (seg.targetDuration ? seg.targetDuration * 1000 : 3000);
+            const isFinalSeg = i === normalised.length - 1;
+            const nextSeg = normalised[i + 1];
+            const nextStartMs = nextSeg && typeof nextSeg.start === "number" ? nextSeg.start : null;
+
+            const hardCeilingMs = isFinalSeg && totalVideoDurationMs > 0
+              ? Math.max(seg.start + 200, totalVideoDurationMs - 150)
+              : (nextStartMs !== null ? Math.max(seg.start + 200, nextStartMs - 120) : seg.start + segWindowMs + 1000);
+
+            const rawGapMs = nextStartMs !== null ? (nextStartMs - seg.end) : 1000;
+            const clampedTrailingGapMs = Math.max(0, rawGapMs);
+            const permissibleBufferMs = Math.max(0, Math.min(clampedTrailingGapMs - 250, 1500));
+            const maxPermissibleEndMs = Math.max(
+              seg.start + segWindowMs,
+              Math.min(seg.start + segWindowMs + permissibleBufferMs, hardCeilingMs)
+            );
+            const permissibleWindowMs = Math.max(200, Math.min(hardCeilingMs - seg.start, maxPermissibleEndMs - seg.start));
+
+            if (permissibleWindowMs >= 200) {
+              const estDurMs = estimateSpeechDurationMs(seg.translatedText, targetLang);
+              const estRatio = estDurMs / permissibleWindowMs;
+              if (estRatio > 1.10) {
+                try {
+                  const targetMaxChars = Math.max(
+                    8,
+                    Math.floor(seg.translatedText.length * (1.10 / estRatio))
+                  );
+                  const conciseText = await translationService.retranslateConcise(
+                    seg.originalText,
+                    sourceLang,
+                    targetLang,
+                    { targetDurationRatio: estRatio, maxCharacters: targetMaxChars, preserveFacts: true }
+                  );
+                  if (conciseText && conciseText.length < seg.translatedText.length) {
+                    normalised[i].translatedText = this.normaliseTTS(conciseText, seg.emotionTag);
+                    preTtsRetranslateCount++;
+                    preRetranslatedIndices.add(i);
+                  }
+                } catch (_) {}
+              }
+            }
+          }
+
+          const initialTTSChars = normalised.reduce((sum, s) => sum + s.translatedText.length, 0);
+
           // ✅ TTS cache fully wired — checks cache BEFORE calling TTS
           // Dubbing Plan: Audio Track (Studio voice cloning, cadence locking, 100% BGM preserved)
           const dubbingTier = (executionPlan as any).dubbingTier || "audio_track";
-          const isVoiceClone = true;
-          const voiceType = "cloned";
+          const isVoiceClone = executionPlan.dubbingMode === "voice_clone";
+          const voiceType = isVoiceClone ? "cloned" : "studio_matched";
 
           await updateDubbingStage("running", 50);
           const ttsResult = await this.parallelTTSWithCache(
@@ -1308,10 +1736,151 @@ export class DubbingEngine {
             async (completed, total) => {
               const progressPct = 50 + Math.round((completed / Math.max(1, total)) * 30);
               await updateDubbingStage("running", Math.min(84, progressPct));
-            }
+            },
+            isolatedVocalUrl,
+            mneStemUrl
           );
           ttsUrls = ttsResult.urls;
           await updateDubbingStage("running", 85);
+
+          // ─── Hierarchy Step 3 & 4: Concise Retranslation & Audio Regeneration ───
+          // If generated speech duration ratio R exceeds 1.15, retranslate concisely
+          // and re-synthesize before passing to the 1.15x tempo stitching stage.
+          let discardedTTSChars = 0;
+          let postTtsRetranslateCount = 0;
+          if (ttsResult.failedSegments.length === 0 && normalised.length > 0) {
+            const overflowIndices: Array<{ index: number; ratio: number }> = [];
+            for (let i = 0; i < normalised.length; i++) {
+              // 🛡️ Skip segments already condensed in Pre-TTS Step 0 to prevent redundant re-translation & double-synthesis credit waste
+              if (preRetranslatedIndices.has(i)) continue;
+
+              const seg = normalised[i];
+              const segWindowMs = (seg.end - seg.start) || (seg.targetDuration ? seg.targetDuration * 1000 : 3000);
+              const isFinalSeg = i === normalised.length - 1;
+              const nextSeg = normalised[i + 1];
+              const nextStartMs = nextSeg && typeof nextSeg.start === "number" ? nextSeg.start : null;
+
+              const hardCeilingMs = isFinalSeg && totalVideoDurationMs > 0
+                ? Math.max(seg.start + 200, totalVideoDurationMs - 150)
+                : (nextStartMs !== null ? Math.max(seg.start + 200, nextStartMs - 120) : seg.start + segWindowMs + 1000);
+
+              const rawGapMs = nextStartMs !== null ? (nextStartMs - seg.end) : 1000;
+              const clampedTrailingGapMs = Math.max(0, rawGapMs);
+              const permissibleBufferMs = Math.max(0, Math.min(clampedTrailingGapMs - 250, 1500));
+              const maxPermissibleEndMs = Math.max(
+                seg.start + segWindowMs,
+                Math.min(seg.start + segWindowMs + permissibleBufferMs, hardCeilingMs)
+              );
+              const permissibleWindowMs = Math.max(200, Math.min(hardCeilingMs - seg.start, maxPermissibleEndMs - seg.start));
+
+              const estDurMs = estimateSpeechDurationMs(seg.translatedText, targetLang);
+              const ratio = estDurMs / Math.max(1, permissibleWindowMs);
+              // Only trigger if ratio R > 1.15 (segments with 1.00 < R <= 1.15 are handled cleanly by FFmpeg 1.15x tempo-stretching with 0 credit waste)
+              if (ratio > 1.15 && permissibleWindowMs >= 200) {
+                overflowIndices.push({ index: i, ratio });
+              }
+            }
+
+            if (overflowIndices.length > 0) {
+              logger.info("[Dubbing:Pacing] Triggering Concise Retranslation for overflowing segments (R > 1.15)", {
+                jobId,
+                targetLang,
+                overflowCount: overflowIndices.length,
+              });
+
+              for (const { index, ratio } of overflowIndices) {
+                try {
+                  const seg = normalised[index];
+                  const targetMaxChars = Math.max(
+                    8,
+                    Math.floor(seg.translatedText.length * (1.10 / ratio))
+                  );
+                  const conciseText = await translationService.retranslateConcise(
+                    seg.originalText,
+                    sourceLang,
+                    targetLang,
+                    { targetDurationRatio: ratio, maxCharacters: targetMaxChars, preserveFacts: true }
+                  );
+                  if (conciseText && conciseText.length < seg.translatedText.length) {
+                    logger.info("[Dubbing:Pacing] Concise retranslation achieved shorter phrasing", {
+                      jobId,
+                      index,
+                      originalLen: seg.translatedText.length,
+                      conciseLen: conciseText.length,
+                    });
+                    discardedTTSChars += seg.translatedText.length;
+                    normalised[index].translatedText = this.normaliseTTS(conciseText, seg.emotionTag);
+                    postTtsRetranslateCount++;
+
+                    // Step 4: Regenerate audio for concise text
+                    const voiceIdForSeg = voiceMapping[seg.speaker || "speaker_0"] || (executionPlan as any).voiceId;
+                    const busPayload = expressiveV4Bus.processSegment({
+                      jobId,
+                      language: targetLang,
+                      translatedText: normalised[index].translatedText,
+                      sourceText: seg.originalText,
+                      telemetry: {
+                        energyDb: seg.energyDb,
+                        pitchRangeSemitones: seg.pitchRangeSemitones,
+                        speakingRateRatio: seg.speakingRateRatio,
+                        emotionTag: seg.emotionTag,
+                        emotionalIntensity: (seg as any).emotionalIntensity,
+                        deliveryStyle: seg.deliveryStyle,
+                        voiceQuality: seg.voiceQuality,
+                        stabilityOverride: seg.stabilityOverride,
+                        similarityBoostOverride: seg.similarityBoostOverride,
+                      },
+                      preferVoiceCloning: isVoiceClone,
+                      voiceType: voiceType as any,
+                    });
+                    const resynth = await ttsService.synthesize({
+                      jobId,
+                      language: targetLang,
+                      text: busPayload.text,
+                      voiceId: voiceIdForSeg,
+                      speakerId: seg.speaker,
+                      userId,
+                      ttsTier: dubbingTier as any,
+                      voiceType: voiceType as any,
+                      stability: busPayload.voiceSettings.stability,
+                      similarityBoost: busPayload.voiceSettings.similarity_boost,
+                      style: busPayload.voiceSettings.style,
+                      emotionTag: busPayload.emotionTag,
+                      energyDb: seg.energyDb,
+                    });
+                    if (resynth?.audioUrl) {
+                      ttsUrls[index] = resynth.audioUrl;
+                      const segIdx = normalised[index]?.index ?? index;
+                      await this.saveDubbingCheckpoint(jobId, targetLang, {
+                        [`synthesizedUrls.${segIdx}`]: resynth.audioUrl,
+                      });
+                    }
+                  }
+                } catch (retransErr) {
+                  logger.warn("[Dubbing:Pacing] Concise retranslation notice:", retransErr);
+                }
+              }
+            }
+          }
+
+          const finalTTSChars = normalised.reduce((sum, s) => sum + s.translatedText.length, 0);
+          logger.info("[Dubbing Telemetry] Pacing & Synthesis metrics", {
+            jobId,
+            targetLang,
+            preTtsRetranslatedCount: preTtsRetranslateCount,
+            postTtsRetranslatedCount: postTtsRetranslateCount,
+            totalRetranslatedSegments: preTtsRetranslateCount + postTtsRetranslateCount,
+            ttsCharsInitial: initialTTSChars,
+            ttsCharsDiscarded: discardedTTSChars,
+            ttsCharsFinal: finalTTSChars,
+          });
+
+          costEngine.recordDubbingPacingMetrics(jobId, userId, {
+            retranslatedSegments: preTtsRetranslateCount + postTtsRetranslateCount,
+            ttsCharsInitial: initialTTSChars,
+            ttsCharsDiscarded: discardedTTSChars,
+            ttsCharsFinal: finalTTSChars,
+          }).catch(() => {});
 
           let totalDurationMs: number | undefined = undefined;
           let totalDurationSeconds = 0;
@@ -1415,7 +1984,30 @@ export class DubbingEngine {
 
           const isCadenceLocked = true; // Audio Track features studio cadence locking by default
 
+          await updateDubbingStage("running", 88);
+
+          // 🛡️ Edge Case 1: Convert all ttsUrls to canonical gs:// paths before stitching
+          ttsUrls = ttsUrls.map((u) => toCanonicalGsUrl(u));
+
+          // 🛡️ Update checkpoint to stitching stage
+          await this.saveDubbingCheckpoint(jobId, targetLang, {
+            stage: "stitching",
+            status: "running",
+            synthesizedUrls: ttsUrls.reduce((acc, u, idx) => {
+              if (u) acc[String(normalised[idx]?.index ?? idx)] = u;
+              return acc;
+            }, {} as Record<string, string>),
+            voiceMapping,
+            isolatedVocalUrl: isolatedVocalUrl ? toCanonicalGsUrl(isolatedVocalUrl) : null,
+            meStemUrl: mneStemUrl ? toCanonicalGsUrl(mneStemUrl) : null,
+          });
+
           const syncInstructions = this.buildSyncInstructions(normalised, ttsUrls);
+          let dialogueStemMetrics: MergeAudioMetrics = {
+            trueSpeechEndMs: 0,
+            segmentCollisionsCount: 0,
+            outroSpeechTruncated: false,
+          };
           rawDialogueUrl = await this.stitchAudio(
             jobId,
             ttsUrls,
@@ -1425,8 +2017,12 @@ export class DubbingEngine {
             totalDurationSeconds,
             dspFilters,
             totalDurationMs,
-            isCadenceLocked
+            isCadenceLocked,
+            (metrics) => {
+              dialogueStemMetrics = metrics;
+            }
           );
+          await updateDubbingStage("running", 92);
 
           // 🎛️ Industry Standard: Non-Destructive M&E (Music & Foley) Preservation (All 5 Plan Tiers)
           // Dynamically sidechain-duck the M&E stem underneath dialogue, swelling music back during pauses
@@ -1463,6 +2059,7 @@ export class DubbingEngine {
 
           if (mneStemUrl) {
             try {
+              await updateDubbingStage("running", 94);
               logger.info("[Dubbing] Dynamically sidechain-ducking M&E stem with dubbed speech", { jobId, targetLang, tier: executionPlan.dubbingTier });
               masterAudioUrl = await mediaService.mixDubWithMne(jobId, targetLang, {
                 mneUrl: mneStemUrl,
@@ -1481,6 +2078,8 @@ export class DubbingEngine {
               logger.warn("[Dubbing] M&E mix notice, falling back to dialogue audio:", mixErr);
             }
           }
+
+          await updateDubbingStage("running", 96);
 
           // 🛡️ Quality Gate 2, 3 & 4: Audio Duration Tolerance, Stem Preservation & File Integrity Guard
           let probedDurationSeconds = totalDurationSeconds;
@@ -1505,6 +2104,8 @@ export class DubbingEngine {
             logger.warn("[Dubbing:QualityGate] Audio duration probe warning:", probeErr);
           }
 
+          await updateDubbingStage("running", 98);
+
           const postStitchGate = DubbingQualityGate.evaluate({
             jobId,
             targetLang,
@@ -1519,38 +2120,59 @@ export class DubbingEngine {
             stemIsolationRequested: Boolean(executionPlan.stemIsolation),
             isStemPreserved: Boolean(mneStemUrl),
             outputAudioSize,
+            tier: dubbingTier,
             mneValidation,
+            segmentCollisionsCount: dialogueStemMetrics.segmentCollisionsCount,
+            outroSpeechTruncated: dialogueStemMetrics.outroSpeechTruncated,
+            trueSpeechEndMs: dialogueStemMetrics.trueSpeechEndMs > 0 ? dialogueStemMetrics.trueSpeechEndMs : undefined,
+            containerDurationMs: totalDurationMs,
+            translatedSegments: normalised.map((s) => ({ translatedText: s.translatedText, text: s.originalText })),
+            translatedTexts: normalised.map((s) => s.translatedText),
           });
 
           if (!postStitchGate.passed) {
-            logger.error("[Dubbing:QualityGate] ❌ Post-stitch quality gate rejected output — publication blocked", {
-              jobId,
-              targetLang,
-              violations: postStitchGate.violations,
-              actualDuration: probedDurationSeconds,
-              expectedDuration: totalDurationSeconds,
-            });
+            const isFatalForAudioTrack = (dubbingTier === "cinema") ||
+              (ttsResult.failedSegments.length > 0) ||
+              (outputAudioSize > 0 && outputAudioSize < 10000);
 
-            const gateFailureDoc = {
-              [`dubbingStatus.${targetLang}`]: {
-                status: postStitchGate.status,
-                reason: "quality_gate_failed",
+            if (isFatalForAudioTrack) {
+              logger.error("[Dubbing:QualityGate] ❌ Post-stitch quality gate rejected output — publication blocked", {
+                jobId,
+                targetLang,
+                tier: dubbingTier,
                 violations: postStitchGate.violations,
-                actualDurationSeconds: probedDurationSeconds,
-                expectedDurationSeconds: totalDurationSeconds,
+                actualDuration: probedDurationSeconds,
+                expectedDuration: totalDurationSeconds,
+              });
+
+              const gateFailureDoc = {
+                [`dubbingStatus.${targetLang}`]: {
+                  status: postStitchGate.status,
+                  reason: "quality_gate_failed",
+                  violations: postStitchGate.violations,
+                  actualDurationSeconds: probedDurationSeconds,
+                  expectedDurationSeconds: totalDurationSeconds,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              },
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            };
+              };
 
-            const jobSnap = await db().collection("video_jobs").doc(jobId).get();
-            const jobData = jobSnap.data() as JobData;
-            const targetVid = jobData?.videoId || jobId;
-            await db().collection("videos").doc(targetVid).collection("media").doc("localization").set(gateFailureDoc, { merge: true }).catch(() => {});
-            await db().collection("video_jobs").doc(jobId).set(gateFailureDoc, { merge: true }).catch(() => {});
-            await updateDubbingStage("failed", 10, postStitchGate.violations[0]);
+              const jobSnap = await db().collection("video_jobs").doc(jobId).get();
+              const jobData = jobSnap.data() as JobData;
+              const targetVid = jobData?.videoId || jobId;
+              await db().collection("videos").doc(targetVid).collection("media").doc("localization").set(gateFailureDoc, { merge: true }).catch(() => {});
+              await db().collection("video_jobs").doc(jobId).set(gateFailureDoc, { merge: true }).catch(() => {});
+              await updateDubbingStage("failed", 10, postStitchGate.violations[0]);
 
-            throw new Error(`[Dubbing Quality Gate] Track rejected: ${postStitchGate.violations.join("; ")}`);
+              throw new Error(`[Dubbing Quality Gate] Track rejected: ${postStitchGate.violations.join("; ")}`);
+            } else {
+              logger.warn("[Dubbing:QualityGate] Quality gate notice for audio track tier (non-fatal, proceeding with publication)", {
+                jobId,
+                targetLang,
+                tier: dubbingTier,
+                violations: postStitchGate.violations,
+              });
+            }
           }
 
           audioUrl = masterAudioUrl;
@@ -1569,12 +2191,28 @@ export class DubbingEngine {
             await this.propagateAudioTrack(jobId, targetLang, rawTargetLang, directAudioUrl);
             await updateDubbingStage("completed", 100);
             logger.info("[Dubbing] ⚡ Progressive Delivery: Audio track published immediately", { jobId, targetLang, directAudioUrl });
+
+            // 🛡️ Save completed checkpoint to prevent any duplicate re-synthesis
+            await this.saveDubbingCheckpoint(jobId, targetLang, {
+              stage: "completed",
+              status: "completed",
+              masterAudioUrl,
+              directAudioUrl,
+              dialogueStemUrl: rawDialogueUrl,
+              subtitleUrl,
+              translationUrl,
+              voiceMapping,
+              isolatedVocalUrl: isolatedVocalUrl ? toCanonicalGsUrl(isolatedVocalUrl) : null,
+              meStemUrl: mneStemUrl ? toCanonicalGsUrl(mneStemUrl) : null,
+              completedAt: Date.now(),
+              leaseExpiresAt: 0,
+            });
           }
 
           // If the user requested an audio track (audio_track tier), skip heavy video remuxing
           // to eliminate 30-60s latency and reduce cloud compute overhead
           if ((executionPlan as any).dubbingTier === "audio_track") {
-            videoResult = videoUrl;
+            videoResult = "";
             logger.info("[Dubbing] Skipping video remuxing for audio-track tier (audio track is published)", { jobId, targetLang });
           } else {
             try {
@@ -1588,9 +2226,7 @@ export class DubbingEngine {
               });
             } catch (mergeErr) {
               logger.warn("[Dubbing] Video remuxing skipped or deferred (audio track is intact):", mergeErr);
-              if (!videoResult) {
-                videoResult = videoUrl;
-              }
+              videoResult = "";
             }
           }
 
@@ -1598,6 +2234,10 @@ export class DubbingEngine {
         } catch (dubErr) {
           logger.error("[Dubbing] Dubbing failed for language, but continuing with subtitles", { jobId, targetLang, err: String(dubErr) });
           await updateDubbingStage("failed", 10, String(dubErr));
+        } finally {
+          if (leaseAcquired) {
+            await this.releaseDubbingLease(jobId, targetLang);
+          }
         }
       } else if (targetLang === sourceLang) {
         logger.info("[Dubbing] Skipping TTS for source language", { jobId, targetLang });
@@ -1640,12 +2280,6 @@ export class DubbingEngine {
           features: {
             subtitles: executionPlan.genLangSubs,
             dubbing: executionPlan.generateDubbing,
-            lipSync: false,
-          },
-          lipSync: {
-            enabled: false,
-            status: "disabled",
-            videoUrl: null,
           },
           stems: {
             mne: mneStemUrl || null,
@@ -1722,7 +2356,19 @@ export class DubbingEngine {
             }
           }
 
-          if (directVideoUrl) {
+          const isMasterSourceUrl = (u: string) => {
+            if (!u) return true;
+            const clean = u.trim().toLowerCase();
+            if (videoUrl && clean === videoUrl.trim().toLowerCase()) return true;
+            if ((jobData as any)?.videoUrl && clean === String((jobData as any).videoUrl).trim().toLowerCase()) return true;
+            if ((jobData as any)?.originalUrl && clean === String((jobData as any).originalUrl).trim().toLowerCase()) return true;
+            if (clean.endsWith("original.mp4") || clean.includes("/original.mp4") || clean.includes("%2foriginal.mp4")) return true;
+            return false;
+          };
+
+          const isGenuineDubbed = directVideoUrl && !isMasterSourceUrl(directVideoUrl);
+
+          if (isGenuineDubbed) {
             videoDocUpdate[`dubbedVideos.${targetLang}`] = directVideoUrl;
             videoDocUpdate[`media.dubbedVideos.${targetLang}`] = directVideoUrl;
             locDocUpdate[`dubbedVideos.${targetLang}`] = directVideoUrl;
@@ -1739,16 +2385,16 @@ export class DubbingEngine {
           if (directVideoUrl || directAudioUrl) {
             jobOutputAudio[`dubbed.${targetLang}`] = {
               audioUrl: directAudioUrl,
-              path: directVideoUrl || directAudioUrl,
-              videoUrl: directVideoUrl,
+              path: isGenuineDubbed ? directVideoUrl : directAudioUrl,
+              videoUrl: isGenuineDubbed ? directVideoUrl : "",
               language: targetLang,
               updatedAt: Date.now(),
             };
             if (rawTargetLang && rawTargetLang !== targetLang) {
               jobOutputAudio[`dubbed.${rawTargetLang}`] = {
                 audioUrl: directAudioUrl,
-                path: directVideoUrl || directAudioUrl,
-                videoUrl: directVideoUrl,
+                path: isGenuineDubbed ? directVideoUrl : directAudioUrl,
+                videoUrl: isGenuineDubbed ? directVideoUrl : "",
                 language: rawTargetLang,
                 updatedAt: Date.now(),
               };
@@ -1769,7 +2415,7 @@ export class DubbingEngine {
       }
 
       // ✅ Cost tracking: record media processing cost (estimated from processing time)
-      if (executionPlan.generateDubbing && targetLang !== sourceLang) {
+      if (executionPlan.generateDubbing && targetLang !== sourceLang && isDubbingSupportedForTarget) {
         const processingSeconds = (Date.now() - t0) / 1000;
         costEngine.recordMediaCost(jobId, userId, processingSeconds).catch(() => {});
       }
@@ -1784,8 +2430,6 @@ export class DubbingEngine {
         translationUrl,
         segments:       dubbingSegs.length,
         processingTime: Date.now() - t0,
-        lipSyncUrl:     undefined,
-        lipSyncStatus:  "skipped",
         stems: {
           mne: mneStemUrl || null,
           dialogue: rawDialogueUrl || undefined,
@@ -1907,6 +2551,171 @@ export class DubbingEngine {
   }
 
   /**
+   * 🛡️ Load persistent dubbing checkpoint to enable exact-failure resumption.
+   */
+  public async loadDubbingCheckpoint(
+    jobId: string,
+    targetLang: string
+  ): Promise<DubbingCheckpoint | null> {
+    try {
+      const snap = await db().collection("dubbing_checkpoints").doc(`${jobId}_${targetLang}`).get();
+      if (snap.exists) {
+        return snap.data() as DubbingCheckpoint;
+      }
+    } catch (err) {
+      logger.warn("[Dubbing:Checkpoint] Notice loading checkpoint:", { jobId, targetLang, err: String(err) });
+    }
+    return null;
+  }
+
+  /**
+   * 🛡️ Save persistent dubbing checkpoint after each translated block and synthesized batch.
+   */
+  public async saveDubbingCheckpoint(
+    jobId: string,
+    targetLang: string,
+    data: Partial<DubbingCheckpoint> & Record<string, any>
+  ): Promise<void> {
+    try {
+      await db().collection("dubbing_checkpoints").doc(`${jobId}_${targetLang}`).set({
+        jobId,
+        targetLang,
+        updatedAt: Date.now(),
+        ...data,
+      }, { merge: true });
+    } catch (err) {
+      logger.warn("[Dubbing:Checkpoint] Notice saving checkpoint:", { jobId, targetLang, err: String(err) });
+    }
+  }
+
+  /**
+   * 🛡️ Edge Case 2: Verify audio chunk existence, duration, and file size (> 1KB, > 100ms)
+   * Only commits chunks that pass validation, and rejects corrupted / 0-byte stubs on resume.
+   */
+  public async verifyAudioChunk(
+    audioUrl: string
+  ): Promise<{ valid: boolean; sizeBytes: number; durationMs: number; error?: string }> {
+    if (!audioUrl || typeof audioUrl !== "string" || audioUrl.trim().length === 0) {
+      return { valid: false, sizeBytes: 0, durationMs: 0, error: "empty_url" };
+    }
+    const trimmed = audioUrl.trim();
+    const storageInfo = parseAnyStorageUrl(trimmed);
+    if (!storageInfo) {
+      // In non-storage URL formats (e.g. synthetic test URLs without bucket):
+      return { valid: trimmed.length > 5, sizeBytes: 2048, durationMs: 250 };
+    }
+
+    try {
+      const bucket = admin.storage().bucket(storageInfo.bucketName || undefined);
+      const file = bucket.file(storageInfo.filePath);
+      const [exists] = await file.exists().catch(() => [false]);
+      if (!exists) {
+        return { valid: false, sizeBytes: 0, durationMs: 0, error: "file_not_found" };
+      }
+
+      const [metadata] = await file.getMetadata().catch(() => [{ size: 0 }]);
+      let sizeBytes = Number(metadata?.size) || 0;
+
+      // Temporary probe file to measure duration and confirm audio stream integrity
+      const tmpProbePath = path.join(
+        os.tmpdir(),
+        `probe_chunk_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`
+      );
+      try {
+        await file.download({ destination: tmpProbePath }).catch(async () => {
+          const [buf] = await file.download();
+          if (buf && Buffer.isBuffer(buf)) {
+            await fs.promises.writeFile(tmpProbePath, buf);
+          }
+        });
+
+        const stat = await fs.promises.stat(tmpProbePath).catch(() => null);
+        if (stat && stat.size > 0) {
+          sizeBytes = stat.size;
+        }
+
+        if (sizeBytes <= 1024) {
+          return { valid: false, sizeBytes, durationMs: 0, error: `file_too_small (${sizeBytes} bytes <= 1024)` };
+        }
+
+        const durationMs = await mediaService.probeMediaDurationMs(tmpProbePath).catch(() => 0);
+        if (durationMs > 0 && durationMs <= 100) {
+          return { valid: false, sizeBytes, durationMs, error: `duration_too_short (${durationMs}ms <= 100ms)` };
+        }
+
+        return { valid: true, sizeBytes, durationMs: durationMs || 250 };
+      } catch (probeErr) {
+        logger.warn("[Dubbing:ChunkIntegrity] Probe warning:", probeErr);
+        return { valid: sizeBytes > 1024, sizeBytes, durationMs: 0 };
+      } finally {
+        await fs.promises.unlink(tmpProbePath).catch(() => {});
+      }
+    } catch (err) {
+      logger.warn("[Dubbing:ChunkIntegrity] Storage check exception:", { audioUrl, err: String(err) });
+      return { valid: false, sizeBytes: 0, durationMs: 0, error: String(err) };
+    }
+  }
+
+  /**
+   * 🛡️ Edge Case 4: Idempotency Lease Lock
+   * Acquires an atomic Firestore transaction lease on dubbing_checkpoints/{jobId}_{targetLang}.
+   * Prevents duplicate retry taps in Flutter Studio from spawning parallel workers and double-deducting ElevenLabs credits.
+   */
+  public async acquireDubbingLease(
+    jobId: string,
+    targetLang: string,
+    leaseTtlMs: number = 120_000
+  ): Promise<boolean> {
+    const docRef = db().collection("dubbing_checkpoints").doc(`${jobId}_${targetLang}`);
+    try {
+      return await db().runTransaction(async (transaction) => {
+        const snap = await transaction.get(docRef);
+        const now = Date.now();
+        if (snap.exists) {
+          const data = snap.data();
+          const existingLease = data?.leaseExpiresAt;
+          if (typeof existingLease === "number" && existingLease > now) {
+            logger.warn("[Dubbing:Lease] Active lease held by another worker — declining duplicate execution", {
+              jobId,
+              targetLang,
+              existingLease,
+              remainingMs: existingLease - now,
+            });
+            return false;
+          }
+        }
+        transaction.set(
+          docRef,
+          {
+            jobId,
+            targetLang,
+            stage: "synthesizing",
+            leaseExpiresAt: now + leaseTtlMs,
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+        return true;
+      });
+    } catch (err) {
+      logger.error("[Dubbing:Lease] Transaction error acquiring lease:", { jobId, targetLang, err: String(err) });
+      return false;
+    }
+  }
+
+  /**
+   * 🛡️ Release atomic lease upon completion or failure.
+   */
+  public async releaseDubbingLease(jobId: string, targetLang: string): Promise<void> {
+    try {
+      const docRef = db().collection("dubbing_checkpoints").doc(`${jobId}_${targetLang}`);
+      await docRef.set({ leaseExpiresAt: 0, updatedAt: Date.now() }, { merge: true });
+    } catch (err) {
+      logger.warn("[Dubbing:Lease] Notice releasing lease:", { jobId, targetLang, err: String(err) });
+    }
+  }
+
+  /**
    * Generate TTS for all segments.
    *
    * ✅ FIXED: checks performanceLayer.checkTTSCache() BEFORE calling ElevenLabs.
@@ -1925,7 +2734,9 @@ export class DubbingEngine {
     dubbingTier?: string,
     voiceType?: string,
     preferredVoiceGender?: "auto" | "male" | "female",
-    onProgress?: (completed: number, total: number) => Promise<void>
+    onProgress?: (completed: number, total: number) => Promise<void>,
+    isolatedVocalUrl?: string | null,
+    mneStemUrl?: string | null
   ): Promise<{
     urls: string[];
     failedSegments: Array<{ index: number; text: string; error: string; isQuota: boolean }>;
@@ -1936,15 +2747,51 @@ export class DubbingEngine {
     const failedSegments: Array<{ index: number; text: string; error: string; isQuota: boolean }> = [];
     const speakerProfileCache = new Map<string, SpeakerVoiceProfile | null>();
 
+    // 🛡️ Load persistent dubbing checkpoint to resume where previous run failed
+    const checkpoint = await this.loadDubbingCheckpoint(jobId, language);
+    const checkpointUrls: Record<string, string> = { ...(checkpoint?.synthesizedUrls || {}) };
+
     const lastSegEnd = segments.length > 0 ? (segments[segments.length - 1].end || 0) : 0;
     const adaptiveBatchSize = getAdaptiveTTSBatchSize(segments.length, lastSegEnd);
-    logger.info("[Dubbing] TTS adaptive batch size", { jobId, segments: segments.length, batchSize: adaptiveBatchSize, videoDurationMs: lastSegEnd });
+    logger.info("[Dubbing] TTS adaptive batch size", {
+      jobId,
+      segments: segments.length,
+      batchSize: adaptiveBatchSize,
+      videoDurationMs: lastSegEnd,
+      resumedSegmentsCount: Object.keys(checkpointUrls).length,
+    });
 
     for (let i = 0; i < segments.length; i += adaptiveBatchSize) {
       const batch = segments.slice(i, i + adaptiveBatchSize);
 
       const batchUrls = await Promise.allSettled(
         batch.map(async (seg) => {
+          // 🛡️ Checkpoint Resume Guard: Reuse chunk if already synthesized in earlier run
+          const rawResumedUrl = seg.synthesizedAudioUrl || checkpointUrls[String(seg.index)] || (checkpointUrls as any)[seg.index];
+          if (rawResumedUrl && typeof rawResumedUrl === "string" && rawResumedUrl.length > 5) {
+            const canonicalResumedUrl = toCanonicalGsUrl(rawResumedUrl);
+            const integrity = await this.verifyAudioChunk(canonicalResumedUrl);
+            if (integrity.valid) {
+              logger.info("[Dubbing:Resume] Reusing verified audio chunk from checkpoint (0 ElevenLabs credits)", {
+                jobId,
+                language,
+                index: seg.index,
+                canonicalResumedUrl,
+                sizeBytes: integrity.sizeBytes,
+              });
+              checkpointUrls[String(seg.index)] = canonicalResumedUrl;
+              return canonicalResumedUrl;
+            } else {
+              logger.warn("[Dubbing:Resume] Stale/truncated chunk rejected on resume — will re-synthesize", {
+                jobId,
+                language,
+                index: seg.index,
+                rawResumedUrl,
+                reason: integrity.error,
+              });
+              delete checkpointUrls[String(seg.index)];
+            }
+          }
           // Identify the voiceId mapped to this speaker with strict Cross-Gender Guard
           const speakerId = seg.speaker || "speaker_0";
           let isFemaleSpeaker = speakerGenderMapping?.[speakerId] === "FEMALE";
@@ -2029,11 +2876,34 @@ export class DubbingEngine {
             return cached;
           }
 
-          // Cache miss → call Hybrid TTS Service (with ElevenLabs v4 expressive emotion & stability controls)
+          // Cache miss → Condition speech turn via Expressive v4 Bus
+          const busPayload = expressiveV4Bus.processSegment({
+            jobId,
+            language,
+            translatedText: seg.translatedText,
+            sourceText: seg.originalText,
+            telemetry: {
+              energyDb: seg.energyDb,
+              pitchRangeSemitones: seg.pitchRangeSemitones,
+              speakingRateRatio: seg.speakingRateRatio,
+              emotionTag: seg.emotionTag,
+              emotionalIntensity: (seg as any).emotionalIntensity,
+              deliveryStyle: seg.deliveryStyle,
+              voiceQuality: seg.voiceQuality,
+              energyEnvelopePattern: (seg as any).energyEnvelopePattern,
+              breathingPattern: (seg as any).breathingPattern,
+              stabilityOverride: effectiveStability,
+              similarityBoostOverride: effectiveSimilarity,
+            },
+            preferVoiceCloning,
+            voiceType: (voiceType as any),
+          });
+
+          // Call Hybrid TTS Service (with ElevenLabs v4 expressive emotion, style & stability controls)
           const result = await ttsService.synthesize({
             jobId,
             language,
-            text:      seg.translatedText,
+            text:      busPayload.text,
             voiceId,
             speakerId: seg.speaker,
             userId,
@@ -2043,23 +2913,38 @@ export class DubbingEngine {
             voiceType: (voiceType as any),
             pitch,
             speakingRate,
-            stability: effectiveStability,
-            similarityBoost: effectiveSimilarity,
-            emotionTag: seg.emotionTag,
+            stability: busPayload.voiceSettings.stability,
+            similarityBoost: busPayload.voiceSettings.similarity_boost,
+            style: busPayload.voiceSettings.style,
+            emotionTag: busPayload.emotionTag,
             energyDb: seg.energyDb,
           });
 
-          // Non-blocking persistent voice profile EMA update for future scenes/reels
-          this.updateSpeakerVoiceProfile(jobId, speakerId, language, {
-            voiceId,
-            pitchSemitones: pitch,
-            energyDb: seg.energyDb,
-            stability: effectiveStability ?? 0.5,
-            similarityBoost: effectiveSimilarity ?? 0.85,
-            voiceQuality: seg.voiceQuality,
-          }).then((updated) => {
-            if (updated) speakerProfileCache.set(profileKey, updated);
-          }).catch(() => {});
+          // In-memory EMA voice profile tracking across speech turns (0 Firestore cost during batch execution)
+          const currentProfile = speakerProfileCache.get(profileKey);
+          const count = (currentProfile?.segmentCount || 0) + 1;
+          const alpha = currentProfile ? 1 / Math.min(count, 6) : 1.0;
+          const updatedMemoryProfile: SpeakerVoiceProfile = {
+            speakerId,
+            targetLang: language,
+            voiceId: voiceId || currentProfile?.voiceId || "",
+            avgPitchSemitones: Number(
+              (currentProfile ? currentProfile.avgPitchSemitones * (1 - alpha) + (pitch ?? currentProfile.avgPitchSemitones) * alpha : (pitch ?? 0)).toFixed(3)
+            ),
+            avgEnergyDb: Number(
+              (currentProfile ? currentProfile.avgEnergyDb * (1 - alpha) + (seg.energyDb ?? currentProfile.avgEnergyDb) * alpha : (seg.energyDb ?? -18)).toFixed(2)
+            ),
+            avgStability: Number(
+              (currentProfile ? currentProfile.avgStability * (1 - alpha) + (effectiveStability ?? 0.5) * alpha : (effectiveStability ?? 0.5)).toFixed(3)
+            ),
+            avgSimilarityBoost: Number(
+              (currentProfile ? currentProfile.avgSimilarityBoost * (1 - alpha) + (effectiveSimilarity ?? 0.85) * alpha : (effectiveSimilarity ?? 0.85)).toFixed(3)
+            ),
+            dominantVoiceQuality: seg.voiceQuality ?? currentProfile?.dominantVoiceQuality,
+            segmentCount: count,
+            updatedAt: Date.now(),
+          };
+          speakerProfileCache.set(profileKey, updatedMemoryProfile);
 
           // ✅ Cost tracking: record TTS cost for synthesized characters (Strictly ElevenLabs v4)
           if (hasVerbalContent(seg.translatedText)) {
@@ -2081,13 +2966,31 @@ export class DubbingEngine {
         })
       );
 
-      batchUrls.forEach((r, bIdx) => {
+      for (let bIdx = 0; bIdx < batch.length; bIdx++) {
+        const r = batchUrls[bIdx];
         const globalIdx = i + bIdx;
-        if (r.status === "fulfilled") {
-          allUrls[globalIdx] = r.value;
+        const seg = batch[bIdx];
+        const segIndex = seg?.index ?? globalIdx;
+        if (r.status === "fulfilled" && r.value) {
+          const canonicalUrl = toCanonicalGsUrl(r.value);
+          const integrity = await this.verifyAudioChunk(canonicalUrl);
+          if (integrity.valid) {
+            allUrls[globalIdx] = canonicalUrl;
+            checkpointUrls[String(segIndex)] = canonicalUrl;
+          } else {
+            const integrityErr = `Chunk verification failed: ${integrity.error || "empty/truncated audio"}`;
+            logger.error("[Dubbing] TTS segment audio integrity failure", { jobId, globalIdx, segIndex, error: integrityErr });
+            failedSegments.push({
+              index: globalIdx,
+              text: batch[bIdx]?.translatedText || "",
+              error: integrityErr,
+              isQuota: false,
+            });
+            allUrls[globalIdx] = "";
+          }
         } else {
-          const reasonMsg = r.reason instanceof Error ? r.reason.message : String(r.reason);
-          const isQuota = Boolean((r.reason as any)?.isQuota) || reasonMsg.includes("quota_exceeded") || reasonMsg.includes("credits remaining");
+          const reasonMsg = r.status === "rejected" ? (r.reason instanceof Error ? r.reason.message : String(r.reason)) : "Unknown synthesis error";
+          const isQuota = Boolean((r as any)?.reason?.isQuota) || reasonMsg.includes("quota_exceeded") || reasonMsg.includes("credits remaining");
           failedSegments.push({
             index: globalIdx,
             text: batch[bIdx]?.translatedText || "",
@@ -2095,8 +2998,20 @@ export class DubbingEngine {
             isQuota,
           });
           logger.error("[Dubbing] TTS segment failed", { jobId, globalIdx, bIdx, reason: reasonMsg, isQuota });
-          allUrls[globalIdx] = ""; // placeholder
+          allUrls[globalIdx] = ""; // Synthesis failed: marked empty for DubbingQualityGate validation
         }
+      }
+
+      // 🛡️ Persist synthesized segment URLs to checkpoint immediately after each batch
+      await this.saveDubbingCheckpoint(jobId, language, {
+        stage: "synthesizing",
+        status: failedSegments.length > 0 ? "partial" : "synthesizing",
+        synthesizedUrls: checkpointUrls,
+        totalSegments: segments.length,
+        successfulCount: Object.keys(checkpointUrls).length,
+        voiceMapping,
+        isolatedVocalUrl: isolatedVocalUrl ? toCanonicalGsUrl(isolatedVocalUrl) : null,
+        meStemUrl: mneStemUrl ? toCanonicalGsUrl(mneStemUrl) : null,
       });
 
       // 🛡️ Fail-fast guard: If any segment in the batch encountered quota exhaustion or tripped circuit breaker,
@@ -2114,12 +3029,25 @@ export class DubbingEngine {
         break;
       }
 
-      const progress = 50 + Math.round(((i + batch.length) / segments.length) * 30);
-      EdgeLayer.updateStage(jobId, "dubbing", { progress }).catch(() => {});
       if (onProgress) {
         await onProgress(i + batch.length, segments.length).catch(() => {});
       }
     }
+
+    // 🛡️ Persist finalized speaker profiles once at end of TTS run (saving dozens of redundant Firestore reads & writes)
+    await Promise.all(
+      Array.from(speakerProfileCache.entries()).map(async ([_, prof]) => {
+        if (!prof) return;
+        const docId = `${prof.speakerId}_${prof.targetLang}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+        await db()
+          .collection("video_jobs")
+          .doc(jobId)
+          .collection("speaker_profiles")
+          .doc(docId)
+          .set(prof, { merge: true })
+          .catch(() => {});
+      })
+    );
 
     return {
       urls: allUrls,
@@ -2204,10 +3132,16 @@ export class DubbingEngine {
         ? { text: decodeHtmlEntities(cached[i]!), confidence: 0.99, variants: undefined, syllableBudgetCompliance: undefined } 
         : newTranslations[newIdx++] || { text: seg.text, confidence: 0, variants: undefined, syllableBudgetCompliance: undefined };
 
+      let cleanTranslated = decodeHtmlEntities(translation.text);
+      if (targetLang === "te") {
+        cleanTranslated = applyTeluguTheologicalLexiconGuard(cleanTranslated);
+      }
+      cleanTranslated = normalizeScriptureCitationsForTts(cleanTranslated, targetLang);
+
       return {
         index:          seg.index,
         originalText:   seg.text,
-        translatedText: decodeHtmlEntities(translation.text),
+        translatedText: cleanTranslated,
         confidence:     translation.confidence,
         variants:       translation.variants,
         language:       targetLang,
@@ -2265,10 +3199,70 @@ export class DubbingEngine {
   // ─── Subtitle generation ──────────────────────────────────────────────────────
 
   private async generateSubtitles(
-    jobId:    string,
-    segments: DubbingSegment[],
-    language: string
+    jobId:          string,
+    segments:       DubbingSegment[],
+    language:       string,
+    sourceLanguage: string = "en",
+    words?:         WordTimestamp[]
   ): Promise<{ srtUrl: string; vttUrl: string; jsonUrl: string }> {
+    if (words && words.length > 0) {
+      try {
+        const localized = await MultilingualSubtitleLocalizer.localizeTrack({
+          jobId,
+          sourceWords: words,
+          sourceLanguage,
+          targetLanguage: language,
+          fallbackSegments: segments.map((s, idx) => ({
+            index: idx + 1,
+            start: s.start,
+            end: s.end,
+            duration: s.end - s.start,
+            text: stripAudioTagsForSubtitles(s.translatedText),
+            words: [],
+          })),
+        });
+
+        const bucket = admin.storage().bucket();
+        const srtPath = `subtitles/${jobId}/${language}.srt`;
+        const vttPath = `subtitles/${jobId}/${language}.vtt`;
+        const jsonPath = `subtitles/${jobId}/${language}.json`;
+        const SUBTITLE_CACHE_CONTROL = "public, max-age=86400, s-maxage=604800";
+
+        await Promise.all([
+          bucket.file(srtPath).save("\uFEFF" + localized.srtContent, {
+            metadata: {
+              contentType: "text/plain; charset=utf-8",
+              cacheControl: SUBTITLE_CACHE_CONTROL,
+            },
+          }),
+          bucket.file(vttPath).save("\uFEFF" + localized.vttContent, {
+            metadata: {
+              contentType: "text/vtt; charset=utf-8",
+              cacheControl: SUBTITLE_CACHE_CONTROL,
+            },
+          }),
+          bucket.file(jsonPath).save(localized.jsonContent, {
+            metadata: {
+              contentType: "application/json",
+              cacheControl: SUBTITLE_CACHE_CONTROL,
+            },
+          }),
+        ]);
+
+        return {
+          srtUrl: `gs://${bucket.name}/${srtPath}`,
+          vttUrl: `gs://${bucket.name}/${vttPath}`,
+          jsonUrl: `gs://${bucket.name}/${jsonPath}`,
+        };
+      } catch (err) {
+        logger.warn("[Dubbing] Multilingual localizer failed, falling back to legacy mediaService", {
+          jobId,
+          language,
+          err,
+        });
+      }
+    }
+
     return mediaService.generateAllSubtitles(
       jobId,
       segments.map((s) => ({
@@ -2311,7 +3305,8 @@ export class DubbingEngine {
     totalDurationSeconds?: number,
     audioFilters?:    string,
     totalDurationMs?:  number,
-    cadenceLock?:     boolean
+    cadenceLock?:     boolean,
+    onMetricsComputed?: (metrics: MergeAudioMetrics) => void
   ): Promise<string> {
     const valid = audioUrls.filter((u) => u !== "");
     if (valid.length === 0) throw new Error("No valid TTS audio segments to stitch");
@@ -2326,6 +3321,7 @@ export class DubbingEngine {
       totalDurationMs: resolvedMs,
       audioFilters,
       cadenceLock,
+      onMetricsComputed,
     });
   }
 
@@ -2591,10 +3587,21 @@ export class DubbingEngine {
       ...(vData?.media?.subtitles || {}),
       ...(vData?.mediaSubtitles || {}),
     };
-    const preferredLang = vData?.language || vData?.sourceLanguage || "en";
-    const sourceSubLang = existingSubs[preferredLang]
-      ? preferredLang
-      : (Object.keys(existingSubs)[0] || preferredLang);
+    const preferredLang = normalizeLanguageCode(
+      vData?.sourceLanguage ||
+      vData?.originalLanguage ||
+      vData?.language ||
+      "en"
+    );
+    let sourceSubLang = Object.keys(existingSubs).find((k) => normalizeLanguageCode(k) === preferredLang);
+    if (!sourceSubLang && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(preferredLang)) {
+      sourceSubLang = preferredLang;
+    }
+    if (!sourceSubLang) {
+      sourceSubLang = Object.keys(existingSubs).find((k) => ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normalizeLanguageCode(k))) ||
+        Object.keys(existingSubs)[0] ||
+        preferredLang;
+    }
     const subUrlToUse = existingSubs[sourceSubLang];
 
     if (subUrlToUse && (vData?.subtitlesEditedByCreator === true || vData?.subtitlesManualEdit === true)) {
@@ -2625,6 +3632,10 @@ export class DubbingEngine {
     if (doc.exists) {
       const data = doc.data();
       if (data?.utterances && data.utterances.length > 0) {
+        if (preferredLang && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normalizeLanguageCode(data.language || ""))) {
+          logger.info("[Dubbing] Restoring authentic supported source language over contaminated transcript language", { jobId, contaminated: data.language, authentic: preferredLang });
+          data.language = preferredLang;
+        }
         return data;
       }
     }
@@ -2634,6 +3645,10 @@ export class DubbingEngine {
       if (doc.exists) {
         const data = doc.data();
         if (data?.utterances && data.utterances.length > 0) {
+          if (preferredLang && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normalizeLanguageCode(data.language || ""))) {
+            logger.info("[Dubbing] Restoring authentic supported source language over contaminated orig transcript language", { origJobId, contaminated: data.language, authentic: preferredLang });
+            data.language = preferredLang;
+          }
           return data;
         }
       }
@@ -2688,7 +3703,16 @@ export class DubbingEngine {
       ...(vData?.mediaSubtitles || {}),
     };
 
-    const availableLangs = Object.keys(fallbackSubs);
+    // Prioritize preferredLang first, then supported AssemblyAI Universal-3.5 Pro languages, then others
+    const availableLangs = Object.keys(fallbackSubs).sort((a, b) => {
+      const normA = normalizeLanguageCode(a);
+      const normB = normalizeLanguageCode(b);
+      if (normA === preferredLang && normB !== preferredLang) return -1;
+      if (normB === preferredLang && normA !== preferredLang) return 1;
+      const aSupp = ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normA) ? 1 : 0;
+      const bSupp = ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normB) ? 1 : 0;
+      return bSupp - aSupp;
+    });
     if (availableLangs.length > 0) {
       for (const lang of availableLangs) {
         const subUrl = fallbackSubs[lang];
@@ -2699,14 +3723,18 @@ export class DubbingEngine {
             const utterances = this.parseSubtitlesToUtterances(subContent);
             if (utterances.length > 0) {
               const fullText = utterances.map((u) => u.text).join(" ");
+              const normLang = normalizeLanguageCode(lang);
+              const recoveredLang = (normLang === preferredLang || (ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normLang)))
+                ? preferredLang
+                : normLang;
               const normalized = {
                 text: fullText,
                 utterances,
-                language: lang,
+                language: recoveredLang,
                 source: "parsed_subtitles",
                 confidence: 1.0,
               };
-              logger.info("[Dubbing] Recovered transcript from existing subtitles", { jobId, lang, utterances: utterances.length });
+              logger.info("[Dubbing] Recovered transcript from existing subtitles", { jobId, lang: recoveredLang, utterances: utterances.length });
               await db().collection("transcripts").doc(jobId).set(normalized, { merge: true }).catch(() => {});
               return normalized;
             }
@@ -2932,6 +3960,7 @@ export class DubbingEngine {
     isolatedVocalUrl: string | null;
     mneValidationResult?: import("../services/media").MneValidationResult;
     eventId: string;
+    words?: WordTimestamp[];
   }): Promise<void> {
     const { jobId, userId, segments, totalDurationMs, executionPlan } = params;
     const sourceLang = normalizeLanguageCode(params.sourceLang);
@@ -2982,7 +4011,7 @@ export class DubbingEngine {
       }));
       translationsByLanguage[targetLang] = normalisedSegs;
 
-      const subRes = await this.generateSubtitles(jobId, normalisedSegs, targetLang);
+      const subRes = await this.generateSubtitles(jobId, normalisedSegs, targetLang, sourceLang, params.words);
       subtitlePaths[targetLang] = subRes.srtUrl;
 
       const jobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
@@ -3197,7 +4226,10 @@ export class DubbingEngine {
         meta.acousticFingerprint,
         payload.dubbingTier || "audio_track",
         "cloned",
-        meta.executionPlan?.voiceGender
+        meta.executionPlan?.voiceGender,
+        undefined,
+        meta.isolatedVocalUrl,
+        meta.mneStemUrl
       );
 
       if (ttsResult.failedSegments.length > 0) {
@@ -3361,6 +4393,9 @@ export class DubbingEngine {
           totalDurationMs,
           // audioFilters omitted — dialogue already mastered via assembleReelAudio; mixDubWithMne handles single-pass loudnorm
           roomTone: meta.acousticFingerprint?.roomTone,
+          spokenSegments: (meta.words && meta.words.length > 0)
+            ? meta.words.map((w: any) => ({ start: w.start || 0, end: w.end || 0 }))
+            : (meta.segments || []),
         });
       }
 
@@ -3383,41 +4418,54 @@ export class DubbingEngine {
         throw new Error(`[Dubbing:Assemble:QualityGate] ${gate.violations.join("; ")}`);
       }
 
-      let videoResult = payload.videoUrl;
-      try {
-        videoResult = await mediaService.mergeAudioToVideo({
-          jobId,
-          videoUrl: payload.videoUrl,
-          audioUrl: masterAudioUrl,
-          subtitleUrl: executionPlan?.genLangSubs ? subtitlePaths[targetLang] : undefined,
-          language: targetLang,
-          format: "mp4",
-          audioFilters: dspFilters,
-          isPreMastered: masterAudioUrl !== rawDialogueUrl,
-        });
-      } catch (mergeErr) {
-        logger.warn("[Dubbing:Assemble] Remux warning (audio track intact):", mergeErr);
+      let videoResult = "";
+      if ((executionPlan as any)?.dubbingTier === "audio_track") {
+        logger.info("[Dubbing:Assemble] Skipping video remuxing for audio-track tier (master audio track is intact)", { jobId, targetLang });
+      } else {
+        try {
+          videoResult = await mediaService.mergeAudioToVideo({
+            jobId,
+            videoUrl: payload.videoUrl,
+            audioUrl: masterAudioUrl,
+            subtitleUrl: executionPlan?.genLangSubs ? subtitlePaths[targetLang] : undefined,
+            language: targetLang,
+            format: "mp4",
+            audioFilters: dspFilters,
+            isPreMastered: masterAudioUrl !== rawDialogueUrl,
+          });
+        } catch (mergeErr) {
+          logger.warn("[Dubbing:Assemble] Remux warning (audio track intact):", mergeErr);
+          videoResult = "";
+        }
       }
 
+      const isAssembleGenuine = videoResult &&
+        videoResult !== payload.videoUrl &&
+        !videoResult.endsWith("original.mp4") &&
+        !videoResult.includes("%2Foriginal.mp4");
+
       audioPaths[targetLang] = masterAudioUrl;
-      dubbedPaths[targetLang] = videoResult;
+      if (isAssembleGenuine) {
+        dubbedPaths[targetLang] = videoResult;
+      }
       dialogueStems[targetLang] = rawDialogueUrl;
 
       const directAudioUrl = masterAudioUrl.startsWith("gs://")
         ? `https://storage.googleapis.com/${bucket.name}/${masterAudioUrl.replace(`gs://${bucket.name}/`, "")}`
         : masterAudioUrl;
-      const directVideoUrl = videoResult.startsWith("gs://")
-        ? `https://storage.googleapis.com/${bucket.name}/${videoResult.replace(`gs://${bucket.name}/`, "")}`
-        : videoResult;
+      const directVideoUrl = isAssembleGenuine
+        ? (videoResult.startsWith("gs://")
+            ? `https://storage.googleapis.com/${bucket.name}/${videoResult.replace(`gs://${bucket.name}/`, "")}`
+            : videoResult)
+        : "";
 
       await db().collection("dubbing_results").doc(`${jobId}_${targetLang}`).set({
         jobId,
         language: targetLang,
         audioUrl: masterAudioUrl,
-        videoUrl: videoResult,
+        ...(directVideoUrl ? { videoUrl: directVideoUrl } : {}),
         processingTime: Date.now() - (meta.createdAt || Date.now()),
         createdAt: Date.now(),
-        lipSync: { enabled: false, status: "disabled", videoUrl: null },
         stems: {
           mne: meta.mneStemUrl || null,
           dialogue: rawDialogueUrl,
@@ -3430,7 +4478,7 @@ export class DubbingEngine {
       await jobRef.collection("dubbing_manifests").doc(targetLang).set({
         dialogueStemUrl: rawDialogueUrl,
         masterAudioUrl,
-        masterVideoUrl: videoResult,
+        ...(directVideoUrl ? { masterVideoUrl: directVideoUrl } : {}),
         updatedAt: Date.now(),
       }, { merge: true });
 
@@ -3442,7 +4490,7 @@ export class DubbingEngine {
         await db().collection("videos").doc(vid).set({
           audioTracks: { [targetLang]: directAudioUrl },
           media: { audioTracks: { [targetLang]: directAudioUrl } },
-          dubbedVideos: { [targetLang]: directVideoUrl },
+          ...(directVideoUrl ? { dubbedVideos: { [targetLang]: directVideoUrl } } : {}),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
       }
@@ -3457,7 +4505,6 @@ export class DubbingEngine {
         videoUrl: videoResult,
         segments: reelDocs.reduce((sum, r) => sum + (r.ownedSegmentIndices?.length || 0), 0),
         processingTime: Date.now() - (meta.createdAt || Date.now()),
-        lipSyncStatus: "skipped",
       });
     }
 

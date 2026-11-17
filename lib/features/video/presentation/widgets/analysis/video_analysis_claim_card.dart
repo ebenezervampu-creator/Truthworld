@@ -330,7 +330,29 @@ class VideoAnalysisClaimCard extends StatelessWidget {
         verdictLabelLower.contains('partial') ||
         rawStatus.contains('half');
 
-    if (isMostly) {
+    final int stateLevel = (claim['stateLevel'] is num)
+        ? (claim['stateLevel'] as num).toInt()
+        : 3;
+    final bool isStreamingProgress = stateLevel < 3 ||
+        rawStatus.contains('verifying') ||
+        rawStatus.contains('extracted') ||
+        rawStatus.contains('provisional') ||
+        verdictLabelLower.contains('verifying') ||
+        verdictLabelLower.contains('provisional') ||
+        verdictLabelLower.contains('identified');
+
+    if (isStreamingProgress) {
+      // ⚡ Live Verification in Progress (Optimistic Progressive Badge)
+      label = stateLevel == 0 || rawStatus == 'extracted'
+          ? 'Identified'
+          : (stateLevel == 1 || rawStatus == 'provisional'
+              ? 'Provisional'
+              : 'Verifying');
+      bgColor = const Color(0xFF0284C7).withValues(alpha: 0.16);
+      borderColor = const Color(0xFF38BDF8).withValues(alpha: 0.40);
+      textColor = const Color(0xFF38BDF8);
+      iconData = Icons.sync_rounded;
+    } else if (isMostly) {
       // 🌿 Mostly Verified (Clean modern mint / teal)
       label = 'Mostly Verified';
       bgColor = const Color(0xFF14B8A6).withValues(alpha: 0.14);

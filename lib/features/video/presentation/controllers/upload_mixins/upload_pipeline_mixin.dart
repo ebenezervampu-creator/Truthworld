@@ -177,6 +177,14 @@ mixin UploadPipelineMixin on UploadControllerBase {
       }
       final preExtractDurationSecs = preExtractDurationMs ~/ 1000;
 
+      // Validate video minimum duration (at least 30 seconds)
+      if (preExtractDurationSecs > 0 &&
+          preExtractDurationSecs < UploadControllerBase.minVideoDurationSeconds) {
+        const errorMsg = 'Video duration must be at least 30 seconds.';
+        AppSnackbar.warning(errorMsg);
+        throw Exception(errorMsg);
+      }
+
       // Validate Daily Upload Quota before starting upload
       if (selectedChannel.value != null) {
         try {
@@ -198,7 +206,9 @@ mixin UploadPipelineMixin on UploadControllerBase {
           }
         } catch (e) {
           if (e.toString().contains('Daily') ||
-              e.toString().contains('Standard channel')) {
+              e.toString().contains('Standard channel') ||
+              e.toString().contains('30 seconds') ||
+              e.toString().contains('at least 30 seconds')) {
             rethrow;
           }
           debugPrint('⚠️ Non-fatal error during video duration pre-check: $e');
@@ -222,8 +232,8 @@ mixin UploadPipelineMixin on UploadControllerBase {
         'videoUrl': '',
         'thumbnailUrl': '',
         'language': effectiveVideoLanguage,
-        'sourceLanguage': effectiveVideoLanguage,
-        'primaryLanguage': effectiveVideoLanguage,
+        'sourceLanguage': hasExplicitSpokenLanguage ? effectiveVideoLanguage : 'auto',
+        'primaryLanguage': hasExplicitSpokenLanguage ? effectiveVideoLanguage : 'auto',
         'spokenLanguages': spokenLanguages.isNotEmpty
             ? spokenLanguages.toList()
             : [effectiveVideoLanguage],

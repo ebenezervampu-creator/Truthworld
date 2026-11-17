@@ -8,4 +8,5 @@ export 'audio_tracks_playback_controller.dart';
 export 'audio_tracks_segment_editor_controller.dart';
 export 'audio_tracks_upload_manager.dart';
 export 'multilingual_studio_player_controller.dart';
+export 'studio_media_download_service.dart';
 

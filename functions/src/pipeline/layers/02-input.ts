@@ -93,15 +93,22 @@ export class InputLayer {
       }
     }
 
+    const rawPartialDubLangs = Array.isArray(partial.dubbingLanguages) && partial.dubbingLanguages.length > 0
+      ? partial.dubbingLanguages
+      : (partial.generateDubbing === true && Array.isArray(partial.languages) ? partial.languages : []);
+    const isManualDubbing = Boolean(partial.generateDubbing === true && rawPartialDubLangs.length > 0);
+
     return {
       userId,
       channelType,
       languages: langs.length > 0 ? langs : defaultTargetLangs,
       primaryLanguage: primary,
       spokenLanguages: spoken,
-      dubbingMode: partial.dubbingMode ?? "none",
+      dubbingMode: isManualDubbing ? (partial.dubbingMode ?? "standard") : "none",
       genLangSubs: partial.genLangSubs ?? true,
-      generateDubbing: partial.generateDubbing ?? false,
+      generateDubbing: isManualDubbing,
+      enableDubbing: isManualDubbing,
+      dubbingLanguages: isManualDubbing ? normalizeLanguageCodes(rawPartialDubLangs) : [],
       enableFactCheck: partial.enableFactCheck ?? true,
       priority: partial.priority ?? "normal",
       duration: validatedDuration ?? partial.duration,
@@ -147,18 +154,24 @@ export class InputLayer {
    * Build an execution plan from a validated config.
    */
   createExecutionPlan(jobId: string, config: UserConfig): ExecutionPlan {
+    const dubLangs = Array.isArray(config.dubbingLanguages) && config.dubbingLanguages.length > 0
+      ? config.dubbingLanguages
+      : (config.generateDubbing && Array.isArray(config.languages) ? config.languages : []);
+    const isManualDubbing = Boolean(config.generateDubbing && dubLangs.length > 0);
+
     return {
       jobId,
       enableCredibility: config.enableFactCheck,
       factCheckEnabled: config.enableFactCheck,
-      enableDubbing: config.generateDubbing,
+      enableDubbing: isManualDubbing,
       enableSubtitles: config.genLangSubs,
       enableAuxiliary: config.enableFactCheck,
       languages: config.languages,
       primaryLanguage: config.primaryLanguage,
       spokenLanguages: config.spokenLanguages,
-      dubbingMode: config.generateDubbing ? config.dubbingMode : "none",
-      generateDubbing: config.generateDubbing,
+      dubbingMode: isManualDubbing ? config.dubbingMode : "none",
+      generateDubbing: isManualDubbing,
+      dubbingLanguages: isManualDubbing ? dubLangs : [],
       genLangSubs: config.genLangSubs,
       channelType: config.channelType,
       maxClaims: 200,

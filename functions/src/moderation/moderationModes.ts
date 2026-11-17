@@ -84,7 +84,7 @@ export async function getModerationModes(): Promise<ModerationModes> {
 }
 
 /**
- * 1. Videos Content (Audio & Video Stream): true = Route to Admin only; false = Send to Gemini 2.5 Flash
+ * 1. Videos Content (Audio & Video Stream): true = Route to Admin only; false = Send to Gemini 3.5 Flash Lite
  */
 export async function isVideosBypassed(): Promise<boolean> {
   const modes = await getModerationModes();

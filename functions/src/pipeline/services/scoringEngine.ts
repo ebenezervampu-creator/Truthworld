@@ -220,7 +220,7 @@ export class ScoringEngine {
       chapters: [],
       speakers: [],
       versions: {
-        model: "Gemini 2.5",
+        model: "Gemini 3.5",
         scoring: ScoringEngine.SCORING_VERSION,
         registry: "v4-path1"
       }

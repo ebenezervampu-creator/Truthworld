@@ -123,7 +123,7 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
           !_isHovering.value &&
           _isVisible.value) {
         _pageController.nextPage(
-          duration: const Duration(milliseconds: 800),
+          duration: const Duration(milliseconds: 450),
           curve: Curves.easeInOutCubic,
         );
       }
@@ -329,6 +329,7 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                               final isSelected = _currentIndex.value == index;
                               return AnimatedContainer(
                                 duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeOutCubic,
                                 width: isSelected ? 28 : 7,
                                 height: 5,
                                 margin:

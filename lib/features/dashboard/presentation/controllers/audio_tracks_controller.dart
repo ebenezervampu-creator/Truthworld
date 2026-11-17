@@ -18,6 +18,8 @@ import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/audio_tracks_barrel.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
@@ -97,12 +99,81 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   static final Map<String, Map<String, AudioDubbingProgressState>>
       _globalDubbingProgress = {};
 
+  /// Registers active dubbing languages for a video across upload/studio lifecycles.
+  static void registerActiveDubbingJob({
+    required String videoId,
+    required List<String> targetLanguages,
+  }) {
+    final now = DateTime.now();
+    for (final lang in targetLanguages) {
+      final clean = lang.trim().toLowerCase();
+      if (clean.isEmpty) continue;
+      _globalActiveDubbingJobs.putIfAbsent(videoId, () => {}).add(clean);
+      _globalDubbingProgress.putIfAbsent(videoId, () => {})[clean] =
+          AudioDubbingProgressState(
+            langCode: clean,
+            startedAt: now,
+            stageTitle: 'Analyzing audio & transcribing dialogue',
+            etaText: '~20-30 sec',
+          );
+    }
+  }
+
+  /// Synchronizes active dubbing generation if this controller has the video selected or open.
+  void registerActiveDubbingForVideo({
+    required String videoId,
+    required List<String> targetLanguages,
+  }) {
+    registerActiveDubbingJob(videoId: videoId, targetLanguages: targetLanguages);
+    final now = DateTime.now();
+    final v = selectedVideo.value;
+    if (v != null && v.id == videoId) {
+      for (final lang in targetLanguages) {
+        final clean = lang.trim().toLowerCase();
+        if (clean.isEmpty) continue;
+        generatingDubLanguages.add(clean);
+        dubbingProgress[clean] = AudioDubbingProgressState(
+          langCode: clean,
+          startedAt: now,
+          stageTitle: 'Analyzing audio & transcribing dialogue',
+          etaText: '~20-30 sec',
+        );
+        if (!availableLanguages.contains(clean)) {
+          availableLanguages.add(clean);
+        }
+        var foundTrack = false;
+        for (final track in currentTracks) {
+          if (track.languageCode.trim().toLowerCase() == clean) {
+            track.status = 'Generating...';
+            foundTrack = true;
+          }
+        }
+        if (!foundTrack) {
+          currentTracks.add(
+            AudioTrackItem(
+              id: '${v.id}_$clean',
+              languageCode: clean,
+              languageName: getLanguageName(clean),
+              audioUrl: '',
+              status: 'Generating...',
+            ),
+          );
+        }
+      }
+      currentTracks.refresh();
+      syncCurrentVideoTracks();
+      _startProgressTicker();
+      _listenToDubbingJob(videoId);
+    }
+  }
+
   final RxSet<String> generatingDubLanguages = <String>{}.obs;
   final RxMap<String, AudioDubbingProgressState> dubbingProgress =
       <String, AudioDubbingProgressState>{}.obs;
   final Set<String> _notifiedDubLanguages = <String>{};
 
   StreamSubscription<DocumentSnapshot>? _aiDubbingJobSub;
+  StreamSubscription<DocumentSnapshot>? _videoJobFallbackSub;
   StreamSubscription<DocumentSnapshot>? _videoDocSub;
   StreamSubscription<DocumentSnapshot>? _locDocSub;
   Timer? _progressTickerTimer;
@@ -126,35 +197,44 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   void onClose() {
     _progressTickerTimer?.cancel();
     _aiDubbingJobSub?.cancel();
+    _videoJobFallbackSub?.cancel();
     _videoDocSub?.cancel();
     _locDocSub?.cancel();
+    MultiAudioPlayerController.pauseAll();
+    MultiAudioPlayerController.disposeAll();
     playbackController.stop();
     _contextManager.dispose();
     _languageManager.dispose();
     super.onClose();
   }
 
-  /// Determines if a Firestore video_jobs record is a dead zombie (> 5 minutes old with no completion).
+  /// Determines if a Firestore video_jobs record is a dead zombie (> 10 minutes old with no update).
   bool _isJobZombie(Map<String, dynamic> data, Map<String, dynamic>? stage) {
     final now = DateTime.now().millisecondsSinceEpoch;
     int? timestamp;
-    if (stage != null && stage['startedAt'] is num) {
-      timestamp = (stage['startedAt'] as num).toInt();
-    } else if (stage != null && stage['updatedAt'] is num) {
+    // CRITICAL: Actively updated jobs are actively progressing and must never be treated as zombies.
+    // Check updatedAt timestamps first before falling back to startedAt or createdAt.
+    if (stage != null && stage['updatedAt'] is num) {
       timestamp = (stage['updatedAt'] as num).toInt();
     } else if (data['updatedAt'] is num) {
       timestamp = (data['updatedAt'] as num).toInt();
-    } else if (data['createdAt'] is num) {
-      timestamp = (data['createdAt'] as num).toInt();
+    } else if (stage != null && stage['updatedAt'] is Timestamp) {
+      timestamp = (stage['updatedAt'] as Timestamp).millisecondsSinceEpoch;
     } else if (data['updatedAt'] is Timestamp) {
       timestamp = (data['updatedAt'] as Timestamp).millisecondsSinceEpoch;
+    } else if (stage != null && stage['startedAt'] is num) {
+      timestamp = (stage['startedAt'] as num).toInt();
+    } else if (stage != null && stage['startedAt'] is Timestamp) {
+      timestamp = (stage['startedAt'] as Timestamp).millisecondsSinceEpoch;
+    } else if (data['createdAt'] is num) {
+      timestamp = (data['createdAt'] as num).toInt();
     } else if (data['createdAt'] is Timestamp) {
       timestamp = (data['createdAt'] as Timestamp).millisecondsSinceEpoch;
     }
 
     if (timestamp == null) return false;
-    // Max allowable active duration for AI dubbing: 5 minutes (300,000 ms)
-    const maxActiveDurationMs = 5 * 60 * 1000;
+    // Max allowable active idle duration for AI dubbing without updates: 10 minutes (600,000 ms)
+    const maxActiveDurationMs = 10 * 60 * 1000;
     return (now - timestamp) > maxActiveDurationMs;
   }
 
@@ -202,8 +282,8 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           final startedAt = current.startedAt ?? DateTime.now();
           final elapsedSec = DateTime.now().difference(startedAt).inSeconds;
 
-          // 1. Hard Timeout Check: Voice dubbing must never spin beyond 5 minutes (300 seconds)
-          if (elapsedSec > 300) {
+          // 1. Hard Timeout Check: Voice dubbing must never spin beyond 10 minutes (600 seconds)
+          if (elapsedSec > 600) {
             logger.warning('Dubbing generation timed out for $lang (elapsed: $elapsedSec s)', tag: _tag);
             var recoveredUrl = '';
             if (vId != null) {
@@ -235,7 +315,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
               currentTracks.refresh();
               AppSnackbar.warning(
                 'AI voice dubbing for ${getLanguageName(lang)} timed out in the cloud. You can retry with one tap.',
-                title: 'Generation Timed Out',
               );
               updated = true;
             }
@@ -359,7 +438,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
               currentTracks.refresh();
               AppSnackbar.warning(
                 'AI voice dubbing for ${getLanguageName(lang)} encountered an issue in the cloud. Please tap Retry.',
-                title: 'Generation Failed',
               );
               updated = true;
               continue;
@@ -436,11 +514,16 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   void setSearchQuery(String query) => _contextManager.setSearchQuery(query);
 
   /// Selects active video and bootstraps localization tracks, commentaries, and request streams.
-  Future<void> selectVideo(Video? video) async {
+  Future<void> selectVideo(Video? video, {bool force = false}) async {
+    if (!force && video != null && selectedVideo.value?.id == video.id) {
+      return;
+    }
     await playbackController.stop();
     await _contextManager.selectVideo(
       video,
+      force: force,
       onVideoSelected: (v) async {
+        MultiAudioPlayerController.pauseAll();
         _editorManager.hasUnsavedChanges.value = false;
         if (v == null) {
           _languageManager.clear();
@@ -500,10 +583,37 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         // Extract audio tracks (merge v.audioTracks and localization.audioTracks so no tracks are lost)
         final audioMap = Map<String, String>.from(v.audioTracks)
           ..addAll(localization.audioTracks);
-        final langs = audioMap.keys.toList();
         final baseLang = v.language.isNotEmpty ? v.language : 'en';
-        if (!langs.contains(baseLang)) {
-          langs.insert(0, baseLang);
+        final langs = audioMap.keys.toList();
+        langs.remove(baseLang);
+        langs.insert(0, baseLang);
+
+        // Automatically discover in-flight dubbing requested during video upload or from video metadata
+        final allRequestedDubLangs = <String>{
+          ...v.dubbingLanguages,
+          ...cachedGenerating,
+        };
+        for (final dubLang in allRequestedDubLangs) {
+          final clean = dubLang.trim().toLowerCase();
+          if (clean.isEmpty || clean == baseLang.toLowerCase()) continue;
+          final alreadyHasAudio = (audioMap[clean] ?? '').trim().isNotEmpty;
+          if (!alreadyHasAudio) {
+            generatingDubLanguages.add(clean);
+            _globalActiveDubbingJobs.putIfAbsent(v.id, () => {}).add(clean);
+            if (!dubbingProgress.containsKey(clean)) {
+              final initialProgress = AudioDubbingProgressState(
+                langCode: clean,
+                startedAt: v.createdAt.toDate(),
+                stageTitle: 'Analyzing audio & transcribing dialogue',
+                etaText: '~20-30 sec',
+              );
+              dubbingProgress[clean] = initialProgress;
+              _globalDubbingProgress.putIfAbsent(v.id, () => {})[clean] = initialProgress;
+            }
+            if (!langs.contains(clean)) {
+              langs.add(clean);
+            }
+          }
         }
 
         // Keep generating languages in availableLanguages so they remain visible when switching tabs
@@ -520,7 +630,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         }
 
         _languageManager.availableLanguages.value = langs;
-        _languageManager.selectedLanguage.value = langs.first;
+        _languageManager.selectedLanguage.value = baseLang;
 
         await _editorManager.parseAllAudioTracks(
           video: v,
@@ -547,24 +657,39 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     final v = selectedVideo.value;
     if (v == null || newLangCode.isEmpty) return;
     try {
+      final normCode = normalizeLanguageCode(newLangCode);
       await FirebaseFirestore.instance
           .collection(FirestoreCollections.videos)
           .doc(v.id)
-          .update({'language': newLangCode});
-      final updatedVideo = v.copyWith(language: newLangCode);
+          .update({
+            'language': normCode,
+            'sourceLanguage': normCode,
+            'primaryLanguage': normCode,
+            'executionPlan.primaryLanguage': normCode,
+          });
+      final updatedVideo = v.copyWith(language: normCode);
       selectedVideo.value = updatedVideo;
-      if (!availableLanguages.contains(newLangCode)) {
-        availableLanguages.insert(0, newLangCode);
+
+      // Invalidate VideoMediaService localizationCache for this video
+      VideoMediaService.localizationCache.remove(v.id);
+
+      if (!availableLanguages.contains(normCode)) {
+        availableLanguages.insert(0, normCode);
       }
-      final audioMap = updatedVideo.audioTracks;
+      selectedLanguage.value = normCode;
+
+      final audioMap = Map<String, String>.from(updatedVideo.audioTracks)
+        ..addAll(VideoMediaService.localizationCache[v.id]?.audioTracks ?? const {});
       await _editorManager.parseAllAudioTracks(
         video: updatedVideo,
         availableLanguages: availableLanguages,
         entireAudioMap: audioMap,
+        generatingLanguages: generatingDubLanguages,
+        languageNameResolver: getLanguageName,
       );
       syncCurrentVideoTracks();
       selectedVideo.refresh();
-      showSuccess('Original video language updated to ${getLanguageName(newLangCode)}.');
+      showSuccess('Original video language updated to ${getLanguageName(normCode)}.');
     } catch (e) {
       logger.error('Failed updating original video language', error: e, tag: _tag);
       showError('Unable to update video language. Please try again.');
@@ -781,14 +906,14 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
             final currentOutputs = Map<String, dynamic>.from(outputs['audioTracks'] as Map);
             currentOutputs.remove(cleanCode);
             currentOutputs.remove(langCode);
-            currentOutputs.removeWhere((k, _) => k.toString().toLowerCase() == cleanCode);
+            currentOutputs.removeWhere((k, _) => k.toLowerCase() == cleanCode);
             jobUpdates['outputs.audioTracks'] = currentOutputs;
           }
           if (jData['audioTracks'] is Map) {
             final currentAudios = Map<String, dynamic>.from(jData['audioTracks'] as Map);
             currentAudios.remove(cleanCode);
             currentAudios.remove(langCode);
-            currentAudios.removeWhere((k, _) => k.toString().toLowerCase() == cleanCode);
+            currentAudios.removeWhere((k, _) => k.toLowerCase() == cleanCode);
             jobUpdates['audioTracks'] = currentAudios;
           }
           final stages = jData['stages'];
@@ -1035,7 +1160,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
             final currentOutputs = Map<String, dynamic>.from(outputs['dubbedVideos'] as Map);
             currentOutputs.remove(cleanCode);
             currentOutputs.remove(langCode);
-            currentOutputs.removeWhere((k, _) => k.toString().toLowerCase() == cleanCode);
+            currentOutputs.removeWhere((k, _) => k.toLowerCase() == cleanCode);
             jobUpdates['outputs.dubbedVideos'] = currentOutputs;
           }
           final stages = jData['stages'];
@@ -1363,7 +1488,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     String voiceType = 'cloned',
     bool enableDiarization = false,
     String priorityMode = 'accuracy',
-    bool enableLipSync = false,
     bool isCinemaGrade = false,
     String voiceGender = 'auto',
     bool isDirectlyPaid = false,
@@ -1373,7 +1497,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     voiceType: voiceType,
     enableDiarization: enableDiarization,
     priorityMode: priorityMode,
-    enableLipSync: enableLipSync,
     isCinemaGrade: isCinemaGrade,
     voiceGender: voiceGender,
     isDirectlyPaid: isDirectlyPaid,
@@ -1387,7 +1510,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     String voiceType = 'cloned',
     bool enableDiarization = false,
     String priorityMode = 'accuracy',
-    bool enableLipSync = false,
     bool isCinemaGrade = false,
     String voiceGender = 'auto',
     bool isDirectlyPaid = false,
@@ -1439,7 +1561,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         ? video.durationSeconds
         : (video.durationValue.inSeconds > 0 ? video.durationValue.inSeconds : 60);
     final tierObj = DubbingProductionTier.fromId(dubbingTier);
-    const isEffectiveLipSync = false;
     final isEffectiveCinema = isCinemaGrade || tierObj.isCinemaGrade;
     final isEffectiveVoiceClone = voiceType != 'standard' &&
         (voiceType == 'cloned' ||
@@ -1489,7 +1610,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           'dubbingTier': dubbingTier,
           'costUSD': dubbingCost,
           'isVoiceClone': isEffectiveVoiceClone,
-          'isLipSync': isEffectiveLipSync,
           'isCinemaGrade': isEffectiveCinema,
           'paidFromRevenue': true,
         },
@@ -1556,7 +1676,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       'autoChapters': false,
       'dubbingMode': isEffectiveVoiceClone ? 'voice_clone' : 'standard',
       'dubbingTier': dubbingTier,
-      'enableLipSync': isEffectiveLipSync,
       'cinemaGrade': isEffectiveCinema,
       'isCinemaGrade': isEffectiveCinema,
       'stemIsolation': true,
@@ -1606,7 +1725,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           'voiceGender': voiceGender,
           'dubbingWalletTxId': walletTx.id,
           'dubbingTier': dubbingTier,
-          'enableLipSync': isEffectiveLipSync,
           'cinemaGrade': isEffectiveCinema,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
@@ -1798,7 +1916,6 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
               'dubbingTier': dubbingTier,
               'dubbingMode': isEffectiveVoiceClone ? 'voice_clone' : 'standard',
               'voiceGender': voiceGender,
-              'enableLipSync': false,
               'cinemaGrade': isEffectiveCinema,
               'stemIsolation': true,
               'durationSeconds': durationSecs,
@@ -1835,6 +1952,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
   void _listenToDubbingJob(String videoId, [String? specificLangCode]) {
     _aiDubbingJobSub?.cancel();
+    _videoJobFallbackSub?.cancel();
     _videoDocSub?.cancel();
     _locDocSub?.cancel();
 
@@ -1894,14 +2012,13 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       logger.warning('Error listening to localization audio tracks: $e', tag: _tag);
     });
 
+    final v = selectedVideo.value;
+    final resolvedJobId = (v?.jobId?.isNotEmpty == true) ? v!.jobId! : videoId;
+
     // 2. Real-time listener on video_jobs pipeline execution state
-    _aiDubbingJobSub = FirebaseFirestore.instance
-        .collection('video_jobs')
-        .doc(videoId)
-        .snapshots()
-        .listen((snap) async {
+    Future<void> handleJobSnapshot(DocumentSnapshot snap) async {
       if (!snap.exists || snap.data() == null) return;
-      final data = snap.data()!;
+      final data = snap.data()! as Map<String, dynamic>;
       final jobStatus = (data['status'] as String?)?.toLowerCase();
       final stages = (data['stages'] as Map<String, dynamic>?) ?? {};
       final onDemand = stages['onDemandAI'] as Map<String, dynamic>?;
@@ -2024,7 +2141,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         final isJobFailed = jobStatus == 'failed' && !isCompleted && !isStaleJobFailure;
 
         final isZombie = _isJobZombie(data, dubStage ?? onDemand) &&
-            (startedAtMs == 0 || (effectiveDubTime > 0 ? effectiveDubTime >= startedAtMs : true));
+            (startedAtMs == 0 || effectiveDubTime <= 0 || effectiveDubTime >= startedAtMs);
 
         final isFailed = isDubFailed ||
             isTransFailed ||
@@ -2082,8 +2199,15 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
           final isActivelyRunning = singleDubStatus == 'running' ||
               singleDubStatus == 'queued' ||
+              singleDubStatus == 'pending' ||
+              singleDubStatus == 'processing' ||
               transStatus == 'running' ||
               transStatus == 'queued' ||
+              transStatus == 'pending' ||
+              transStatus == 'processing' ||
+              dubStatus == 'running' ||
+              dubStatus == 'pending' ||
+              dubStatus == 'processing' ||
               wasGenerating;
 
           if (!isActivelyRunning) {
@@ -2189,9 +2313,25 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           showSuccess('${getLanguageName(l)} dubbed audio track is ready!');
         }
       }
-    }, onError: (e) {
-      logger.error('Error listening to dubbing job', error: e, tag: _tag);
+    }
+
+    _aiDubbingJobSub = FirebaseFirestore.instance
+        .collection('video_jobs')
+        .doc(resolvedJobId)
+        .snapshots()
+        .listen(handleJobSnapshot, onError: (e) {
+      logger.warning('Error listening to dubbing job ($resolvedJobId): $e', tag: _tag);
     });
+
+    if (resolvedJobId != videoId) {
+      _videoJobFallbackSub = FirebaseFirestore.instance
+          .collection('video_jobs')
+          .doc(videoId)
+          .snapshots()
+          .listen(handleJobSnapshot, onError: (e) {
+        logger.warning('Error listening to fallback video job ($videoId): $e', tag: _tag);
+      });
+    }
   }
 
   /// Refreshes video localization data and reloads audio tracks in-place without re-invoking selectVideo.
@@ -2269,25 +2409,17 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       showError('No video selected.');
       return;
     }
-    final baseLang = video.language.isNotEmpty ? video.language : 'en';
-    final audioMap = video.audioTracks;
-    var downloadUrl = audioMap[baseLang] ?? '';
-    if (downloadUrl.isEmpty) {
-      downloadUrl = video.videoUrl;
-    }
-    if (downloadUrl.isEmpty) {
-      showError('No source audio found for this video.');
-      return;
-    }
-    final safeTitle = video.title
-        .replaceAll(RegExp(r'[^\w\s\-]'), '')
-        .trim()
-        .replaceAll(' ', '_');
-    final ext = downloadUrl.toLowerCase().contains('.mp3') ? 'mp3' : 'mp4';
-    final fileName = '${safeTitle}_original_reference.$ext';
+    final rawBase = video.language.isNotEmpty ? video.language : 'en';
+    final baseLabel = getLanguageName(rawBase);
+    final cleanTitle = StudioMediaDownloadService.getCleanTitle(video);
 
-    DownloadHelper.downloadFromUrl(downloadUrl, fileName);
-    showSuccess('Downloading original video audio for studio reference: $fileName');
+    await StudioMediaDownloadService.downloadAudioTrack(
+      video: video,
+      langCode: rawBase,
+      langLabel: baseLabel.isNotEmpty ? baseLabel : 'Original',
+      cleanTitle: cleanTitle,
+      tracksController: this,
+    );
   }
 
   /// Proactively forces a fresh Firestore check across all collections and resolves dubbing state.

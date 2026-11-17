@@ -2,10 +2,7 @@ import { parseDurationToSeconds, parseGcsUri } from "../../src/pipeline/services
 import {
   ELEVENLABS_VOICE_GENDER_MAP,
   ELEVENLABS_MULTI_SPEAKER_PALETTE,
-  EXTENDED_VOICE_CATALOG,
-  RECOMMENDED_VOICES,
-  googleTextToSpeechService,
-} from "../../src/pipeline/services/googleTextToSpeechService";
+} from "../../src/pipeline/services/tts";
 import { SpeakerProfile } from "../../src/pipeline/services/speaker-profiling";
 
 describe("Audio Duration and Voice Assignment Verification", () => {
@@ -242,62 +239,7 @@ describe("Audio Duration and Voice Assignment Verification", () => {
     });
   });
 
-  describe("Telugu Voice Engine & Cross-Gender Protection", () => {
-    it("configures valid Google Cloud Standard voices for Telugu without unverified Chirp models", () => {
-      const teConfig = RECOMMENDED_VOICES["te-IN"];
-      expect(teConfig).toBeDefined();
-      expect(teConfig.MALE.voiceName).toBe("te-IN-Standard-B");
-      expect(teConfig.MALE.modelType).toBe("standard");
-      expect(teConfig.FEMALE.voiceName).toBe("te-IN-Standard-A");
-      expect(teConfig.FEMALE.modelType).toBe("standard");
-    });
 
-    it("resolves male Telugu request to te-IN-Standard-B", () => {
-      const voice = googleTextToSpeechService.resolveVoice({
-        jobId: "job_te_1",
-        language: "te-IN",
-        text: "నమస్కారం, ఇది ఒక పరీక్ష ఆడియో.",
-        gender: "MALE",
-      });
-      expect(voice.locale).toBe("te-IN");
-      expect(voice.voiceName).toBe("te-IN-Standard-B");
-      expect(voice.modelType).toBe("standard");
-    });
-
-    it("resolves female Telugu request to te-IN-Standard-A", () => {
-      const voice = googleTextToSpeechService.resolveVoice({
-        jobId: "job_te_2",
-        language: "te-IN",
-        text: "నమస్కారం, ఇది ఒక పరీక్ష ఆడియో.",
-        gender: "FEMALE",
-      });
-      expect(voice.locale).toBe("te-IN");
-      expect(voice.voiceName).toBe("te-IN-Standard-A");
-      expect(voice.modelType).toBe("standard");
-    });
-
-    it("prevents female voices when MALE gender is requested (Cross-Gender Invariant)", () => {
-      const voice = googleTextToSpeechService.resolveVoice({
-        jobId: "job_guard_1",
-        language: "te-IN",
-        text: "Test content",
-        gender: "MALE",
-        voiceId: "te-IN-Standard-A", // Mismatched female voice passed
-      });
-      expect(voice.voiceName).toBe("te-IN-Standard-B"); // Corrected to male Standard-B
-    });
-
-    it("prevents male voices when FEMALE gender is requested (Cross-Gender Invariant)", () => {
-      const voice = googleTextToSpeechService.resolveVoice({
-        jobId: "job_guard_2",
-        language: "te-IN",
-        text: "Test content",
-        gender: "FEMALE",
-        voiceId: "te-IN-Standard-B", // Mismatched male voice passed
-      });
-      expect(voice.voiceName).toBe("te-IN-Standard-A"); // Corrected to female Standard-A
-    });
-  });
 
   describe("parseGcsUri (Universal Cross-Bucket Parsing)", () => {
     it("correctly extracts bucket name and path from standard gs:// URIs", () => {

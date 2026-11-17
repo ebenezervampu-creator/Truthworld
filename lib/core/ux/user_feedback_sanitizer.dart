@@ -91,15 +91,68 @@ class UserFeedbackSanitizer {
     RegExp('ai provider.*capacity', caseSensitive: false),
   ];
 
+  /// Checks if a summary is in the wrong language compared to target language.
+  /// E.g. an English summary for a Telugu or Hindi video returns true (mismatch).
+  static bool isSummaryLanguageMismatch(String? summary, String? targetLanguage) {
+    if (summary == null || targetLanguage == null) return false;
+    final trimmed = summary.trim();
+    if (trimmed.length < 10) return false;
+
+    final lang = targetLanguage.trim().toLowerCase().split(RegExp(r'[-_]')).first;
+    if (lang.isEmpty || lang == 'en') {
+      return false;
+    }
+
+    final scriptPatterns = <String, RegExp>{
+      'te': RegExp(r'[\u0C00-\u0C7F]'), // Telugu
+      'ta': RegExp(r'[\u0B80-\u0BFF]'), // Tamil
+      'kn': RegExp(r'[\u0C80-\u0CFF]'), // Kannada
+      'ml': RegExp(r'[\u0D00-\u0D7F]'), // Malayalam
+      'hi': RegExp(r'[\u0900-\u097F]'), // Hindi / Devanagari
+      'mr': RegExp(r'[\u0900-\u097F]'), // Marathi
+      'bn': RegExp(r'[\u0980-\u09FF]'), // Bengali
+      'gu': RegExp(r'[\u0A80-\u0AFF]'), // Gujarati
+      'pa': RegExp(r'[\u0A00-\u0A7F]'), // Punjabi
+      'or': RegExp(r'[\u0B00-\u0B7F]'), // Odia
+      'ar': RegExp(r'[\u0600-\u06FF\u0750-\u077F]'), // Arabic
+      'ja': RegExp(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]'), // Japanese
+      'ko': RegExp(r'[\uAC00-\uD7AF\u1100-\u11FF]'), // Korean
+      'zh': RegExp(r'[\u4E00-\u9FFF]'), // Chinese
+      'ru': RegExp(r'[\u0400-\u04FF]'), // Russian
+      'th': RegExp(r'[\u0E00-\u0E7F]'), // Thai
+    };
+
+    final pattern = scriptPatterns[lang];
+    if (pattern != null) {
+      final matches = pattern.allMatches(trimmed);
+      final latinMatches = RegExp(r'[a-zA-Z]').allMatches(trimmed);
+      if (matches.length < 3 && latinMatches.length > 15) {
+        return true;
+      }
+    }
+
+    // Common English opener pattern for non-English videos
+    if (RegExp(r'^(This video|In this video|The video|The creator|This clip|Here is|Summary:|A comprehensive)\b', caseSensitive: false).hasMatch(trimmed)) {
+      return true;
+    }
+
+    return false;
+  }
+
   /// Checks if a string is a genuine content summary and not a moderation/system message or verbatim transcript slice.
   static bool isValidVideoSummary(
     String? summary, {
     String? transcript,
     List<dynamic>? transcriptSegments,
+    String? targetLanguage,
   }) {
     if (summary == null) return false;
     final trimmed = summary.trim();
     if (trimmed.isEmpty) return false;
+
+    if (targetLanguage != null && isSummaryLanguageMismatch(trimmed, targetLanguage)) {
+      return false;
+    }
 
     for (final pattern in _invalidSummaryPatterns) {
       if (trimmed.contains(pattern)) {
@@ -146,8 +199,14 @@ class UserFeedbackSanitizer {
     String? summary, {
     String? transcript,
     List<dynamic>? transcriptSegments,
+    String? targetLanguage,
   }) {
-    if (!isValidVideoSummary(summary, transcript: transcript, transcriptSegments: transcriptSegments)) {
+    if (!isValidVideoSummary(
+      summary,
+      transcript: transcript,
+      transcriptSegments: transcriptSegments,
+      targetLanguage: targetLanguage,
+    )) {
       return '';
     }
     return summary!.trim();

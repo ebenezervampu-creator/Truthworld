@@ -155,7 +155,8 @@ class _TestFeedController extends HomeFeedControllerBase
         HomeFeedAlgorithmTabsMixin,
         HomeFeedCategoryTabsMixin,
         HomeFeedCommunityCarouselMixin,
-        HomeFeedScrollMixin {
+        HomeFeedScrollMixin,
+        HomeFeedYouTubeRefreshMixin {
   @override
   late final AuthService authService =
       Get.isRegistered<AuthService>() ? Get.find<AuthService>() : AuthService();

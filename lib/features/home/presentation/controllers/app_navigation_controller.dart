@@ -16,6 +16,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/guest_playback_limit_service.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_registry.dart';
 
@@ -275,7 +276,7 @@ class AppNavigationController extends BaseController {
           .timeout(const Duration(seconds: 8));
 
       if (response.statusCode != 200) {
-        ErrorHandler.log(
+        logger.warning(
           'trackWatchEvent endpoint responded with status ${response.statusCode}',
           tag: 'AppNavigationController.trackWatchEvent',
         );
@@ -295,18 +296,17 @@ class AppNavigationController extends BaseController {
       } catch (_) {}
 
       return true;
-    } on http.ClientException catch (e, stackTrace) {
+    } on http.ClientException catch (e) {
       // Caught client exception usually indicates CORS preflight blocking or missing network connection
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
+      logger.warning(
+        'ClientException in trackWatchEvent: $e',
         tag: 'AppNavigationController.trackWatchEvent.clientException',
       );
       return false;
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
+    } catch (e) {
+      // Telemetry/analytics failures log diagnostics without polluting Crashlytics
+      logger.warning(
+        'Failed to track watch event: $e',
         tag: 'AppNavigationController.trackWatchEvent',
       );
       return false;

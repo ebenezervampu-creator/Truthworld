@@ -19,9 +19,15 @@ import {
 import {
   ttsService,
   VALID_ELEVENLABS_AUDIO_TAGS,
-  sanitizeTextForElevenLabsV4,
   stripAudioTagsForSubtitles,
 } from "./tts";
+import {
+  applyTeluguTheologicalLexiconGuard,
+  normalizeScriptureCitationsForTts,
+  sanitizeSpokenTranslationForTts,
+} from "./translation";
+import { expressiveV4Bus } from "./expressiveV4Bus";
+import { estimateSpeechDurationMs } from "../layers/07-dubbing";
 import { mediaService, parseAnyStorageUrl } from "./media";
 import { audioIdentityService } from "./audio-identity";
 import { DubbingQualityGate } from "../layers/quality-gate";
@@ -229,21 +235,74 @@ export class DubbingEditorService {
         ? params.voiceId.trim()
         : existingSeg.voiceId;
 
-    const ttsText = sanitizeTextForElevenLabsV4(nextTextRaw, nextEmotion);
+    // 🛡️ Guardrail 3: Included Edit Quota Enforcement (protects $1.15 COGS floor)
+    const currentRegenCount = manifest.regenerationCount || 0;
+    const maxFreeRegens = Math.max(20, Math.ceil((manifest.totalDurationMs || 60000) / 30000) * 2);
+    if (currentRegenCount >= maxFreeRegens && !params.isAdmin) {
+      throw new HttpsError(
+        "resource-exhausted",
+        `You have reached your included allowance of ${maxFreeRegens} line regenerations for this video. Remaster and publish your current track or contact support for extended studio allowance.`
+      );
+    }
+
+    let textToVocalize = sanitizeSpokenTranslationForTts(nextTextRaw);
+    if (normLang === "te") {
+      textToVocalize = applyTeluguTheologicalLexiconGuard(textToVocalize);
+    }
+    textToVocalize = normalizeScriptureCitationsForTts(textToVocalize, normLang);
+
+    // 🛡️ Guardrail 1: Re-Run Rule 2c/2d & Lexical Guards on Single-Segment Resynthesis
+    const nextSeg = manifest.segments[targetIdx + 1];
+    const totalDurMs = manifest.totalDurationMs || 0;
+    const hardCeilingMs = nextSeg
+      ? Math.max(existingSeg.startMs + 200, nextSeg.startMs - 120)
+      : (totalDurMs > existingSeg.startMs ? totalDurMs - 150 : existingSeg.endMs + 3000);
+    const permissibleWindowMs = Math.max(200, hardCeilingMs - existingSeg.startMs);
+    const estDurMs = estimateSpeechDurationMs(textToVocalize, normLang);
+    const maxPermissibleDuration = permissibleWindowMs * 1.15; // atempo compression limit
+    if (estDurMs > maxPermissibleDuration + 800) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Edited dialogue is too long for this speech window (${(estDurMs / 1000).toFixed(1)}s estimated vs ${(permissibleWindowMs / 1000).toFixed(1)}s available). Please tighten phrasing to prevent turn collision.`
+      );
+    }
+
+    const isJobVoiceClone = jobData?.executionPlan?.dubbingMode === "voice_clone";
+    const voiceType = isJobVoiceClone ? "cloned" : "standard";
+
+    const busPayload = expressiveV4Bus.processSegment({
+      jobId,
+      language: normLang,
+      translatedText: textToVocalize,
+      sourceText: existingSeg.originalText,
+      telemetry: {
+        energyDb: existingSeg.energyDb,
+        pitchRangeSemitones: existingSeg.pitchRangeSemitones,
+        speakingRateRatio: (existingSeg as any).speakingRateRatio,
+        emotionTag: nextEmotion,
+        deliveryStyle: (existingSeg as any).deliveryStyle,
+        voiceQuality: existingSeg.voiceQuality as any,
+        stabilityOverride: nextStability,
+        similarityBoostOverride: nextSimilarity,
+      },
+      preferVoiceCloning: isJobVoiceClone,
+      voiceType: voiceType as any,
+    });
 
     const synthResult = await ttsService.synthesize({
       jobId,
       language: normLang,
-      text: ttsText,
+      text: busPayload.text,
       voiceId: nextVoiceId,
       speakerId: existingSeg.speaker,
       userId: jobData.userId || params.uid,
-      preferVoiceCloning: true,
+      preferVoiceCloning: isJobVoiceClone,
       ttsTier: "audio_track",
-      voiceType: "cloned",
-      stability: nextStability,
-      similarityBoost: nextSimilarity,
-      emotionTag: nextEmotion,
+      voiceType,
+      stability: busPayload.voiceSettings.stability,
+      similarityBoost: busPayload.voiceSettings.similarity_boost,
+      style: busPayload.voiceSettings.style,
+      emotionTag: busPayload.emotionTag,
       energyDb: existingSeg.energyDb,
       pronunciationGlossary: manifest.pronunciationGlossary || [],
     });
@@ -251,10 +310,10 @@ export class DubbingEditorService {
     const updatedSeg: DubbingEditableSegment = {
       ...existingSeg,
       editedText: nextTextRaw,
-      translatedText: ttsText,
-      emotionTag: nextEmotion,
-      stabilityOverride: nextStability,
-      similarityBoostOverride: nextSimilarity,
+      translatedText: busPayload.text,
+      emotionTag: busPayload.emotionTag,
+      stabilityOverride: busPayload.voiceSettings.stability,
+      similarityBoostOverride: busPayload.voiceSettings.similarity_boost,
       voiceId: nextVoiceId || synthResult.voiceName,
       synthesizedAudioUrl: synthResult.audioUrl,
       updatedAt: Date.now(),
@@ -272,15 +331,34 @@ export class DubbingEditorService {
     );
 
     const nextVersion = (manifest.version || 1) + 1;
+    const nextRevision = (manifest.revision || 0) + 1;
+    const nextRegenCount = currentRegenCount + 1;
+
     await manifestRef.set(
       {
         segments: updatedSegments,
         subtitleUrl: subtitleUrl ?? null,
+        masterAudioUrl: null, // 🛡️ Guardrail 2: Invalidate stale master audio
+        masterVideoUrl: null, // 🛡️ Guardrail 2: Invalidate stale master video
         version: nextVersion,
+        revision: nextRevision,
+        regenerationCount: nextRegenCount,
         updatedAt: Date.now(),
       },
       { merge: true }
     );
+
+    // Increment dubbing revision on job document
+    await db()
+      .collection("video_jobs")
+      .doc(jobId)
+      .set(
+        {
+          dubbingRevision: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
 
     const playableAudioUrl = await audioIdentityService
       .getAccessibleUrl(synthResult.audioUrl)
@@ -532,27 +610,62 @@ export class DubbingEditorService {
     // Fill any missing segment audio before stitching
     const segmentUrls: string[] = [];
     const updatedSegments = [...manifest.segments];
+    const isJobVoiceClone = jobData?.executionPlan?.dubbingMode === "voice_clone";
+    const voiceType = isJobVoiceClone ? "cloned" : "standard";
+
     for (let i = 0; i < updatedSegments.length; i++) {
       const seg = updatedSegments[i];
       if (seg.synthesizedAudioUrl) {
         segmentUrls.push(seg.synthesizedAudioUrl);
       } else {
+        let textToVocalize = seg.editedText || seg.translatedText;
+        if (normLang === "te") {
+          textToVocalize = applyTeluguTheologicalLexiconGuard(textToVocalize);
+        }
+        textToVocalize = normalizeScriptureCitationsForTts(textToVocalize, normLang);
+
+        const busPayload = expressiveV4Bus.processSegment({
+          jobId,
+          language: normLang,
+          translatedText: textToVocalize,
+          sourceText: seg.originalText,
+          telemetry: {
+            energyDb: seg.energyDb,
+            pitchRangeSemitones: seg.pitchRangeSemitones,
+            speakingRateRatio: seg.speakingRateRatio,
+            emotionTag: seg.emotionTag,
+            deliveryStyle: seg.deliveryStyle,
+            voiceQuality: seg.voiceQuality as any,
+            stabilityOverride: seg.stabilityOverride,
+            similarityBoostOverride: seg.similarityBoostOverride,
+          },
+          preferVoiceCloning: isJobVoiceClone,
+          voiceType: voiceType as any,
+        });
+
         const synth = await ttsService.synthesize({
           jobId,
           language: normLang,
-          text: sanitizeTextForElevenLabsV4(seg.editedText || seg.translatedText, seg.emotionTag),
+          text: busPayload.text,
           voiceId: seg.voiceId,
           speakerId: seg.speaker,
           userId: manifest.userId,
-          preferVoiceCloning: true,
+          preferVoiceCloning: isJobVoiceClone,
           ttsTier: "audio_track",
-          voiceType: "cloned",
-          stability: seg.stabilityOverride,
-          similarityBoost: seg.similarityBoostOverride,
-          emotionTag: seg.emotionTag,
+          voiceType,
+          stability: busPayload.voiceSettings.stability,
+          similarityBoost: busPayload.voiceSettings.similarity_boost,
+          style: busPayload.voiceSettings.style,
+          emotionTag: busPayload.emotionTag,
           pronunciationGlossary: manifest.pronunciationGlossary || [],
         });
-        updatedSegments[i] = { ...seg, synthesizedAudioUrl: synth.audioUrl, updatedAt: Date.now() };
+        updatedSegments[i] = {
+          ...seg,
+          translatedText: busPayload.text,
+          emotionTag: busPayload.emotionTag,
+          synthesizedAudioUrl: synth.audioUrl,
+          updatedAt: Date.now(),
+        };
         segmentUrls.push(synth.audioUrl);
       }
     }
@@ -631,12 +744,14 @@ export class DubbingEditorService {
       failedSegments: [],
       actualDurationSeconds: probedDurSec,
       expectedDurationSeconds: expectedDurSec,
-      isVoiceCloningRequested: false,
-      isVoiceCloned: true,
+      isVoiceCloningRequested: isJobVoiceClone,
+      isVoiceCloned: isJobVoiceClone,
       stemIsolationRequested: Boolean(manifest.mneStemUrl),
       isStemPreserved: Boolean(manifest.mneStemUrl),
       outputAudioSize: outputSize,
       mneValidation: jobData?.artifacts?.mneValidation,
+      translatedSegments: updatedSegments.map((s) => ({ translatedText: s.editedText || s.translatedText })),
+      translatedTexts: updatedSegments.map((s) => s.editedText || s.translatedText),
     });
 
     if (!gate.passed) {
@@ -727,6 +842,107 @@ export class DubbingEditorService {
       version: nextVersion,
       mneGain: resolvedMneGain,
       dialogueGain: resolvedDialogueGain,
+    };
+  }
+
+  /**
+   * Generates a complete, single-tap export package for a dubbed video:
+   * Multi-track MP4 video container + Aligned .srt captions + Aligned .vtt captions.
+   */
+  public async getDubbingExportPackage(params: {
+    jobId?: string;
+    videoId?: string;
+    language: string;
+    uid: string;
+    isAdmin?: boolean;
+  }): Promise<{
+    language: string;
+    videoUrl?: string;
+    audioUrl?: string;
+    srtUrl?: string;
+    vttUrl?: string;
+    srtContent?: string;
+    vttContent?: string;
+    totalSegments: number;
+    title?: string;
+  }> {
+    const normLang = normalizeLanguageCode(params.language);
+    const { jobId, jobData } = await this.authorizeAndResolveJobId({
+      jobId: params.jobId,
+      videoId: params.videoId,
+      language: normLang,
+      uid: params.uid,
+      isAdmin: params.isAdmin,
+    });
+
+    const manifestRef = db()
+      .collection("video_jobs")
+      .doc(jobId)
+      .collection("dubbing_manifests")
+      .doc(normLang);
+
+    const snap = await manifestRef.get();
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Dubbing manifest not found for export.");
+    }
+
+    const manifest = snap.data() as DubbingEditableManifest;
+    const segments = manifest.segments || [];
+
+    // Generate formatted SRT and VTT string representations
+    const cleanSegments = segments.map((s) => ({
+      start: s.startMs,
+      end: s.endMs,
+      text: stripAudioTagsForSubtitles(s.editedText || s.translatedText),
+    }));
+
+    const srtContent = mediaService.generateSrt(cleanSegments);
+    const vttContent = mediaService.generateVtt(cleanSegments);
+
+    let resolvedVideoUrl = manifest.masterVideoUrl;
+    let resolvedAudioUrl = manifest.masterAudioUrl;
+
+    // 🛡️ Guardrail 2: If cache was invalidated by segment edits, remaster automatically before packaging export
+    if (!resolvedVideoUrl || !resolvedAudioUrl) {
+      try {
+        const remasterRes = await this.remasterTrack({
+          jobId,
+          language: normLang,
+          uid: params.uid,
+          isAdmin: params.isAdmin,
+          mneGain: manifest.mneGain ?? 1.0,
+          dialogueGain: manifest.dialogueGain ?? 1.0,
+        });
+        resolvedVideoUrl = remasterRes.masterVideoUrl;
+        resolvedAudioUrl = remasterRes.masterAudioUrl;
+      } catch (remasterErr) {
+        logger.warn("[DubbingEditor:export] Auto-remaster on invalidated cache:", remasterErr);
+      }
+    }
+
+    if (resolvedVideoUrl) {
+      resolvedVideoUrl = await audioIdentityService.getAccessibleUrl(resolvedVideoUrl).catch(() => resolvedVideoUrl);
+    }
+    if (resolvedAudioUrl) {
+      resolvedAudioUrl = await audioIdentityService.getAccessibleUrl(resolvedAudioUrl).catch(() => resolvedAudioUrl);
+    }
+    let resolvedSrtUrl = manifest.subtitleUrl;
+    if (resolvedSrtUrl) {
+      resolvedSrtUrl = await audioIdentityService.getAccessibleUrl(resolvedSrtUrl).catch(() => manifest.subtitleUrl);
+    }
+
+    const videoTitle = (typeof jobData.title === "string" && jobData.title.trim()) || "truthworld_video";
+
+    return {
+      language: normLang,
+      videoUrl: resolvedVideoUrl || undefined,
+      audioUrl: resolvedAudioUrl || undefined,
+      srtUrl: resolvedSrtUrl || undefined,
+      vttUrl: resolvedSrtUrl ? resolvedSrtUrl.replace(/\.srt$/i, ".vtt") : undefined,
+      srtContent,
+      vttContent,
+      totalSegments: segments.length,
+      title: videoTitle,
     };
   }
 }

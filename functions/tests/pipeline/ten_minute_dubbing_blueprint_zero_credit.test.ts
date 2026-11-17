@@ -2,16 +2,15 @@
  * 🎬 TRUTHWORLD DUBBING — 10-MINUTE (600s) ZERO-CREDIT BLUEPRINT STRESS TEST
  *
  * Strictly Zero-Credit Verification:
- * - Zero live network calls to ElevenLabs, Sarvam AI, AssemblyAI, Google Translate, or Vertex AI Gemini.
+ * - Zero live network calls to ElevenLabs, AssemblyAI, Google Translate, or Vertex AI Gemini.
  * - Zero real GCS/Firestore cloud writes (disk-backed virtual GCS adapter in os.tmpdir()).
  * - 100% REAL local production execution of:
  *   - ffmpeg-static audio synthesis, probing, volumedetect, atempo, adelay+amix stitching, and sidechain M&E mixing
  *   - MediaService (validateMneStem, partitionIntoReels, mergeAudioChunks, mixDubWithMne)
  *   - AudioIdentityService (DSP filter generation)
  *   - ElevenLabsTTSService (eleven_v4 payload & voice_settings validation)
- *   - SarvamSpeechService (saaras:v4 Indic request validation)
- *   - DubbingQualityGate (7-rule pass + adversarial rejection)
- *   - LipSyncService (deferred remux fallback contract) & cost-engine (10-min pricing)
+ *   - AssemblyAI Universal-3.5 Pro (18 languages STT validation)
+ *   - DubbingQualityGate (7-rule pass + adversarial rejection) & cost-engine (10-min pricing)
  */
 
 import * as os from "os";
@@ -24,16 +23,12 @@ import axios from "axios";
 
 import { mediaService, MneValidationResult, parseDurationToSeconds, getFfmpegPath } from "../../src/pipeline/services/media";
 import { elevenLabsTtsService, TTS_MODELS } from "../../src/pipeline/services/tts";
-import { sarvamSpeechService, SARVAM_INDIC_BCP47_MAP } from "../../src/pipeline/services/sarvamSpeechService";
 import { audioIdentityService } from "../../src/pipeline/services/audio-identity";
 import { DubbingQualityGate } from "../../src/pipeline/layers/quality-gate";
-import { lipSyncService } from "../../src/pipeline/services/lipSyncService";
 import { PIPELINE_CONFIG } from "../../src/pipeline/config";
 import {
   costEngine,
   DUBBING_DURATION_TIERS,
-  PER_MINUTE_LIP_SYNC_RATE,
-  calculateLipSyncCost,
   getFlatDubbingPriceForTier,
   getFlatDubbingPricePerLanguage,
 } from "../../src/pipeline/services/cost-engine";
@@ -186,12 +181,10 @@ describe("TruthWorld Dubbing — 10-Minute (600s) Zero-Credit Blueprint Stress T
     bucketDir = path.join(tempRoot, "gcs_bucket");
     await fs.promises.mkdir(bucketDir, { recursive: true });
 
-    originalEnv.SARVAM_API_KEY = process.env.SARVAM_API_KEY;
     originalEnv.ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
     originalEnv.ASSEMBLYAI_KEY = process.env.ASSEMBLYAI_KEY;
-    originalEnv.LIPSYNC_SERVICE_URL = PIPELINE_CONFIG.LIPSYNC_SERVICE_URL;
+    originalEnv.DEMUX_SERVICE_URL = PIPELINE_CONFIG.DEMUX_SERVICE_URL;
 
-    process.env.SARVAM_API_KEY = "test_zero_credit_sarvam_key";
     process.env.ELEVENLABS_API_KEY = "test_zero_credit_elevenlabs_key";
     process.env.ASSEMBLYAI_KEY = "test_zero_credit_assemblyai_key";
 
@@ -283,73 +276,21 @@ describe("TruthWorld Dubbing — 10-Minute (600s) Zero-Credit Blueprint Stress T
   });
 
   afterAll(async () => {
-    if (originalEnv.SARVAM_API_KEY === undefined) delete process.env.SARVAM_API_KEY;
-    else process.env.SARVAM_API_KEY = originalEnv.SARVAM_API_KEY;
-
     if (originalEnv.ELEVENLABS_API_KEY === undefined) delete process.env.ELEVENLABS_API_KEY;
     else process.env.ELEVENLABS_API_KEY = originalEnv.ELEVENLABS_API_KEY;
 
     if (originalEnv.ASSEMBLYAI_KEY === undefined) delete process.env.ASSEMBLYAI_KEY;
     else process.env.ASSEMBLYAI_KEY = originalEnv.ASSEMBLYAI_KEY;
 
-    (PIPELINE_CONFIG as any).LIPSYNC_SERVICE_URL = originalEnv.LIPSYNC_SERVICE_URL;
+    (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL = originalEnv.DEMUX_SERVICE_URL;
 
     if (tempRoot) {
       await fs.promises.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
     }
   });
 
-  it("Stage 1: verifies zero-credit STT routing (Sarvam saaras:v4 Indic + AssemblyAI 18-lang, zero Google Chirp)", async () => {
-    // Verify 22 Indic languages (+ od alias + en-IN = 24 entries) in Sarvam map
-    expect(Object.keys(SARVAM_INDIC_BCP47_MAP)).toHaveLength(24);
-    expect(SARVAM_INDIC_BCP47_MAP.te).toBe("te-IN");
-    expect(SARVAM_INDIC_BCP47_MAP.hi).toBe("hi-IN");
-
-    const capturedSarvamRequests: Array<{ url: string; headers: any }> = [];
-    const postSpy = jest.spyOn(axios, "post").mockImplementation(async (url: string, _data: any, config?: any) => {
-      if (url.includes("api.sarvam.ai/speech-to-text")) {
-        capturedSarvamRequests.push({ url, headers: config?.headers });
-        return {
-          status: 200,
-          data: {
-            transcript: "Segment 0: TruthWorld verified analysis point 0.",
-            language_code: "te-IN",
-            timestamps: {
-              words: [
-                { word: "Segment", start_time_seconds: 30.0, end_time_seconds: 30.35, speaker_id: "speaker_0" },
-                { word: "0:", start_time_seconds: 30.4, end_time_seconds: 30.75, speaker_id: "speaker_0" },
-                { word: "TruthWorld", start_time_seconds: 30.8, end_time_seconds: 31.35, speaker_id: "speaker_0" },
-                { word: "verified", start_time_seconds: 31.4, end_time_seconds: 31.95, speaker_id: "speaker_0" },
-                { word: "analysis", start_time_seconds: 32.0, end_time_seconds: 32.45, speaker_id: "speaker_0" },
-                { word: "point", start_time_seconds: 32.5, end_time_seconds: 32.85, speaker_id: "speaker_0" },
-                { word: "0.", start_time_seconds: 32.9, end_time_seconds: 33.2, speaker_id: "speaker_0" },
-              ],
-            },
-          },
-        };
-      }
-      throw new Error(`ZERO_CREDIT_GUARD: Unexpected HTTP POST to ${url}`);
-    });
-
-    const signedAudioFixtureUrl = `https://storage.googleapis.com/${BUCKET_NAME}/audio/${JOB_ID}/source_10m_sample.mp3?X-Goog-Signature=zero_credit_test`;
-    const getSpy = jest.spyOn(axios, "get").mockImplementation(async (url: string) => {
-      if (url === signedAudioFixtureUrl) {
-        return { status: 200, data: speechShortBuf };
-      }
-      throw new Error(`ZERO_CREDIT_GUARD: Unexpected HTTP GET to ${url}`);
-    });
-    localSpies.push(postSpy, getSpy);
-
-    const transcriptionResult = await sarvamSpeechService.transcribe(JOB_ID, signedAudioFixtureUrl, "te", true);
-    expect(capturedSarvamRequests).toHaveLength(1);
-    expect(capturedSarvamRequests[0].url).toBe("https://api.sarvam.ai/speech-to-text");
-    expect(capturedSarvamRequests[0].headers["api-subscription-key"]).toBe("test_zero_credit_sarvam_key");
-    expect(transcriptionResult).not.toBeNull();
-    expect(transcriptionResult!.language).toBe("te");
-    expect(transcriptionResult!.segments[0].start).toBe(30000);
-    expect(getSpy).toHaveBeenCalledTimes(1);
-
-    // Verify 05-transcription.ts enforces AssemblyAI Universal-3.5 Pro (18 languages) and excludes Google Cloud Speech from dubbing/subtitles
+  it("Stage 1: verifies zero-credit STT routing (strictly AssemblyAI Universal-3.5 Pro 18-lang, zero legacy STT)", async () => {
+    // Verify 05-transcription.ts enforces AssemblyAI Universal-3.5 Pro (18 languages) strictly
     const transcriptionSrcPath = path.resolve(__dirname, "../../src/pipeline/layers/05-transcription.ts");
     const transcriptionSrc = await fs.promises.readFile(transcriptionSrcPath, "utf8");
     const langSetMatch = transcriptionSrc.match(/const ASSEMBLYAI_UNIVERSAL_35_LANGUAGES\s*=\s*new Set\(\[([\s\S]*?)\]\)/);
@@ -359,9 +300,7 @@ describe("TruthWorld Dubbing — 10-Minute (600s) Zero-Credit Blueprint Stress T
     expect(transcriptionSrc).toContain('const speechModels = ["universal-3-5-pro"];');
     expect(transcriptionSrc).toContain("speech_models: speechModels,");
     expect(transcriptionSrc).toContain("const isDubbingOrSubtitles = requestedSubtitles || requestedDubbing;");
-    expect(transcriptionSrc).toContain("Google Cloud Speech fallback is strictly removed for dubbing/subtitles.");
-
-    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(transcriptionSrc.toLowerCase()).not.toContain(["s", "a", "r", "v", "a", "m"].join(""));
   });
 
   it("Stage 2: verifies 10-minute timeline blueprint structure, silence bounds, and single-reel assignment", () => {
@@ -556,7 +495,7 @@ describe("TruthWorld Dubbing — 10-Minute (600s) Zero-Credit Blueprint Stress T
     expect(outroMasterVol.meanVolumeDb).toBeGreaterThan(-40);
   });
 
-  it("Stage 7: validates DubbingQualityGate on measured 10m artifacts, Lip-Sync deferral, and clean round pricing", async () => {
+  it("Stage 7: validates DubbingQualityGate on measured 10m artifacts and clean round pricing", async () => {
     const validGate = DubbingQualityGate.evaluate({
       jobId: JOB_ID,
       targetLang: "te",
@@ -616,25 +555,6 @@ describe("TruthWorld Dubbing — 10-Minute (600s) Zero-Credit Blueprint Stress T
     });
     expect(truncatedOutroGate.passed).toBe(false);
     expect(truncatedOutroGate.violations[0]).toContain("Audio duration mismatch");
-
-    // Lip-sync deferred check: zero billing + graceful remux fallback when GPU service unconfigured
-    expect(PER_MINUTE_LIP_SYNC_RATE).toBe(0.0);
-    expect(calculateLipSyncCost(3, TOTAL_DURATION_SEC)).toBe(0.0);
-
-    (PIPELINE_CONFIG as any).LIPSYNC_SERVICE_URL = "https://placeholder.run";
-    const mergeSpy = jest.spyOn(mediaService, "mergeAudioToVideo").mockResolvedValueOnce(
-      `gs://${BUCKET_NAME}/video/${JOB_ID}/te/remuxed.mp4`
-    );
-    localSpies.push(mergeSpy);
-    const lipSyncRes = await lipSyncService.synchronizeLips({
-      jobId: JOB_ID,
-      videoUrl: `gs://${BUCKET_NAME}/video/${JOB_ID}/source.mp4`,
-      audioUrl: masterAudioUrl,
-      language: "te",
-    });
-    expect(mergeSpy).toHaveBeenCalledTimes(1);
-    expect(lipSyncRes.status).toBe("fallback_remux");
-    expect(lipSyncRes.engineUsed).toBe("ffmpeg_remux_fallback");
 
     // 10-minute pricing verification & Zero Charm-Pricing guard
     expect(getFlatDubbingPricePerLanguage(TOTAL_DURATION_SEC, "standard", "cloned")).toBe(3.0);

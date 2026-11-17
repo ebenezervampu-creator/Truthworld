@@ -5,7 +5,7 @@
  * 1. Zero HTML Entity Leakage (decodeHtmlEntities) across named, decimal, and hex entities
  * 2. Transient Error & Quota Resilience (withTransientRetry) on 429, 503, and network timeouts
  * 3. Bounded Concurrency Pool (mapConcurrent) preserving strict index order
- * 4. Dubbing Lip-Sync & Timing Constraints (durationSeconds & maxWords calculations)
+ * 4. Dubbing Dialogue Pacing & Timing Constraints (durationSeconds & maxWords calculations)
  * 5. Structured JSON Output & Defensive Parsing (handling markdown fences & missing fields)
  */
 
@@ -14,7 +14,10 @@ import {
   withTransientRetry,
   mapConcurrent,
   translationService,
+  stripDanglingClauseFragments,
+  applyTeluguTheologicalLexiconGuard,
 } from "../../src/pipeline/services/translation";
+import { TerminologyService } from "../../src/pipeline/services/terminology_glossary";
 
 describe("World-Class Translation Test Suite", () => {
   describe("Gap 1: HTML Entity Decoding & Sanitization", () => {
@@ -161,6 +164,52 @@ describe("World-Class Translation Test Suite", () => {
       expect(parsed.translations).toHaveLength(2);
       expect(parsed.confidences[0]).toBe(0.98);
       expect(parsed.variants[0].viral).toBe("¡Hola gente!");
+    });
+  });
+
+  describe("Gap 6: Dangling Clause Fragment Stripping", () => {
+    test("prunes unclosed trailing fragment after terminal question mark (e.g., '? కొంచెం')", () => {
+      const input = "ఈ దేశంలో ఉంటూ ఈజిప్షియన్లకి ఇచ్చే బహుమతి ఇదేనా? కొంచెం";
+      expect(stripDanglingClauseFragments(input)).toBe("ఈ దేశంలో ఉంటూ ఈజిప్షియన్లకి ఇచ్చే బహుమతి ఇదేనా?");
+    });
+
+    test("prunes trailing fragment after terminal period and exclamation mark", () => {
+      expect(stripDanglingClauseFragments("We are finished. extra words")).toBe("We are finished.");
+      expect(stripDanglingClauseFragments("Watch out! dangling fragment")).toBe("Watch out!");
+    });
+
+    test("leaves complete sentences and multi-sentence dialogue intact", () => {
+      const multi = "మొదటి వాక్యం. రెండవ వాక్యం?";
+      expect(stripDanglingClauseFragments(multi)).toBe(multi);
+    });
+
+    test("handles unpunctuated phrases without modification", () => {
+      const phrase = "నాతో ఉండండి ప్రభువా";
+      expect(stripDanglingClauseFragments(phrase)).toBe(phrase);
+    });
+  });
+
+  describe("Gap 7: Telugu Theological / Biblical Lexicon & Domain Glossary Guard", () => {
+    test("normalizes raw transliterated loanword 'లార్డ్' to authentic Telugu 'ప్రభువా'", () => {
+      const rawTurn = "నాతో ఉండండి లార్డ్.";
+      expect(applyTeluguTheologicalLexiconGuard(rawTurn)).toBe("నాతో ఉండండి ప్రభువా.");
+    });
+
+    test("flags disallowed 'లార్డ్' transliteration and enforces 'ప్రభువా' in terminology glossary", () => {
+      const compliance = TerminologyService.checkTerminologyCompliance(
+        "Be with me here, Lord.",
+        "నాతో ఉండండి లార్డ్.",
+        "te"
+      );
+      expect(compliance.violations.some((v) => v.disallowedFound === "లార్డ్")).toBe(true);
+
+      const compliantCheck = TerminologyService.checkTerminologyCompliance(
+        "Be with me here, Lord.",
+        "ఈ కష్టంలో నాతో ఉండండి, ప్రభువా.",
+        "te"
+      );
+      expect(compliantCheck.violations).toHaveLength(0);
+      expect(compliantCheck.compliantTerms).toContain("lord_theological_historical");
     });
   });
 });

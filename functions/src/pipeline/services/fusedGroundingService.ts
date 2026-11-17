@@ -2,7 +2,7 @@
  * ⚡ PHASE 1: FUSED GROUNDING SERVICE (TRUTHWORLD CREDIBILITY ENGINE)
  *
  * Eliminates the Double LLM Hop by fusing Google Search Grounding (source discovery)
- * and Claim Adjudication (verdict evaluation) into a single unified Gemini 2.5 call.
+ * and Claim Adjudication (verdict evaluation) into a single unified Gemini 3.5 call.
  *
  * Epistemic & Engineering Guarantees:
  * 1. Dynamic Domain Classification: Every source is dynamically resolved via `sourceTrustService.resolveSourceTrust`.
@@ -37,8 +37,19 @@ import { PIPELINE_CONFIG } from "../config";
  * Strict Zod schema for individual claim verification inside the fused batch response.
  */
 export const FusedClaimVerdictSchema = z.object({
-  claimId: z.string(),
-  verdict: z.enum([
+  claimId: z.preprocess((val) => String(val || "").trim(), z.string()),
+  verdict: z.preprocess((val) => {
+    const s = String(val || "").toLowerCase().trim();
+    if (s.includes("true") && !s.includes("mostly") && !s.includes("partially") && !s.includes("false")) return "verified_true";
+    if (s.includes("mostly") || s.includes("partially")) return "mostly_true";
+    if (s.includes("false") || s.includes("incorrect") || s.includes("debunked")) return "false_claim";
+    if (s.includes("disputed") || s.includes("controversial")) return "disputed";
+    if (s.includes("misleading")) return "misleading";
+    if (s.includes("belief") || s.includes("religious")) return "religious_belief";
+    if (s.includes("opinion") || s.includes("subjective")) return "opinion_claim";
+    if (s.includes("satire") || s.includes("humor") || s.includes("joke")) return "satire_claim";
+    return "unproven";
+  }, z.enum([
     "verified_true",
     "mostly_true",
     "false_claim",
@@ -48,13 +59,30 @@ export const FusedClaimVerdictSchema = z.object({
     "religious_belief",
     "opinion_claim",
     "satire_claim",
-  ]),
-  evidenceLevel: z.enum(["STRONG", "MODERATE", "WEAK", "NONE", "CONTRADICTED"]).default("MODERATE"),
-  summary: z.string().min(5).max(400),
-  keyFacts: z.array(z.string()).max(5).default([]),
-  missingEvidence: z.string().optional().default(""),
-  supportingChunkIndices: z.array(z.number()).default([]),
-  contradictingChunkIndices: z.array(z.number()).default([]),
+  ])),
+  evidenceLevel: z.preprocess((val) => {
+    const s = String(val || "").toUpperCase().trim();
+    if (["STRONG", "MODERATE", "WEAK", "NONE", "CONTRADICTED"].includes(s)) return s;
+    return "MODERATE";
+  }, z.enum(["STRONG", "MODERATE", "WEAK", "NONE", "CONTRADICTED"]).default("MODERATE")),
+  summary: z.preprocess((val) => {
+    const s = String(val || "").trim();
+    if (s.length >= 5) return s.slice(0, 500);
+    return "Authoritative records were evaluated for this claim.";
+  }, z.string()),
+  keyFacts: z.preprocess((val) => {
+    if (Array.isArray(val)) return val.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 5);
+    return [];
+  }, z.array(z.string()).default([])),
+  missingEvidence: z.preprocess((val) => (val ? String(val).trim() : ""), z.string().default("")),
+  supportingChunkIndices: z.preprocess((val) => {
+    if (Array.isArray(val)) return val.map((x) => Number(x)).filter((n) => !isNaN(n));
+    return [];
+  }, z.array(z.number()).default([])),
+  contradictingChunkIndices: z.preprocess((val) => {
+    if (Array.isArray(val)) return val.map((x) => Number(x)).filter((n) => !isNaN(n));
+    return [];
+  }, z.array(z.number()).default([])),
 });
 
 /**
@@ -89,7 +117,7 @@ export class FusedGroundingService {
 
   /**
    * Executes a single-turn fused grounding call: combines Google Search source discovery
-   * and claim adjudication in one unified Gemini 2.5 call per batch.
+   * and claim adjudication in one unified Gemini call per batch.
    */
   public static async verifyBatchFused(
     claims: FilteredClaim[],
@@ -99,7 +127,7 @@ export class FusedGroundingService {
     if (claims.length === 0) return [];
 
     const t0 = Date.now();
-    const modelId = PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-flash";
+    const modelId = PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-3.5-flash-lite";
 
     logger.info(`[FusedGrounding] Starting fused verification for ${claims.length} claims`, {
       modelId,
@@ -112,8 +140,9 @@ export class FusedGroundingService {
         model: modelId,
         tools: [{ googleSearch: {} } as any],
         generationConfig: {
-          responseMimeType: "application/json",
           temperature: 0.1, // Deterministic, low-variance fact evaluation
+          maxOutputTokens: 2048,
+          thinkingConfig: { thinkingBudget: 0 },
         },
         safetySettings: [
           { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -156,6 +185,7 @@ RULES & EPISTEMIC STANDARDS:
 4. GROUNDING CHUNK MAPPING: Identify which grounding chunks support or contradict each claim by index.
 5. EXPLANATION: Write a simple, clear explanation under 35 words easily understandable by a 10-year-old in the language of the claim.
 6. FORBIDDEN PHRASES: Never say "this claim", "this statement", "from my memory", or "internal training data".
+7. MULTILINGUAL SEARCH GROUNDING: For regional language claims (e.g. Telugu, Hindi, Tamil), search across English and the regional language to find authoritative documentation from official institutions (e.g., RBI, PIB, Government of India, World Bank, recognized news agencies, and academic repositories).
 
 CLAIMS TO VERIFY:
 ${claims.map((c) => `[ID: ${c.claimId}] "${c.text}"`).join("\n\n")}
@@ -191,7 +221,8 @@ Respond ONLY with valid JSON matching this schema:
       });
 
       // ── Step 2: Strict Zod Schema Parsing (Zero Regex) ──
-      const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
+      const cleanOutput = textOutput.replace(/```(?:json)?/gi, "").trim();
+      const jsonMatch = cleanOutput.match(/\{[\s\S]*\}/);
       let parsedResponse: FusedBatchResponse;
       try {
         if (!jsonMatch) {
@@ -219,9 +250,14 @@ Respond ONLY with valid JSON matching this schema:
           return this.buildSingleFallbackVerification(claim, "Verification timed out or was incomplete.");
         }
 
-        const relevantIndices = Array.from(
-          new Set([...v.supportingChunkIndices, ...v.contradictingChunkIndices])
+        let relevantIndices = Array.from(
+          new Set([...(v.supportingChunkIndices || []), ...(v.contradictingChunkIndices || [])])
         );
+
+        // Fallback: If Gemini omitted chunk indices but Google Search grounded chunks exist, evaluate all chunks in the batch
+        if (relevantIndices.length === 0 && groundingChunks.length > 0) {
+          relevantIndices = groundingChunks.map((_, idx) => idx);
+        }
 
         const candidateSources: RichSource[] = [];
         const seenUrls = new Set<string>();
@@ -230,7 +266,7 @@ Respond ONLY with valid JSON matching this schema:
         for (const idx of relevantIndices) {
           const chunk = groundingChunks[idx];
           const rawUri = chunk?.web?.uri;
-          if (!rawUri || typeof rawUri !== "string" || !rawUri.startsWith("https://")) continue;
+          if (!rawUri || typeof rawUri !== "string" || !/^https?:\/\//i.test(rawUri)) continue;
 
           // Normalize and validate URL structure
           const parsedUrl = validateSafeExternalUrl(rawUri);
@@ -275,12 +311,17 @@ Respond ONLY with valid JSON matching this schema:
         // ── Step 4: Epistemic Invariants & Semantic Evidence Gating ──
         let finalVerdict: ClaimStatus = v.verdict;
 
-        // If marked true or false, but no verified Tier A/B sources exist:
-        // Enforce: Never manufacture certainty -> Demote to unproven
+        // If marked true or false, check evidence tiers
         const verifiedSourcesCount = candidateSources.filter((s) => s.tier === "A" || s.tier === "B").length;
-        if (verifiedSourcesCount === 0 && (finalVerdict === "verified_true" || finalVerdict === "false_claim")) {
-          logger.info(`[FusedGrounding] Demoted ${claim.claimId} to 'unproven' due to lack of Tier A/B citations`);
-          finalVerdict = "unproven";
+        const tierCCount = candidateSources.filter((s) => s.tier === "C").length;
+
+        if (verifiedSourcesCount === 0) {
+          if (tierCCount > 0 && finalVerdict === "verified_true") {
+            finalVerdict = "mostly_true";
+          } else if (candidateSources.length === 0 && (finalVerdict === "verified_true" || finalVerdict === "false_claim")) {
+            logger.info(`[FusedGrounding] Demoted ${claim.claimId} to 'unproven' due to lack of citations`);
+            finalVerdict = "unproven";
+          }
         }
 
         // If contradicting chunks are cited alongside supporting chunks, check for dispute

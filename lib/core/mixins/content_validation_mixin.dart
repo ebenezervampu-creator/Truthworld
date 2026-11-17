@@ -504,14 +504,14 @@ class ContentValidator {
     return '${mins}m ${secs.toString().padLeft(2, '0')}s';
   }
 
-  static const int minVideoDurationSeconds = 1; // Allows short-form media (even 7s). Truthworld has no 2-minute minimum limit.
+  static const int minVideoDurationSeconds = 30; // Video duration must be at least 30 seconds on Truthworld.
 
   /// Validates video upload constraints for a channel:
   /// - Standard Channels: Max 10 minutes (600 seconds) total daily video upload duration limit.
   ///   If a channel uploaded 7 minutes today, they have 3 minutes remaining for that day.
   ///   Single video duration cannot exceed 10 minutes (600 seconds) or the remaining daily quota.
   /// - Custom Channels: Unlimited daily uploads (single video supported up to 24 hours).
-  /// - Short Media: Videos and audio of any positive duration (even 7 seconds) are permitted.
+  /// - Minimum Video Duration: All videos must be at least 30 seconds duration.
   static ContentValidationResult validateChannelVideoUpload(
     Channel channel, {
     required int durationSeconds,
@@ -570,11 +570,18 @@ class ContentValidator {
       }
     }
 
-    // Truthworld allows short media (even 7 seconds). Reject only negative durations.
-    if (enforceMinimumDuration && durationSeconds < 0) {
+    if (durationSeconds < 0) {
       return const ContentValidationResult(
         isValid: false,
         message: 'Media duration cannot be negative.',
+      );
+    }
+
+    // Video duration must be at least 30 seconds
+    if (enforceMinimumDuration && durationSeconds < minVideoDurationSeconds) {
+      return const ContentValidationResult(
+        isValid: false,
+        message: 'Video duration must be at least 30 seconds.',
       );
     }
 

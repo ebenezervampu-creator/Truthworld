@@ -184,6 +184,177 @@ describe('API Integration: /api/feed (publicFeedServer)', () => {
       expect(resPage2.status).toBe(200);
       expect(resPage2.body.feed.length).toBe(1);
     });
+
+    it('rejects topic cursor reused across a different topic', async () => {
+      const vScience = buildVideo({ id: 'v_sci_1', topics: ['science'], uploadedAt: new Date(1700000002000) });
+      const vScience2 = buildVideo({ id: 'v_sci_2', topics: ['science'], uploadedAt: new Date(1700000001000) });
+      await testFirestore.collection('videos').doc(vScience.id).set(vScience);
+      await testFirestore.collection('videos').doc(vScience2.id).set(vScience2);
+
+      const resSci = await request(app).get('/api/feed?topic=science&limit=1');
+      expect(resSci.status).toBe(200);
+      const cursor = resSci.body.nextCursor;
+      expect(cursor).toBeDefined();
+
+      // Attempt to reuse science cursor for history topic
+      const resHist = await request(app).get(`/api/feed?topic=history&limit=1&cursor=${cursor}`);
+      expect(resHist.status).toBe(400);
+      expect(resHist.body.error).toContain('mismatched');
+    });
+
+    it('rejects channel cursor reused across a different channel', async () => {
+      const vChan1 = buildVideo({ id: 'v_c1_1', channelId: 'chan_alpha', createdAt: new Date(1700000002000) });
+      const vChan2 = buildVideo({ id: 'v_c1_2', channelId: 'chan_alpha', createdAt: new Date(1700000001000) });
+      await testFirestore.collection('videos').doc(vChan1.id).set(vChan1);
+      await testFirestore.collection('videos').doc(vChan2.id).set(vChan2);
+
+      const resC1 = await request(app).get('/api/feed?channelId=chan_alpha&limit=1');
+      expect(resC1.status).toBe(200);
+      const cursor = resC1.body.nextCursor;
+      expect(cursor).toBeDefined();
+
+      // Attempt to reuse chan_alpha cursor for chan_beta
+      const resC2 = await request(app).get(`/api/feed?channelId=chan_beta&limit=1&cursor=${cursor}`);
+      expect(resC2.status).toBe(400);
+      expect(resC2.body.error).toContain('mismatched');
+    });
+  });
+
+  describe('Extended Discovery Surfaces: Explore, Topics, Channels', () => {
+    it('serves diverse explore feed with category interleaving at /api/feed/explore', async () => {
+      const vTech1 = buildVideo({ id: 'exp_tech_1', category: 'technology', createdAt: new Date(1700000004000) });
+      const vTech2 = buildVideo({ id: 'exp_tech_2', category: 'technology', createdAt: new Date(1700000003000) });
+      const vSci1 = buildVideo({ id: 'exp_sci_1', category: 'science', createdAt: new Date(1700000002000) });
+      const vHist1 = buildVideo({ id: 'exp_hist_1', category: 'history', createdAt: new Date(1700000001000) });
+
+      await testFirestore.collection('videos').doc(vTech1.id).set(vTech1);
+      await testFirestore.collection('videos').doc(vTech2.id).set(vTech2);
+      await testFirestore.collection('videos').doc(vSci1.id).set(vSci1);
+      await testFirestore.collection('videos').doc(vHist1.id).set(vHist1);
+
+      const res = await request(app).get('/api/feed/explore?limit=4');
+      expect(res.status).toBe(200);
+      expect(res.body.feed.length).toBe(4);
+      // Category interleaving: First item should not have same category as second item if multiple categories exist
+      const cat0 = res.body.feed[0].category;
+      const cat1 = res.body.feed[1].category;
+      expect(cat0).not.toBe(cat1);
+    });
+
+    it('serves topic video feed at /api/feed/topic/:slug filtering strictly by topic', async () => {
+      const v1 = buildVideo({ id: 'top_v1', topics: ['quantum_computing', 'physics'], uploadedAt: new Date(1700000002000) });
+      const v2 = buildVideo({ id: 'top_v2', topics: ['quantum_computing'], uploadedAt: new Date(1700000001000) });
+      const vOther = buildVideo({ id: 'top_v3', topics: ['gardening'], uploadedAt: new Date(1700000000000) });
+
+      await testFirestore.collection('videos').doc(v1.id).set(v1);
+      await testFirestore.collection('videos').doc(v2.id).set(v2);
+      await testFirestore.collection('videos').doc(vOther.id).set(vOther);
+
+      const res = await request(app).get('/api/feed/topic/quantum_computing');
+      expect(res.status).toBe(200);
+      expect(res.body.count).toBe(2);
+      const ids = res.body.feed.map((v: any) => v.id);
+      expect(ids).toContain('top_v1');
+      expect(ids).toContain('top_v2');
+      expect(ids).not.toContain('top_v3');
+      expect(res.body.topic).toBe('quantum_computing');
+    });
+
+    it('serves channel uploads at /api/feed/channel/:id and excludes unlisted/private videos', async () => {
+      const vPub = buildVideo({ id: 'chan_v_pub', channelId: 'chan_truth_1', visibility: 'public', createdAt: new Date(1700000002000) });
+      const vPriv = buildVideo({ id: 'chan_v_priv', channelId: 'chan_truth_1', visibility: 'private', createdAt: new Date(1700000001000) });
+      const vOther = buildVideo({ id: 'chan_v_other', channelId: 'chan_truth_2', visibility: 'public', createdAt: new Date(1700000000000) });
+
+      await testFirestore.collection('videos').doc(vPub.id).set(vPub);
+      await testFirestore.collection('videos').doc(vPriv.id).set(vPriv);
+      await testFirestore.collection('videos').doc(vOther.id).set(vOther);
+
+      const res = await request(app).get('/api/feed/channel/chan_truth_1');
+      expect(res.status).toBe(200);
+      expect(res.body.count).toBe(1);
+      expect(res.body.feed[0].id).toBe('chan_v_pub');
+      expect(res.body.channelId).toBe('chan_truth_1');
+    });
+
+    it('serves topics directory at /api/discovery/topics sorted by trendingScore', async () => {
+      await testFirestore.collection('topics').doc('topic_ai').set({
+        id: 'topic_ai',
+        slug: 'ai',
+        name: 'Artificial Intelligence',
+        category: 'Technology',
+        trendingScore: 95.5,
+        videoCount: 120,
+        followerCount: 5000,
+        isFeatured: true,
+        status: 'active',
+      });
+      await testFirestore.collection('topics').doc('topic_bio').set({
+        id: 'topic_bio',
+        slug: 'bio',
+        name: 'Biotechnology',
+        category: 'Science',
+        trendingScore: 82.0,
+        videoCount: 45,
+        followerCount: 2100,
+        isFeatured: false,
+        status: 'active',
+      });
+      await testFirestore.collection('topics').doc('topic_del').set({
+        id: 'topic_del',
+        slug: 'deleted_topic',
+        name: 'Deleted',
+        trendingScore: 99.0,
+        status: 'deleted',
+      });
+
+      const res = await request(app).get('/api/discovery/topics');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('topics');
+      expect(res.body.count).toBe(2);
+      expect(res.body.topics[0].slug).toBe('ai');
+      expect(res.body.topics[1].slug).toBe('bio');
+      expect(res.headers['cache-control']).toContain('s-maxage=300');
+    });
+
+    it('serves creator leaderboard at /api/discovery/channels sorted by subscribers', async () => {
+      await testFirestore.collection('channels').doc('chan_dr_k').set({
+        id: 'chan_dr_k',
+        displayName: 'Dr. Knowledge',
+        handle: 'drknowledge',
+        category: 'Science',
+        status: 'active',
+        subscriberCount: 250000,
+        videoCount: 88,
+        isVerified: true,
+        reputation: { channelRating: 98.4, trend30d: 12.5 },
+      });
+      await testFirestore.collection('channels').doc('chan_new').set({
+        id: 'chan_new',
+        displayName: 'New Fact Hub',
+        handle: 'newfacts',
+        category: 'Education',
+        status: 'active',
+        subscriberCount: 15000,
+        videoCount: 12,
+        isVerified: false,
+        reputation: { channelRating: 85.0, trend30d: 5.2 },
+      });
+      await testFirestore.collection('channels').doc('chan_banned').set({
+        id: 'chan_banned',
+        displayName: 'Banned Channel',
+        handle: 'banned',
+        status: 'banned',
+        subscriberCount: 999999,
+      });
+
+      const res = await request(app).get('/api/discovery/channels');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('channels');
+      expect(res.body.count).toBe(2);
+      expect(res.body.channels[0].handle).toBe('drknowledge');
+      expect(res.body.channels[1].handle).toBe('newfacts');
+      expect(res.headers['cache-control']).toContain('s-maxage=300');
+    });
   });
 
   describe('Dual-Bounded LRU Cache Hardening', () => {

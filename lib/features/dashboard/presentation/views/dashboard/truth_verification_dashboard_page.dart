@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
@@ -24,6 +28,7 @@ export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_opinions_tab.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_overview_tab.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_progress_bar.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_sources_tab.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_stats_bar.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_tab_bar.dart';
@@ -76,11 +81,13 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     List<RealExtractedClaim>? claims,
     double? trustScore,
   }) {
-    // 1. Explicit fact-checked flags on video doc
+    // 1. Explicit fact-checked flags or enabled flags on video doc
     if (data['isFactChecked'] == true ||
         data['hasFactChecking'] == true ||
         data['factChecking'] == true ||
-        data['isFactChecking'] == true) {
+        data['isFactChecking'] == true ||
+        data['enableFactCheck'] == true ||
+        data['truthVerification'] == true) {
       return true;
     }
 
@@ -90,6 +97,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
       if (aiFeatures['factChecking'] == true ||
           aiFeatures['factCheck'] == true ||
           aiFeatures['isFactChecked'] == true ||
+          aiFeatures['enableFactCheck'] == true ||
           aiFeatures['factCheckSummary'] != null) {
         return true;
       }
@@ -124,6 +132,19 @@ class TruthVerificationDashboardPage extends StatelessWidget {
       if (uiReport['summary'] != null || uiReport['domain'] != null) {
         return true;
       }
+    }
+
+    // 5.5 In-progress fact-checking pipeline signals
+    if (data['factCheckProgress'] != null ||
+        data['factCheckStatus'] != null) {
+      return true;
+    }
+    final stages = data['stages'];
+    if (stages is Map &&
+        (stages['credibility'] != null ||
+            stages['factcheck'] != null ||
+            stages['fact_check'] != null)) {
+      return true;
     }
 
     // 6. Explicit fact-checking disable flag
@@ -224,6 +245,61 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     }
   }
 
+  Future<void> _retriggerFactCheck(String videoId) async {
+    try {
+      AppSnackbar.info('Initiating AI Truth Verification for video...');
+
+      // Invoke Cloud Function triggerVideoAIFeatures with authenticated creator token
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        AppSnackbar.error('Please sign in to re-trigger fact-checking.');
+        return;
+      }
+      final token = await currentUser.getIdToken();
+      final url = Uri.parse(
+        '${AppConfig.cloudFunctionsBaseUrl}/triggerVideoAIFeatures',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'videoId': videoId,
+          'channelId': channelId,
+          'features': ['factcheck'],
+          'factCheckTier': 'full_ground',
+          'priorityMode': 'truth_first',
+        }),
+      ).timeout(const Duration(seconds: 25));
+
+      if (response.statusCode == 200) {
+        AppSnackbar.success(
+          'Fact-check re-triggered successfully. AI truth verification is now underway!',
+        );
+      } else {
+        ErrorHandler.log(
+          'triggerVideoAIFeatures returned HTTP ${response.statusCode}: ${response.body}',
+          tag: 'TruthVerificationDashboardPage.retriggerFactCheck',
+        );
+        AppSnackbar.error(
+          'Unable to re-trigger fact-check. Please try again.',
+        );
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TruthVerificationDashboardPage.retriggerFactCheck',
+      );
+      AppSnackbar.error(
+        'Unable to re-trigger fact-check. Please check your connection and try again.',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -274,16 +350,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
               final videoItems = <VideoFactCheckItem>[];
 
               for (final doc in videoDocs) {
-                final data = doc.data()! as Map<String, dynamic>;
                 final videoItem = TruthVerificationParser.parseVideoDoc(doc);
-
-                if (!hasFactChecking(
-                  data,
-                  claims: videoItem.claims,
-                )) {
-                  continue;
-                }
-
                 allClaims.addAll(videoItem.claims);
                 videoItems.add(videoItem);
               }
@@ -300,6 +367,14 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                 if (targetId.isNotEmpty) {
                   filteredVideos =
                       filteredVideos.where((v) => v.id == targetId).toList();
+                } else if (videoFilter == 'needs_fact_check') {
+                  filteredVideos = filteredVideos
+                      .where((v) =>
+                          !v.isFactCheckReady && !v.isFactCheckInProgress)
+                      .toList();
+                } else if (videoFilter == 'in_progress') {
+                  filteredVideos =
+                      filteredVideos.where((v) => v.isFactCheckInProgress).toList();
                 } else if (videoFilter == 'pending') {
                   filteredVideos =
                       filteredVideos.where((v) => v.isPendingApproval).toList();
@@ -350,6 +425,8 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                       .toList();
                 }
 
+                final inProgressVideos =
+                    videoItems.where((v) => v.isFactCheckInProgress).toList();
                 final pendingVideos =
                     videoItems.where((v) => v.isPendingApproval).toList();
                 final videosWithConcernsCount =
@@ -373,6 +450,12 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // 0. Active Fact-Check In Progress Banner
+                            if (inProgressVideos.isNotEmpty) ...[
+                              _buildInProgressBanner(inProgressVideos),
+                              const SizedBox(height: 16),
+                            ],
+
                             // 1. Creator Review Grace Period Notice Banner (if any videos in review)
                             if (pendingVideos.isNotEmpty) ...[
                               _buildPendingApprovalBanner(pendingVideos),
@@ -579,6 +662,60 @@ class TruthVerificationDashboardPage extends StatelessWidget {
         ),
       );
     });
+  }
+
+  Widget _buildInProgressBanner(List<VideoFactCheckItem> inProgressVideos) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.appBarSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.bgInput,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.bgSurface),
+            ),
+            child: const Icon(
+              Icons.hourglass_top_rounded,
+              color: AppColors.brand,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Fact-Checking Analysis In Progress (${inProgressVideos.length} Video${inProgressVideos.length == 1 ? '' : 's'})',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'AI is extracting claims, grounding empirical assertions with authoritative citations, and calculating real-time progress. Badges become available to users once complete.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildPendingApprovalBanner(List<VideoFactCheckItem> pendingVideos) {
@@ -888,6 +1025,11 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     int pendingApprovalCount,
   ) {
     final videoFilter = _videoFilter.value;
+    final inProgressCount =
+        videoItems.where((v) => v.isFactCheckInProgress).length;
+    final needsFactCheckCount = videoItems
+        .where((v) => !v.isFactCheckReady && !v.isFactCheckInProgress)
+        .length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -902,6 +1044,20 @@ class TruthVerificationDashboardPage extends StatelessWidget {
               isSelected: videoFilter == 'all',
               onTap: () => _videoFilter.value = 'all',
             ),
+            if (needsFactCheckCount > 0)
+              _buildFilterPill(
+                label: '⚠️ Needs Fact-Check ($needsFactCheckCount)',
+                isSelected: videoFilter == 'needs_fact_check',
+                isWarningHighlight: true,
+                onTap: () => _videoFilter.value = 'needs_fact_check',
+              ),
+            if (inProgressCount > 0)
+              _buildFilterPill(
+                label: '⚡ In Progress ($inProgressCount)',
+                isSelected: videoFilter == 'in_progress',
+                isWarningHighlight: true,
+                onTap: () => _videoFilter.value = 'in_progress',
+              ),
             if (videosWithConcernsCount > 0)
               _buildFilterPill(
                 label: '🔴 Concern Alerts ($videosWithConcernsCount)',
@@ -950,6 +1106,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                 isDarkMode: isDarkMode,
                 onToggleApproval: _toggleFactCheckApproval,
                 onApprove: _approveVideoFactCheck,
+                onRetrigger: _retriggerFactCheck,
                 onClaimSelected: (claim) {
                   TruthVerificationDialogs.showAskAiWhyDialog(
                     context,

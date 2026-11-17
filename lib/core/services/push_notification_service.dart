@@ -536,6 +536,16 @@ class PushNotificationService extends GetxService {
   /// mega channels (100M+ subscribers) in a single backend call without transactional locks.
   Future<void> subscribeToChannelTopic(String channelId) async {
     if (!_isSupportedPlatform || channelId.trim().isEmpty) return;
+    // FLAVOR ISOLATION:
+    // Only the consumer video app ('app') should subscribe to channel upload broadcast topics.
+    // Studio ('studio'), Admin, and Advertiser apps MUST NOT subscribe to consumer video channels.
+    if (AppFlavor.active != AppFlavor.app) {
+      logger.info(
+        'Suppressed subscribeToChannelTopic for non-consumer flavor "${AppFlavor.active.name}"',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+      return;
+    }
     try {
       final sanitizedId = channelId.trim().replaceAll(RegExp('[^a-zA-Z0-9-_.~%]'), '_');
       await FirebaseMessaging.instance.subscribeToTopic('channel_$sanitizedId');
@@ -561,10 +571,54 @@ class PushNotificationService extends GetxService {
     }
   }
 
+  /// Cleans up any leftover channel broadcast topic subscriptions on non-consumer app flavors (Studio, Admin, Advertiser)
+  Future<void> unsubscribeFromAllChannelTopicsIfNonConsumer(String userId) async {
+    if (!_isSupportedPlatform || AppFlavor.active == AppFlavor.app || userId.isEmpty || userId == 'guest_user') {
+      return;
+    }
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.userSubscriptions(userId))
+          .get();
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final channelId = (data['channelId'] as String? ?? doc.id).trim();
+        if (channelId.isNotEmpty) {
+          final sanitizedId = channelId.replaceAll(RegExp('[^a-zA-Z0-9-_.~%]'), '_');
+          await FirebaseMessaging.instance.unsubscribeFromTopic('channel_$sanitizedId');
+        }
+      }
+      logger.info(
+        'Cleaned up channel topic subscriptions for non-consumer flavor "${AppFlavor.active.name}"',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+    } catch (e) {
+      logger.warning(
+        'Failed to clean up channel topics for non-consumer flavor: $e',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+    }
+  }
+
   /// Synchronizes FCM broadcast topic subscriptions for all active channel subscriptions.
   /// Ensures device receives instant push notifications when subscribed creators post content.
   Future<void> syncSubscribedChannelTopics(String userId) async {
     if (!_isSupportedPlatform || userId.isEmpty || userId == 'guest_user') return;
+
+    // FLAVOR ISOLATION:
+    // Only the consumer video app ('app') should subscribe to channel upload broadcast topics.
+    // Studio ('studio'), Admin, and Advertiser apps MUST NOT subscribe to consumer video channels.
+    // If running in Studio/Admin/Advertiser, cleanly unsubscribe from any legacy channel topics.
+    if (AppFlavor.active != AppFlavor.app) {
+      logger.info(
+        'Flavor "${AppFlavor.active.name}" is not consumer app - cleaning up channel topic subscriptions',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+      unawaited(unsubscribeFromAllChannelTopicsIfNonConsumer(userId));
+      return;
+    }
+
     try {
       final snap = await FirebaseFirestore.instance
           .collection(FirestoreCollections.userSubscriptions(userId))

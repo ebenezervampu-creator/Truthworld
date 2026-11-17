@@ -210,8 +210,10 @@ class _VideoPlayerWithAudioTracksState
                 ),
               ),
 
-              // ── Track-changing overlay ───────────────────────────────────────
-              if (_ctrl.isChangingTrack.value)
+              // ── Track-changing overlay (Full video stream transition only) ─────
+              if (_ctrl.isChangingTrack.value &&
+                  _ctrl.selectedTrack.value?.videoUrl != null &&
+                  _ctrl.selectedTrack.value!.videoUrl!.isNotEmpty)
                 const Positioned.fill(
                   child: ColoredBox(
                     color: AppColors.bgPage54,
@@ -546,6 +548,23 @@ class _BottomBar extends StatelessWidget {
                       ),
                     ),
                   ),
+                const SizedBox(width: 8),
+                // Fullscreen
+                IconButton(
+                  iconSize: 20,
+                  color: AppColors.textPrimary,
+                  icon: Icon(
+                    ctrl.isFullscreen.value
+                        ? Icons.fullscreen_exit_rounded
+                        : Icons.fullscreen_rounded,
+                  ),
+                  tooltip: ctrl.isFullscreen.value
+                      ? 'Exit full screen (f)'
+                      : 'Full screen (f)',
+                  onPressed: () => ctrl.toggleFullscreen(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ],
             ),
           ),

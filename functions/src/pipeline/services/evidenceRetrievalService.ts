@@ -70,7 +70,7 @@ export class GoogleGroundingProvider implements WebSearchProvider {
 
     try {
       const ai = this.genAI ?? getVertexAI();
-      const modelId = PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-flash";
+      const modelId = PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-3.5-flash-lite";
       const activeModel = ai.getGenerativeModel({
         model: modelId,
         tools: [{ googleSearch: {} } as any],
@@ -696,7 +696,7 @@ export class EvidenceRetrievalService {
 
     try {
       const ai = getVertexAI();
-      const modelId = PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition || "gemini-2.5-flash";
+      const modelId = PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition || "gemini-3.5-flash-lite";
       const model = ai.getGenerativeModel({
         model: modelId,
         generationConfig: {

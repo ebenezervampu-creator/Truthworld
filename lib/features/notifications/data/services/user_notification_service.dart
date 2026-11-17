@@ -140,8 +140,41 @@ class UserNotificationService {
             return UserNotification.fromJson(map['id'] as String? ?? '', map);
           })
           .toList();
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'unauthenticated') {
+        try {
+          await currentUser.getIdToken(true);
+          final callable = _functions.httpsCallable('getNotifications');
+          final result = await callable.call({
+            'limit': limit,
+            'targetApp': AppFlavor.isStudio ? 'studio' : 'app',
+          });
+          final data = result.data as Map<String, dynamic>? ?? {};
+          final list = data['notifications'] as List<dynamic>? ?? [];
+          return list
+              .map((item) {
+                final map = Map<String, dynamic>.from(item as Map);
+                return UserNotification.fromJson(
+                  map['id'] as String? ?? '',
+                  map,
+                );
+              })
+              .toList();
+        } catch (retryError) {
+          logger.warning(
+            'getNotifications callable retry unauthenticated: $retryError',
+            tag: 'NOTIFICATIONS',
+          );
+        }
+      } else {
+        logger.warning(
+          'Failed to fetch notifications via callable: ${e.message}',
+          tag: 'NOTIFICATIONS',
+        );
+      }
+      return [];
     } catch (e) {
-      logger.error(
+      logger.warning(
         'Failed to fetch notifications via callable: $e',
         tag: 'NOTIFICATIONS',
       );
@@ -156,9 +189,28 @@ class UserNotificationService {
       try {
         final callable = _functions.httpsCallable('markNotificationRead');
         await callable.call({'notificationId': notificationId});
-      } catch (e) {
-        logger.error(
-          'Failed to mark notification read via callable: $e',
+      } on FirebaseFunctionsException catch (e) {
+        if (e.code == 'unauthenticated') {
+          try {
+            // Attempt token refresh and retry once
+            await currentUser.getIdToken(true);
+            final callable = _functions.httpsCallable('markNotificationRead');
+            await callable.call({'notificationId': notificationId});
+          } catch (_) {
+            logger.info(
+              'markNotificationRead callable unauthenticated. Direct Firestore fallback applied.',
+              tag: 'NOTIFICATIONS',
+            );
+          }
+        } else {
+          logger.info(
+            'markNotificationRead callable unavailable (${e.code}). Direct Firestore fallback applied.',
+            tag: 'NOTIFICATIONS',
+          );
+        }
+      } catch (_) {
+        logger.info(
+          'markNotificationRead callable unavailable. Direct Firestore fallback applied.',
           tag: 'NOTIFICATIONS',
         );
       }

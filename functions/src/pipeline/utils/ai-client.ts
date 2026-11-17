@@ -1,7 +1,79 @@
 import { GoogleGenAI } from "@google/genai";
 import { logger } from "./logger";
 
-let genAIInstance: GoogleGenAI | null = null;
+export type VertexLocation = "global" | "us" | "eu";
+
+export interface ClientOptions {
+  requireUsResidency?: boolean;
+  locationOverride?: VertexLocation;
+}
+
+const clientCache = new Map<VertexLocation, GoogleGenAI>();
+
+export function resolveVertexLocation(options?: ClientOptions): VertexLocation {
+  if (options?.locationOverride) {
+    return options.locationOverride;
+  }
+  if (options?.requireUsResidency) {
+    return (process.env.GCP_RESIDENCY_FALLBACK as VertexLocation) || "us";
+  }
+  return (process.env.GCP_LOCATION as VertexLocation) || "global";
+}
+
+/**
+ * Returns a cached Vertex AI client via @google/genai.
+ * Defaults to "global" to support Gemini 4 Hydrogen and avoid the 10% regional surcharge.
+ */
+export function getVertexClient(options?: ClientOptions): GoogleGenAI {
+  const location = resolveVertexLocation(options);
+
+  const existing = clientCache.get(location);
+  if (existing) {
+    return existing;
+  }
+
+  const project = process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || "truthworld-1";
+  if (!project) {
+    throw new Error("Missing GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable.");
+  }
+
+  const client = new GoogleGenAI({
+    vertexai: true,
+    project,
+    location,
+  });
+
+  // Local / Dev Resilience: If running locally and ADC refresh token requires re-auth,
+  // seamlessly provide the active gcloud session token to avoid blocking tests and local jobs.
+  if (!process.env.K_SERVICE && !process.env.FUNCTION_TARGET) {
+    try {
+      const clientAny = client as any;
+      const originalAddAuthHeaders = clientAny?.apiClient?.clientOptions?.auth?.addAuthHeaders;
+      if (originalAddAuthHeaders) {
+        clientAny.apiClient.clientOptions.auth.addAuthHeaders = async function (headers: any, url: any) {
+          try {
+            return await originalAddAuthHeaders.call(this, headers, url);
+          } catch (authErr: any) {
+            if (authErr?.message?.includes("invalid_grant") || authErr?.message?.includes("invalid_rapt") || authErr?.message?.includes("reauth")) {
+              const { execSync } = require("child_process");
+              const token = execSync("gcloud auth print-access-token", { timeout: 8000 }).toString().trim();
+              if (token) {
+                headers.set("Authorization", `Bearer ${token}`);
+                return;
+              }
+            }
+            throw authErr;
+          }
+        };
+      }
+    } catch (_) {}
+  }
+
+  logger.info("[ai-client] Initialized modern @google/genai SDK in Vertex AI mode", { project, location });
+  clientCache.set(location, client);
+  return client;
+}
+
 let vertexAdapterInstance: GenAIVertexAdapter | null = null;
 
 export interface ModelParams {
@@ -15,47 +87,10 @@ export interface ModelParams {
 
 /**
  * Returns a global singleton instance of Google Gen AI (@google/genai) in Vertex AI mode.
- * Draws from Google Cloud Credits and uses the unified Gemini 2.x/3.x SDK architecture.
+ * Draws from Google Cloud Credits and uses the unified Gemini 2.x/3.x/4.x SDK architecture.
  */
 export function getGenAI(): GoogleGenAI {
-  if (!genAIInstance) {
-    const project = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "truthworld-1";
-    const location = process.env.GCP_LOCATION || "asia-south1";
-    genAIInstance = new GoogleGenAI({
-      vertexai: true,
-      project,
-      location,
-    });
-
-    // Local / Dev Resilience: If running locally and ADC refresh token requires re-auth,
-    // seamlessly provide the active gcloud session token to avoid blocking tests and local jobs.
-    if (!process.env.K_SERVICE && !process.env.FUNCTION_TARGET) {
-      try {
-        const clientAny = genAIInstance as any;
-        const originalAddAuthHeaders = clientAny?.apiClient?.clientOptions?.auth?.addAuthHeaders;
-        if (originalAddAuthHeaders) {
-          clientAny.apiClient.clientOptions.auth.addAuthHeaders = async function (headers: any, url: any) {
-            try {
-              return await originalAddAuthHeaders.call(this, headers, url);
-            } catch (authErr: any) {
-              if (authErr?.message?.includes("invalid_grant") || authErr?.message?.includes("invalid_rapt") || authErr?.message?.includes("reauth")) {
-                const { execSync } = require("child_process");
-                const token = execSync("gcloud auth print-access-token", { timeout: 8000 }).toString().trim();
-                if (token) {
-                  headers.set("Authorization", `Bearer ${token}`);
-                  return;
-                }
-              }
-              throw authErr;
-            }
-          };
-        }
-      } catch (_) {}
-    }
-
-    logger.info("[ai-client] Initialized modern @google/genai SDK in Vertex AI mode", { project, location });
-  }
-  return genAIInstance;
+  return getVertexClient();
 }
 
 /**

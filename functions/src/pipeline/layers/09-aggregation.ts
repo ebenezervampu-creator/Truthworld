@@ -466,16 +466,29 @@ export class AggregationLayer {
 
       // Dubbing normalization
       const dubbedMap: Record<string, any> = {};
+      const isMasterVideo = (u: string) => {
+        if (!u) return true;
+        const clean = u.trim().toLowerCase();
+        if (jobData?.videoUrl && clean === String(jobData.videoUrl).trim().toLowerCase()) return true;
+        if ((jobData as any)?.originalUrl && clean === String((jobData as any).originalUrl).trim().toLowerCase()) return true;
+        if (clean.endsWith("original.mp4") || clean.includes("/original.mp4") || clean.includes("%2foriginal.mp4")) return true;
+        return false;
+      };
+
       if (jobData?.outputs?.dubbed) {
         for (const [lang, data] of Object.entries(jobData.outputs.dubbed) as [string, any][]) {
           if (data.audioUrl) {
             const directAudioUrl = getDownloadUrl(data.audioUrl);
             const directVideoUrl = data.videoUrl ? getDownloadUrl(data.videoUrl) : (data.path ? getDownloadUrl(data.path) : "");
-            dubbedMap[lang] = {
-              ...data,
-              audioUrl: directAudioUrl,
-              path: directVideoUrl || data.path || data.videoUrl,
-            };
+            const hasGenuineDub = directVideoUrl && !isMasterVideo(directVideoUrl);
+            if (hasGenuineDub) {
+              dubbedMap[lang] = {
+                ...data,
+                audioUrl: directAudioUrl,
+                path: directVideoUrl,
+                videoUrl: directVideoUrl,
+              };
+            }
           }
         }
       }
@@ -487,11 +500,13 @@ export class AggregationLayer {
           if (data?.videoUrl) {
             const directVideoUrl = getDownloadUrl(data.videoUrl);
             const directAudioUrl = getDownloadUrl(data.audioUrl);
-            dubbedMap[data.language] = {
-              path: directVideoUrl,
-              audioUrl: directAudioUrl,
-              createdAt: data.createdAt || Date.now(),
-            };
+            if (directVideoUrl && !isMasterVideo(directVideoUrl)) {
+              dubbedMap[data.language] = {
+                path: directVideoUrl,
+                audioUrl: directAudioUrl,
+                createdAt: data.createdAt || Date.now(),
+              };
+            }
           }
           if (data?.audioUrl) {
             audioTracksMap[data.language] = getDownloadUrl(data.audioUrl);
@@ -976,6 +991,8 @@ export class AggregationLayer {
           credibilityVerified: true,
           isVerified: true,
           isFactChecked: true,
+          factCheckProgress: 100,
+          factCheckStatus: "completed",
           ...(cred?.summary ? { summary: cred.summary } : {}),
           contextualFlags: cred?.contextualFlags || [],
           videoCategory: cred?.videoCategory || null,
@@ -1080,14 +1097,24 @@ export class AggregationLayer {
               const channelId = vData?.channelId || "";
               const videoTitle = vData?.title || "Your video";
               if (recipientId) {
+                const hasEmpiricalClaims = (cred?.claims?.length || 0) > 0;
+                const notifTitle = isReviewFirst
+                  ? (hasEmpiricalClaims ? "Fact-Check Ready for Review" : "Fact-Check Ready (Non-Empirical)")
+                  : (hasEmpiricalClaims ? "Fact-Check Completed" : "Fact-Check Completed (Non-Empirical)");
+                const notifMsg = isReviewFirst
+                  ? (hasEmpiricalClaims
+                      ? `Fact-checking analysis is complete for "${videoTitle}". Review the results now to approve them for viewers.`
+                      : `Fact-checking analysis is complete for "${videoTitle}". No empirical claims were detected in this content.`)
+                  : (hasEmpiricalClaims
+                      ? `Fact-checking analysis is complete for "${videoTitle}". Verification results are now visible to viewers.`
+                      : `Fact-checking analysis is complete for "${videoTitle}". Content verified as non-empirical dialogue, opinion, or commentary.`);
+
                 await notifyUser({
                   userId: recipientId,
                   type: "fact_check_ready" as any,
                   severity: isReviewFirst ? ("info" as any) : ("success" as any),
-                  title: isReviewFirst ? "Fact-Check Ready for Review" : "Fact-Check Completed",
-                  message: isReviewFirst
-                    ? `Fact-checking analysis is complete for "${videoTitle}". Review the results now to approve them for viewers.`
-                    : `Fact-checking analysis is complete for "${videoTitle}". Verification results are now visible to viewers.`,
+                  title: notifTitle,
+                  message: notifMsg,
                   actionUrl: "/studio",
                   targetApp: "studio",
                   metadata: {
@@ -1124,6 +1151,158 @@ export class AggregationLayer {
       });
     } catch (err) {
       logger.error("[Aggregation] finalizeCredibilityAggregation failed", { jobId, err: String(err) });
+    }
+  }
+
+  /**
+   * 🚀 Propagate all completed job outputs directly to a newly linked or published video
+   * Used when a video is deduplicated against an already-completed job or reconciled.
+   */
+  public async propagateCompletedJobToVideo(
+    jobId: string,
+    videoId: string,
+    userId: string
+  ): Promise<void> {
+    try {
+      const [jobSnap, credJobSnap, videoSnap] = await Promise.all([
+        db().collection("video_jobs").doc(jobId).get().catch(() => null),
+        db().collection("credibility_jobs").doc(jobId).get().catch(() => null),
+        db().collection("videos").doc(videoId).get().catch(() => null),
+      ]);
+
+      if (!videoSnap?.exists) {
+        logger.warn("[Aggregation:propagateCompletedJobToVideo] Video document not found", { videoId, jobId });
+        return;
+      }
+
+      const jobData = jobSnap?.exists ? (jobSnap.data() as JobData) : null;
+      const credJob = credJobSnap?.exists ? credJobSnap.data() : null;
+      const jobOutputs = jobData?.outputs || {};
+      const videoData = videoSnap.data() || {};
+
+      const bucket = admin.storage().bucket();
+      const videoUpdate: Record<string, any> = {
+        jobId,
+        status: "ready",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      // 1. Credibility Outputs
+      const factCheckGsUrl = (jobOutputs as any).factCheckUrl || credJob?.factCheckUrl;
+      if (factCheckGsUrl && typeof factCheckGsUrl === "string") {
+        let cred: CredibilityResult | null = null;
+        try {
+          const gcsPath = factCheckGsUrl.replace(`gs://${bucket.name}/`, "");
+          const [content] = await bucket.file(gcsPath).download();
+          cred = JSON.parse(content.toString()) as CredibilityResult;
+        } catch (downloadErr) {
+          logger.warn("[Aggregation:propagateCompletedJobToVideo] Failed to download fact-check report from Storage", { jobId, err: String(downloadErr) });
+        }
+
+        const directFactCheckUrl = getDownloadUrl(factCheckGsUrl);
+        const transcriptGsUrl = `gs://${bucket.name}/transcripts/${jobId}/full.json`;
+        const directTranscriptUrl = getDownloadUrl(transcriptGsUrl);
+
+        videoUpdate.trustIndex = null;
+        videoUpdate.trustLabel = null;
+        videoUpdate.factCheckUrl = directFactCheckUrl;
+        videoUpdate.viewerNote = cred?.viewerNote || "";
+        videoUpdate.contentIntent = cred?.contentIntent?.primaryIntent || null;
+        videoUpdate.credibilityVerified = true;
+        videoUpdate.isVerified = true;
+        videoUpdate.isFactChecked = true;
+        if (cred?.summary) videoUpdate.summary = cred.summary;
+        videoUpdate.contextualFlags = cred?.contextualFlags || [];
+        videoUpdate.videoCategory = cred?.videoCategory || null;
+        videoUpdate.hardeningMetadata = null;
+        videoUpdate.intentToMisleadScore = 0;
+        if (cred?.factCheckStats) {
+          videoUpdate.factCheckStats = {
+            totalClaims: cred.factCheckStats.totalClaims,
+            correct: cred.factCheckStats.correct,
+            incorrect: cred.factCheckStats.incorrect,
+            unverifiable: cred.factCheckStats.unverifiable,
+            extractionPartial: cred.factCheckStats.extractionPartial || false,
+          };
+        }
+        videoUpdate["media.factCheckUrl"] = directFactCheckUrl;
+        videoUpdate["media.transcriptionUrl"] = directTranscriptUrl;
+
+        await db().collection("videos").doc(videoId).collection("media").doc("credibility").set({
+          trustLabel: null,
+          scoringFactors: null,
+          deductions: [],
+          contextualFlags: cred?.contextualFlags || [],
+          harmCapApplied: false,
+          harmCapReason: null,
+          categoryWeightProfile: null,
+          confidenceNotes: cred?.confidenceNotes || [],
+          diagnostics: cred?.diagnostics || [],
+          intentToMisleadScore: 0,
+          hardeningMetadata: null,
+          factCheckStats: cred?.factCheckStats ? {
+            totalClaims: cred.factCheckStats.totalClaims,
+            correct: cred.factCheckStats.correct,
+            incorrect: cred.factCheckStats.incorrect,
+            unverifiable: cred.factCheckStats.unverifiable,
+            extractionPartial: cred.factCheckStats.extractionPartial || false,
+          } : null,
+          factCheckUrl: directFactCheckUrl,
+          transcriptionUrl: directTranscriptUrl,
+          credibilityVerified: true,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+
+      // 2. Localization Outputs (Subtitles & Dubbing)
+      if (jobOutputs.subtitles) {
+        videoUpdate.subtitles = jobOutputs.subtitles;
+        videoUpdate["media.subtitles"] = jobOutputs.subtitles;
+      }
+      if (jobOutputs.audioTracks) {
+        videoUpdate.audioTracks = jobOutputs.audioTracks;
+        videoUpdate["media.audioTracks"] = jobOutputs.audioTracks;
+      }
+
+      videoUpdate.factCheckProgress = 100;
+      videoUpdate.factCheckStatus = "completed";
+
+      await db().collection("videos").doc(videoId).set(videoUpdate, { merge: true });
+
+      // 3. Dispatch Fact-Checking notification
+      if (!videoData.factCheckNotified && videoUpdate.isFactChecked) {
+        await db().collection("videos").doc(videoId).update({ factCheckNotified: true }).catch(() => {});
+        const reviewMode = videoData.factCheckReviewMode || videoData.aiFeatures?.factCheckReviewMode || "open_to_users";
+        const isReviewFirst = reviewMode === "first_to_creator";
+        const videoTitle = videoData.title || "Your video";
+
+        const { notifyUser } = require("../../notifications/notifications");
+        await notifyUser({
+          userId: videoData.userId || videoData.ownerId || userId,
+          type: "fact_check_ready" as any,
+          severity: isReviewFirst ? ("info" as any) : ("success" as any),
+          title: isReviewFirst ? "Fact-Check Ready for Review" : "Fact-Check Completed",
+          message: isReviewFirst
+            ? `Fact-checking analysis is complete for "${videoTitle}". Review the results now to approve them for viewers.`
+            : `Fact-checking analysis is complete for "${videoTitle}". Verification results are now visible to viewers.`,
+          actionUrl: "/studio",
+          targetApp: "studio",
+          metadata: {
+            targetApp: "studio",
+            videoId,
+            channelId: videoData.channelId || "",
+            videoTitle,
+            thumbnailUrl: videoData.thumbnailUrl || videoData.customThumbnailUrl || "",
+            factCheckReviewMode: reviewMode,
+            isFactCheckApproved: !isReviewFirst,
+            approved: !isReviewFirst,
+          },
+        }).catch((err: any) => logger.warn("[Aggregation:propagateCompletedJobToVideo] Notification error", { videoId, err: String(err) }));
+      }
+
+      logger.info("[Aggregation:propagateCompletedJobToVideo] Successfully propagated completed outputs to video", { videoId, jobId });
+    } catch (err) {
+      logger.error("[Aggregation:propagateCompletedJobToVideo] Error propagating outputs", { videoId, jobId, err: String(err) });
     }
   }
 

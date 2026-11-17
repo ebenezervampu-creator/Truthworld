@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # TruthWorld: Google Cloud Secret Manager Production Provisioning Script
 # Project: truthworld-1
 # Region: asia-south1
@@ -10,7 +10,6 @@ param(
     [string]$CashfreeSecretKey,
     [string]$AssemblyAiKey = "",
     [string]$ElevenLabsApiKey = "",
-    [string]$SarvamApiKey = "",
     [string]$IndexNowKey = "truthworld-indexnow-key-2026"
 )
 
@@ -81,10 +80,6 @@ if ($AssemblyAiKey) {
 
 if ($ElevenLabsApiKey) {
     Set-GcpSecret -SecretName "ELEVENLABS_API_KEY" -SecretValue $ElevenLabsApiKey
-}
-
-if ($SarvamApiKey) {
-    Set-GcpSecret -SecretName "SARVAM_API_KEY" -SecretValue $SarvamApiKey
 }
 
 if ($IndexNowKey) {

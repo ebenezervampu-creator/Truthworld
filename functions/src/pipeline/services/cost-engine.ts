@@ -15,6 +15,7 @@ const db = () => admin.firestore();
 export const RATE_CARDS = {
   assemblyai: { perMinute: 0.00383 }, // Universal-3.5 Pro ($0.21/hr) + Speaker Diarization ($0.02/hr) = $0.23/hr ($0.00383/min)
   "google-translate-v3": { perCharacter: 0.000020 },
+  "google-translation-llm": { perInputCharacter: 0.000010, perOutputCharacter: 0.000010 }, // $10/M input + $10/M output chars
   elevenlabs: { perCharacter: 0.000200 }, // ElevenLabs Creator/Pro tier ($0.20 / 1K chars)
   "elevenlabs-turbo": { perCharacter: 0.000040 }, // ElevenLabs v4 Turbo ($0.04 / 1K chars = $40 / 1M)
   "google-tts-chirp3-hd": { perCharacter: 0.000030 },
@@ -25,13 +26,16 @@ export const RATE_CARDS = {
   // ─── Gemini AI (Vertex AI pricing, USD per token) ───────────────────────
   "gemini-flash-lite": { perInputToken: 0.000000075, perOutputToken: 0.0000003 },
   "gemini-flash": { perInputToken: 0.00000015, perOutputToken: 0.0000006 },
+  "gemini-3.5-flash-lite": { perInputToken: 0.00000030, perOutputToken: 0.0000025 },
+  "gemini-3.8-flash": { perInputToken: 0.00000075, perOutputToken: 0.00000375 },
+  "gemini-4-hydrogen": { perInputToken: 0.00000150, perOutputToken: 0.0000075 },
   "gemini-2.5-flash": { perInputToken: 0.00000015, perOutputToken: 0.0000006 },
-  "gemini-reasoning": { perInputToken: 0.00000015, perOutputToken: 0.0000006 }, // Gemini 2.5 Flash ($0.15 in / $0.60 out per 1M)
-  "gemini-4-argon": { perInputToken: 0.00000015, perOutputToken: 0.0000006 }, // Legacy alias mapped to Gemini 2.5 Flash
+  "gemini-reasoning": { perInputToken: 0.00000015, perOutputToken: 0.0000006 },
+  "gemini-4-argon": { perInputToken: 0.00000015, perOutputToken: 0.0000006 },
   "gemini-pro": { perInputToken: 0.00000125, perOutputToken: 0.000005 },
-  "gemini-cached-read": { perToken: 0.0000001 }, // $0.10 per 1M for implicit cache read
+  "gemini-cached-read": { perToken: 0.0000001 }, // Kept for baseline test assertions
   // ─── Google Search Grounding API ────────────────────────────────────────
-  "search-grounding": { perQuery: 0.005 },
+  "search-grounding": { perQuery: 0.005 }, // Legacy baseline rate; modern query-level is tracked via GROUNDING_COST_PER_QUERY_USD
   // ─── Cloud Functions compute (USD per vCPU-second) ──────────────────────
   "cloud-functions": { perVCPUSecond: 0.0000100 },
   // ─── Firestore (USD per operation) ──────────────────────────────────────
@@ -48,6 +52,117 @@ export const CDN_RATE_CARDS = {
   africa: 0.12,          // MEA
   default: 0.08,         // Fallback
 } as const;
+
+// ─── Query-Level Grounding & Modern Model Telemetry ──────────────────────────
+export interface ModelRateCard {
+  inputPer1M: number;
+  cachedInputPer1M: number;
+  outputPer1M: number; // Applies to both text output and thinking tokens
+}
+
+export const MODEL_RATE_CARDS: Record<string, ModelRateCard> = {
+  "gemini-3.5-flash-lite": {
+    inputPer1M: 0.30,
+    cachedInputPer1M: 0.03,
+    outputPer1M: 2.50,
+  },
+  // Update to 1.50 / 0.15 / 7.50 once promotional window closes
+  "gemini-3.8-flash": {
+    inputPer1M: 0.75,
+    cachedInputPer1M: 0.075,
+    outputPer1M: 3.75,
+  },
+  "gemini-4-hydrogen": {
+    inputPer1M: 1.50,
+    cachedInputPer1M: 0.15,
+    outputPer1M: 7.50,
+  },
+  "gemini-2.5-flash": {
+    inputPer1M: 0.15,
+    cachedInputPer1M: 0.03,
+    outputPer1M: 0.60,
+  },
+};
+
+export const GROUNDING_COST_PER_QUERY_USD = 0.014; // $14 per 1,000 executed search queries
+
+export interface UsageMetadataLike {
+  promptTokenCount?: number;
+  cachedContentTokenCount?: number;
+  candidatesTokenCount?: number;
+  thoughtsTokenCount?: number;
+}
+
+export interface TokenUsageEvent {
+  videoId: string;
+  tier: "TIER_1_EXTRACTION" | "TIER_2_BULK_VERIFY" | "TIER_3_ARBITER";
+  model: string;
+  usage: UsageMetadataLike;
+  groundingQueriesExecuted: number;
+  thinkingLevel?: string;
+  isBatchJob?: boolean;
+}
+
+export interface CalculatedCostBreakdown {
+  tokenCostUsd: number;
+  groundingCostUsd: number;
+  totalCostUsd: number;
+  billableOutputTokens: number;
+}
+
+export function calculateCallCost(event: TokenUsageEvent): CalculatedCostBreakdown {
+  const rates = MODEL_RATE_CARDS[event.model];
+  if (!rates) {
+    throw new Error(`No rate card configured for model: ${event.model}`);
+  }
+
+  const batchDiscount = event.isBatchJob ? 0.5 : 1.0;
+
+  const totalPromptTokens = event.usage.promptTokenCount ?? 0;
+  const cachedTokens = event.usage.cachedContentTokenCount ?? 0;
+  const uncachedInputTokens = Math.max(0, totalPromptTokens - cachedTokens);
+
+  const outputTokens = event.usage.candidatesTokenCount ?? 0;
+  const thinkingTokens = event.usage.thoughtsTokenCount ?? 0;
+  const billableOutputTokens = outputTokens + thinkingTokens;
+
+  const inputCost =
+    ((uncachedInputTokens / 1_000_000) * rates.inputPer1M +
+      (cachedTokens / 1_000_000) * rates.cachedInputPer1M) *
+    batchDiscount;
+
+  const outputCost =
+    (billableOutputTokens / 1_000_000) * rates.outputPer1M * batchDiscount;
+
+  const tokenCostUsd = Number((inputCost + outputCost).toFixed(6));
+  const groundingCostUsd = Number(
+    (event.groundingQueriesExecuted * GROUNDING_COST_PER_QUERY_USD).toFixed(6)
+  );
+
+  return {
+    tokenCostUsd,
+    groundingCostUsd,
+    totalCostUsd: Number((tokenCostUsd + groundingCostUsd).toFixed(6)),
+    billableOutputTokens,
+  };
+}
+
+export function recordTokenUsage(event: TokenUsageEvent): CalculatedCostBreakdown {
+  const breakdown = calculateCallCost(event);
+  // Persist to Cloud Logging / Firestore telemetry ledger
+  console.info(
+    JSON.stringify({
+      event: "TRUTHWORLD_AI_COST_TELEMETRY",
+      videoId: event.videoId,
+      tier: event.tier,
+      model: event.model,
+      thinkingLevel: event.thinkingLevel,
+      groundingQueriesExecuted: event.groundingQueriesExecuted,
+      ...breakdown,
+    })
+  );
+  return breakdown;
+}
 
 export const CHANNEL_DUBBING_PRICING = {
   standard: {
@@ -79,7 +194,6 @@ export interface DubbingDurationTier {
 export const PER_MINUTE_AUDIO_TRACK_RATE = 0.30; // $3.00 for 10 mins ($0.30/min)
 export const PER_MINUTE_STANDARD_DUBBING_RATE = 0.30;
 export const PER_MINUTE_VOICE_CLONE_RATE = 0.30;
-export const PER_MINUTE_LIP_SYNC_RATE = 0.0;
 
 export const DUBBING_TIER_RATES = {
   audio_track: 0.30,   // Studio Audio Track ($3.00 for 10 mins flat rate)
@@ -194,24 +308,7 @@ export function calculateDubbingCost(
   return baseCost;
 }
 
-/**
- * 👄 AI Visual Lip-Sync feature has been discontinued and removed.
- */
-export function getFlatLipSyncPricePerLanguage(
-  durationSeconds: number,
-  channelType: "standard" | "custom" = "standard"
-): number {
-  return 0.0;
-}
 
-export function calculateLipSyncCost(
-  languageCount: number,
-  durationSeconds: number = 0,
-  channelType: "standard" | "custom" = "standard",
-  discountPercent: number = 0
-): number {
-  return 0.0;
-}
 
 export type SubtitleTierId = "ultra" | "starter" | "pro";
 
@@ -234,8 +331,8 @@ export const SUBTITLE_TIERS: Record<string, SubtitleTierConfig> = {
     perMinuteRateUSD: 0.05,
     additionalLang10MinUSD: 0.20,
     additionalLangPerMinuteUSD: 0.02,
-    sttEngine: "AssemblyAI Universal 3.5 Pro (Global) + Sarvam AI (Indic) + Google Cloud Chirp 2 (Long-tail)",
-    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 2.5 Flash",
+    sttEngine: "AssemblyAI Universal 3.5 Pro (18 Languages)",
+    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 3.5 Flash Lite",
   },
   // Backward compatibility mappings
   starter: {
@@ -245,8 +342,8 @@ export const SUBTITLE_TIERS: Record<string, SubtitleTierConfig> = {
     perMinuteRateUSD: 0.05,
     additionalLang10MinUSD: 0.20,
     additionalLangPerMinuteUSD: 0.02,
-    sttEngine: "AssemblyAI Universal 3.5 Pro (Global) + Sarvam AI (Indic) + Google Cloud Chirp 2 (Long-tail)",
-    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 2.5 Flash",
+    sttEngine: "AssemblyAI Universal 3.5 Pro (18 Languages)",
+    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 3.5 Flash Lite",
   },
   pro: {
     id: "pro",
@@ -255,8 +352,8 @@ export const SUBTITLE_TIERS: Record<string, SubtitleTierConfig> = {
     perMinuteRateUSD: 0.05,
     additionalLang10MinUSD: 0.20,
     additionalLangPerMinuteUSD: 0.02,
-    sttEngine: "AssemblyAI Universal 3.5 Pro (Global) + Sarvam AI (Indic) + Google Cloud Chirp 2 (Long-tail)",
-    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 2.5 Flash",
+    sttEngine: "AssemblyAI Universal 3.5 Pro (18 Languages)",
+    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 3.5 Flash Lite",
   },
 };
 
@@ -577,15 +674,64 @@ export class CostEngine {
 
   // ─── Convenience Methods ────────────────────────────────────────────────
 
-  async recordTranscriptionCost(jobId: string, userId: string, seconds: number): Promise<void> {
+  async recordTranscriptionCost(
+    jobId: string,
+    userId: string,
+    seconds: number,
+    provider: "assemblyai" | "gemini" = "assemblyai"
+  ): Promise<void> {
     const min = seconds / 60;
-    const cost = min * RATE_CARDS.assemblyai.perMinute;
-    await this.recordCost(jobId, userId, "transcription", "assemblyai", cost, "minutes", min);
+    const cost = provider === "gemini"
+      ? (seconds * 0.00002) + (min * 130 * 0.0000006)
+      : min * RATE_CARDS.assemblyai.perMinute;
+    await this.recordCost(jobId, userId, "transcription", provider === "gemini" ? "gemini-3.5-flash-lite" : "assemblyai", cost, "minutes", min);
   }
 
-  async recordTranslationCost(jobId: string, userId: string, chars: number): Promise<void> {
-    const cost = chars * RATE_CARDS["google-translate-v3"].perCharacter;
-    await this.recordCost(jobId, userId, "translation", "google-translate-v3", cost, "characters", chars);
+  async recordTranslationCost(
+    jobId: string,
+    userId: string,
+    inputChars: number,
+    outputChars?: number,
+    model: string = "general/translation-llm"
+  ): Promise<void> {
+    const effectiveOutputChars = typeof outputChars === "number" && outputChars >= 0
+      ? outputChars
+      : inputChars;
+    const isTranslationLlm = model.includes("translation-llm");
+    const cost = isTranslationLlm
+      ? (inputChars * RATE_CARDS["google-translation-llm"].perInputCharacter) +
+        (effectiveOutputChars * RATE_CARDS["google-translation-llm"].perOutputCharacter)
+      : (inputChars + effectiveOutputChars) * 0.5 * RATE_CARDS["google-translate-v3"].perCharacter;
+
+    await this.recordCost(
+      jobId,
+      userId,
+      "translation",
+      isTranslationLlm ? "google-translation-llm" : "google-translate-v3",
+      cost,
+      "characters",
+      inputChars + effectiveOutputChars
+    );
+  }
+
+  async recordDubbingPacingMetrics(
+    jobId: string,
+    userId: string,
+    metrics: {
+      retranslatedSegments: number;
+      ttsCharsInitial: number;
+      ttsCharsDiscarded: number;
+      ttsCharsFinal: number;
+    }
+  ): Promise<void> {
+    try {
+      await db().collection("job_pacing_telemetry").doc(jobId).set({
+        jobId,
+        userId,
+        ...metrics,
+        timestamp: Date.now(),
+      }, { merge: true });
+    } catch (_) {}
   }
 
   async recordSubtitleCost(
@@ -600,7 +746,7 @@ export class CostEngine {
       jobId,
       userId,
       "subtitles",
-      "google-translate-v3+gemini-2.5-flash",
+      "google-translate-v3+gemini-3.5-flash-lite",
       cost,
       "subtitles_job",
       languageCount
@@ -647,7 +793,7 @@ export class CostEngine {
         break;
       case "reasoning":
       case "argon" as any:
-        rateCard = RATE_CARDS["gemini-2.5-flash"];
+        rateCard = RATE_CARDS["gemini-reasoning"] || RATE_CARDS["gemini-3.5-flash-lite"];
         break;
       case "pro":
         rateCard = RATE_CARDS["gemini-pro"];

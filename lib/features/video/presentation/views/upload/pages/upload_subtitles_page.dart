@@ -135,11 +135,11 @@ class UploadSubtitlesPage extends StatelessWidget {
                   _buildVideoTierHeader(context, controller),
                   const SizedBox(height: 16),
 
-                  // 2. Source Spoken Language ("From") Selector Card (39 languages)
+                  // 2. Source Spoken Language ("From") Selector Card (18 languages)
                   SpokenLanguageSelectorCard(
                     controller: controller.uploadController,
                     title: 'Source Spoken Video Language ("From")',
-                    subtitle: 'Speech recognition strictly supports 39 languages via AssemblyAI Universal-3.5 Pro & Sarvam AI',
+                    subtitle: 'Speech recognition strictly supports 18 languages via AssemblyAI Universal-3.5 Pro',
                   ),
                   const SizedBox(height: 16),
 
@@ -242,7 +242,7 @@ class UploadSubtitlesPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Speech is transcribed using AssemblyAI Universal-3.5 Pro & Sarvam AI Saaras v4 (39 source languages), followed by Google Cloud Translation API with Gemini 2.5 Flash for studio-grade subtitle timing and multilingual translation across 135+ languages.',
+            'Speech is transcribed using AssemblyAI Universal-3.5 Pro (18 source languages), followed by Google Cloud Translation API v3 for studio-grade subtitle timing and multilingual translation across 135+ languages.',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.65),
               fontSize: 11.5,
@@ -373,7 +373,7 @@ class UploadSubtitlesPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Gemini 2.5 Flash Context Alignment',
+                        'Google Cloud Translation v3 Alignment',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 12.5,

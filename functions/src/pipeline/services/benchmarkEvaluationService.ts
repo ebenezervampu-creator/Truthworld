@@ -24,7 +24,7 @@ export class BenchmarkEvaluationService {
   public verificationService: ClaimVerificationService;
 
   constructor(verificationService?: ClaimVerificationService) {
-    this.verificationService = verificationService || new ClaimVerificationService('mock-api-key');
+    this.verificationService = verificationService || new ClaimVerificationService(process.env.GEMINI_API_KEY || "");
   }
 
   /**
@@ -95,7 +95,7 @@ export class BenchmarkEvaluationService {
     return {
       reportId: `tw_benchmark_${Date.now()}`,
       timestamp: new Date().toISOString(),
-      modelVersion: options?.modelVersion || 'truthworld-gemini-2.5-prod',
+      modelVersion: options?.modelVersion || 'truthworld-gemini-3.5-prod',
       totalDatasetSize: dataset.length,
       categoryBreakdown,
       verdictBreakdown,

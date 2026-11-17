@@ -89,5 +89,127 @@ void main() {
       expect(ctrl.isConnecting.value, isFalse);
       expect(ctrl.statusMessage.value, equals('No video reference provided.'));
     });
+
+    test('ClaimResult stateLevel parsing and monotonic lifecycle getters', () {
+      final extracted = ClaimResult.fromMap({
+        'claimId': 'claim_1',
+        'text': 'Earth is spherical',
+        'verdict': 'extracted',
+        'stateLevel': 0,
+      });
+      expect(extracted.isExtracted, isTrue);
+      expect(extracted.isProvisional, isFalse);
+      expect(extracted.isDeepVerifying, isFalse);
+      expect(extracted.isFinalized, isFalse);
+      expect(extracted.stateLevel, equals(0));
+      expect(extracted.claimId, equals('claim_1'));
+
+      final provisional = ClaimResult.fromMap({
+        'claimId': 'claim_2',
+        'text': 'Water boils at 100C',
+        'status': 'provisional',
+        'isProvisional': true,
+      });
+      expect(provisional.isProvisional, isTrue);
+      expect(provisional.stateLevel, equals(1));
+      expect(provisional.isFinalized, isFalse);
+
+      final deepVerifying = ClaimResult.fromMap({
+        'claimId': 'claim_3',
+        'text': 'Moon landing happened in 1969',
+        'status': 'deep_verifying',
+        'stateLevel': 2,
+      });
+      expect(deepVerifying.isDeepVerifying, isTrue);
+      expect(deepVerifying.stateLevel, equals(2));
+      expect(deepVerifying.isFinalized, isFalse);
+
+      final finalized = ClaimResult.fromMap({
+        'claimId': 'claim_4',
+        'text': 'Speed of light is 300000 km/s',
+        'verdict': 'verified_true',
+        'stateLevel': 3,
+      });
+      expect(finalized.isFinalized, isTrue);
+      expect(finalized.stateLevel, equals(3));
+    });
+
+    test('Monotonic Guard simulation: prevents out-of-order packets from regressing finalized claim', () {
+      final claimsById = <String, ClaimResult>{};
+
+      // 1. Packet arrives: EXTRACTED (0)
+      final p1 = ClaimResult.fromMap({
+        'claimId': 'claim_abc',
+        'text': 'Solar eclipse in 2024',
+        'verdict': 'extracted',
+        'stateLevel': 0,
+      });
+      claimsById[p1.claimId!] = p1;
+      expect(claimsById['claim_abc']!.stateLevel, equals(0));
+      expect(claimsById['claim_abc']!.isExtracted, isTrue);
+
+      // 2. Next packet arrives: DEEP_VERIFYING (2)
+      final p2 = ClaimResult.fromMap({
+        'claimId': 'claim_abc',
+        'text': 'Solar eclipse in 2024',
+        'verdict': 'deep_verifying',
+        'stateLevel': 2,
+      });
+      if (p2.stateLevel >= claimsById['claim_abc']!.stateLevel) {
+        claimsById[p2.claimId!] = p2;
+      }
+      expect(claimsById['claim_abc']!.stateLevel, equals(2));
+      expect(claimsById['claim_abc']!.isDeepVerifying, isTrue);
+
+      // 3. Terminal packet arrives: FINALIZED (3)
+      final p3 = ClaimResult.fromMap({
+        'claimId': 'claim_abc',
+        'text': 'Solar eclipse in 2024',
+        'verdict': 'verified_true',
+        'stateLevel': 3,
+      });
+      if (p3.stateLevel >= claimsById['claim_abc']!.stateLevel) {
+        claimsById[p3.claimId!] = p3;
+      }
+      expect(claimsById['claim_abc']!.stateLevel, equals(3));
+      expect(claimsById['claim_abc']!.isFinalized, isTrue);
+      expect(claimsById['claim_abc']!.verdict, equals('verified_true'));
+
+      // 4. Stale delayed packet arrives: PROVISIONAL (1) / DEEP_VERIFYING (2)
+      // Monotonic guard: MUST NOT regress from level 3
+      final stalePacket = ClaimResult.fromMap({
+        'claimId': 'claim_abc',
+        'text': 'Solar eclipse in 2024',
+        'verdict': 'deep_verifying',
+        'stateLevel': 2,
+      });
+      final existing = claimsById[stalePacket.claimId!];
+      final effective = (existing != null && existing.stateLevel > stalePacket.stateLevel)
+          ? existing
+          : stalePacket;
+
+      expect(effective.stateLevel, equals(3));
+      expect(effective.verdict, equals('verified_true'));
+      expect(effective.isFinalized, isTrue);
+    });
+
+    test('ClaimResult copyWith and toMap preserve stateLevel and claimId', () {
+      final original = ClaimResult(
+        claimId: 'claim_xyz',
+        text: 'Gravity is real',
+        verdict: 'verified_true',
+        stateLevel: 3,
+      );
+
+      final copy = original.copyWith(verdict: 'mostly_true');
+      expect(copy.claimId, equals('claim_xyz'));
+      expect(copy.stateLevel, equals(3));
+      expect(copy.verdict, equals('mostly_true'));
+
+      final map = copy.toMap();
+      expect(map['claimId'], equals('claim_xyz'));
+      expect(map['stateLevel'], equals(3));
+      expect(map['verdict'], equals('mostly_true'));
+    });
   });
 }

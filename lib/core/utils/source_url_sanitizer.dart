@@ -558,10 +558,19 @@ class SourceUrlSanitizer {
       publisher: publisher,
       domain: explicitDomain,
     );
+    final cleanDirect = directUrl != null
+        ? sanitizeUrl(
+            directUrl,
+            title: title,
+            publisher: publisher,
+            domain: explicitDomain,
+          )
+        : null;
 
-    if (cleanUrl != null) {
-      rawMap['url'] = cleanUrl;
-      rawMap['directUrl'] = cleanUrl;
+    if (cleanUrl != null || cleanDirect != null) {
+      final effUrl = cleanUrl ?? cleanDirect;
+      rawMap['url'] = effUrl;
+      rawMap['directUrl'] = cleanDirect ?? effUrl;
     } else {
       rawMap.remove('url');
       rawMap.remove('directUrl');
@@ -851,9 +860,9 @@ class SourceUrlSanitizer {
       resolvedVideoId ??= source['videoId']?.toString();
       resolvedClaimId ??= (source['claimId'] ?? source['id'])?.toString();
       final cleanMap = sanitizeSourceMap(source);
-      rawUrl = cleanMap['url']?.toString();
+      rawUrl = cleanMap['directUrl']?.toString();
       if (rawUrl == null || rawUrl.isEmpty) {
-        rawUrl = cleanMap['directUrl']?.toString();
+        rawUrl = cleanMap['url']?.toString();
       }
       rawTitle = cleanMap['title']?.toString() ??
           cleanMap['bookTitle']?.toString() ??
@@ -889,6 +898,18 @@ class SourceUrlSanitizer {
     );
 
     if (safeUrl == null || safeUrl.isEmpty || isStaticHomepageUrl(safeUrl)) {
+      // Resilience check: if source was already verified on backend by TruthWorld
+      final isBackendVerified = source != null && (
+        source['status'] == 'verified' ||
+        source['trustLevel'] == 'High' ||
+        source['urlVerification']?['status'] == 'VERIFIED'
+      );
+      if (isBackendVerified && rawUrl != null && !isStaticHomepageUrl(rawUrl) && !isDummyDomain(rawUrl)) {
+        try {
+          return await _openExternalUrl(rawUrl);
+        } catch (_) {}
+      }
+
       ErrorHandler.log(
         'Blocked broken or unverified destination URL for source: $rawTitle',
         tag: 'SourceUrlSanitizer.launchSourceUrl',

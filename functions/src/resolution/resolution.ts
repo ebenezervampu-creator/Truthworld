@@ -1593,7 +1593,7 @@ export async function generateHighQualityChapterThumbnails(
       });
     }
 
-    if (hasChanges && videoId && videoId !== "mock_job" && videoId !== "test_id") {
+    if (hasChanges && videoId) {
       await db.collection("videos").doc(videoId).set({
         chapters: updatedChapters,
         autoChapters: updatedChapters,

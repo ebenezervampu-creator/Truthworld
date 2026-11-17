@@ -13,6 +13,7 @@
 // ==========================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
@@ -32,9 +33,7 @@ class VideoMediaService {
     String videoId, {
     bool forceRefresh = false,
   }) async {
-    if (!forceRefresh &&
-        localizationCache.containsKey(videoId) &&
-        !localizationCache[videoId]!.isEmpty) {
+    if (!forceRefresh && localizationCache.containsKey(videoId)) {
       return localizationCache[videoId]!;
     }
 
@@ -246,8 +245,16 @@ class VideoMediaService {
         }
       });
 
-      // Also check video_jobs outputs if audioTracks or dubbedVideos is still empty
-      if (audioTracks.isEmpty || dubbedVideos.isEmpty) {
+      // Also check video_jobs outputs if audioTracks or dubbedVideos is still empty (creator/owner only)
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      final videoOwnerId = (data['userId'] as String?) ??
+          (data['ownerId'] as String?) ??
+          (data['channelId'] as String?);
+      final canAccessVideoJobs = currentUserId != null &&
+          currentUserId.isNotEmpty &&
+          currentUserId == videoOwnerId;
+
+      if ((audioTracks.isEmpty || dubbedVideos.isEmpty) && canAccessVideoJobs) {
         try {
           final jobDoc = await _firestore.collection('video_jobs').doc(videoId).get();
           if (jobDoc.exists && jobDoc.data() != null) {

@@ -148,6 +148,7 @@ class _RotatingPlaylistAvatarState extends State<RotatingPlaylistAvatar>
               isPlaying: widget.isPlaying,
               height: 10,
               barWidth: 2,
+              color: Colors.black,
             ),
           ),
         ),

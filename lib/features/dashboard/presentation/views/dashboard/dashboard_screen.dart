@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
@@ -106,45 +109,76 @@ class DashboardScreen extends StatelessWidget {
                   return const ChannelScreen();
                 }
 
-                return FocusScope(
-                  autofocus: true,
-                  child: Scaffold(
-                    backgroundColor: AppColors.bgPage,
-                    appBar: DashboardCreatorAppBar(
-                      viewController: effectiveViewController,
-                      dashboardController: dashboardController,
-                      isDarkMode: isDarkMode,
-                      isDesktop: isDesktop,
-                      isMobile: isMobile,
-                    ),
-                    drawer: isDesktop
-                        ? null
-                        : DashboardMobileDrawer(
-                            controller: dashboardController,
-                            isDarkMode: isDarkMode,
-                            onSignOut: effectiveViewController.handleSignOut,
+                final scaffoldKey = GlobalKey<ScaffoldState>();
+
+                return PopScope(
+                  canPop: false,
+                  onPopInvokedWithResult: (didPop, _) async {
+                    if (didPop) return;
+
+                    if (scaffoldKey.currentState?.isDrawerOpen ?? false) {
+                      scaffoldKey.currentState?.closeDrawer();
+                      return;
+                    }
+
+                    if (dashboardController.selectedIndex.value != 1) {
+                      dashboardController.setSelectedIndex(1);
+                      return;
+                    }
+
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                      return;
+                    }
+
+                    if (!AppFlavor.isStudio) {
+                      RouteStackObserver.navigateToHome();
+                      return;
+                    }
+
+                    await SystemNavigator.pop();
+                  },
+                  child: FocusScope(
+                    autofocus: true,
+                    child: Scaffold(
+                      key: scaffoldKey,
+                      backgroundColor: AppColors.bgPage,
+                      appBar: DashboardCreatorAppBar(
+                        viewController: effectiveViewController,
+                        dashboardController: dashboardController,
+                        isDarkMode: isDarkMode,
+                        isDesktop: isDesktop,
+                        isMobile: isMobile,
+                      ),
+                      drawer: isDesktop
+                          ? null
+                          : DashboardMobileDrawer(
+                              controller: dashboardController,
+                              isDarkMode: isDarkMode,
+                              onSignOut: effectiveViewController.handleSignOut,
+                            ),
+                      body: Row(
+                        children: [
+                          if (isDesktop)
+                            DashboardDesktopSidebar(
+                              controller: dashboardController,
+                              isDarkMode: isDarkMode,
+                              drawerAnimation: effectiveViewController.drawerAnimation,
+                              onSignOut: effectiveViewController.handleSignOut,
+                            ),
+                          Expanded(
+                            child: DashboardViewRouter(
+                              viewController: effectiveViewController,
+                              dashboardController: dashboardController,
+                              isDarkMode: isDarkMode,
+                              isMobile: isMobile,
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              horizontalPadding: horizontalPadding,
+                            ),
                           ),
-                    body: Row(
-                      children: [
-                        if (isDesktop)
-                          DashboardDesktopSidebar(
-                            controller: dashboardController,
-                            isDarkMode: isDarkMode,
-                            drawerAnimation: effectiveViewController.drawerAnimation,
-                            onSignOut: effectiveViewController.handleSignOut,
-                          ),
-                        Expanded(
-                          child: DashboardViewRouter(
-                            viewController: effectiveViewController,
-                            dashboardController: dashboardController,
-                            isDarkMode: isDarkMode,
-                            isMobile: isMobile,
-                            isDesktop: isDesktop,
-                            isTablet: isTablet,
-                            horizontalPadding: horizontalPadding,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 );

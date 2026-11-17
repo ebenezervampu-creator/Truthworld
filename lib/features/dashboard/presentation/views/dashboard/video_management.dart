@@ -23,6 +23,7 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:video_player/video_player.dart';
 
@@ -1019,6 +1020,14 @@ class VideoManagementController extends BaseController with ContentValidationMix
       );
 
       var pipelineTriggered = false;
+      String? resolvedSourceLang;
+      try {
+        final videoDoc = await _firestore.collection('videos').doc(videoId).get();
+        final videoData = videoDoc.data() ?? {};
+        final rawLang = (videoData['sourceLanguage'] ?? videoData['originalLanguage'] ?? videoData['language'] ?? 'en') as String;
+        resolvedSourceLang = rawLang.isNotEmpty ? normalizeLanguageCode(rawLang) : 'en';
+      } catch (_) {}
+
       try {
         final tierObj = DubbingProductionTier.fromId(dubbingTier);
         final response = await http.post(
@@ -1031,13 +1040,14 @@ class VideoManagementController extends BaseController with ContentValidationMix
             'videoId': videoId,
             'features': features,
             'targetLanguages': targetLanguages,
+            if (resolvedSourceLang != null) 'sourceLanguage': resolvedSourceLang,
+            if (resolvedSourceLang != null) 'primaryLanguage': resolvedSourceLang,
             'durationSeconds': durationSeconds,
             'priorityMode': priorityMode,
             'sensitiveTopics': sensitiveTopics,
             'autoChapters': autoChapters,
             'factCheckTier': factCheckTier,
             'dubbingTier': dubbingTier,
-            'enableLipSync': false,
             'cinemaGrade': tierObj.isCinemaGrade,
             'isCinemaGrade': tierObj.isCinemaGrade,
             'stemIsolation': true,
@@ -1080,8 +1090,12 @@ class VideoManagementController extends BaseController with ContentValidationMix
           'userId': currentUser.uid,
           'channelId': channel?.id ?? currentUser.uid,
           'status': 'processing',
+          'sourceLanguage': resolvedSourceLang ?? 'en',
+          'primaryLanguage': resolvedSourceLang ?? 'en',
           'executionPlan': {
             'languages': targetLanguages,
+            'sourceLanguage': resolvedSourceLang ?? 'en',
+            'primaryLanguage': resolvedSourceLang ?? 'en',
             'generateSubtitles': features.contains('subtitles'),
             'generateDubbing': features.contains('dubbing'),
             'durationSeconds': durationSeconds,

@@ -134,30 +134,13 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
           final isFlipped = Get.isRegistered<FlipCoinService>() &&
               Get.find<FlipCoinService>().isHomeFlipped.value;
 
-          if (isFlipped && Get.isRegistered<TruthworldAlgorithm>()) {
-            final ranked = Get.find<TruthworldAlgorithm>().rankVideosOpposite(
-              candidates,
-              RecommendationSurface.homeFeedAll,
-              diversityConfig: DiversityConfig.homeFeed,
-            );
-            final rankedVideos = <Video>[];
-            final seenRanked = <String>{};
-            for (final s in ranked) {
-              if (s.video.id.isNotEmpty && seenRanked.add(s.video.id)) {
-                rankedVideos.add(s.video);
-              }
-            }
-            videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : candidates);
-          } else {
-            final dedupedCandidates = <Video>[];
-            final seenFinal = <String>{};
-            for (final v in candidates) {
-              if (v.id.isNotEmpty && seenFinal.add(v.id)) {
-                dedupedCandidates.add(v);
-              }
-            }
-            videos.assignAll(dedupedCandidates);
-          }
+          // Apply YouTube-style seen-demotion, refresh epoch variation, and serendipity rotation
+          final refreshedVideos = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+            candidates: candidates,
+            category: 'All',
+            isFlipped: isFlipped,
+          );
+          videos.assignAll(refreshedVideos.isNotEmpty ? refreshedVideos : candidates);
 
           saveVideosToCache('All');
           rxHasMore.value = candidates.length >= HomeFeedControllerBase.pageSize;
@@ -175,9 +158,9 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
     final docMap = <String, DocumentSnapshot>{};
 
     // YouTube-style SWR: Revalidate fresh videos from network across uploadedAt & createdAt
-    // Pass 1: Query ordered by uploadedAt DESC
+    // Pass 1: Query ordered by uploadedAt DESC with expanded YouTube candidate pool
     try {
-      final query = VideoQueryBuilder.publicVideos(firestore);
+      final query = VideoQueryBuilder.publicVideos(firestore, limit: 60);
       final results = forceNetwork
           ? await query.get(const GetOptions(source: Source.server))
           : await query.getCacheFirst();
@@ -192,12 +175,36 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
       );
     }
 
+    // Pass 1.5: Query ordered by viewCount DESC for YouTube candidate pool diversity
+    if (docMap.length < 60) {
+      try {
+        final query = VideoQueryBuilder.publicVideos(
+          firestore,
+          orderByField: 'viewCount',
+          limit: 40,
+        );
+        final results = forceNetwork
+            ? await query.get(const GetOptions(source: Source.server))
+            : await query.getCacheFirst();
+        for (final doc in results.docs) {
+          docMap.putIfAbsent(doc.id, () => doc);
+        }
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'HomeFeedController._fetchMainFeedVideos.viewCount',
+        );
+      }
+    }
+
     // Pass 2: Query ordered by createdAt DESC to discover videos lacking uploadedAt
     if (docMap.length < HomeFeedControllerBase.pageSize) {
       try {
         final query = VideoQueryBuilder.publicVideos(
           firestore,
           orderByField: 'createdAt',
+          limit: 40,
         );
         final results = forceNetwork
             ? await query.get(const GetOptions(source: Source.server))
@@ -282,38 +289,14 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
         final isFlipped = Get.isRegistered<FlipCoinService>() &&
             Get.find<FlipCoinService>().isHomeFlipped.value;
 
-        if (Get.isRegistered<TruthworldAlgorithm>()) {
-          final algorithm = Get.find<TruthworldAlgorithm>();
-          final ranked = isFlipped
-              ? algorithm.rankVideosOpposite(
-                  rawVideos,
-                  RecommendationSurface.homeFeedAll,
-                  diversityConfig: DiversityConfig.homeFeed,
-                )
-              : algorithm.rankVideos(
-                  rawVideos,
-                  RecommendationSurface.homeFeedAll,
-                  diversityConfig: DiversityConfig.homeFeed,
-                );
-          final rankedVideos = <Video>[];
-          final seenRanked = <String>{};
-          for (final s in ranked) {
-            if (s.video.id.isNotEmpty && seenRanked.add(s.video.id)) {
-              rankedVideos.add(s.video);
-            }
-          }
-          videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
-        } else {
-          final uniqueRaw = <Video>[];
-          final seenRaw = <String>{};
-          for (final v in rawVideos) {
-            if (v.id.isNotEmpty && seenRaw.add(v.id)) {
-              uniqueRaw.add(v);
-            }
-          }
-          videos.assignAll(uniqueRaw);
-        }
+        // Apply YouTube-style seen-demotion, refresh epoch variation, and serendipity rotation
+        final refreshedVideos = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+          candidates: rawVideos,
+          category: 'All',
+          isFlipped: isFlipped,
+        );
 
+        videos.assignAll(refreshedVideos.isNotEmpty ? refreshedVideos : rawVideos);
         saveVideosToCache('All');
         if (rawVideos.length < HomeFeedControllerBase.pageSize) {
           rxHasMore.value = false;
@@ -532,30 +515,12 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
     if (finalVideos.isNotEmpty) {
       finalVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      if (Get.isRegistered<TruthworldAlgorithm>()) {
-        final algorithm = Get.find<TruthworldAlgorithm>();
-        final ranked = algorithm.rankVideos(
-          finalVideos,
-          RecommendationSurface.homeFeedCategory,
-        );
-        final rankedList = <Video>[];
-        final seenRanked = <String>{};
-        for (final s in ranked) {
-          if (s.video.id.isNotEmpty && seenRanked.add(s.video.id)) {
-            rankedList.add(s.video);
-          }
-        }
-        videos.assignAll(rankedList.isNotEmpty ? rankedList : finalVideos);
-      } else {
-        final uniqueCategory = <Video>[];
-        final seenCategory = <String>{};
-        for (final v in finalVideos) {
-          if (v.id.isNotEmpty && seenCategory.add(v.id)) {
-            uniqueCategory.add(v);
-          }
-        }
-        videos.assignAll(uniqueCategory);
-      }
+      // Apply YouTube-style seen-demotion, refresh epoch variation, and serendipity rotation
+      final refreshed = youtubeFeedRefreshService.reRankFeedForYouTubeRefresh(
+        candidates: finalVideos,
+        category: cat,
+      );
+      videos.assignAll(refreshed.isNotEmpty ? refreshed : finalVideos);
 
       saveVideosToCache(cat);
       rxHasMore.value = finalVideos.length >= HomeFeedControllerBase.pageSize;

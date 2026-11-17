@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_widgets.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_registry.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'audio_tracks/audio_tracks_widgets.dart';
@@ -15,6 +18,14 @@ class AudioTracksPage extends GetView<AudioTracksController> {
     required this.isDarkMode,
     super.key,
   }) {
+    try {
+      TowerPlayerRegistry.pauseAllActivePlayers();
+      MultiAudioPlayerController.pauseAll();
+      if (Get.isRegistered<AudioTracksPlaybackController>()) {
+        Get.find<AudioTracksPlaybackController>().stop();
+      }
+    } catch (_) {}
+
     final ctrl = Get.isRegistered<AudioTracksController>()
         ? controller
         : Get.put(AudioTracksController());
@@ -23,8 +34,6 @@ class AudioTracksPage extends GetView<AudioTracksController> {
 
   final String channelId;
   final bool isDarkMode;
-
-  final RxBool _showPreviewPlayer = false.obs;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +103,9 @@ class AudioTracksPage extends GetView<AudioTracksController> {
   // TOP HEADER BAR (Exact fonts from Watch History Page)
   // ---------------------------------------------------------------------------
   Widget _buildTopHeader(BuildContext context, bool isDesktop) {
-    final canPop = Navigator.of(context).canPop();
+    final hasDashboardContext = Get.isRegistered<DashboardController>() &&
+        Get.find<DashboardController>().selectedIndex.value != 1;
+    final showBack = hasDashboardContext || Navigator.of(context).canPop();
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -107,11 +118,18 @@ class AudioTracksPage extends GetView<AudioTracksController> {
       ),
       child: Row(
         children: [
-          if (canPop) ...[
+          if (showBack) ...[
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-              tooltip: 'Back',
+              onPressed: () {
+                if (Get.isRegistered<DashboardController>() &&
+                    Get.find<DashboardController>().selectedIndex.value != 1) {
+                  Get.find<DashboardController>().setSelectedIndex(1);
+                } else if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
+              tooltip: 'Back to Overview',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),

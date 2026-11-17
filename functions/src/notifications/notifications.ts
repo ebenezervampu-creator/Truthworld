@@ -1,10 +1,20 @@
 import * as admin from "firebase-admin";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, HttpsError, CallableOptions } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { UserNotification, NotificationType, NotificationSeverity } from "./types";
 
 const db = admin.firestore();
 const COL_NOTIFICATIONS = "user_notifications";
+
+// Standard callable options for notifications: allow public invoke and bypass strict App Check
+// so sideloaded devices and authenticated clients do not hit UNAUTHENTICATED
+const NOTIFICATION_CALLABLE_OPTS: CallableOptions = {
+  region: "asia-south1",
+  memory: "256MiB",
+  maxInstances: 5,
+  enforceAppCheck: false,
+  invoker: "public",
+};
 
 export type AppFlavorTarget = "app" | "studio" | "admin" | "advertiser" | "all";
 
@@ -186,6 +196,29 @@ export async function notifyUser(params: {
     const likerId = params.metadata?.likerId || params.metadata?.replierId;
     const commentId = params.metadata?.commentId;
     const replyId = params.metadata?.replyId;
+    const videoId = params.metadata?.videoId;
+
+    // Deduplication for new video upload from subscribed channel
+    if (params.userId && videoId && params.type === "new_video_followed") {
+      try {
+        const existingActiveDoc = await db.collection("users")
+          .doc(params.userId)
+          .collection("notifications_active")
+          .doc(`notif_vid_${videoId}_${params.userId}`)
+          .get();
+
+        if (existingActiveDoc.exists) {
+          logger.info("[notifyUser] Deduplicated new_video_followed notification for video", {
+            userId: params.userId,
+            videoId,
+          });
+          return existingActiveDoc.id;
+        }
+      } catch (dedupErr) {
+        logger.debug("[notifyUser] Video notification deduplication lookup non-blocking error:", dedupErr);
+      }
+    }
+
     if (params.userId && (commentId || replyId)) {
       try {
         const recentSnap = await db.collection(COL_NOTIFICATIONS)
@@ -220,7 +253,10 @@ export async function notifyUser(params: {
       }
     }
 
-    const notificationId = db.collection(COL_NOTIFICATIONS).doc().id;
+    const isNewVideoFollowed = params.type === "new_video_followed" && !!videoId;
+    const notificationId = isNewVideoFollowed
+      ? `notif_vid_${videoId}_${params.userId}`
+      : db.collection(COL_NOTIFICATIONS).doc().id;
     const channelId = params.metadata?.channelId || "";
     const priority = params.metadata?.priority || (params.severity === "priority" ? "critical" : (params.severity === "warning" ? "high" : "low"));
     const category = params.metadata?.category || (params.type.includes("verification") || params.type.includes("fact_check") ? "verification" : "system");
@@ -592,7 +628,7 @@ export async function sendPushNotificationForUser(
  * Retrieves latest notifications for the logged-in user.
  */
 export const getNotifications = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  NOTIFICATION_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -619,20 +655,39 @@ export const getNotifications = onCall(
  * ✅ MARK NOTIFICATION AS READ (Callable)
  */
 export const markNotificationRead = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  NOTIFICATION_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
-    const { notificationId } = request.data;
+    const { notificationId } = request.data || {};
     if (!userId || !notificationId) throw new HttpsError("invalid-argument", "Missing data.");
 
     try {
-      const ref = db.collection(COL_NOTIFICATIONS).doc(notificationId);
-      const snap = await ref.get();
-      
-      if (!snap.exists) throw new HttpsError("not-found", "Notification not found.");
-      if (snap.data()?.userId !== userId) throw new HttpsError("permission-denied", "Unauthorized.");
+      const rootRef = db.collection(COL_NOTIFICATIONS).doc(notificationId);
+      const activeRef = db.collection("users").doc(userId).collection("notifications_active").doc(notificationId);
 
-      await ref.update({ read: true });
+      const [rootSnap, activeSnap] = await Promise.all([
+        rootRef.get(),
+        activeRef.get(),
+      ]);
+
+      if (!rootSnap.exists && !activeSnap.exists) {
+        throw new HttpsError("not-found", "Notification not found.");
+      }
+
+      const rootUserId = rootSnap.data()?.userId;
+      if (rootSnap.exists && rootUserId && rootUserId !== userId) {
+        throw new HttpsError("permission-denied", "Unauthorized.");
+      }
+
+      const batch = db.batch();
+      if (rootSnap.exists) {
+        batch.update(rootRef, { read: true, status: "read" });
+      }
+      if (activeSnap.exists) {
+        batch.update(activeRef, { read: true, status: "read" });
+      }
+      await batch.commit();
+
       return { success: true };
     } catch (err) {
       if (err instanceof HttpsError) throw err;
@@ -648,7 +703,7 @@ export const markNotificationRead = onCall(
  * When setting is 'unfollow', the topic is removed from savedTopics and topic followerCount is decremented.
  */
 export const updateTopicNotificationSettings = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  NOTIFICATION_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) {
@@ -732,7 +787,7 @@ export const updateTopicNotificationSettings = onCall(
  * Atomically increments topic followerCount.
  */
 export const followTopic = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  NOTIFICATION_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) {
@@ -813,7 +868,7 @@ export const followTopic = onCall(
  * Unfollows a topic, removes savedTopics doc, and decrements topic followerCount.
  */
 export const unfollowTopic = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  NOTIFICATION_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) {
@@ -877,7 +932,7 @@ export const unfollowTopic = onCall(
  * Retrieves user's notification preference ('all' | 'personalized' | 'none') for a specific topic.
  */
 export const getTopicNotificationSetting = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  NOTIFICATION_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) {

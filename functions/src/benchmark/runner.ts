@@ -47,7 +47,7 @@ export class BenchmarkRunner {
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`Dataset: ${dataset.version} (${dataset.claims.length} claims)`);
     console.log(`Extraction Model: ${PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL}`);
-    console.log(`Verification Model: ${PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-flash"}`);
+    console.log(`Verification Model: ${PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-3.5-flash-lite"}`);
     console.log(`Grounding Mode: ${PIPELINE_CONFIG.GROUNDING_MODE}`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
@@ -169,8 +169,8 @@ export class BenchmarkRunner {
           confidence:       vc?.verificationConfidence || 0,
           reasoning:        vc?.reasoning || "No verification returned",
           modelUsed:        wasRouted === "pro"
-            ? (PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-flash")
-            : (PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash"),
+            ? (PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-3.5-flash-lite")
+            : (PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.5-flash-lite"),
           wasRouted,
           shouldUsePro:     bc.shouldUsePro,
           latencyMs:        perClaimLatency,

@@ -113,7 +113,7 @@ export async function runCopyrightCheck(
             finalConfidence: 1.0,
             detectorVersion: 1,
             embeddingModel: "text-embedding-005",
-            geminiModel: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+            geminiModel: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-3.5-flash-lite",
             pipelineVersion: "1.0.0",
             status: "detected",
             claimId: null,

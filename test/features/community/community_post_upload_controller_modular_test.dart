@@ -33,7 +33,7 @@ void main() {
 
   group('CommunityPostUploadStateBase Tests', () {
     test('initial state is properly configured', () {
-      expect(controller.hasConfirmedCopyrightDeclaration.value, isFalse);
+      expect(controller.hasConfirmedCopyrightDeclaration.value, isTrue);
       expect(controller.hasPoll.value, isFalse);
       expect(controller.pollType.value, PollType.yesNo);
       expect(controller.selectedCategory.value, 'General');
@@ -45,7 +45,7 @@ void main() {
       expect(controller.canPublish, isFalse);
     });
 
-    test('canPublish checks channel, poll, copyright and moderation', () {
+    test('canPublish checks channel, poll and moderation', () {
       final channel = Channel(
         id: 'test_chan',
         name: 'Test Channel',
@@ -66,11 +66,7 @@ void main() {
       expect(controller.canPublish, isFalse);
 
       controller.selectedChannel.value = channel;
-      // Copyright not confirmed -> false
-      expect(controller.canPublish, isFalse);
-
-      controller.hasConfirmedCopyrightDeclaration.value = true;
-      // Now true
+      // Channel selected without copyright block -> true
       expect(controller.canPublish, isTrue);
 
       // With poll and empty question -> false
@@ -143,7 +139,7 @@ void main() {
 
       controller.resetForm();
 
-      expect(controller.hasConfirmedCopyrightDeclaration.value, isFalse);
+      expect(controller.hasConfirmedCopyrightDeclaration.value, isTrue);
       expect(controller.titleCtrl.text, isEmpty);
       expect(controller.descCtrl.text, isEmpty);
       expect(controller.selectedCategory.value, 'General');

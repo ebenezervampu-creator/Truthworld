@@ -20,7 +20,7 @@
  *
  * ✅ LOW-LATENCY DESIGN (unchanged from v2.0):
  *   - Direct GCS URI → Gemini (zero intermediate steps)
- *   - Gemini 2.5 Flash (cheapest multimodal model)
+ *   - Gemini 3.5 Flash Lite (cheapest multimodal model)
  *   - 120s timeout with fail-safe
  *
  * ✅ INDUSTRY STANDARDS:
@@ -602,7 +602,7 @@ export class ContentModerationService {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const model = this.vertexAI.getGenerativeModel({
-          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-3.5-flash-lite",
           systemInstruction: MODERATION_SYSTEM_PROMPT,
           generationConfig: {
             responseMimeType: "application/json",

@@ -1478,10 +1478,11 @@ class VoiceSearchDialog extends StatelessWidget {
 
           return GestureDetector(
             onTap: controller.onMicButtonTapped,
-            child: SizedBox(
-              width: 140,
-              height: 140,
-              child: Stack(
+            child: RepaintBoundary(
+              child: SizedBox(
+                width: 140,
+                height: 140,
+                child: Stack(
                 alignment: Alignment.center,
                 children: [
                   // Outer Wave Ring 3 (reacts to decibels + pulsate)
@@ -1579,8 +1580,9 @@ class VoiceSearchDialog extends StatelessWidget {
                 ],
               ),
             ),
-          );
-        }),
+          ),
+        );
+      }),
 
         const SizedBox(height: 16),
 

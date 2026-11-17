@@ -1,4 +1,3 @@
-export 'community_copyright_declaration_card.dart';
 export 'community_image_picker_dropzone.dart';
 export 'community_post_additional_options.dart';
 export 'community_post_content_inputs.dart';

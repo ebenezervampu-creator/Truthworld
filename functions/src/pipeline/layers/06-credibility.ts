@@ -18,7 +18,6 @@ import {
   CredibilityErrorCode,
   ExtractionError,
   SynthesisResult,
-  ClaimStatus,
   ClaimNature,
   ClaimLedgerSummary,
 } from "../types";
@@ -31,13 +30,12 @@ import { aggregationLayer }        from "./09-aggregation";
 import { PerformanceLayer }        from "./10-performance";
 import { logger }                  from "../utils/logger";
 import { alerting }                from "../utils/alerting";
-import { PIPELINE_CONFIG, DEEP_RESEARCH_CONFIG, isDeepResearchEnabled } from "../config";
+import { isDeepResearchEnabled }   from "../config";
 // import { reputationService }       from "../services/reputationService";
 import { contentIntentDetector }    from "../services/contentIntentDetector";
 import { speakerTrustEngine }       from "../services/speakerTrustEngine";
 import { SpeakerRegistryService }    from "../services/speakerRegistry";
 import { SpeakerReputationService }  from "../services/speakerReputationService";
-import { registryService } from "../registry/RegistryService";
 import { sourceTrustService } from "../services/sourceTrustService";
 import { tier0KnowledgeService } from "../services/tier0Knowledge";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
@@ -48,10 +46,160 @@ import {
 } from "../services/urlVerificationService";
 import { costEngine } from "../services/cost-engine";
 import { JobTokenTracker, normalizeToGcsUri } from "../utils/ai-utils";
-import { formatOpinionReasoning } from "../utils/opinion-formatting";
 import { SourceAvatarService } from "../services/sourceAvatarService";
 import { StreamingClaimProcessor } from "../services/streamingClaimProcessor";
+import { VerificationCascadeService } from "../services/verificationCascadeService";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
+import {
+  DiarizedUtterance,
+  ExtractedClaim as ModernExtractedClaim,
+  extractEmpiricalClaims,
+} from "../services/factExtraction";
+import {
+  AdjudicatedClaim,
+  EvidenceProvider,
+  VerifiedSource,
+  verifyClaimsHybrid,
+} from "../services/claimVerification";
+import { pubmedAdapter } from "../providers/pubmedAdapter";
+import { crossrefAdapter } from "../providers/crossrefAdapter";
+import { wikipediaAdapter } from "../providers/wikipediaAdapter";
+
+const MAX_SNIPPET_CHARS = 650;
+
+interface RawProviderHit {
+  title: string;
+  uri: string;
+  passage: string;
+  provider: EvidenceProvider;
+  claimId: string;
+}
+
+function truncateSnippet(text: string, maxChars = MAX_SNIPPET_CHARS): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= maxChars) return cleaned;
+  return `${cleaned.slice(0, maxChars - 3)}...`;
+}
+
+/**
+ * Layer 06C: Queries PubMed, Crossref, and Wikipedia in parallel for uncached claims,
+ * deduplicates URIs, and builds a closed-world VerifiedSource[] catalog with passage snippets.
+ */
+export async function gatherLayer06CEvidence(
+  claims: ModernExtractedClaim[]
+): Promise<VerifiedSource[]> {
+  const verifiable = claims.filter((c) => c.requiresVerification);
+  if (verifiable.length === 0) return [];
+
+  const retrievalTasks = verifiable.flatMap((claim) => {
+    const tasks: Promise<RawProviderHit[]>[] = [
+      wikipediaAdapter.searchPassages(claim.normalizedClaim, { limit: 2 }).then((hits) =>
+        hits.map((h) => ({
+          title: h.title,
+          uri: h.url,
+          passage: h.extract,
+          provider: "WIKIPEDIA" as EvidenceProvider,
+          claimId: claim.claimId,
+        }))
+      ),
+    ];
+
+    // Route biomedical and quantitative claims to PubMed & Crossref
+    if (
+      claim.domain === "HEALTH_MEDICAL" ||
+      /\d+%|\bstudy\b|\btrial\b|\bclinical\b/i.test(claim.normalizedClaim)
+    ) {
+      tasks.push(
+        pubmedAdapter.searchAbstracts(claim.normalizedClaim, { limit: 2 }).then((hits) =>
+          hits.map((h) => ({
+            title: h.title,
+            uri: `https://pubmed.ncbi.nlm.nih.gov/${h.pmid}/`,
+            passage: h.abstractText,
+            provider: "PUBMED" as EvidenceProvider,
+            claimId: claim.claimId,
+          }))
+        ),
+        crossrefAdapter.searchWorks(claim.normalizedClaim, { limit: 2 }).then((hits) =>
+          hits.map((h) => ({
+            title: h.title,
+            uri: h.doiUrl,
+            passage: h.abstract || h.subtitle || h.title,
+            provider: "CROSSREF" as EvidenceProvider,
+            claimId: claim.claimId,
+          }))
+        )
+      );
+    }
+
+    return tasks;
+  });
+
+  const settled = await Promise.allSettled(retrievalTasks);
+  const byUri = new Map<string, VerifiedSource>();
+
+  for (const outcome of settled) {
+    if (outcome.status !== "fulfilled") continue;
+    for (const hit of outcome.value) {
+      if (!hit.uri || !hit.passage) continue;
+
+      const existing = byUri.get(hit.uri);
+      if (existing) {
+        if (existing.claimIds && !existing.claimIds.includes(hit.claimId)) {
+          existing.claimIds.push(hit.claimId);
+        }
+        continue;
+      }
+
+      byUri.set(hit.uri, {
+        evidenceId: `E${byUri.size + 1}`,
+        title: hit.title,
+        uri: hit.uri,
+        snippet: truncateSnippet(hit.passage),
+        sourceProvider: hit.provider,
+        claimIds: [hit.claimId],
+      });
+    }
+  }
+
+  return Array.from(byUri.values());
+}
+
+export async function runLayer06CredibilityPipeline(params: {
+  videoId: string;
+  utterances: DiarizedUtterance[];
+  requireUsResidency?: boolean;
+}): Promise<AdjudicatedClaim[]> {
+  const { videoId, utterances, requireUsResidency = false } = params;
+
+  // 06A: Tier 1 Extraction (Gemini 3.5 Flash-Lite, thinkingLevel: MINIMAL, AssemblyAI-bound)
+  const extractedClaims = await extractEmpiricalClaims(
+    videoId,
+    utterances,
+    requireUsResidency
+  );
+
+  // 06B: Tier-0 Deterministic Cache Pre-Filter ($0.00 LLM & $0.00 Grounding cost)
+  const { cachedAdjudications, uncachedClaims } =
+    await tier0KnowledgeService.partitionClaims(extractedClaims);
+
+  if (uncachedClaims.length === 0) {
+    return cachedAdjudications;
+  }
+
+  // 06C: Multi-Source Evidence Retrieval (PubMed, Crossref, Wikipedia)
+  const preRetrievedEvidence = await gatherLayer06CEvidence(uncachedClaims);
+
+  // 06D–F: Hybrid Verification (omits paid Vertex googleSearch when preRetrievedEvidence covers batch)
+  const freshAdjudications = await verifyClaimsHybrid(videoId, uncachedClaims, {
+    preRetrievedEvidence,
+    requireUsResidency,
+  });
+
+  // Persist verified outcomes back to Tier-0 cache for future 30-day reuse
+  await tier0KnowledgeService.upsertVerifiedClaims(uncachedClaims, freshAdjudications);
+
+  return [...cachedAdjudications, ...freshAdjudications];
+}
 
 const db = () => admin.firestore();
 
@@ -109,7 +257,7 @@ function recordSuccess() {
   recordDistributedSuccess().catch(() => {});
 }
 
-async function isBreakerTrippedAsync(): Promise<boolean> {
+export async function isBreakerTrippedAsync(): Promise<boolean> {
   const now = Date.now();
   if (localBreakerTrippedUntil > now) {
     return true;
@@ -135,7 +283,7 @@ async function isBreakerTrippedAsync(): Promise<boolean> {
   return localBreakerTrippedUntil > now;
 }
 
-function isBreakerTripped(): boolean {
+export function isBreakerTripped(): boolean {
   const now = Date.now();
   return localBreakerTrippedUntil > now;
 }
@@ -159,7 +307,7 @@ const MIN_HIT_RATE = 0.30;
 export class CredibilityEngine {
   private readonly extractionService:   FactExtractionService;
   private readonly verificationService: ClaimVerificationService;
-  private readonly scoringEngine:       ScoringEngine;
+  public readonly scoringEngine:        ScoringEngine;
   private readonly distribution:        DistributionLayer;
   private readonly performanceLayer:    PerformanceLayer;
   private readonly speakerRegistry:     SpeakerRegistryService;   // v7
@@ -239,9 +387,51 @@ export class CredibilityEngine {
       channelTitle: channelTitle,
     };
 
-    await EdgeLayer.updateStageSync(jobId, "credibility", {
-      status: "running", progress: 5, startedAt: Date.now(),
-    });
+    const syncCredibilityProgress = async (
+      prog: number,
+      stageStatus: "running" | "completed" | "failed" = "running",
+      extra: Record<string, any> = {}
+    ) => {
+      await EdgeLayer.updateStage(jobId, "credibility", {
+        progress: prog,
+        status: stageStatus,
+        ...extra,
+      });
+      await EdgeLayer.upsertCredibilityJob(jobId, {
+        progress: prog,
+        status: stageStatus,
+        ...extra,
+      });
+      if (targetVideoId) {
+        db()
+          .collection("videos")
+          .doc(targetVideoId)
+          .set(
+            {
+              factCheckProgress: prog,
+              factCheckStatus: stageStatus,
+              stages: {
+                credibility: {
+                  progress: prog,
+                  status: stageStatus,
+                  updatedAt: Date.now(),
+                  ...extra,
+                },
+              },
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          )
+          .catch((err) => {
+            logger.warn("[Credibility] Failed to mirror progress to video doc", {
+              targetVideoId,
+              err: String(err),
+            });
+          });
+      }
+    };
+
+    await syncCredibilityProgress(5, "running", { startedAt: Date.now() });
 
     try {
       // 1. Resolve Input: Check if a transcript already exists; if not, extract directly from video media via Vertex AI
@@ -256,7 +446,7 @@ export class CredibilityEngine {
         logger.info("[Credibility] Transcript document not present — using Google Cloud multimodal media extraction", { jobId });
       }
 
-      await EdgeLayer.updateStage(jobId, "credibility", { progress: 10 });
+      await syncCredibilityProgress(10);
 
       // Deep Research is active ONLY when explicitly requested or required by tier ('deep', 'podcast', 'full_ground')
       const deepResearchActive = isDeepResearchEnabled(executionPlan.synthesisTier || 'standard') || executionPlan.factCheckTier === 'full_ground' || (executionPlan.factCheckTier as string) === 'deep';
@@ -314,8 +504,28 @@ export class CredibilityEngine {
         rawClaims = rawClaimsResult.claims;
         extractionPartial = rawClaimsResult.partial;
         speakerIdentities = resolvedSpeakers;
+
+        // Emergency recovery: if chunk extraction yielded 0 claims from non-empty transcript, attempt consolidated pass
+        if (rawClaims.length === 0 && transcript.utterances && transcript.utterances.length > 0) {
+          logger.warn("[Credibility] Chunked extraction returned 0 claims — attempting emergency fallback extraction pass", { jobId });
+          try {
+            const emergencyClaims = await this.extractionService.extractClaimsFromChunk(
+              jobId,
+              transcript.utterances.slice(0, 100),
+              0,
+              videoContext
+            );
+            if (emergencyClaims && emergencyClaims.length > 0) {
+              logger.info(`[Credibility] Emergency fallback extraction recovered ${emergencyClaims.length} claims`, { jobId });
+              rawClaims = emergencyClaims;
+              extractionPartial = false;
+            }
+          } catch (fallbackErr) {
+            logger.error("[Credibility] Emergency fallback extraction failed", { jobId, error: (fallbackErr as any)?.message });
+          }
+        }
       } else {
-        // Path B: Multimodal Direct Video Media Extraction via Google Cloud Vertex AI Gemini 2.5 Flash
+        // Path B: Multimodal Direct Video Media Extraction via Google Cloud Vertex AI Gemini 3.5 Flash Lite
         // Zero-copy, operates directly on GCS media without AssemblyAI dependency
         logger.info("[Credibility] Stage 2: Direct multimodal claim extraction from media via Google Cloud Vertex AI", { jobId });
         let mediaUrl = providedVideoUrl || jobData?.videoUrl || jobData?.filePath || "";
@@ -376,7 +586,7 @@ export class CredibilityEngine {
       // 2. Extract claims
       logger.info("[Credibility] Stage 3: Claim extraction", { jobId, traceId });
       const t1 = Date.now(); // Kept for latency telemetry
-      await EdgeLayer.updateStage(jobId, "credibility", { progress: 30 });
+      await syncCredibilityProgress(30);
 
       // 3. Classify + rank by importance
       const filteringReasons: string[] = [];
@@ -385,7 +595,10 @@ export class CredibilityEngine {
       // 4. Complete Fact-Checking: 100% of claims verified (Zero claims left unchecked)
       const maxClaims = effectiveMaxClaims;
 
-      const topClaims     = ranked.slice(0, maxClaims);
+      const topClaims: FilteredClaim[] = ranked.slice(0, maxClaims).map((c, idx) => ({
+        ...c,
+        claimId: (c as any).claimId || StreamingClaimProcessor.generateClaimOccurrenceId(c.text, typeof c.start === "number" ? c.start : idx * 3000),
+      }));
       const filteredCount = ranked.length - topClaims.length;
 
       if (filteredCount > 0) {
@@ -401,332 +614,136 @@ export class CredibilityEngine {
         logger.warn("[Credibility] Non-fatal error registering initial claims stream", { err: err?.message });
       });
 
-      await EdgeLayer.updateStage(jobId, "credibility", { progress: 40 });
+      await syncCredibilityProgress(40);
 
-      // 4.5 NEW: Early Exit if no claims extracted (v5.0)
+      // 4.5 NEW: Early Exit / Error Guard if no claims extracted (v5.0)
       if (topClaims.length === 0) {
-        logger.warn("[Credibility] No claims extracted from transcript", { jobId });
-        // Proceed to synthesis/scoring with empty claims
+        if (extractionPartial) {
+          logger.error("[Credibility] Claim extraction timed out or failed without recovering claims — failing stage for retry", { jobId });
+          throw new ExtractionError(
+            "CLAIM_EXTRACTION_FAILED",
+            `Claim extraction timed out or encountered unrecoverable errors for job ${jobId}`
+          );
+        }
+        logger.info("[Credibility] Video evaluated with zero extracted claims — marking as non-empirical content", { jobId });
       }
       
       // Load source trust registry from Firestore (with dynamic fallback)
       await sourceTrustService.loadRegistry().catch(() => {});
 
-      // 5. Cache lookup
-      logger.info("[Credibility] Stage 4: Cache lookup", { jobId, traceId });
-      const { cached, stale, uncached } = await this.cacheCheck(topClaims, jobId, domainInfo.domain);
-      cached.forEach(c => c.verificationMethod = 'cache_hit'); // v11.5
-      stale.forEach(c => c.verificationMethod = 'cache_hit');
-      const hitRate = topClaims.length > 0 ? (cached.length + stale.length) / topClaims.length : 0;
+      // 5. Gather contextual sources & configuration for Cascade Verification
+      const rawProvidedSources: string[] = Array.isArray(jobData?.providedSources)
+        ? jobData.providedSources
+        : (Array.isArray(jobData?.features?.providedSources) ? jobData.features.providedSources : []);
+      let disputeSources: string[] = [];
 
-      await this.trackAndAlertHitRate(jobId, cached.length + stale.length, topClaims.length);
-
-      await EdgeLayer.updateStage(jobId, "credibility", { progress: 50 });
-
-      // 5.5 NEW: Registry Fast-Path (v11.4)
-      // Check each uncached claim against the registry BEFORE routing to AI
-      const registryHits: VerifiedClaim[] = [];
-      const stillUncached: ExtractedClaim[] = [];
-
-      // v13.0: Map Registry status → ClaimStatus (the Registry uses 'correct'/'mostly_correct'
-      // but the Scoring Engine expects 'verified_true'/'mostly_true')
-      const mapRegistryStatus = (status: string): ClaimStatus => {
-        switch (status) {
-          case 'correct': return 'verified_true';
-          case 'mostly_correct': return 'mostly_true';
-          case 'incorrect': return 'false_claim';
-          case 'disputed': return 'disputed';
-          default: return 'verified_true';
+      try {
+        const videoSnap = await db().collection("videos").doc(targetVideoId).get();
+        if (videoSnap.exists) {
+          const vData = videoSnap.data() || {};
+          if (Array.isArray(vData.providedSources)) {
+            rawProvidedSources.push(...vData.providedSources);
+          }
+          if (vData.factCheckDispute && Array.isArray(vData.factCheckDispute.additionalSources)) {
+            disputeSources = vData.factCheckDispute.additionalSources;
+          }
         }
+      } catch (e) {
+        logger.warn("[Credibility] Could not fetch extra video providedSources", { jobId, targetVideoId, error: (e as any)?.message });
+      }
+
+      let communitySources: string[] = [];
+      try {
+        const claimSourcesSnap = await db().collection("videos").doc(targetVideoId).collection("claim_sources").get();
+        if (!claimSourcesSnap.empty) {
+          claimSourcesSnap.docs.forEach(doc => {
+            const data = doc.data();
+            if (data?.url && typeof data.url === 'string') {
+              const rawUrl = data.url.trim();
+              if (rawUrl.length > 2048) return;
+              if (/[\x00-\x1f\x7f]/.test(rawUrl)) return;
+              try {
+                const parsed = new URL(rawUrl);
+                if (parsed.protocol !== 'https:') return;
+                communitySources.push(parsed.href);
+              } catch {
+                return;
+              }
+            }
+          });
+        }
+      } catch (e) {
+        logger.warn("[Credibility] Could not fetch community claim_sources", { jobId, targetVideoId, error: (e as any)?.message });
+      }
+
+      const rawCreatorSources = Array.from(new Set([...rawProvidedSources, ...disputeSources])).filter(s => typeof s === 'string' && s.trim().length > 0);
+      const creatorProvidedSources: string[] = [];
+      for (const s of rawCreatorSources) {
+        const rawUrl = s.trim();
+        if (rawUrl.length > 512 || /[\x00-\x1f\x7f]/.test(rawUrl)) continue;
+        try {
+          const parsed = new URL(rawUrl);
+          if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+            creatorProvidedSources.push(parsed.href);
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      const cascadeOptions = {
+        videoTitle: videoTitle,
+        videoDescription: videoDescription,
+        channelTitle: channelTitle,
+        topicContext: domainInfo?.domain || "General",
+        providedSources: creatorProvidedSources,
       };
 
-      for (const claim of uncached) {
-        const registryCheck = registryService.resolveTruthCheck(claim.text);
-        if (registryCheck) {
-          const regDomain = sourceTrustService.resolvePublisherDomain(registryCheck.source);
-          const regUrl = regDomain
-            ? `https://${regDomain}`
-            : (registryCheck.source && registryCheck.source.trim().length > 0
-                ? `https://www.google.com/search?q=${encodeURIComponent(registryCheck.source.trim())}`
-                : "https://www.google.com/search?q=TruthWorld+Fact+Registry");
-          registryHits.push({
-            ...claim,
-            claimId: `claim_reg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            status: mapRegistryStatus(registryCheck.status),
-            verificationConfidence: 1.0,
-            evidenceConfidence: 1.0,
-            reasoning: registryCheck.reasoning,
-            sources: [registryCheck.source],
-            richSources: [{
-              title: registryCheck.source,
-              url: regUrl,
-              directUrl: regUrl,
-              domain: regDomain,
-              tier: "A",
-              snippet: registryCheck.reasoning
-            }],
-            isGrounded: true,
-            verificationMethod: 'deterministic' // v11.5
+      await syncCredibilityProgress(50);
+
+      // 6. Execute Four-Tier Verification Cascade with Progressive Real-Time Streaming (< 100ms TTFC, P95 < 5s)
+      logger.info("[Credibility] Stage 4: Four-Tier Cascade Verification executing", {
+        jobId,
+        claimCount: topClaims.length,
+        targetVideoId,
+        domain: domainInfo?.domain,
+      });
+
+      let allVerified: VerifiedClaim[] = [];
+      if (topClaims.length > 0) {
+        try {
+          allVerified = await VerificationCascadeService.executeCascade(
+            targetVideoId,
+            topClaims,
+            domainInfo?.domain || "General",
+            cascadeOptions
+          );
+        } catch (cascadeErr: any) {
+          logger.error("[Credibility] VerificationCascadeService threw error — initiating fast knowledge recovery fallback", {
+            jobId,
+            error: cascadeErr?.message,
           });
-        } else {
-          // v22.0: Tier-0 Pre-Indexed Knowledge Base Lookup (instant vector/lexical match)
-          const t0Match = tier0KnowledgeService.lookupPreIndexedFact(claim.text);
-          if (t0Match) {
-            registryHits.push({
-              ...claim,
-              claimId: `claim_t0_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-              status: t0Match.status,
-              verificationConfidence: t0Match.confidence,
-              evidenceConfidence: 1.0,
-              reasoning: t0Match.reasoning,
-              sources: [t0Match.source],
-              richSources: [{
-                title: t0Match.title,
-                url: t0Match.url,
-                directUrl: t0Match.url,
-                domain: t0Match.domain,
-                tier: "A",
-                snippet: t0Match.reasoning,
-                retrievalMethod: 'tier0_local_store',
-              }],
-              isGrounded: true,
-              verificationMethod: 'deterministic',
-            });
-          } else {
-            stillUncached.push(claim);
-          }
-        }
-      }
-
-      // ⚡ PHASE 2: Stream fast-path cache and registry hits immediately to viewer (< 100ms)
-      if (cached.length > 0 || stale.length > 0 || registryHits.length > 0) {
-        await StreamingClaimProcessor.publishResolvedClaims(targetVideoId, [...cached, ...stale, ...registryHits]).catch(() => {});
-      }
-
-      // v14.0: Only force ALL claims as sensitive when Deep Research is active.
-      // For standard tier, let per-claim pattern matching in isSensitiveClaim() handle routing.
-      // Previously: deepResearchActive || domainInfo.isSensitive (caused ALL geopolitical claims → Pro)
-      const isDiscoverySensitive = deepResearchActive;
-
-      const { toVerify: factual, opinions: opinionClaims, filteringReasons: routerReasons } = 
-        this.verificationService.classifyClaims(stillUncached, domainInfo.isLaunchNews, isDiscoverySensitive);
-      filteringReasons.push(...routerReasons);
-      
-      const nonFactualCount = uncached.length - factual.length;
-      if (nonFactualCount > 0) {
-        filteringReasons.push(`${nonFactualCount} claims routed as non-factual (opinion, satire, or unclear)`);
-      }
-      
-      // Convert opinion claims to VerifiedClaim format (labeled but not verified)
-      const labeledOpinions: VerifiedClaim[] = opinionClaims.map(claim => ({
-        ...claim,
-        status: (claim.nature === ClaimNature.BELIEF ? 'religious_belief' : 
-                 claim.nature === ClaimNature.SATIRE ? 'satire_claim' :
-                 claim.nature === ClaimNature.RHETORICAL_EXAGGERATION ? 'rhetorical_exaggeration' :
-                 claim.nature === ClaimNature.ESTIMATION ? 'opinion_claim' : 'opinion_claim') as any,
-        nature: claim.nature,
-        verificationConfidence: 1.0,
-        reasoning: claim.nature === ClaimNature.RHETORICAL_EXAGGERATION
-          ? `Just an exaggeration! "${claim.text}" is a colorful way of speaking for dramatic effect, not a literal number or fact.`
-          : (claim.nature === ClaimNature.SATIRE
-              ? `Just a joke! "${claim.text}" is playful comedy or teasing, not meant as a serious fact.`
-              : formatOpinionReasoning(claim.text)),
-        sources: [],
-        richSources: [],
-        isGrounded: false,
-        importance: claim.importance || 0.3,
-      }));
-
-      // ⚡ PHASE 2: Stream labeled opinions immediately to viewer
-      if (labeledOpinions.length > 0) {
-        await StreamingClaimProcessor.publishResolvedClaims(targetVideoId, labeledOpinions).catch(() => {});
-      }
-
-      let verified: VerifiedClaim[] = [];
-      let batchStats = { completed: 0, timedOut: 0 };
-      const verificationPromise = (async () => {
-        if (factual.length > 0) {
-          // Dynamic Batching based on Grounding Mode
-          let effectiveGroundingMode = PIPELINE_CONFIG.GROUNDING_MODE;
-          const isSensitiveTopic = executionPlan.sensitiveTopics?.some(t => ["health", "politics", "finance"].includes(t));
-
-          if (domainInfo.isLaunchNews || executionPlan.priorityMode === "accuracy" || isSensitiveTopic) {
-            effectiveGroundingMode = "always";
-          }
-
-           // v20.0: Cost-Optimized Dynamic Batching — groups more claims per Gemini call to halve grounding fees
-           const batchSize = (() => {
-             if (executionPlan.priorityMode === 'accuracy') return 3;
-             if (deepResearchActive) return 4;  // Pro + grounding: 4 claims per batch
-             if (effectiveGroundingMode === 'always' || domainInfo.domain === 'News' || domainInfo.domain === 'Technology') return 6;
-             if (effectiveGroundingMode === 'auto') return PIPELINE_CONFIG.BATCH_SIZE_GROUNDING || 6;
-             return 6;  // standard Flash
-           })();
-
-          const jobData = jobDoc.data() || {};
-          const rawProvidedSources: string[] = Array.isArray(jobData.providedSources)
-            ? jobData.providedSources
-            : (Array.isArray(jobData.features?.providedSources) ? jobData.features.providedSources : []);
-          let disputeSources: string[] = [];
-          
-          const targetVideoId = (executionPlan as any).videoId || jobData.videoId || (jobData.linkedVideoIds?.[0]) || jobId;
-          
-          try {
-            const videoSnap = await db().collection("videos").doc(targetVideoId).get();
-            if (videoSnap.exists) {
-              const vData = videoSnap.data() || {};
-              if (Array.isArray(vData.providedSources)) {
-                rawProvidedSources.push(...vData.providedSources);
-              }
-              if (vData.factCheckDispute && Array.isArray(vData.factCheckDispute.additionalSources)) {
-                disputeSources = vData.factCheckDispute.additionalSources;
-              }
-            }
-          } catch (e) {
-            logger.warn("[Credibility] Could not fetch extra video providedSources", { jobId, targetVideoId, error: (e as any)?.message });
-          }
-
-          let communitySources: string[] = [];
-          try {
-            const claimSourcesSnap = await db().collection("videos").doc(targetVideoId).collection("claim_sources").get();
-            if (!claimSourcesSnap.empty) {
-              claimSourcesSnap.docs.forEach(doc => {
-                const data = doc.data();
-                if (data?.url && typeof data.url === 'string') {
-                  // v12.1 SECURITY FIX: Validate and sanitize community-submitted URLs
-                  const rawUrl = data.url.trim();
-
-                  // 1. Reject excessively long URLs (potential payload)
-                  if (rawUrl.length > 2048) return;
-
-                  // 2. Reject URLs with control characters or newlines (prompt injection vector)
-                  if (/[\x00-\x1f\x7f]/.test(rawUrl)) return;
-
-                  // 3. Validate URL format and enforce HTTPS only
-                  try {
-                    const parsed = new URL(rawUrl);
-                    if (parsed.protocol !== 'https:') return;
-                    // 4. Only keep the clean URL (strip any appended target labels that could inject instructions)
-                    communitySources.push(parsed.href);
-                  } catch {
-                    // Invalid URL — silently skip
-                    return;
-                  }
-                }
-              });
-            }
-          } catch (e) {
-            logger.warn("[Credibility] Could not fetch community claim_sources", { jobId, targetVideoId, error: (e as any)?.message });
-          }
-
-          // v12.1 + v21.0 SECURITY FIX: Separate creator-provided sources from untrusted community sources.
-          // Strictly validate and sanitize creator sources against prompt injection or control characters.
-          const rawCreatorSources = Array.from(new Set([...rawProvidedSources, ...disputeSources])).filter(s => typeof s === 'string' && s.trim().length > 0);
-          const creatorProvidedSources: string[] = [];
-          for (const s of rawCreatorSources) {
-            const rawUrl = s.trim();
-            if (rawUrl.length > 512 || /[\x00-\x1f\x7f]/.test(rawUrl)) continue;
-            try {
-              const parsed = new URL(rawUrl);
-              if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-                creatorProvidedSources.push(parsed.href);
-              }
-            } catch {
-              continue;
-            }
-          }
-          const sanitizedCommunitySources = Array.from(new Set(communitySources)).filter(s => !creatorProvidedSources.includes(s));
-
-          const deepResearchOptions = {
-            jobId: jobId,
-            functionStartTime: t0,
-            groundingMode: deepResearchActive ? DEEP_RESEARCH_CONFIG.GROUNDING_MODE : (effectiveGroundingMode as any),
-            forcePro: deepResearchActive && DEEP_RESEARCH_CONFIG.FORCE_PRO_MODEL,
-            minSourcesRequired: DEEP_RESEARCH_CONFIG.MIN_SOURCES_PER_CLAIM,
-            sourceDiversityRequired: DEEP_RESEARCH_CONFIG.SOURCE_DIVERSITY_REQUIRED,
-            isDiscoverySensitive: isDiscoverySensitive || isSensitiveTopic,
-            providedSources: creatorProvidedSources,
-            communitySources: sanitizedCommunitySources, // v12.1: Separated & sandboxed
+          allVerified = await this.verificationService.verifyBatchWithFastKnowledge(topClaims as any, jobId, {
             videoTitle: videoTitle,
             videoDescription: videoDescription,
             channelTitle: channelTitle,
-            topicContext: domainInfo?.domain || "General",
-          };
-
-          // v10.5 Audit #8: Pre-verification cost logging
-          const costEstimate = this.scoringEngine.estimateDeepResearchCost(factual.length, 3, batchSize);
-          logger.info(`[Credibility] Deep Research Cost Estimate: $${costEstimate.estimatedCostUsd} for ${factual.length} claims`, { jobId });
-          if (costEstimate.warning) logger.warn(`[Credibility] ${costEstimate.warning}`);
-
-          // Parallelize Grounded Claim Verification with a concurrency pool of 3 (p-limit(3))
-          // Reduces 440s verification to ≈ 150s, comfortably below the 540s timeout.
-          const maxConcurrent = 3;
-
-          // Check distributed circuit breaker before invoking Vertex AI
-          const isBreakerActive = await isBreakerTrippedAsync();
-          if (isBreakerActive) {
-            logger.warn(`[Credibility] Distributed Circuit Breaker is active. Routing ${factual.length} claims to safe fast-knowledge recovery to prevent downstream cascade.`, { jobId });
-            verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId, {
-              videoTitle: videoTitle,
-              videoDescription: videoDescription,
-              channelTitle: channelTitle,
-            });
-            batchStats = { completed: verified.length, timedOut: 0 };
-            return verified;
-          }
-
-          // v14.0: Verification block is now crash-proof. If the entire verification pipeline
-          // throws (e.g. all retries exhausted), we fall back to Fast Knowledge Recovery
-          // instead of silently dropping all claims.
-          try {
-            const verificationResult = await this.verificationService.verifyClaims(
-              factual, 
-              batchSize, 
-              maxConcurrent, 
-              domainInfo.domain, 
-              deepResearchOptions
-            );
-            verified = verificationResult.claims;
-            batchStats = verificationResult.batchStats;
-            await this.cacheWithTTL(verified);
-            recordSuccess();
-          } catch (verErr) {
-            recordFailure();
-            logger.error(`[Credibility] Verification pipeline threw — initiating Full Recovery Pass`, { jobId, error: (verErr as any)?.message });
-            try {
-              verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId, {
-                videoTitle: videoTitle,
-                videoDescription: videoDescription,
-                channelTitle: channelTitle,
-              });
-              batchStats = { completed: verified.length, timedOut: 0 };
-              logger.info(`[Credibility] Full Recovery Pass succeeded: ${verified.length} claims recovered`, { jobId });
-              recordSuccess();
-            } catch (recoveryErr) {
-              logger.error(`[Credibility] Full Recovery Pass also failed — graceful degradation`, { jobId, error: (recoveryErr as any)?.message });
-              verified = [];
-            }
-          }
+          });
         }
-        return verified;
-      })();
-      void batchStats; // v12.0: Scoring engine removed; batchStats preserved for structure
 
-      // 9. Merge cached + stale + newly verified + labeled opinions (v5.0)
-      const newlyVerified = await verificationPromise;
-      const tVerificationEnd = Date.now();
-      let allVerified = [...cached, ...stale, ...registryHits, ...newlyVerified, ...labeledOpinions];
-
-      // Trigger SWR background refresh for stale claims if breaker is healthy
-      if (stale.length > 0) {
-        if (isBreakerTripped()) {
-          logger.warn("[SWR] Circuit breaker is tripped. Serving stale cache and skipping background refresh.", { jobId, count: stale.length });
-        } else {
-          await this.enqueueBackgroundRefresh(jobId, stale, domainInfo.domain);
+        // Final Recovery: In case any claim failed or timed out, recover with fast knowledge
+        if (allVerified.length === 0) {
+          logger.warn("[Credibility] Cascade returned 0 claims — running fast knowledge recovery", { jobId });
+          allVerified = await this.verificationService.verifyBatchWithFastKnowledge(topClaims as any, jobId, {
+            videoTitle: videoTitle,
+            videoDescription: videoDescription,
+            channelTitle: channelTitle,
+          });
         }
       }
 
-      // v14.0: Final Recovery Sweep — catch ANY remaining verification_timeout claims
+      const tVerificationEnd = Date.now();
+
+      // Final Recovery Sweep — catch ANY remaining verification_timeout claims
       const stillTimedOut = allVerified.filter(c =>
         c.status === 'verification_timeout' || (c as any).failureReason === 'timeout'
       );
@@ -745,32 +762,35 @@ export class CredibilityEngine {
           logger.info(`[Credibility] Final Recovery Sweep succeeded: ${recovered.length} claims recovered`, { jobId });
         } catch (sweepErr) {
           logger.error(`[Credibility] Final Recovery Sweep failed`, { jobId, error: (sweepErr as any)?.message });
-          // Continue with what we have — claims remain as verification_timeout
         }
       }
 
       // ⚡ PHASE 2: Stream all verified and recovered claims to Firestore subcollection
       await StreamingClaimProcessor.publishResolvedClaims(targetVideoId, allVerified).catch(() => {});
 
-      // v11.0: Evaluation Health Tracking — detect 0-evaluated-claims failure mode
-      // v11.4: Include registry hits in routed count
-      const factualRoutedCount = factual.length + registryHits.length;
+      const cacheHitsCount = allVerified.filter(c => c.verificationMethod === 'cache_hit').length;
+      const hitRate = topClaims.length > 0 ? cacheHitsCount / topClaims.length : 0;
+      await this.trackAndAlertHitRate(jobId, cacheHitsCount, topClaims.length);
+
+      // Evaluation Health Tracking — detect 0-evaluated-claims failure mode
+      const factualRoutedCount = allVerified.filter(c => 
+        c.status !== 'opinion_claim' && c.status !== 'religious_belief' && c.status !== 'satire_claim' && (c.status as string) !== 'rhetorical_exaggeration'
+      ).length;
       const evaluatedClaimsCount = allVerified.filter(c => 
-        c.status !== 'opinion_claim' && c.status !== 'religious_belief' && !c.timedOutAt && (c as any).failureReason !== 'timeout'
+        c.status !== 'opinion_claim' && c.status !== 'religious_belief' && c.status !== 'satire_claim' && (c.status as string) !== 'rhetorical_exaggeration' && !c.timedOutAt && (c as any).failureReason !== 'timeout' && c.status !== 'unproven'
       ).length;
-      const attemptedClaimsCount = allVerified.filter(c => 
-        c.status !== 'opinion_claim' && c.status !== 'religious_belief'
-      ).length;
+      const attemptedClaimsCount = factualRoutedCount;
       const claimReachRatio = topClaims.length > 0 ? factualRoutedCount / topClaims.length : 0;
       const evaluationRatio = factualRoutedCount > 0 ? evaluatedClaimsCount / factualRoutedCount : 0;
-      const healthStatus = claimReachRatio >= 0.6 && evaluationRatio >= 0.5 ? 'healthy' as const
+      const healthStatus = topClaims.length === 0 ? 'healthy' as const
+        : claimReachRatio >= 0.6 && evaluationRatio >= 0.5 ? 'healthy' as const
         : claimReachRatio >= 0.3 || evaluationRatio >= 0.3 ? 'degraded' as const
         : 'critical' as const;
 
       if (healthStatus === 'critical' && topClaims.length >= 3) {
         logger.error(`[Credibility] CRITICAL: Low claim reach — ${factualRoutedCount}/${topClaims.length} reached verification, ${evaluatedClaimsCount} evaluated`, {
           jobId, claimReachRatio, evaluationRatio, totalExtracted: rawClaims.length,
-          afterFilter: topClaims.length, factual: factualRoutedCount, opinions: opinionClaims.length,
+          afterFilter: topClaims.length, factual: factualRoutedCount, opinions: topClaims.length - factualRoutedCount,
           filteringReasons,
         });
         await alerting.notify('low-claim-reach', { jobId, claimReachRatio, evaluationRatio, healthStatus });
@@ -788,7 +808,7 @@ export class CredibilityEngine {
         healthStatus,
       };
 
-      await EdgeLayer.updateStage(jobId, "credibility", { progress: 65 });
+      await syncCredibilityProgress(65);
 
       // 9.4 v7: Speaker Identity Resolution moved up to parallel block (v11.1)
 
@@ -822,7 +842,7 @@ export class CredibilityEngine {
 
       // 9.6 NEW: Non-blocking synthesis architecture
       // After verification completes, save intermediate draft and delegate synthesis to background Cloud Function
-      await EdgeLayer.updateStage(jobId, "credibility", { progress: 70 });
+      await syncCredibilityProgress(70);
       logger.info("[Credibility] Stage 6: Persisting verified claims draft and triggering async synthesis", { jobId, traceId });
 
       // Build explainability
@@ -1069,12 +1089,12 @@ export class CredibilityEngine {
         },
 
         versions: {
-          model: "Gemini 2.5 Multi-Model",
+          model: "Gemini 3.5 Multi-Model",
           scoring: "v12.0-no-scoring",
           registry: "v3-blended"
         },
 
-        llmProvider: "Gemini 2.5 (Flash+Pro)",
+        llmProvider: "Gemini 3.5 (Flash-Lite+Pro)",
         sttProvider: hasTranscript ? "AssemblyAI Universal-3.5-Pro" : "Google Cloud Multimodal (Zero-Copy)",
         language: normalizeLanguageCode(transcript?.language || "en"),
 
@@ -1087,7 +1107,7 @@ export class CredibilityEngine {
         },
         processingMetadata: {
           verificationPipeline: {
-            verifiedBy: deepResearchActive ? "Gemini 2.5 Pro" : "Gemini 2.5 Flash",
+            verifiedBy: deepResearchActive ? "Gemini 4 Hydrogen" : "Gemini 3.5 Flash Lite",
             grounded: deepResearchActive || executionPlan.priorityMode === "accuracy",
             groundingProvider: "Google Search",
             embeddingModel: "text-embedding-005",
@@ -1105,7 +1125,7 @@ export class CredibilityEngine {
       // v12.0: No scoring — conclusion label stays as synthesis-generated
 
       // 14. Store result
-      await this.storeResult(jobId, userId, result);
+      await this.storeResult(jobId, userId, result, targetVideoId);
 
       // Trigger async synthesis pass AFTER result is safely persisted in Storage (eliminates race condition)
       await this.distribution.publish("credibility-synthesis", {
@@ -1191,11 +1211,7 @@ export class CredibilityEngine {
         source:     "credibility-engine",
       });
 
-      await EdgeLayer.upsertCredibilityJob(jobId, {
-        status: "completed",
-        progress: 100,
-        completedAt: Date.now(),
-      });
+      await syncCredibilityProgress(100, "completed", { completedAt: Date.now() });
       await aggregationLayer.onStageComplete(jobId, "credibility", userId, executionPlan);
 
       logger.info("[Credibility] Completed", {
@@ -1257,12 +1273,8 @@ export class CredibilityEngine {
         
         // If second attempt also fails, fallback to PARTIAL/UNVERIFIED instead of hard failure
         const fallbackResult = this.generateCapacityFallbackResult(jobId, userId, errMsg, transcript);
-        await this.storeResult(jobId, userId, fallbackResult);
-        await EdgeLayer.upsertCredibilityJob(jobId, {
-          status: "completed",
-          progress: 100,
-          completedAt: Date.now(),
-        });
+        await this.storeResult(jobId, userId, fallbackResult, targetVideoId);
+        await syncCredibilityProgress(100, "completed", { completedAt: Date.now() });
 
         // 🚨 VITAL FIX: Notify orchestration that the stage is complete (even if degraded)
         // Without this, the UI and Aggregation Layer will hang forever waiting for 'credibility'.
@@ -1290,11 +1302,7 @@ export class CredibilityEngine {
       }
 
       await EdgeLayer.failStage(jobId, "credibility", errMsg);
-      await EdgeLayer.upsertCredibilityJob(jobId, {
-        status: "failed",
-        error: errMsg,
-        completedAt: Date.now(),
-      });
+      await syncCredibilityProgress(0, "failed", { error: errMsg, completedAt: Date.now() });
       await aggregationLayer.onStageComplete(jobId, "credibility", userId, executionPlan).catch(() => {});
       throw error;
     }
@@ -1330,12 +1338,12 @@ export class CredibilityEngine {
       isFinal: false,
       verifiedAt: Date.now(),
       processingTime: 0,
-      versions: { model: "Gemini 2.5", scoring: "v12.0-no-scoring", registry: "v3-blended" },
+      versions: { model: "Gemini 3.5", scoring: "v12.0-no-scoring", registry: "v3-blended" },
       filteringReasons: [],
     } as any;
   }
 
-  private async cacheCheck(
+  public async cacheCheck(
     claims: ExtractedClaim[],
     jobId:  string,
     domainContext?: string
@@ -1349,7 +1357,7 @@ export class CredibilityEngine {
     }
   }
 
-  private async cacheWithTTL(claims: VerifiedClaim[]): Promise<void> {
+  public async cacheWithTTL(claims: VerifiedClaim[]): Promise<void> {
     for (const claim of claims) {
       const category = this.categoriseClaim(claim.text);
       const ttl      = CLAIM_TTL[category] ?? CLAIM_TTL.default;
@@ -1534,7 +1542,8 @@ export class CredibilityEngine {
   private async storeResult(
     jobId:  string,
     userId: string,
-    result: CredibilityResult
+    result: CredibilityResult,
+    targetVideoId?: string
   ): Promise<void> {
     const sanitizedResult = sanitizeReportPayloadForClosedWorld(result);
     const { path: latestPath } = await this.analysisRepository.saveAnalysis(jobId, "factChecks", sanitizedResult);
@@ -1566,6 +1575,14 @@ export class CredibilityEngine {
         factCheckUrl,
         progress: 95,
       }),
+      ...(targetVideoId ? [
+        db().collection("videos").doc(targetVideoId).set({
+          factCheckUrl,
+          factCheckProgress: 95,
+          factCheckStatus: "running",
+          updatedAt: Date.now(),
+        }, { merge: true }).catch(() => {})
+      ] : []),
     ]);
 
     // Skip Firestore factChecks write to comply with storage-only verification results policy
@@ -1666,8 +1683,8 @@ export class CredibilityEngine {
         evaluationHealth,
         verifiedAt: Date.now(),
         processingTime: 0,
-        versions: { model: "Gemini 2.5 Multi-Model", scoring: "v12.0-no-scoring", registry: "v3-blended" },
-        llmProvider: "Gemini 2.5 (Flash+Pro)",
+        versions: { model: "Gemini 3.5 Multi-Model", scoring: "v12.0-no-scoring", registry: "v3-blended" },
+        llmProvider: "Gemini 3.5 (Flash-Lite+Pro)",
         sttProvider: "AssemblyAI",
         language: "en",
         latencyMs: { extraction: 0, verification: 0, consistency: 0, synthesis: 0, total: 0 },
@@ -1816,11 +1833,111 @@ export class CredibilityEngine {
   }
 
   private async loadTranscript(jobId: string, videoId?: string): Promise<any | null> {
-    let doc = await db().collection("transcripts").doc(jobId).get();
-    if (!doc.exists && videoId) {
-      doc = await db().collection("transcripts").doc(videoId).get();
+    // 1. Direct Firestore transcripts collection lookup
+    try {
+      let doc = await db().collection("transcripts").doc(jobId).get();
+      if ((!doc.exists || !Array.isArray(doc.data()?.utterances) || doc.data()?.utterances.length === 0) && videoId) {
+        doc = await db().collection("transcripts").doc(videoId).get();
+      }
+      if (doc.exists) {
+        const data = doc.data();
+        if (Array.isArray(data?.utterances) && data.utterances.length > 0) {
+          return data;
+        }
+      }
+    } catch (fsErr) {
+      logger.warn("[Credibility] Firestore transcripts lookup warning", { jobId, err: String(fsErr) });
     }
-    return doc.exists ? doc.data() : null;
+
+    // 2. Storage lookup via video_jobs artifacts or canonical paths
+    const bucket = admin.storage().bucket();
+    const candidatePaths: string[] = [
+      `transcripts/${jobId}/full.json`,
+      ...(videoId ? [`transcripts/${videoId}/full.json`] : []),
+    ];
+
+    try {
+      const jobDoc = await db().collection("video_jobs").doc(jobId).get();
+      const jobData = jobDoc.exists ? jobDoc.data() : null;
+      const gcsArtifact = jobData?.artifacts?.transcription?.jsonUrl;
+      if (gcsArtifact && typeof gcsArtifact === "string") {
+        const parsedPath = gcsArtifact.replace(`gs://${bucket.name}/`, "");
+        if (!candidatePaths.includes(parsedPath)) {
+          candidatePaths.unshift(parsedPath);
+        }
+      }
+      if (videoId && (!jobData || !gcsArtifact)) {
+        const vJobDoc = await db().collection("video_jobs").doc(videoId).get();
+        const vJobData = vJobDoc.exists ? vJobDoc.data() : null;
+        const vGcsArtifact = vJobData?.artifacts?.transcription?.jsonUrl;
+        if (vGcsArtifact && typeof vGcsArtifact === "string") {
+          const parsedPath = vGcsArtifact.replace(`gs://${bucket.name}/`, "");
+          if (!candidatePaths.includes(parsedPath)) {
+            candidatePaths.unshift(parsedPath);
+          }
+        }
+      }
+    } catch (_) {}
+
+    for (const storagePath of candidatePaths) {
+      try {
+        const file = bucket.file(storagePath);
+        const [exists] = await file.exists();
+        if (exists) {
+          const [content] = await file.download();
+          const parsed = JSON.parse(content.toString());
+          if (parsed) {
+            const rawUtterances = parsed.utterances || parsed.segments?.map((s: any) => ({
+              start: s.start,
+              end: s.end,
+              text: s.text,
+              speaker: s.speaker || "Speaker",
+            })) || [];
+            if (rawUtterances.length > 0) {
+              logger.info("[Credibility] Loaded full transcript from Cloud Storage", { storagePath, utterances: rawUtterances.length });
+              return {
+                ...parsed,
+                utterances: rawUtterances,
+                duration: parsed.duration || (rawUtterances[rawUtterances.length - 1].end / 1000),
+                language: parsed.detectedLanguage || parsed.language || "en",
+              };
+            }
+          }
+        }
+      } catch (dlErr) {
+        logger.warn("[Credibility] Failed to load transcript from storage path", { storagePath, err: String(dlErr) });
+      }
+    }
+
+    // 3. Fallback: Check videos collection document for inline transcript string
+    if (videoId) {
+      try {
+        const videoDoc = await db().collection("videos").doc(videoId).get();
+        if (videoDoc.exists) {
+          const vData = videoDoc.data() || {};
+          const transcriptText = (typeof vData.transcript === "string" ? vData.transcript : "").trim();
+          if (transcriptText.length > 20) {
+            logger.info("[Credibility] Synthesizing transcript from videos doc inline text", { videoId, length: transcriptText.length });
+            const durationSec = vData.durationSeconds || vData.duration || 120;
+            return {
+              duration: durationSec,
+              language: vData.language || "en",
+              text: transcriptText,
+              utterances: [{
+                start: 0,
+                end: durationSec * 1000,
+                text: transcriptText,
+                speaker: "Speaker 1",
+              }],
+              speakers: ["Speaker 1"],
+              speakerCount: 1,
+            };
+          }
+        }
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   /**
@@ -1934,7 +2051,7 @@ export class CredibilityEngine {
     return priors;
   }
 
-  private async enqueueBackgroundRefresh(
+  public async enqueueBackgroundRefresh(
     jobId: string,
     staleClaims: VerifiedClaim[],
     domain: string

@@ -221,7 +221,7 @@ export async function getCircuitState(): Promise<CircuitBreakerState> {
 // ─── WATERFALL ROUTING ──────────────────────────────────────────────────────
 
 export interface ModelFallbackChain {
-  primary: string;           // e.g. 'gemini-2.5-flash'
+  primary: string;           // e.g. 'gemini-3.5-flash-lite'
   fallback: string | null;   // null or fallback model
   forcePrimary: boolean;     // if true, never fall back — wait and retry on primary
 }

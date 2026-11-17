@@ -425,6 +425,7 @@ class UISource {
     required this.trustLevel,
     required this.type,
     this.url,
+    this.directUrl,
     this.domain,
     this.citationCount = 0,
     this.snippet,
@@ -447,6 +448,7 @@ class UISource {
         .toString();
     final rawUrl =
         (map['url'] ?? map['directUrl'] ?? map['link'])?.toString();
+    final directUrl = (map['directUrl'] ?? map['targetUrl'])?.toString();
     final rawDomain = map['domain']?.toString();
     final publisher = (map['publisher'] ?? map['author'] ?? map['organization'])?.toString();
     final publishedAt = (map['publishedAt'] ??
@@ -492,6 +494,7 @@ class UISource {
     return UISource(
       title: title,
       url: url,
+      directUrl: directUrl,
       domain: domain,
       trustLevel: trustLevel,
       type: type,
@@ -509,6 +512,7 @@ class UISource {
   }
   final String title;
   final String? url;
+  final String? directUrl;
   final String? domain;
   final String trustLevel; // 'High' | 'Medium' | 'Low'
   final String type; // 'Primary' | 'Secondary' | 'Supporting'
@@ -525,6 +529,7 @@ class UISource {
   Map<String, dynamic> toMap() => {
     'title': title,
     'url': url,
+    'directUrl': directUrl,
     'domain': domain,
     'trustLevel': trustLevel,
     'type': type,
@@ -576,6 +581,8 @@ class ClaimResult {
   ClaimResult({
     required this.text,
     required this.verdict,
+    this.claimId,
+    this.stateLevel = 3,
     this.start,
     this.end,
     this.isLowRiskTrivia,
@@ -620,6 +627,19 @@ class ClaimResult {
             map['verificationStatus'] ??
             'unverified')
         .toString();
+    final claimId = (map['claimId'] ?? map['id'])?.toString();
+    int stateLevel = 3;
+    if (map['stateLevel'] is num) {
+      stateLevel = (map['stateLevel'] as num).toInt();
+    } else if (map['isProvisional'] == true ||
+        rawVerdict.toLowerCase() == 'provisional') {
+      stateLevel = 1;
+    } else if (rawVerdict.toLowerCase() == 'extracted' ||
+        rawVerdict.toLowerCase() == 'identified') {
+      stateLevel = 0;
+    } else if (rawVerdict.toLowerCase() == 'deep_verifying') {
+      stateLevel = 2;
+    }
 
     double? startVal;
     if (map['startMs'] is num) {
@@ -730,6 +750,8 @@ class ClaimResult {
     return ClaimResult(
       text: rawText,
       verdict: rawVerdict,
+      claimId: claimId,
+      stateLevel: stateLevel,
       start: startVal,
       end: endVal,
       isLowRiskTrivia: map['isLowRiskTrivia'] as bool?,
@@ -800,6 +822,8 @@ class ClaimResult {
   }
   final String text;
   final String verdict;
+  final String? claimId;
+  final int stateLevel;
   final double? start;
   final double? end;
   final bool? isLowRiskTrivia;
@@ -818,6 +842,13 @@ class ClaimResult {
   final CalibratedConfidenceBreakdown? calibratedConfidence;
   final CredibilityAssessmentV2? assessmentV2;
   final Map<String, String>? localizedTexts;
+
+  /// Monotonic state indicators:
+  /// EXTRACTED (0) -> PROVISIONAL (1) -> DEEP_VERIFYING (2) -> FINALIZED (3)
+  bool get isFinalized => stateLevel >= 3;
+  bool get isDeepVerifying => stateLevel == 2;
+  bool get isProvisional => stateLevel == 1;
+  bool get isExtracted => stateLevel == 0;
 
   /// Returns the claim text translated into the requested [langCode] or the user's
   /// active primary language. Seamlessly falls back to the default canonical [text].
@@ -873,6 +904,8 @@ class ClaimResult {
   Map<String, dynamic> toMap() => {
     'text': text,
     'verdict': verdict,
+    if (claimId != null) 'claimId': claimId,
+    'stateLevel': stateLevel,
     'start': start,
     'end': end,
     'isLowRiskTrivia': isLowRiskTrivia,
@@ -905,6 +938,88 @@ class ClaimResult {
     if (localizedTexts != null && localizedTexts!.isNotEmpty)
       'localizedTexts': localizedTexts,
   };
+
+  ClaimResult copyWith({
+    String? text,
+    String? verdict,
+    String? claimId,
+    int? stateLevel,
+    double? start,
+    double? end,
+    bool? isLowRiskTrivia,
+    List<UISource>? effectiveSources,
+    double? classificationConfidence,
+    double? historicalEvidenceConfidence,
+    Map<String, String>? evidenceDetails,
+    Map<String, String>? consensusDetails,
+    String? claimDomain,
+    String? claimNature,
+    List<String>? verdictBasis,
+    List<UIEvidence>? evidence,
+    List<UIConsensus>? consensus,
+    Map<String, dynamic>? multiModelConsensus,
+    bool? isAppealed,
+    String? appealStatus,
+    String? thumbnailUrl,
+    String? sourceStatus,
+    List<Map<String, dynamic>>? verifiedAcademicMetadata,
+    EvidenceAssessment? evidenceAssessment,
+    String? beliefAssessment,
+    String? misinformationVerdict,
+    FramingViolationDetail? framingViolationDetail,
+    String? confidenceMeaning,
+    String? framingAssessment,
+    List<String>? epistemicLimitations,
+    EvidenceToClaimTraceability? evidenceTraceability,
+    CalibratedConfidenceBreakdown? calibratedConfidence,
+    CredibilityAssessmentV2? assessmentV2,
+    Map<String, String>? localizedTexts,
+  }) {
+    return ClaimResult(
+      text: text ?? this.text,
+      verdict: verdict ?? this.verdict,
+      claimId: claimId ?? this.claimId,
+      stateLevel: stateLevel ?? this.stateLevel,
+      start: start ?? this.start,
+      end: end ?? this.end,
+      isLowRiskTrivia: isLowRiskTrivia ?? this.isLowRiskTrivia,
+      effectiveSources: effectiveSources ?? this.effectiveSources,
+      classificationConfidence:
+          classificationConfidence ?? this.classificationConfidence,
+      historicalEvidenceConfidence:
+          historicalEvidenceConfidence ?? this.historicalEvidenceConfidence,
+      evidenceDetails: evidenceDetails ?? this.evidenceDetails,
+      consensusDetails: consensusDetails ?? this.consensusDetails,
+      claimDomain: claimDomain ?? this.claimDomain,
+      claimNature: claimNature ?? this.claimNature,
+      verdictBasis: verdictBasis ?? this.verdictBasis,
+      evidence: evidence ?? this.evidence,
+      consensus: consensus ?? this.consensus,
+      multiModelConsensus: multiModelConsensus ?? this.multiModelConsensus,
+      isAppealed: isAppealed ?? this.isAppealed,
+      appealStatus: appealStatus ?? this.appealStatus,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      sourceStatus: sourceStatus ?? this.sourceStatus,
+      verifiedAcademicMetadata:
+          verifiedAcademicMetadata ?? this.verifiedAcademicMetadata,
+      evidenceAssessment: evidenceAssessment ?? this.evidenceAssessment,
+      beliefAssessment: beliefAssessment ?? this.beliefAssessment,
+      misinformationVerdict:
+          misinformationVerdict ?? this.misinformationVerdict,
+      framingViolationDetail:
+          framingViolationDetail ?? this.framingViolationDetail,
+      confidenceMeaning: confidenceMeaning ?? this.confidenceMeaning,
+      framingAssessment: framingAssessment ?? this.framingAssessment,
+      epistemicLimitations:
+          epistemicLimitations ?? this.epistemicLimitations,
+      evidenceTraceability:
+          evidenceTraceability ?? this.evidenceTraceability,
+      calibratedConfidence:
+          calibratedConfidence ?? this.calibratedConfidence,
+      assessmentV2: assessmentV2 ?? this.assessmentV2,
+      localizedTexts: localizedTexts ?? this.localizedTexts,
+    );
+  }
 }
 
 class UISummary {

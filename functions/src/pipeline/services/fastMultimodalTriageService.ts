@@ -2,7 +2,7 @@
  * ⚡ FAST MULTIMODAL TRIAGE & OCR SERVICE (v1.0)
  *
  * Ultra-low latency pipeline stage that analyzes video files directly from GCS
- * using Gemini 2.5 Flash multimodal vision + audio.
+ * using Gemini 3.5 Flash Lite multimodal vision + audio.
  *
  * Extracts:
  * 1. On-screen OCR text (news tickers, chyrons, slide bullet points, infographics)
@@ -17,6 +17,7 @@ import type { VertexAI } from "../utils/ai-client";
 import * as admin from "firebase-admin";
 import { z } from "zod";
 import { getVertexAI } from "../utils/ai-client";
+import { extractCandidateText } from "../utils/ai-utils";
 import { logger } from "../utils/logger";
 import { tier0KnowledgeService } from "./tier0Knowledge";
 
@@ -127,7 +128,7 @@ Return ONLY a valid JSON object matching this schema:
 
     try {
       const model = this.vertexAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash-lite",
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.1,
@@ -156,7 +157,13 @@ Return ONLY a valid JSON object matching this schema:
         ),
       ]);
 
-      const rawText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+      const candidate = result.response?.candidates?.[0] || result.candidates?.[0];
+      const rawText =
+        extractCandidateText(candidate) ||
+        (result as any).text ||
+        (result as any).response?.text ||
+        candidate?.content?.parts?.[0]?.text ||
+        "{}";
       const parsedObj = JSON.parse(rawText);
       const validated = FastTriageResponseSchema.parse(parsedObj);
 

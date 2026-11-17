@@ -13,7 +13,6 @@ import {
   CDN_RATE_CARDS,
   calculateSubtitleCost,
   getFlatDubbingPricePerLanguage,
-  getFlatLipSyncPricePerLanguage,
 } from "../services/cost-engine";
 
 let passed = 0;
@@ -95,9 +94,7 @@ assert(dubPrice10m === 3.00, `10 min Audio Track Dubbing is $3.00 (got $${dubPri
 const clonePrice10m = getFlatDubbingPricePerLanguage(600, "standard", "voice_clone");
 assert(clonePrice10m === 3.00, `10 min Cloned Dubbing is $3.00 (got $${clonePrice10m})`);
 
-// Lip-Sync (Discontinued / Removed)
-const lipSync10m = getFlatLipSyncPricePerLanguage(600, "standard");
-assert(lipSync10m === 0.00, `Lip-Sync feature removed (got $${lipSync10m})`);
+
 
 // ----------------------------------------------------------------------
 // 4. PILLAR 3: DYNAMIC PER-VIEW & SAAS UNIT ECONOMICS

@@ -426,19 +426,23 @@ class VideoDescriptionBox extends StatelessWidget {
 
       var summary = '';
       final segs = controller.transcriptController.transcriptSegments;
+      final videoLang = controller.video.language;
       if (UserFeedbackSanitizer.isValidVideoSummary(
         controller.moderationSummary.value,
         transcriptSegments: segs,
+        targetLanguage: videoLang,
       )) {
         summary = controller.moderationSummary.value;
       } else if (UserFeedbackSanitizer.isValidVideoSummary(
         controller.video.moderationSummary,
         transcriptSegments: segs,
+        targetLanguage: videoLang,
       )) {
         summary = controller.video.moderationSummary;
       } else if (UserFeedbackSanitizer.isValidVideoSummary(
         VideoMediaService.credibilityCache[controller.video.id]?.summary,
         transcriptSegments: segs,
+        targetLanguage: videoLang,
       )) {
         summary = VideoMediaService.credibilityCache[controller.video.id]!.summary;
       }

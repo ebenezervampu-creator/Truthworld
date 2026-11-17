@@ -467,7 +467,7 @@ describe("Unit: BigQuery Analytics & Copyright Auditing Service", () => {
         violation_reason: null,
         violation_categories: [],
         detected_language: "en",
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash-lite",
         processing_time_ms: 1240,
       };
 

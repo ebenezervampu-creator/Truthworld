@@ -100,7 +100,7 @@ class CreateContentVideoFileSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Click or drag video file to upload (MP4, MOV, MKV, WEBM)',
+                        'Click or drag video file to upload (MP4, MOV, MKV, WEBM • Minimum 30s)',
                         style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.4),
                             fontSize: 12),

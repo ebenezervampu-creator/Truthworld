@@ -4,7 +4,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
 class DubbingEditableSegmentModel {
@@ -147,15 +149,18 @@ class DubbingSegmentEditorController extends GetxController {
   static const String _tag = 'DubbingSegmentEditorController';
 
   static const List<String> supportedEmotionTags = [
-    'whispers',
     'excited',
+    'whispers',
     'laughs',
+    'said angrily',
+    'sad',
+    'sarcastic',
+    'calm',
     'sighs',
     'sorrowful',
     'angry',
     'shouts',
     'gasps',
-    'calm',
     'serious',
   ];
 
@@ -178,6 +183,7 @@ class DubbingSegmentEditorController extends GetxController {
   final RxBool isSavingGlossary = false.obs;
   final RxBool isSavingTimings = false.obs;
   final RxBool isRemastering = false.obs;
+  final RxBool isExporting = false.obs;
   final RxBool hasPendingRemaster = false.obs;
   final RxBool hasPendingTimingSave = false.obs;
   final RxnInt regeneratingSegmentIndex = RxnInt();
@@ -620,6 +626,406 @@ class DubbingSegmentEditorController extends GetxController {
     } finally {
       isRemastering.value = false;
     }
+  }
+
+  Future<void> exportPackage({String format = 'all'}) async {
+    if (resolvedJobId.value.isEmpty && videoId.isEmpty) {
+      AppSnackbar.warning('Timeline data is not ready to export yet.');
+      return;
+    }
+    isExporting.value = true;
+    try {
+      final callable = _functions.httpsCallable('getDubbingExportPackage');
+      final response = await callable.call(<String, dynamic>{
+        if (resolvedJobId.value.isNotEmpty) 'jobId': resolvedJobId.value,
+        if (videoId.isNotEmpty) 'videoId': videoId,
+        'language': languageCode,
+      });
+
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final pkg = Map<String, dynamic>.from(data['package'] as Map);
+      final rawTitle = (pkg['title'] as String?)?.trim() ?? 'truthworld_video';
+      final cleanTitle = rawTitle
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .trim()
+          .replaceAll(RegExp(r'\s+'), '_');
+
+      final videoUrl = pkg['videoUrl'] as String?;
+      final audioUrl = pkg['audioUrl'] as String?;
+      final srtContent = pkg['srtContent'] as String?;
+      final vttContent = pkg['vttContent'] as String?;
+
+      var downloadCount = 0;
+
+      if (format == 'all' || format == 'video') {
+        if (videoUrl != null && videoUrl.isNotEmpty) {
+          await DownloadHelper.downloadFromUrl(
+            videoUrl,
+            '${cleanTitle}_${languageCode}_dubbed.mp4',
+          );
+          downloadCount++;
+        } else if (audioUrl != null && audioUrl.isNotEmpty && format == 'all') {
+          await DownloadHelper.downloadFromUrl(
+            audioUrl,
+            '${cleanTitle}_${languageCode}_master.mp3',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (format == 'all' || format == 'srt') {
+        if (srtContent != null && srtContent.isNotEmpty) {
+          await DownloadHelper.downloadText(
+            srtContent,
+            '${cleanTitle}_$languageCode.srt',
+            mimeType: 'application/x-subrip',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (format == 'all' || format == 'vtt') {
+        if (vttContent != null && vttContent.isNotEmpty) {
+          await DownloadHelper.downloadText(
+            vttContent,
+            '${cleanTitle}_$languageCode.vtt',
+            mimeType: 'text/vtt',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (format == 'audio') {
+        final url = audioUrl ?? masterAudioUrl.value;
+        if (url.isNotEmpty) {
+          await DownloadHelper.downloadFromUrl(
+            url,
+            '${cleanTitle}_${languageCode}_master.mp3',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (downloadCount > 0) {
+        AppSnackbar.success(
+          format == 'all'
+              ? 'Exported $downloadCount asset(s) ($languageName video & aligned captions).'
+              : 'Exported $languageName asset successfully.',
+        );
+      } else {
+        AppSnackbar.info(
+          'No matching export assets are ready yet. Try clicking "Remaster & Publish" first.',
+        );
+      }
+    } catch (e, st) {
+      LoggerService().error(
+        'Failed exporting dubbing package',
+        tag: _tag,
+        error: e,
+        stackTrace: st,
+      );
+      AppSnackbar.warning(
+        'Unable to export dubbing assets right now. Please try again.',
+      );
+    } finally {
+      isExporting.value = false;
+    }
+  }
+
+  void showExportModal(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? AppColors.bgSurface : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white70 : Colors.black54;
+    final borderColor = isDark ? Colors.white12 : Colors.black12;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalCtx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border.all(color: borderColor),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black26,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white10
+                            : Colors.black.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.file_download_outlined,
+                        color: textColor,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Export $languageName Studio Package',
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Download synchronized media & caption stems in one tap.',
+                            style: TextStyle(
+                              color: subTextColor,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Obx(() {
+                  final exporting = isExporting.value;
+
+                  return Column(
+                    children: [
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'Complete Studio Package (MP4 + Captions)',
+                        subtitle:
+                            'Synchronized multi-track video with $languageName voice, plus aligned .srt and .vtt captions',
+                        icon: Icons.all_inbox_rounded,
+                        isRecommended: true,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage();
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'Dubbed Video Container (.mp4)',
+                        subtitle:
+                            'High-definition video muxed with remastered $languageName voice and M&E sound bed',
+                        icon: Icons.movie_creation_outlined,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'video');
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'SubRip Captions (.srt)',
+                        subtitle:
+                            'Millisecond-aligned SubRip subtitle file for YouTube, VLC, and video editors',
+                        icon: Icons.subtitles_outlined,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'srt');
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'WebVTT Captions (.vtt)',
+                        subtitle:
+                            'Native HTML5 video caption track for browsers and web platforms',
+                        icon: Icons.closed_caption_outlined,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'vtt');
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'Studio Master Audio Track (.mp3)',
+                        subtitle:
+                            'Isolated audio track with vocal balance, EQ, and background ambiance',
+                        icon: Icons.audiotrack_outlined,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'audio');
+                        },
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildExportOptionTile({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isLoading,
+    required Color textColor,
+    required Color subTextColor,
+    required Color borderColor,
+    required bool isDark,
+    required VoidCallback onTap,
+    bool isRecommended = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isLoading ? null : onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isRecommended
+                ? (isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.04))
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.03)
+                    : Colors.transparent),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isRecommended
+                  ? (isDark ? Colors.white38 : Colors.black26)
+                  : borderColor,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white12
+                      : Colors.black.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (isRecommended) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white24 : Colors.black87,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'RECOMMENDED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: subTextColor,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: subTextColor,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String formatTimestamp(int ms) {

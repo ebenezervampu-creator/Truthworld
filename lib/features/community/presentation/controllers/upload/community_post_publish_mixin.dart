@@ -260,15 +260,6 @@ mixin CommunityPostPublishMixin on CommunityPostUploadStateBase {
       return;
     }
 
-    if (!hasConfirmedCopyrightDeclaration.value) {
-      AppSnackbar.show(
-        'Declaration Required',
-        'Please confirm the creator declaration before publishing.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return;
-    }
-
     isUploading.value = true;
     try {
       final docRef = firestore.collection(FirestoreCollections.community).doc();
@@ -434,14 +425,6 @@ mixin CommunityPostPublishMixin on CommunityPostUploadStateBase {
     }
 
     if (formKey.currentState?.validate() != true) {
-      return;
-    }
-
-    if (!hasConfirmedCopyrightDeclaration.value) {
-      AppSnackbar.warning(
-        'Please confirm the creator copyright declaration before publishing.',
-        title: 'Declaration Required',
-      );
       return;
     }
 

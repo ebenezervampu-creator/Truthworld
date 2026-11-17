@@ -121,7 +121,7 @@ class VideoTracksListSection extends StatelessWidget {
           ),
           const SizedBox.shrink(
             child: Text(
-              'Video Dubbing & Neural Lip-Sync Studio',
+              'Video Dubbing Studio',
               style: TextStyle(fontSize: 0, color: Colors.transparent),
             ),
           ),
@@ -549,7 +549,7 @@ class AvailableVideoTrackCard extends StatelessWidget {
   Widget _buildGeneratingProgressArea(BuildContext context) {
     final progressState = controller.getDubbingProgress(track.languageCode);
     final progress = progressState?.progress ?? 25;
-    final stage = progressState?.stageTitle ?? 'Processing video lip-sync...';
+    final stage = progressState?.stageTitle ?? 'Processing audio dubbing...';
 
     return Container(
       padding: const EdgeInsets.all(16),

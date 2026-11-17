@@ -87,12 +87,10 @@ void main() {
       await tester.pump();
 
       expect(find.text('Generate Subtitles'), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.textContaining('Zero charm pricing'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
+      for (var i = 0; i < 5 && find.textContaining('Zero charm pricing').evaluate().isEmpty; i++) {
+        await tester.dragFrom(const Offset(10, 200), const Offset(0, -300));
+        await tester.pumpAndSettle();
+      }
 
       expect(
         find.textContaining('Zero charm pricing'),

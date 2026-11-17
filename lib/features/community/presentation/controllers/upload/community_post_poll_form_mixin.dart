@@ -29,7 +29,7 @@ mixin CommunityPostPollFormMixin on CommunityPostUploadStateBase {
       sub.cancel();
     }
     moderationListeners.clear();
-    hasConfirmedCopyrightDeclaration.value = false;
+    hasConfirmedCopyrightDeclaration.value = true;
     titleCtrl.clear();
     descCtrl.clear();
     descriptionText.value = '';

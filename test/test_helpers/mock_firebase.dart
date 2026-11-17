@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,6 +8,98 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_fonts/src/google_fonts_base.dart' as gfb;
+import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
+
+class MockJustAudioPlatform extends JustAudioPlatform {
+  @override
+  Future<AudioPlayerPlatform> init(InitRequest request) async {
+    return MockAudioPlayerPlatform(request.id);
+  }
+
+  @override
+  Future<DisposePlayerResponse> disposePlayer(DisposePlayerRequest request) async {
+    return DisposePlayerResponse();
+  }
+
+  @override
+  Future<DisposeAllPlayersResponse> disposeAllPlayers(DisposeAllPlayersRequest request) async {
+    return DisposeAllPlayersResponse();
+  }
+}
+
+class MockAudioPlayerPlatform extends AudioPlayerPlatform {
+  MockAudioPlayerPlatform(super.id) {
+    scheduleMicrotask(() {
+      if (!_playbackEventController.isClosed) {
+        _playbackEventController.add(
+          PlaybackEventMessage(
+            processingState: ProcessingStateMessage.idle,
+            updatePosition: Duration.zero,
+            updateTime: DateTime.now(),
+            duration: Duration.zero,
+            bufferedPosition: Duration.zero,
+            icyMetadata: null,
+            currentIndex: null,
+            androidAudioSessionId: null,
+          ),
+        );
+      }
+    });
+  }
+
+  final _playbackEventController = StreamController<PlaybackEventMessage>.broadcast();
+
+  @override
+  Stream<PlaybackEventMessage> get playbackEventMessageStream => _playbackEventController.stream;
+
+  @override
+  Future<LoadResponse> load(LoadRequest request) async {
+    scheduleMicrotask(() {
+      if (!_playbackEventController.isClosed) {
+        _playbackEventController.add(
+          PlaybackEventMessage(
+            processingState: ProcessingStateMessage.ready,
+            updatePosition: Duration.zero,
+            updateTime: DateTime.now(),
+            duration: const Duration(seconds: 15),
+            bufferedPosition: const Duration(seconds: 15),
+            icyMetadata: null,
+            currentIndex: 0,
+            androidAudioSessionId: null,
+          ),
+        );
+      }
+    });
+    return LoadResponse(duration: const Duration(seconds: 15));
+  }
+
+  @override
+  Future<PlayResponse> play(PlayRequest request) async => PlayResponse();
+
+  @override
+  Future<PauseResponse> pause(PauseRequest request) async => PauseResponse();
+
+  @override
+  Future<SetVolumeResponse> setVolume(SetVolumeRequest request) async => SetVolumeResponse();
+
+  @override
+  Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) async => SetSpeedResponse();
+
+  @override
+  Future<SeekResponse> seek(SeekRequest request) async => SeekResponse();
+
+  @override
+  Future<SetLoopModeResponse> setLoopMode(SetLoopModeRequest request) async => SetLoopModeResponse();
+
+  @override
+  Future<SetShuffleModeResponse> setShuffleMode(SetShuffleModeRequest request) async => SetShuffleModeResponse();
+
+  @override
+  Future<DisposeResponse> dispose(DisposeRequest request) async {
+    await _playbackEventController.close();
+    return DisposeResponse();
+  }
+}
 
 class FakeAssetManifest implements AssetManifest {
   final List<String> _assets;
@@ -140,7 +233,13 @@ Future<void> setupMockFirebase() async {
     await GetStorage().erase();
   } catch (_) {}
 
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+    const MethodChannel('com.ryanheise.audio_session'),
+    (methodCall) async => null,
+  );
   TestFirebaseCoreHostApi.setUp(MockFirebaseAppWithStorage());
+  JustAudioPlatform.instance = MockJustAudioPlatform();
 
   if (Firebase.apps.isEmpty) {
     try {

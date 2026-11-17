@@ -9,6 +9,7 @@ import 'package:truthworld/core/services/deep_link/deep_link_url_parser.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 /// Middleware that redirects `/videoscreen` to `/watch?v=VIDEO_ID` *before*
@@ -421,16 +422,21 @@ class RouteStackObserver extends NavigatorObserver {
   static void _syncStudioReturnState({dynamic arguments}) {
     if (Get.isRegistered<DashboardController>()) {
       final dashboardCtrl = Get.find<DashboardController>();
-      if (!dashboardCtrl.isDisposed &&
-          arguments is Map &&
-          arguments['tab'] != null) {
-        final tabArg = arguments['tab'];
-        if (tabArg is int && tabArg >= 1 && tabArg <= 20) {
-          if (tabArg == 18 && !dashboardCtrl.isChannelMonetizationActive) {
-            dashboardCtrl.setSelectedIndex(1);
-          } else {
-            dashboardCtrl.setSelectedIndex(tabArg);
+      if (!dashboardCtrl.isDisposed && arguments is Map) {
+        if (arguments['tab'] != null) {
+          final tabArg = arguments['tab'];
+          if (tabArg is int && tabArg >= 1 && tabArg <= 20) {
+            if (tabArg == 18 && !dashboardCtrl.isChannelMonetizationActive) {
+              dashboardCtrl.setSelectedIndex(1);
+            } else {
+              dashboardCtrl.setSelectedIndex(tabArg);
+            }
           }
+        }
+        final videoId = arguments['videoId'] as String?;
+        if (videoId != null && videoId.isNotEmpty) {
+          dashboardCtrl.targetVideoId.value = videoId;
+          TruthVerificationDashboardPage.targetVideoId.value = videoId;
         }
       }
     }

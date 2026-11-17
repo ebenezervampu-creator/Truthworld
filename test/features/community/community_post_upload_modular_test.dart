@@ -144,24 +144,21 @@ void main() {
       Get.delete<CommunityPostUploadController>();
     });
 
-    testWidgets('CommunityCopyrightDeclarationCard toggles confirmation reactive state', (tester) async {
+    testWidgets('CommunityPostContentInputs renders extended description input with character counter', (tester) async {
       final controller = Get.put(CommunityPostUploadController());
 
       await tester.pumpWidget(
         createWidgetUnderTest(
-          const CommunityCopyrightDeclarationCard(),
+          Form(
+            key: controller.formKey,
+            child: const CommunityPostContentInputs(),
+          ),
         ),
       );
 
-      expect(find.text('Creator Copyright & Rights Declaration'), findsOneWidget);
-      expect(find.byIcon(Icons.verified_user_rounded), findsOneWidget);
-      expect(controller.hasConfirmedCopyrightDeclaration.value, isFalse);
-
-      // Tap to toggle confirmation
-      await tester.tap(find.byType(Checkbox));
-      await tester.pump();
-
-      expect(controller.hasConfirmedCopyrightDeclaration.value, isTrue);
+      expect(find.text('1. Post Content'), findsOneWidget);
+      expect(find.text('0/2000'), findsOneWidget);
+      expect(find.byType(TextFormField), findsNWidgets(2));
 
       Get.delete<CommunityPostUploadController>();
     });
@@ -229,7 +226,7 @@ void main() {
       expect(find.text('1. Post Content'), findsOneWidget);
       expect(find.text('2. Visibility'), findsOneWidget);
       expect(find.text('3. Additional Options'), findsOneWidget);
-      expect(find.text('Creator Copyright & Rights Declaration'), findsOneWidget);
+      expect(find.text('Creator Copyright & Rights Declaration'), findsNothing);
       expect(find.text('Review & Publish'), findsOneWidget);
 
       Get.delete<CommunityPostUploadController>();

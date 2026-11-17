@@ -36,6 +36,7 @@ mixin VideoFactCheckMixin on GetxController {
         factCheckData.value = {
           'isStreaming': true,
           'isProvisional': liveClaims.any((c) =>
+              !c.isFinalized ||
               c.verdict.toLowerCase() == 'unverified' ||
               c.verdict.toUpperCase() == 'EXTRACTED' ||
               c.verdict.toUpperCase() == 'DEEP_VERIFYING' ||
@@ -67,6 +68,7 @@ mixin VideoFactCheckMixin on GetxController {
           factCheckData.value = {
             'isStreaming': true,
             'isProvisional': streamCtrl.claims.any((c) =>
+                !c.isFinalized ||
                 c.verdict.toLowerCase() == 'unverified' ||
                 c.verdict.toUpperCase() == 'EXTRACTED' ||
                 c.verdict.toUpperCase() == 'DEEP_VERIFYING' ||

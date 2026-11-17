@@ -23,6 +23,8 @@ class AlgorithmRankingTask {
   final String? userPrimaryLanguage;
   final List<String>? secondaryLanguages;
   final List<String>? knownLanguages;
+  final Set<String>? seenVideoIds;
+  final int refreshEpoch;
 
   const AlgorithmRankingTask({
     required this.candidates,
@@ -35,6 +37,8 @@ class AlgorithmRankingTask {
     this.userPrimaryLanguage,
     this.secondaryLanguages,
     this.knownLanguages,
+    this.seenVideoIds,
+    this.refreshEpoch = 0,
   });
 }
 
@@ -93,6 +97,8 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
       userPrimaryLanguage: task.userPrimaryLanguage,
       secondaryLanguages: task.secondaryLanguages,
       knownLanguages: task.knownLanguages,
+      seenVideoIds: task.seenVideoIds,
+      refreshEpoch: task.refreshEpoch,
     );
     if (scoredVideo != null) {
       scored.add(scoredVideo);
@@ -238,6 +244,8 @@ class AlgorithmEngine {
     String? userPrimaryLanguage,
     List<String>? secondaryLanguages,
     List<String>? knownLanguages,
+    Set<String>? seenVideoIds,
+    int refreshEpoch = 0,
   }) {
     final credibilityMultiplier = computeCredibilityGate(video);
     if (credibilityMultiplier == 0.0) {
@@ -339,7 +347,12 @@ class AlgorithmEngine {
         (sessionBoost * (weights['sessionBoost'] ?? 0.0)) -
         (penalty * (weights['penalty'] ?? 0.0));
 
-    finalScore = max(0.0, finalScore * credibilityMultiplier);
+    // YouTube seen-video impression penalty (fatigue discount):
+    // Discount score on refresh so fresh unseen candidates take priority
+    final isYouTubeSeen = seenVideoIds != null && seenVideoIds.contains(video.id);
+    final youtubeSeenDiscount = isYouTubeSeen ? 0.45 : 1.0;
+
+    finalScore = max(0.0, finalScore * credibilityMultiplier * youtubeSeenDiscount);
 
     if (finalScore == 0.0) return null;
 
@@ -360,6 +373,7 @@ class AlgorithmEngine {
       'penalty': penalty * (weights['penalty'] ?? 0.0),
       'creatorFairness': creatorFairness,
       'factCheckCategoryBoost': factCheckCategoryBoost,
+      if (isYouTubeSeen) 'youtubeSeenPenalty': 0.45,
     };
 
     final hasFactCheckBonus = factCheckCategoryBoost > 0.0;

@@ -6,6 +6,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/session_interest_tracker.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 
 /// Tracks all user interactions for the Truthworld Algorithm.
 ///
@@ -270,10 +271,14 @@ class UserSignalTracker extends GetxService {
       await callable.call({
         'events': eventsToFlush,
       });
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
+    } catch (e) {
+      // Re-queue unsent events on transient failures (up to 50 max to prevent memory bloat)
+      final remainingCapacity = 50 - _buffer.length;
+      if (remainingCapacity > 0) {
+        _buffer.insertAll(0, eventsToFlush.take(remainingCapacity));
+      }
+      logger.warning(
+        'Failed to flush batched user signals: $e',
         tag: 'UserSignalTracker.flushBatchedSignals',
       );
     }

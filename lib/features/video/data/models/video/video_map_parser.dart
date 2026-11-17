@@ -171,12 +171,15 @@ class VideoMapParser {
     final directModSummary = (data['moderationSummary'] as String?)?.trim() ?? '';
     final topLevelSummary = (data['summary'] as String?)?.trim() ?? '';
 
+    final videoLang = (data['language'] as String?)?.trim() ??
+        (modMap?['detectedLanguage'] as String?)?.trim();
+
     var parsedModerationSummary = '';
-    if (UserFeedbackSanitizer.isValidVideoSummary(modSummary)) {
+    if (UserFeedbackSanitizer.isValidVideoSummary(modSummary, targetLanguage: videoLang)) {
       parsedModerationSummary = modSummary;
-    } else if (UserFeedbackSanitizer.isValidVideoSummary(directModSummary)) {
+    } else if (UserFeedbackSanitizer.isValidVideoSummary(directModSummary, targetLanguage: videoLang)) {
       parsedModerationSummary = directModSummary;
-    } else if (UserFeedbackSanitizer.isValidVideoSummary(topLevelSummary)) {
+    } else if (UserFeedbackSanitizer.isValidVideoSummary(topLevelSummary, targetLanguage: videoLang)) {
       parsedModerationSummary = topLevelSummary;
     }
 
@@ -412,6 +415,13 @@ class VideoMapParser {
         data['languages'] ??
             (data['aiFeatures'] is Map
                 ? (data['aiFeatures']['translationLanguages'] ?? [])
+                : []) ??
+            [],
+      ),
+      dubbingLanguages: List<String>.from(
+        data['dubbingLanguages'] ??
+            (data['aiFeatures'] is Map
+                ? (data['aiFeatures']['dubbingLanguages'] ?? [])
                 : []) ??
             [],
       ),

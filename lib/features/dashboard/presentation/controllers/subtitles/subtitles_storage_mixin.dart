@@ -114,7 +114,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
           try {
             final fastUrl = StorageUtils.getFastDownloadUrl(urlOrData);
             final targetUrl = fastUrl.isNotEmpty ? fastUrl : await StorageUtils.resolveUrl(urlOrData);
-            final headers = await StorageUtils.getMediaHeaders();
+            final headers = await StorageUtils.getMediaHeaders(targetUrl: targetUrl);
             final response = await AppHttpClient.get(
               Uri.parse(targetUrl),
               headers: headers.isNotEmpty ? headers : null,
@@ -124,6 +124,9 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
             }
           } catch (_) {}
         }
+
+        // Abort early if user navigated or selected another video
+        if (selectedVideo.value?.id != video?.id) return;
 
         // 2. Storage SDK download with timeout if HTTP direct download did not resolve
         if (contentToParse == urlOrData) {
@@ -146,11 +149,14 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
           }
         }
 
+        // Abort early if user navigated or selected another video
+        if (selectedVideo.value?.id != video?.id) return;
+
         // 3. Fallback: Resolve HTTP/CDN tokenized download URL if still unparsed
         if (contentToParse == urlOrData) {
           final downloadUrl = await StorageUtils.resolveUrl(urlOrData);
           final targetUrl = downloadUrl.isNotEmpty ? downloadUrl : urlOrData;
-          final headers = await StorageUtils.getMediaHeaders();
+          final headers = await StorageUtils.getMediaHeaders(targetUrl: targetUrl);
 
           try {
             final response = await AppHttpClient.get(
@@ -175,8 +181,12 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       }
     }
 
+    // Abort early if user navigated or selected another video
+    if (selectedVideo.value?.id != video?.id) return;
+
     if (contentToParse != urlOrData) {
       final segments = await IsolateComputeUtils.parseSubtitlesAsync(contentToParse);
+      if (selectedVideo.value?.id != video?.id) return;
       if (segments.isNotEmpty) {
         final cues = segments.map((seg) {
           return SubtitleCue(
@@ -203,6 +213,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         !urlOrData.startsWith('videos/') &&
         !urlOrData.startsWith('transcripts/')) {
       final segments = await IsolateComputeUtils.parseSubtitlesAsync(contentToParse);
+      if (selectedVideo.value?.id != video?.id) return;
       if (segments.isNotEmpty) {
         final cues = segments.map((seg) {
           return SubtitleCue(
@@ -224,8 +235,10 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
     }
 
     // 4. Comprehensive multi-source fallback recovery
+    if (selectedVideo.value?.id != video?.id) return;
     if (video != null) {
       final fallbackCues = await _resolveFallbackCues(video, langCode);
+      if (selectedVideo.value?.id != video.id) return;
       if (fallbackCues.isNotEmpty) {
         if (cacheKey != null) {
           _cuesCache[cacheKey] = fallbackCues;
@@ -238,6 +251,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       }
     }
 
+    if (selectedVideo.value?.id != video?.id) return;
     safeStateAction(currentCues.clear);
     setViewState(ViewState.success);
   }
@@ -297,8 +311,8 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       } catch (_) {}
     }
 
-    // 2. If track is for original spoken language, check Firestore transcripts collection
-    if (isOriginalLang) {
+    // 2. If track is for original spoken language, check Firestore transcripts collection (authenticated users only)
+    if (isOriginalLang && FirebaseAuth.instance.currentUser != null) {
       // 2.1 Check transcripts/{video.id}
       try {
         final tSnap = await firestore.collection('transcripts').doc(video.id).get();
@@ -365,8 +379,16 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
     final probePaths = <String>[
       'videos/${video.id}/subtitles/$normCode.vtt',
       'videos/${video.id}/subtitles/$normCode.srt',
+      if (langCode != normCode) ...[
+        'videos/${video.id}/subtitles/$langCode.vtt',
+        'videos/${video.id}/subtitles/$langCode.srt',
+      ],
       'subtitles/${video.id}/$normCode.vtt',
       'subtitles/${video.id}/$normCode.srt',
+      if (langCode != normCode) ...[
+        'subtitles/${video.id}/$langCode.vtt',
+        'subtitles/${video.id}/$langCode.srt',
+      ],
       if (isOriginalLang) ...[
         'transcripts/${video.id}/full.json',
         'transcripts/${video.id}.json',
@@ -374,8 +396,16 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       if (retrievedJobId != null && retrievedJobId.isNotEmpty && retrievedJobId != video.id) ...[
         'videos/$retrievedJobId/subtitles/$normCode.vtt',
         'videos/$retrievedJobId/subtitles/$normCode.srt',
+        if (langCode != normCode) ...[
+          'videos/$retrievedJobId/subtitles/$langCode.vtt',
+          'videos/$retrievedJobId/subtitles/$langCode.srt',
+        ],
         'subtitles/$retrievedJobId/$normCode.vtt',
         'subtitles/$retrievedJobId/$normCode.srt',
+        if (langCode != normCode) ...[
+          'subtitles/$retrievedJobId/$langCode.vtt',
+          'subtitles/$retrievedJobId/$langCode.srt',
+        ],
         if (isOriginalLang) ...[
           'transcripts/$retrievedJobId/full.json',
           'transcripts/$retrievedJobId.json',
@@ -674,6 +704,20 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
 
     try {
       final updatedSubs = Map<String, String>.from(video.mediaSubtitles);
+      var trackUrl = updatedSubs[langCode] ??
+          updatedSubs[cleanCode] ??
+          updatedSubs[normCode] ??
+          '';
+      if (trackUrl.isEmpty) {
+        for (final entry in updatedSubs.entries) {
+          final kLower = entry.key.trim().toLowerCase();
+          final kNorm = normalizeLanguageCode(kLower);
+          if (kLower == cleanCode || kNorm == normCode || kLower == normCode) {
+            trackUrl = entry.value;
+            break;
+          }
+        }
+      }
       updatedSubs.remove(langCode);
       updatedSubs.remove(cleanCode);
       updatedSubs.remove(normCode);
@@ -698,22 +742,35 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
             lNorm == cleanCode;
       });
 
-      // If video has this language in target languages and no audio track uses it, remove from video.languages
-      final hasAudioTrack = video.audioTracks.containsKey(cleanCode) ||
-          video.audioTracks.containsKey(normCode) ||
-          video.audioTracks.keys.any((k) => normalizeLanguageCode(k) == normCode);
-      List<String>? updatedLanguages;
-      if (!hasAudioTrack) {
-        updatedLanguages = List<String>.from(video.languages)..removeWhere((l) {
+      aiTargetLanguages.remove(langCode);
+      aiTargetLanguages.remove(cleanCode);
+      aiTargetLanguages.remove(normCode);
+      aiTargetLanguages.removeWhere((l) {
+        final lNorm = normalizeLanguageCode(l);
+        return lNorm == normCode || l.trim().toLowerCase() == cleanCode;
+      });
+      aiLanguageStatuses.remove(langCode);
+      aiLanguageStatuses.remove(cleanCode);
+      aiLanguageStatuses.remove(normCode);
+      aiLanguageStatuses.removeWhere((k, _) {
+        final kNorm = normalizeLanguageCode(k);
+        return kNorm == normCode || k.trim().toLowerCase() == cleanCode;
+      });
+
+      // Always remove the deleted language track from video.languages
+      final updatedLanguages = List<String>.from(video.languages)
+        ..removeWhere((l) {
           final lLower = l.trim().toLowerCase();
           final lNorm = normalizeLanguageCode(lLower);
-          return lLower == cleanCode || lNorm == normCode;
+          return lLower == cleanCode ||
+              lNorm == normCode ||
+              lLower == normCode ||
+              lNorm == cleanCode;
         });
-      }
 
       final updatedVideo = video.copyWith(
         mediaSubtitles: updatedSubs,
-        languages: updatedLanguages ?? video.languages,
+        languages: updatedLanguages,
       );
       selectedVideo.value = updatedVideo;
 
@@ -734,15 +791,28 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         filteredVideos.refresh();
       }
 
+      final cachedLoc = VideoMediaService.localizationCache[video.id];
       VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
         subtitles: updatedSubs,
-        dubbedVideos: video.dubbedVideos,
-        audioTracks: video.audioTracks,
+        dubbedVideos: cachedLoc?.dubbedVideos ?? video.dubbedVideos,
+        audioTracks: cachedLoc?.audioTracks ?? video.audioTracks,
+        commentaryVideos: cachedLoc?.commentaryVideos ?? const {},
       );
 
-      _cuesCache.remove('${video.id}_$langCode');
-      _cuesCache.remove('${video.id}_$cleanCode');
-      _cuesCache.remove('${video.id}_$normCode');
+      _cuesCache.removeWhere((k, _) {
+        if (!k.startsWith('${video.id}_')) return false;
+        final kCode = k.substring('${video.id}_'.length).toLowerCase();
+        return kCode == cleanCode ||
+            kCode == normCode ||
+            normalizeLanguageCode(kCode) == normCode;
+      });
+      _inFlightParses.removeWhere((k, _) {
+        if (!k.startsWith('${video.id}_')) return false;
+        final kCode = k.substring('${video.id}_'.length).toLowerCase();
+        return kCode == cleanCode ||
+            kCode == normCode ||
+            normalizeLanguageCode(kCode) == normCode;
+      });
 
       final currentSelected = selectedLanguage.value.trim().toLowerCase();
       if (currentSelected == cleanCode ||
@@ -753,7 +823,10 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
           hasUnsavedChanges.value = false;
           final subs = updatedSubs;
           if (subs.containsKey(availableLanguages.first)) {
-            parseCuesForLanguage(availableLanguages.first, subs[availableLanguages.first]);
+            parseCuesForLanguage(
+              availableLanguages.first,
+              subs[availableLanguages.first],
+            );
           } else {
             currentCues.clear();
           }
@@ -766,97 +839,288 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       selectedVideo.refresh();
 
       // Cloud Persistence: media/localization subcollection
-      final locRef = firestore
-          .collection(FirestoreCollections.videos)
-          .doc(video.id)
-          .collection('media')
-          .doc('localization');
+      try {
+        final locRef = firestore
+            .collection(FirestoreCollections.videos)
+            .doc(video.id)
+            .collection('media')
+            .doc('localization');
 
-      final locUpdates = <String, dynamic>{
-        'subtitles': updatedSubs,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'subtitles.$cleanCode': FieldValue.delete(),
-        'subtitles.$normCode': FieldValue.delete(),
-        'subtitles.$langCode': FieldValue.delete(),
-        'media.subtitles.$cleanCode': FieldValue.delete(),
-        'media.subtitles.$normCode': FieldValue.delete(),
-        'media.subtitles.$langCode': FieldValue.delete(),
-      };
-      await locRef.set(locUpdates, SetOptions(merge: true)).catchError((e) {
-        logger.warning('Failed to update localization doc on delete: $e', tag: SubtitlesControllerBase.subtitlesTag);
-      });
+        final locSnap = await locRef.get();
+        if (locSnap.exists) {
+          await locRef.update({
+            'subtitles': updatedSubs,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          final locData = locSnap.data() ?? {};
+          final flatKeys = locData.keys.where((k) {
+            final lk = k.toLowerCase();
+            return lk == 'subtitles.$cleanCode' ||
+                lk == 'subtitles.$normCode' ||
+                lk == 'subtitles.$langCode' ||
+                lk == 'media.subtitles.$cleanCode' ||
+                lk == 'media.subtitles.$normCode' ||
+                lk == 'media.subtitles.$langCode';
+          }).toList();
+          if (flatKeys.isNotEmpty) {
+            final flatDeletes = <String, dynamic>{};
+            for (final k in flatKeys) {
+              flatDeletes[k] = FieldValue.delete();
+            }
+            await locRef.update(flatDeletes).catchError((_) {});
+          }
+        } else {
+          await locRef.set({
+            'subtitles': updatedSubs,
+            'dubbedVideos': cachedLoc?.dubbedVideos ?? video.dubbedVideos,
+            'audioTracks': cachedLoc?.audioTracks ?? video.audioTracks,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (e) {
+        logger.warning(
+          'Failed to update localization doc on delete: $e',
+          tag: SubtitlesControllerBase.subtitlesTag,
+        );
+      }
 
       // Cloud Persistence: main video doc
-      final videoRef = firestore
-          .collection(FirestoreCollections.videos)
-          .doc(video.id);
+      try {
+        final videoRef = firestore
+            .collection(FirestoreCollections.videos)
+            .doc(video.id);
 
-      final videoUpdates = <String, dynamic>{
-        'subtitles': updatedSubs,
-        'media.subtitles': updatedSubs,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'subtitles.$cleanCode': FieldValue.delete(),
-        'subtitles.$normCode': FieldValue.delete(),
-        'subtitles.$langCode': FieldValue.delete(),
-        'media.subtitles.$cleanCode': FieldValue.delete(),
-        'media.subtitles.$normCode': FieldValue.delete(),
-        'media.subtitles.$langCode': FieldValue.delete(),
-        'mediaSubtitles.$cleanCode': FieldValue.delete(),
-        'mediaSubtitles.$normCode': FieldValue.delete(),
-        'mediaSubtitles.$langCode': FieldValue.delete(),
-      };
-      if (updatedLanguages != null) {
-        videoUpdates['languages'] = updatedLanguages;
+        final videoSnap = await videoRef.get();
+        if (videoSnap.exists) {
+          final vData = videoSnap.data() ?? {};
+          final videoUpdates = <String, dynamic>{
+            'subtitles': updatedSubs,
+            'mediaSubtitles': updatedSubs,
+            'languages': updatedLanguages,
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+          if (vData['media'] is Map) {
+            videoUpdates['media.subtitles'] = updatedSubs;
+          }
+          if (vData['aiFeatures'] is Map) {
+            final aiFeatures = Map<String, dynamic>.from(vData['aiFeatures'] as Map);
+            var aiFeaturesChanged = false;
+            if (aiFeatures['subtitleLanguages'] is List) {
+              final subLangs = List<dynamic>.from(aiFeatures['subtitleLanguages'] as List)
+                ..removeWhere((l) {
+                  final lNorm = normalizeLanguageCode(l.toString());
+                  final lStr = l.toString().trim().toLowerCase();
+                  return lNorm == cleanCode || lNorm == normCode || lStr == cleanCode;
+                });
+              aiFeatures['subtitleLanguages'] = subLangs;
+              aiFeaturesChanged = true;
+            }
+            if (aiFeatures['translationLanguages'] is List) {
+              final transLangs = List<dynamic>.from(aiFeatures['translationLanguages'] as List)
+                ..removeWhere((l) {
+                  final lNorm = normalizeLanguageCode(l.toString());
+                  final lStr = l.toString().trim().toLowerCase();
+                  return lNorm == cleanCode || lNorm == normCode || lStr == cleanCode;
+                });
+              aiFeatures['translationLanguages'] = transLangs;
+              aiFeaturesChanged = true;
+            }
+            if (aiFeaturesChanged) {
+              videoUpdates['aiFeatures'] = aiFeatures;
+            }
+          }
+          await videoRef.update(videoUpdates);
+
+          final flatKeys = vData.keys.where((k) {
+            final lk = k.toLowerCase();
+            return lk == 'subtitles.$cleanCode' ||
+                lk == 'subtitles.$normCode' ||
+                lk == 'subtitles.$langCode' ||
+                lk == 'media.subtitles.$cleanCode' ||
+                lk == 'media.subtitles.$normCode' ||
+                lk == 'media.subtitles.$langCode' ||
+                lk == 'mediasubtitles.$cleanCode' ||
+                lk == 'mediasubtitles.$normCode' ||
+                lk == 'mediasubtitles.$langCode';
+          }).toList();
+          if (flatKeys.isNotEmpty) {
+            final flatDeletes = <String, dynamic>{};
+            for (final k in flatKeys) {
+              flatDeletes[k] = FieldValue.delete();
+            }
+            await videoRef.update(flatDeletes).catchError((_) {});
+          }
+        } else {
+          await videoRef.set({
+            'subtitles': updatedSubs,
+            'mediaSubtitles': updatedSubs,
+            'languages': updatedLanguages,
+            'media': {
+              'subtitles': updatedSubs,
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      } catch (e) {
+        logger.warning(
+          'Failed to update video doc on delete: $e',
+          tag: SubtitlesControllerBase.subtitlesTag,
+        );
       }
-      await videoRef.set(videoUpdates, SetOptions(merge: true)).catchError((e) {
-        logger.warning('Failed to update video doc on delete: $e', tag: SubtitlesControllerBase.subtitlesTag);
-      });
 
       // Clean video_jobs document
       try {
-        final jobRef = firestore.collection('video_jobs').doc(video.id);
-        final jobSnap = await jobRef.get();
-        if (jobSnap.exists) {
-          final jData = jobSnap.data() ?? {};
-          final jobUpdates = <String, dynamic>{};
-          final outputs = jData['outputs'];
-          if (outputs is Map && outputs['subtitles'] is Map) {
-            final curOut = Map<String, dynamic>.from(outputs['subtitles'] as Map);
-            curOut.remove(cleanCode);
-            curOut.remove(normCode);
-            curOut.remove(langCode);
-            jobUpdates['outputs.subtitles'] = curOut;
+        final jobIdsToClean = <String>{video.id};
+        final vJobId = video.jobId;
+        if (vJobId != null && vJobId.isNotEmpty) {
+          jobIdsToClean.add(vJobId);
+        }
+        final vSnap = await firestore
+            .collection(FirestoreCollections.videos)
+            .doc(video.id)
+            .get();
+        if (vSnap.exists && vSnap.data() != null) {
+          final jId = (vSnap.data()!['jobId'] as String?)?.trim();
+          if (jId != null && jId.isNotEmpty) {
+            jobIdsToClean.add(jId);
           }
-          if (jData['subtitles'] is Map) {
-            final curSubs = Map<String, dynamic>.from(jData['subtitles'] as Map);
-            curSubs.remove(cleanCode);
-            curSubs.remove(normCode);
-            curSubs.remove(langCode);
-            jobUpdates['subtitles'] = curSubs;
-          }
-          final stages = jData['stages'];
-          if (stages is Map) {
-            for (final code in [cleanCode, normCode, langCode]) {
-              if (stages.containsKey('subtitles_$code')) {
-                jobUpdates['stages.subtitles_$code'] = FieldValue.delete();
-              }
-              if (stages.containsKey('translating_$code')) {
-                jobUpdates['stages.translating_$code'] = FieldValue.delete();
+        }
+
+        for (final jId in jobIdsToClean) {
+          final jobRef = firestore.collection('video_jobs').doc(jId);
+          final jobSnap = await jobRef.get();
+          if (jobSnap.exists) {
+            final jData = jobSnap.data() ?? {};
+            final jobUpdates = <String, dynamic>{};
+            final outputs = jData['outputs'];
+            if (outputs is Map && outputs['subtitles'] is Map) {
+              final curOut =
+                  Map<String, dynamic>.from(outputs['subtitles'] as Map);
+              curOut.remove(cleanCode);
+              curOut.remove(normCode);
+              curOut.remove(langCode);
+              curOut.removeWhere((k, _) {
+                final kStr = k.toLowerCase();
+                return kStr == cleanCode ||
+                    kStr == normCode ||
+                    normalizeLanguageCode(kStr) == normCode;
+              });
+              jobUpdates['outputs.subtitles'] = curOut;
+            }
+            if (jData['subtitles'] is Map) {
+              final curSubs =
+                  Map<String, dynamic>.from(jData['subtitles'] as Map);
+              curSubs.remove(cleanCode);
+              curSubs.remove(normCode);
+              curSubs.remove(langCode);
+              curSubs.removeWhere((k, _) {
+                final kStr = k.toLowerCase();
+                return kStr == cleanCode ||
+                    kStr == normCode ||
+                    normalizeLanguageCode(kStr) == normCode;
+              });
+              jobUpdates['subtitles'] = curSubs;
+            }
+            final stages = jData['stages'];
+            if (stages is Map) {
+              for (final code in [cleanCode, normCode, langCode]) {
+                if (stages.containsKey('subtitles_$code')) {
+                  jobUpdates['stages.subtitles_$code'] = FieldValue.delete();
+                }
+                if (stages.containsKey('translating_$code')) {
+                  jobUpdates['stages.translating_$code'] = FieldValue.delete();
+                }
               }
             }
+            final executionPlan = jData['executionPlan'];
+            if (executionPlan is Map) {
+              if (executionPlan['subtitleLanguages'] is List) {
+                final list =
+                    List<dynamic>.from(executionPlan['subtitleLanguages'] as List)
+                      ..removeWhere((item) {
+                        final itemStr = item.toString().toLowerCase();
+                        return itemStr == cleanCode ||
+                            itemStr == normCode ||
+                            normalizeLanguageCode(itemStr) == normCode;
+                      });
+                jobUpdates['executionPlan.subtitleLanguages'] = list;
+              }
+              if (executionPlan['languages'] is List &&
+                  executionPlan['dubbingLanguages'] is! List) {
+                final list =
+                    List<dynamic>.from(executionPlan['languages'] as List)
+                      ..removeWhere((item) {
+                        final itemStr = item.toString().toLowerCase();
+                        return itemStr == cleanCode ||
+                            itemStr == normCode ||
+                            normalizeLanguageCode(itemStr) == normCode;
+                      });
+                jobUpdates['executionPlan.languages'] = list;
+              }
+            }
+            if (jobUpdates.isNotEmpty) {
+              await jobRef.update(jobUpdates).catchError((_) {});
+            }
           }
-          if (jobUpdates.isNotEmpty) {
-            await jobRef.update(jobUpdates).catchError((_) {});
+        }
+      } catch (_) {}
+
+      // Clean separate video_jobs matching videoId
+      try {
+        final jobsSnap = await firestore
+            .collection(FirestoreCollections.videoJobs)
+            .where('videoId', isEqualTo: video.id)
+            .get();
+
+        for (final doc in jobsSnap.docs) {
+          final data = doc.data();
+          final jobTarget =
+              (data['targetLanguage'] ?? '').toString().toLowerCase();
+          final jobFeature =
+              (data['feature'] ?? data['type'] ?? '').toString().toLowerCase();
+          if ((jobTarget == cleanCode || jobTarget == normCode) &&
+              (jobFeature.contains('sub') || jobFeature.isEmpty)) {
+            await doc.reference.delete().catchError((_) {});
           }
         }
       } catch (_) {}
 
       // Delete storage files if available
       try {
-        final storagePath = 'videos/${video.id}/subtitles/$cleanCode.vtt';
-        await FirebaseStorage.instance.ref().child(storagePath).delete().catchError((_) {});
-        final storageSrtPath = 'videos/${video.id}/subtitles/$cleanCode.srt';
-        await FirebaseStorage.instance.ref().child(storageSrtPath).delete().catchError((_) {});
+        final storage = FirebaseStorage.instance;
+        final candidateStoragePaths = <String>[
+          'videos/${video.id}/subtitles/$cleanCode.vtt',
+          'videos/${video.id}/subtitles/$cleanCode.srt',
+          'videos/${video.id}/subtitles/$normCode.vtt',
+          'videos/${video.id}/subtitles/$normCode.srt',
+          'subtitles/${video.id}/$cleanCode.vtt',
+          'subtitles/${video.id}/$cleanCode.srt',
+          'subtitles/${video.id}/$normCode.vtt',
+          'subtitles/${video.id}/$normCode.srt',
+        ];
+        final vJobId = video.jobId;
+        if (vJobId != null && vJobId.isNotEmpty && vJobId != video.id) {
+          candidateStoragePaths.addAll([
+            'videos/$vJobId/subtitles/$cleanCode.vtt',
+            'videos/$vJobId/subtitles/$cleanCode.srt',
+            'videos/$vJobId/subtitles/$normCode.vtt',
+            'videos/$vJobId/subtitles/$normCode.srt',
+            'subtitles/$vJobId/$cleanCode.vtt',
+            'subtitles/$vJobId/$cleanCode.srt',
+            'subtitles/$vJobId/$normCode.vtt',
+            'subtitles/$vJobId/$normCode.srt',
+          ]);
+        }
+        for (final sp in candidateStoragePaths) {
+          await storage.ref().child(sp).delete().catchError((_) {});
+        }
+
+        if (trackUrl.isNotEmpty &&
+            (trackUrl.startsWith('gs://') ||
+                trackUrl.contains('firebasestorage.googleapis.com'))) {
+          await storage.refFromURL(trackUrl).delete().catchError((_) {});
+        }
       } catch (_) {}
 
       final langDisplayName = getLanguageName(langCode);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -102,7 +103,9 @@ class SubtitlesPage extends StatelessWidget {
   // TOP HEADER BAR (Filter Icon + Subtitles Headline matching Audio & Video)
   // ---------------------------------------------------------------------------
   Widget _buildTopHeader(BuildContext context, bool isDesktop) {
-    final canPop = Navigator.of(context).canPop();
+    final hasDashboardContext = Get.isRegistered<DashboardController>() &&
+        Get.find<DashboardController>().selectedIndex.value != 1;
+    final showBack = hasDashboardContext || Navigator.of(context).canPop();
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -115,11 +118,18 @@ class SubtitlesPage extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (canPop) ...[
+          if (showBack) ...[
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-              tooltip: 'Back',
+              onPressed: () {
+                if (Get.isRegistered<DashboardController>() &&
+                    Get.find<DashboardController>().selectedIndex.value != 1) {
+                  Get.find<DashboardController>().setSelectedIndex(1);
+                } else if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
+              tooltip: 'Back to Overview',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -404,6 +414,9 @@ class SubtitlesPage extends StatelessWidget {
           children: [
             // Underline Tab Bar (Subtitles | Transcripts)
             SubtitlesNavTabs(controller: controller),
+
+            // AI Subtitle Generation Progress Banner
+            SubtitlesAiProgressBanner(controller: controller),
 
             const SizedBox(height: 8),
 

@@ -329,7 +329,9 @@ class _SingleFileUploadCard extends StatelessWidget {
                     Text(
                       hasFile
                           ? '${file!.name} (${(file!.size / (1024 * 1024)).toStringAsFixed(2)} MB)'
-                          : 'Tap to choose audio for $targetLangName (.mp3, .wav, .m4a, .aac)',
+                          : targetLangCode.isNotEmpty
+                              ? 'Tap to choose audio for $targetLangName (.mp3, .wav, .m4a, .aac)'
+                              : 'Tap to choose audio file (.mp3, .wav, .m4a, .aac)',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: typography.bodySmall.copyWith(
