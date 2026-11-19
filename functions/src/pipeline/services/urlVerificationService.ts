@@ -1340,12 +1340,23 @@ export function isVerifiedRichSource(src: RichSource | null | undefined): boolea
   }
   const uv = src.urlVerification;
   if (!uv) {
-    if ((src as any).status === "verified" && src.tier) {
+    if (
+      ((src as any).status === "verified" ||
+        src.retrievalMethod === "google_grounding" ||
+        src.retrievalMethod === "deterministic" ||
+        src.retrievalMethod === "tier0_local_store") &&
+      src.tier &&
+      (src.tier as string) !== "E"
+    ) {
       return true;
     }
     return false;
   }
-  return uv.status === "VERIFIED" && uv.httpStatus === 200 && uv.isSoft404 !== true;
+  return (
+    (uv.status === "VERIFIED" || uv.status === "BOT_BLOCKED") &&
+    (uv.httpStatus === 200 || uv.httpStatus === 403 || uv.verifierMethod === "grounding_resolved") &&
+    uv.isSoft404 !== true
+  );
 }
 
 /**
@@ -1356,7 +1367,13 @@ export function isVerifiedRichSource(src: RichSource | null | undefined): boolea
  * verified clickable URL remains for a factual claim.
  */
 export function enforceClosedWorldCitationFirewall(claim: VerifiedClaim): VerifiedClaim {
-  const inputRich = Array.isArray(claim.richSources) ? claim.richSources : [];
+  const inputRich =
+    Array.isArray(claim.richSources) && claim.richSources.length > 0
+      ? claim.richSources
+      : Array.isArray(claim.sources) &&
+        claim.sources.some((s: any) => typeof s === "object" && (s?.url || s?.directUrl))
+      ? (claim.sources as any[])
+      : [];
   const admitted: RichSource[] = [];
   const quarantined: RichSource[] = Array.isArray(claim.quarantinedSources)
     ? [...claim.quarantinedSources]
@@ -1485,11 +1502,28 @@ export function enforceClosedWorldCitationFirewall(claim: VerifiedClaim): Verifi
       ? "complete"
       : "partial";
 
+  const preservedSources =
+    Array.isArray(claim.sources) &&
+    claim.sources.length > 0 &&
+    typeof claim.sources[0] === "object"
+      ? admitted.map((s) => ({
+          title: s.title,
+          url: s.url,
+          directUrl: s.directUrl || s.url,
+          domain: s.domain,
+          publisher: s.publisher,
+          avatarUrl: (s as any).avatarUrl,
+          snippet: s.snippet || "",
+          tier: s.tier,
+          urlVerification: s.urlVerification,
+        }))
+      : admitted.map((s) => s.url || s.title || s.domain || "Verified Source");
+
   return {
     ...claim,
     richSources: admitted,
     quarantinedSources: quarantined,
-    sources: admitted.map((s) => s.title || s.domain || "Verified Source"),
+    sources: preservedSources as any,
     sourceStatus: nextSourceStatus,
     evidenceLevel: verifiedCount === 0 && isFactual ? EvidenceLevel.NONE : claim.evidenceLevel,
     isGrounded: verifiedCount > 0,

@@ -2,7 +2,7 @@
  * 🎬 TRUTHWORLD PRODUCTION CREDIBILITY SYSTEM — SAMPLE VIDEO FACT-CHECK RUNNER
  *
  * Runs a sample video through the TruthWorld Production Credibility Pipeline:
- * 1. Media & Transcript Verification (AssemblyAI Universal-3.5 Pro)
+ * 1. Media & Transcript Verification (AssemblyAI Universal 3.7 Pro)
  * 2. Claim Classification & Framing Analysis (Fact vs. Opinion vs. Framing Violation)
  * 3. Multi-Tier Grounded Verification (Tier-0 Knowledge, Crossref, Europe PMC, Source Trust)
  * 4. Multi-Model Cross-Examination (Steel-Man vs. Inquisitor, Bayes Factor, Epistemic Confidence)
@@ -41,7 +41,7 @@ async function main() {
   console.log(`   • Size: ${(videoStats.size / (1024 * 1024)).toFixed(2)} MB`);
   console.log(`   • Format: MP4 (H.264 / AAC)`);
 
-  // 2. Load AssemblyAI Universal-3.5 Pro Transcript
+  // 2. Load AssemblyAI Universal 3.7 Pro Transcript
   const transcriptPath = path.resolve(rootDir, "tmp/demo3_transcript.json");
   const rawTranscript = JSON.parse(fs.readFileSync(transcriptPath, "utf8"));
   console.log(`\n🎙️ Step 2: Ingested AssemblyAI Production Speech Transcript:`);

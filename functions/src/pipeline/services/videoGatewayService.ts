@@ -4,7 +4,7 @@ import { logger } from "../utils/logger";
 import { withAiRetry, extractCandidateText } from "../utils/ai-utils";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
-import { normalizeLanguageCode, getLanguageDisplayName, isSummaryLanguageMismatch } from "../../shared/language-normalizer";
+import { normalizeLanguageCode, getLanguageDisplayName, isSummaryLanguageMismatch, getDefaultIntroductionTitle, sanitizeChaptersForLanguage } from "../../shared/language-normalizer";
 import {
   VideoGatewayDecision,
   GatewayDecisionStatus,
@@ -388,7 +388,7 @@ DECISION CRITERIA:
    - You MUST provide 5-8 relevant "tags".
    - ENTITY DETECTION (Industry-Standard NER): Extract 3-10 prominent named entities mentioned in the speech (Persons, Organizations, Locations, Laws/Schemes, and Major Events).
    ${channelRequestedAutoChapters 
-     ? '- Channel requested AI Auto-Chapters: Provide 3-8 logical "autoChapters" (YouTube standard: first chapter MUST start at startMs: 0 [0:00], each chapter duration >= 10,000 ms, strictly ascending order, title under 50 chars, and summary).' 
+     ? `- Channel requested AI Auto-Chapters: Provide 3-8 logical "autoChapters" directly and fluently in the video's authentic native language: ${langDisplayName} (YouTube standard: first chapter MUST start at startMs: 0 [0:00], each chapter duration >= 10,000 ms, strictly ascending order, title under 50 chars, and summary). Write ALL chapter titles and summaries in ${langDisplayName} using authentic native script (e.g. Telugu script for Telugu). NEVER use Devanagari or Hindi for Telugu or non-Hindi content.` 
      : '- Set autoChapters to [].'}
 
 RETURN STRICT JSON FORMAT ONLY:
@@ -474,19 +474,20 @@ RETURN STRICT JSON FORMAT ONLY:
 
           if (mapped.length > 0) {
             if (mapped[0].startMs > 0) {
+              const introTitle = getDefaultIntroductionTitle(resolvedLang);
               mapped.unshift({
                 startMs: 0,
                 startTimeMs: 0,
                 endMs: mapped[0].startMs,
                 endTimeMs: mapped[0].startMs,
-                title: "Introduction",
-                summary: "Introduction to the video",
+                title: introTitle,
+                summary: resolvedLang === "te" ? "వీడియో పరిచయం" : `${introTitle} to the video`,
               });
             } else {
               mapped[0].startMs = 0;
               mapped[0].startTimeMs = 0;
             }
-            normalizedAutoChapters = mapped;
+            normalizedAutoChapters = sanitizeChaptersForLanguage(mapped, resolvedLang);
           }
         }
 

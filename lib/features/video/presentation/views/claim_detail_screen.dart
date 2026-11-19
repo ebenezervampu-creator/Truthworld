@@ -1301,7 +1301,7 @@ class ClaimDetailScreen extends StatelessWidget {
     final sourceStatus = _resolveSourceStatus(initialClaim);
     final academicMetadata = _extractAcademicMetadata(initialClaim);
     final verifiedSources =
-        sourceStatus == 'missing' ? const <UISource>[] : sources;
+        sources.where((s) => s.url != null && s.url!.isNotEmpty).toList();
     final hasLiveSources = verifiedSources.isNotEmpty;
     final claimId = _resolveClaimId(initialClaim, claimIndex);
 
@@ -2000,7 +2000,7 @@ class ClaimDetailScreen extends StatelessWidget {
     final sourceStatus = _resolveSourceStatus(initialClaim);
     final academicMetadata = _extractAcademicMetadata(initialClaim);
     final verifiedSources =
-        sourceStatus == 'missing' ? const <UISource>[] : sources;
+        sources.where((s) => s.url != null && s.url!.isNotEmpty).toList();
     final hasLiveSources = verifiedSources.isNotEmpty;
     final claimId = _resolveClaimId(initialClaim, claimIndex);
 

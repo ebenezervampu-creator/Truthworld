@@ -61,13 +61,17 @@ export class VerificationCascadeService {
    * Analyzes an individual claim to establish its inherent volatility, risk,
    * and recommended routing tier.
    */
-  public static analyzeClaimForTierRouting(claimText: string): CascadeRoutingDecision {
+  public static analyzeClaimForTierRouting(
+    claimText: string,
+    claimMeta?: { requiresLiveWeb?: boolean; domain?: string }
+  ): CascadeRoutingDecision {
     const text = claimText || "";
     const lower = text.toLowerCase();
     const escalationReasons: string[] = [];
 
-    // 1. Time-Sensitive / Breaking News Check
-    const timeSensitive = isTimeSensitiveClaim(text) || /\b(202[4-9]|this morning|just in)\b/i.test(lower);
+    // Temporal Recency Gate: if explicitly marked requiresLiveWeb === false, suppress temporal escalation
+    const explicitlyStatic = claimMeta?.requiresLiveWeb === false;
+    const timeSensitive = !explicitlyStatic && (isTimeSensitiveClaim(text) || /\b(202[4-9]|this morning|just in)\b/i.test(lower));
     if (timeSensitive) {
       escalationReasons.push("Time-sensitive temporal claim requires live grounded corroboration");
     }
@@ -179,7 +183,10 @@ export class VerificationCascadeService {
     // ──────────────────────────────────────────────────────────────────────────
     const tier1Candidates: FilteredClaim[] = [];
     for (const c of pendingClaims) {
-      const routing = this.analyzeClaimForTierRouting(c.text);
+      const routing = this.analyzeClaimForTierRouting(c.text, {
+        requiresLiveWeb: (c as any).requiresLiveWeb,
+        domain: (c as any).domain,
+      });
       // If time-sensitive or high-stakes, bypass cache if older than 3h
       if (routing.recommendedTier === 4 && routing.isTimeSensitive) {
         // High urgency time-sensitive claims skip cache to guarantee fresh live grounding
@@ -415,6 +422,31 @@ export class VerificationCascadeService {
       ).catch(() => {});
     }
 
+    // Pre-retrieve authoritative biomedical / scientific literature (PubMed & Crossref)
+    let preRetrievedEvidence: any[] = [];
+    const scientificClaims = prioritizedTier4.filter(
+      (c) =>
+        domainContext === "HEALTH_MEDICAL" ||
+        domainContext === "Science" ||
+        /\b(\d+%|study|trial|clinical|vaccine|drug|pharmacology|medical|disease|treatment|fda)\b/i.test(c.text)
+    );
+    if (scientificClaims.length > 0) {
+      try {
+        const { gatherLayer06CEvidence } = require("../layers/06-credibility");
+        preRetrievedEvidence = await gatherLayer06CEvidence(scientificClaims);
+        if (preRetrievedEvidence.length > 0) {
+          logger.info(`[VerificationCascade] Pre-retrieved ${preRetrievedEvidence.length} scientific literature sources from PubMed/Crossref`);
+        }
+      } catch (litErr: any) {
+        logger.warn("[VerificationCascade] Scientific pre-retrieval non-fatal warning", { err: litErr?.message });
+      }
+    }
+
+    const tier4Options: FusedGroundingOptions = {
+      ...options,
+      ...(preRetrievedEvidence.length > 0 ? { preRetrievedEvidence } : {}),
+    };
+
     // 2. Partition into micro-batches to optimize search quality, avoid prompt/token exhaustion, and enable parallel workers
     const microBatches = ClaimPrioritizationScheduler.chunkIntoMicroBatches(
       prioritizedTier4,
@@ -427,7 +459,7 @@ export class VerificationCascadeService {
         try {
           const microBatchResults = await ResilientExecutor.executeWithRetry(
             `tier4_microbatch_${batchIdx}`,
-            () => FusedGroundingService.verifyBatchFused(microBatch, domainContext, options),
+            () => FusedGroundingService.verifyBatchFused(microBatch, domainContext, tier4Options),
             { maxRetries: 3, baseDelayMs: 800, maxDelayMs: 8000 }
           );
 

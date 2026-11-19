@@ -52,6 +52,19 @@ class VideoResolutionV2 {
     return 30;
   }
 
+  /// Parses numeric height from resolution labels (e.g. "1080p" -> 1080, "1080p60" -> 1080).
+  static int inferHeightFromLabel(String label) {
+    final upper = label.toUpperCase();
+    if (upper.contains('4K') || upper.contains('2160')) return 2160;
+    if (upper.contains('2K') || upper.contains('1440')) return 1440;
+    final match = RegExp(r'(\d{3,4})[pP]').firstMatch(label);
+    if (match != null) {
+      return int.tryParse(match.group(1)!) ?? 720;
+    }
+    final clean = label.replaceAll(RegExp('[^0-9]'), '');
+    return int.tryParse(clean) ?? 720;
+  }
+
   final String label; // e.g., "1080p", "1080p60", "720p60"
   final String url;
   final int width;

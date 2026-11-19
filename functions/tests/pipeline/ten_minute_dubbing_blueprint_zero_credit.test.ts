@@ -9,7 +9,7 @@
  *   - MediaService (validateMneStem, partitionIntoReels, mergeAudioChunks, mixDubWithMne)
  *   - AudioIdentityService (DSP filter generation)
  *   - ElevenLabsTTSService (eleven_v4 payload & voice_settings validation)
- *   - AssemblyAI Universal-3.5 Pro (18 languages STT validation)
+ *   - AssemblyAI-STT-3.7 (strict routing and 32 supported source languages)
  *   - DubbingQualityGate (7-rule pass + adversarial rejection) & cost-engine (10-min pricing)
  */
 
@@ -289,15 +289,15 @@ describe("TruthWorld Dubbing — 10-Minute (600s) Zero-Credit Blueprint Stress T
     }
   });
 
-  it("Stage 1: verifies zero-credit STT routing (strictly AssemblyAI Universal-3.5 Pro 18-lang, zero legacy STT)", async () => {
-    // Verify 05-transcription.ts enforces AssemblyAI Universal-3.5 Pro (18 languages) strictly
+  it("Stage 1: verifies zero-credit STT routing (AssemblyAI Universal 3.7 Pro, zero legacy STT)", async () => {
+    // Verify 05-transcription.ts enforces AssemblyAI Universal 3.7 Pro strictly
     const transcriptionSrcPath = path.resolve(__dirname, "../../src/pipeline/layers/05-transcription.ts");
     const transcriptionSrc = await fs.promises.readFile(transcriptionSrcPath, "utf8");
-    const langSetMatch = transcriptionSrc.match(/const ASSEMBLYAI_UNIVERSAL_35_LANGUAGES\s*=\s*new Set\(\[([\s\S]*?)\]\)/);
+    const langSetMatch = transcriptionSrc.match(/const ASSEMBLYAI_UNIVERSAL_37_LANGUAGES\s*=\s*new Set\(\[([\s\S]*?)\]\)/);
     expect(langSetMatch).not.toBeNull();
     const langs = langSetMatch![1].match(/"([a-z-]+)"/g) || [];
-    expect(langs).toHaveLength(18);
-    expect(transcriptionSrc).toContain('const speechModels = ["universal-3-5-pro"];');
+    expect(langs).toHaveLength(32);
+    expect(transcriptionSrc).toContain('const speechModels = [ASSEMBLYAI_STT_MODEL];');
     expect(transcriptionSrc).toContain("speech_models: speechModels,");
     expect(transcriptionSrc).toContain("const isDubbingOrSubtitles = requestedSubtitles || requestedDubbing;");
     expect(transcriptionSrc.toLowerCase()).not.toContain(["s", "a", "r", "v", "a", "m"].join(""));

@@ -254,7 +254,24 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     // Lazy-load streaming from subcollection first (contains chapters)
     await VideoMediaService().getStreaming(video.id);
 
-    currentChapters.value = List<VideoChapter>.from(video.chapters);
+    final rawChapters = List<VideoChapter>.from(video.chapters);
+    // Sanitize cross-script hallucinations: If video is Telugu, map any Hindi 'परिचय' to Telugu 'పరిచయం'
+    final isTelugu = RegExp(r'[\u0C00-\u0C7F]').hasMatch(video.title) ||
+        RegExp(r'[\u0C00-\u0C7F]').hasMatch(video.description) ||
+        rawChapters.any((c) => RegExp(r'[\u0C00-\u0C7F]').hasMatch(c.title));
+
+    currentChapters.value = rawChapters.map((c) {
+      final sanitizedTitle = VideoChapter.sanitizeTitle(
+        c.title,
+        isTeluguContext: isTelugu,
+        startTime: c.startTime,
+      );
+      if (sanitizedTitle != c.title) {
+        return c.copyWith(title: sanitizedTitle);
+      }
+      return c;
+    }).toList();
+
     // Sort chapters by startTime just in case they aren't ordered in database
     currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
     selectedVideo.refresh();
@@ -303,16 +320,25 @@ class ChaptersController extends BaseController with ContentValidationMixin {
           animatedPreviewUrl: video.animatedPreviewUrl,
         );
       } else if (enabled && currentChapters.isEmpty) {
+        final isTelugu = RegExp(r'[\u0C00-\u0C7F]').hasMatch(updatedVideo.title) ||
+            RegExp(r'[\u0C00-\u0C7F]').hasMatch(updatedVideo.description) ||
+            updatedVideo.chapters.any((c) => RegExp(r'[\u0C00-\u0C7F]').hasMatch(c.title));
+
         final enriched = updatedVideo.chapters.map((c) {
-          if (c.thumbnailUrl == null || c.thumbnailUrl!.isEmpty) {
-            final autoThumb = resolveChapterThumbnail(updatedVideo, c.startTime);
-            return VideoChapter(
-              title: c.title,
-              startTime: c.startTime,
-              thumbnailUrl: autoThumb,
-            );
-          }
-          return c;
+          final sanitizedTitle = VideoChapter.sanitizeTitle(
+            c.title,
+            isTeluguContext: isTelugu,
+            startTime: c.startTime,
+          );
+          final autoThumb = (c.thumbnailUrl == null || c.thumbnailUrl!.isEmpty)
+              ? resolveChapterThumbnail(updatedVideo, c.startTime)
+              : c.thumbnailUrl;
+          return VideoChapter(
+            title: sanitizedTitle,
+            startTime: c.startTime,
+            thumbnailUrl: autoThumb,
+            localizedTitles: c.localizedTitles,
+          );
         }).toList();
         currentChapters.value = enriched;
       }
@@ -422,23 +448,12 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       final ext = fileName.contains('.')
           ? fileName.split('.').last.toLowerCase()
           : 'jpg';
-      String mimeType;
-      switch (ext) {
-        case 'png':
-          mimeType = 'image/png';
-          break;
-        case 'webp':
-          mimeType = 'image/webp';
-          break;
-        case 'gif':
-          mimeType = 'image/gif';
-          break;
-        case 'jpg':
-        case 'jpeg':
-        default:
-          mimeType = 'image/jpeg';
-          break;
-      }
+      final mimeType = switch (ext) {
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        _ => 'image/jpeg',
+      };
 
       final path =
           'thumbnails/$videoId/chapters/${DateTime.now().millisecondsSinceEpoch}_chapter.$ext';
@@ -616,7 +631,21 @@ class ChaptersController extends BaseController with ContentValidationMixin {
 
     isSaving.value = true;
     try {
-      final chapterMaps = currentChapters.map((c) => c.toMap()).toList();
+      final isTelugu = RegExp(r'[\u0C00-\u0C7F]').hasMatch(video.title) ||
+          RegExp(r'[\u0C00-\u0C7F]').hasMatch(video.description) ||
+          currentChapters.any((c) => RegExp(r'[\u0C00-\u0C7F]').hasMatch(c.title));
+
+      final sanitizedList = currentChapters.map((c) {
+        final sanitizedTitle = VideoChapter.sanitizeTitle(
+          c.title,
+          isTeluguContext: isTelugu,
+          startTime: c.startTime,
+        );
+        return sanitizedTitle != c.title ? c.copyWith(title: sanitizedTitle) : c;
+      }).toList();
+      currentChapters.value = sanitizedList;
+
+      final chapterMaps = sanitizedList.map((c) => c.toMap()).toList();
 
       // Save to media/streaming subcollection
       await _firestore
@@ -637,7 +666,7 @@ class ChaptersController extends BaseController with ContentValidationMixin {
         adaptiveResolutions: video.adaptiveResolutions,
         thumbnailVariants: video.thumbnailVariants,
         animatedPreviewUrl: video.animatedPreviewUrl,
-        chapters: currentChapters,
+        chapters: sanitizedList,
       );
 
       // Force reactive notification

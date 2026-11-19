@@ -85,6 +85,38 @@ void main() {
       expect(video.dubbedVideos['be'], equals('https://storage.truthworld.in/video/be.mp4'));
     });
 
+    test('VideoMapParser parses structured audioTracks descriptor maps and prioritizes hlsMasterUrl', () {
+      final docMap = {
+        'id': 'vid_hls_canary',
+        'title': 'Canary Multi-Audio Video',
+        'channelName': 'TruthWorld Studios',
+        'videoUrl': 'https://storage.googleapis.com/test-bucket/videos/vid_canary/raw.mp4',
+        'hlsMasterUrl': 'https://storage.googleapis.com/test-bucket/videos/vid_canary/master.m3u8',
+        'hlsUrl': 'https://storage.googleapis.com/test-bucket/videos/vid_canary/prog.m3u8',
+        'audioTracks': {
+          'te': {
+            'language': 'te',
+            'name': 'తెలుగు (Telugu)',
+            'audioUrl': 'https://storage.googleapis.com/test-bucket/audio/job_canary/te/stitched.mp3',
+            'playlistUrl': 'https://storage.googleapis.com/test-bucket/videos/vid_canary/audio/te/prog.m3u8',
+          },
+          'hi': {
+            'language': 'hi',
+            'name': 'हिन्दी (Hindi)',
+            'audioUrl': 'https://storage.googleapis.com/test-bucket/audio/job_canary/hi/stitched.mp3',
+            'playlistUrl': 'https://storage.googleapis.com/test-bucket/videos/vid_canary/audio/hi/prog.m3u8',
+          },
+        },
+      };
+
+      final video = VideoMapParser.parse(docMap, 'vid_hls_canary');
+
+      expect(video.id, equals('vid_hls_canary'));
+      expect(video.hlsUrl, equals('https://storage.googleapis.com/test-bucket/videos/vid_canary/master.m3u8'));
+      expect(video.audioTracks['te'], equals('https://storage.googleapis.com/test-bucket/audio/job_canary/te/stitched.mp3'));
+      expect(video.audioTracks['hi'], equals('https://storage.googleapis.com/test-bucket/audio/job_canary/hi/stitched.mp3'));
+    });
+
     test('Video.copyWith preserves or updates audioTracks and jobId', () {
       final original = Video(
         id: 'orig_1',

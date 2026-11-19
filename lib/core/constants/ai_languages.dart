@@ -1,6 +1,6 @@
 /// Authoritative repository of AI-supported languages across TruthWorld:
-/// - Source / Spoken Audio ("From"): 18 languages supported for Dubbing, Subtitles, and Audio Tracks,
-///   powered strictly by AssemblyAI Universal-3.5 Pro (English, Hindi, Spanish, French, German, Italian, Portuguese, Arabic, Chinese, Japanese, Dutch, Turkish, Vietnamese, Hebrew, Swedish, Danish, Norwegian, Finnish).
+/// - Source / Spoken Audio ("From"): 46+ languages supported for Dubbing, Subtitles, and Audio Tracks,
+///   powered strictly by AssemblyAI Universal 3.7 Pro (Global, Indic, European, Asian, Middle Eastern & African languages).
 /// - AI Audio Dubbing Output ("To"): 78 Languages supported by ElevenLabs v4 model (eleven_v4).
 /// - Subtitles Output ("To"): 135+ Languages supported by Google Cloud Translation API v3.
 class AILanguage {
@@ -1016,4 +1016,25 @@ bool isDubbingSupported(String code) {
 bool isSubtitleSupported(String code) {
   final lang = getAILanguageByCode(code);
   return lang?.supportsSubtitles ?? false;
+}
+
+/// The 46+ source / spoken audio languages natively supported by AssemblyAI Universal 3.7 Pro.
+const Set<String> kAssemblyAISourceLanguageCodes = {
+  // Indic (All Major Regional Languages)
+  'te', 'hi', 'ta', 'kn', 'ml', 'bn', 'mr', 'gu', 'pa', 'ur',
+  // Global & European
+  'en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'da', 'no', 'fi', 'ru', 'pl', 'cs', 'el', 'uk', 'hu', 'ro', 'ca', 'et', 'gl',
+  // Middle East & Africa
+  'ar', 'he', 'tr', 'fa', 'af', 'xh', 'zu',
+  // Asian
+  'zh', 'ja', 'ko', 'vi', 'yue', 'id', 'ms', 'th',
+};
+
+/// Backward compatibility alias for legacy references.
+const Set<String> kAssemblyAIUniversal35LanguageCodes = kAssemblyAISourceLanguageCodes;
+
+/// Checks if a language code is supported as a source audio language by AssemblyAI Universal 3.7 Pro.
+bool isAssemblyAISourceSupported(String code) {
+  final cleanCode = code.toLowerCase().trim();
+  return cleanCode == 'auto' || kAssemblyAISourceLanguageCodes.contains(cleanCode);
 }

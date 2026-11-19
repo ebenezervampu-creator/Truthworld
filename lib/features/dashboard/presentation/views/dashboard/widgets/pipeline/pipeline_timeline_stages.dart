@@ -101,14 +101,16 @@ class PipelineTimelineStages extends StatelessWidget {
           } else if (key == 'credibility') {
             if (status == 'failed') {
               status = 'failed';
-              statusSubtitle = stageData?['error'] as String?;
+              statusSubtitle = stageData?['suggestedRemedy'] as String? ??
+                  stageData?['error'] as String?;
             } else if (status == 'skipped') {
               status = 'skipped';
               statusSubtitle = 'Not Requested';
             } else if (video.hasAiCredibility || video.factCheckUrl.isNotEmpty || status == 'completed') {
               status = 'completed';
-            } else if (status == 'running') {
+            } else if (status == 'running' || status == 'in_progress' || status == 'processing') {
               status = 'running';
+              statusSubtitle = 'Verifying Claims...';
             } else if (status == 'pending' &&
                 (video.factCheckTier == 'none' ||
                     video.factCheckTier == 'off' ||

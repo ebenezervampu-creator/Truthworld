@@ -19,7 +19,38 @@ export interface TermTranslation {
   acceptableAlternatives: string[];
   disallowedLiteral: string[];
   profiles?: Record<TerminologyProfile, string>;
+  example?: {
+    sourceSentence: string;
+    targetSentence: string;
+  };
   notes?: string;
+}
+
+/**
+ * Escapes regex special characters safely for word-boundary matching
+ */
+export function escapeRegex(str: string): string {
+  return str.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+}
+
+/**
+ * Resolves the appropriate TerminologyProfile from pipeline tone & style options
+ */
+export function resolveTerminologyProfile(options?: {
+  tone?: "casual" | "formal";
+  localeStyle?: string;
+  isCinemaGrade?: boolean;
+}): TerminologyProfile {
+  if (options?.localeStyle === "slang" || options?.tone === "casual") {
+    return "colloquial";
+  }
+  if (options?.tone === "formal" || options?.isCinemaGrade) {
+    return "formal";
+  }
+  if (options?.localeStyle === "technical") {
+    return "technical";
+  }
+  return "neutral";
 }
 
 export type GlossaryCategory =
@@ -54,6 +85,10 @@ export const DOMAIN_GLOSSARY: GlossaryTerm[] = [
           formal: "Señor",
           technical: "Señor",
         },
+        example: {
+          sourceSentence: "The Lord delivered them from bondage.",
+          targetSentence: "El Señor los libró de la esclavitud.",
+        },
       },
       te: {
         preferred: "ప్రభువా",
@@ -64,6 +99,10 @@ export const DOMAIN_GLOSSARY: GlossaryTerm[] = [
           colloquial: "ప్రభువా",
           formal: "ప్రభువు వారు",
           technical: "ప్రభువు",
+        },
+        example: {
+          sourceSentence: "The Lord delivered them from bondage.",
+          targetSentence: "ప్రభువు వారిని బానిసత్వం నుండి విడిపించారు.",
         },
         notes: "Vocative prayer address or biblical/historical drama title must be localized as 'ప్రభువా'. Raw transliteration 'లార్డ్' is disallowed.",
       },
@@ -76,6 +115,10 @@ export const DOMAIN_GLOSSARY: GlossaryTerm[] = [
           colloquial: "हे प्रभु",
           formal: "परमेश्वर",
           technical: "प्रभु",
+        },
+        example: {
+          sourceSentence: "The Lord delivered them from bondage.",
+          targetSentence: "प्रभु ने उन्हें दासत्व से छुड़ाया।",
         },
       },
       ta: {
@@ -117,6 +160,10 @@ export const DOMAIN_GLOSSARY: GlossaryTerm[] = [
           formal: "Verificación y Validación de Hechos",
           technical: "Protocolo de Verificación de Hechos",
         },
+        example: {
+          sourceSentence: "Fact-checking ensures every report is verified.",
+          targetSentence: "La verificación de hechos garantiza que cada informe esté verificado.",
+        },
         notes: "Capitalized when referring to TruthWorld's network or formal methodology.",
       },
       te: {
@@ -129,6 +176,10 @@ export const DOMAIN_GLOSSARY: GlossaryTerm[] = [
           formal: "వాస్తవ నిర్ధారణ మరియు ధ్రువీకరణ",
           technical: "ఫ్యాక్ట్ చెకింగ్ (వాస్తవ నిర్ధారణ)",
         },
+        example: {
+          sourceSentence: "Fact-checking ensures every report is verified.",
+          targetSentence: "వాస్తవ పరిశీలన ప్రతి నివేదికను ధ్రువీకరించేలా చేస్తుంది.",
+        },
         notes: "Transliterated 'ఫాక్ట్-చెకింగ్' is standard across Telugu news media.",
       },
       hi: {
@@ -140,6 +191,10 @@ export const DOMAIN_GLOSSARY: GlossaryTerm[] = [
           colloquial: "फैक्ट-चेकिंग",
           formal: "तथ्य-सत्यापन एवं प्रमाणीकरण",
           technical: "फैक्ट-चेकिंग (तथ्य सत्यापन)",
+        },
+        example: {
+          sourceSentence: "Fact-checking ensures every report is verified.",
+          targetSentence: "तथ्य-जांच यह सुनिश्चित करती है कि हर रिपोर्ट सत्यापित हो।",
         },
         notes: "Standard industry nomenclature in Indian digital journalism.",
       },
@@ -602,6 +657,1218 @@ export const DOMAIN_GLOSSARY: GlossaryTerm[] = [
       },
     },
   },
+
+  // ─── THEOLOGY (expanded) ──────────────────────────────────────────────────
+
+  {
+    termId: "scripture_holy",
+    sourceEn: "Scripture",
+    category: "theology",
+    translations: {
+      es: {
+        preferred: "Escritura",
+        acceptableAlternatives: ["Escritura Sagrada", "las Escrituras"],
+        disallowedLiteral: ["Escriptura"],
+        profiles: {
+          neutral: "Escritura",
+          colloquial: "la Biblia",
+          formal: "Sagrada Escritura",
+          technical: "Escritura canónica",
+        },
+      },
+      te: {
+        preferred: "లేఖనం",
+        acceptableAlternatives: ["పవిత్ర గ్రంథం", "లేఖనాలు"],
+        disallowedLiteral: ["స్క్రిప్చర్"],
+        profiles: {
+          neutral: "లేఖనం",
+          colloquial: "పవిత్ర గ్రంథం",
+          formal: "పరిశుద్ధ లేఖనం",
+          technical: "లేఖనం (కానన్)",
+        },
+      },
+      hi: {
+        preferred: "धर्मग्रंथ",
+        acceptableAlternatives: ["पवित्र शास्त्र", "शास्त्र"],
+        disallowedLiteral: ["स्क्रिप्चर"],
+        profiles: {
+          neutral: "धर्मग्रंथ",
+          colloquial: "पवित्र किताब",
+          formal: "पवित्र शास्त्र",
+          technical: "धर्मशास्त्र",
+        },
+      },
+      ta: {
+        preferred: "வேதாகமம்",
+        acceptableAlternatives: ["திருவேதம்", "வேதம்"],
+        disallowedLiteral: ["ஸ்கிரிப்சர்"],
+        profiles: {
+          neutral: "வேதாகமம்",
+          colloquial: "திருவேதம்",
+          formal: "பரிசுத்த வேதாகமம்",
+          technical: "வேதாகமம் (நியதி)",
+        },
+      },
+      ml: {
+        preferred: "തിരുവെഴുത്ത്",
+        acceptableAlternatives: ["വേദപുസ്തകം", "വിശുദ്ധ ഗ്രന്ഥം"],
+        disallowedLiteral: ["സ്ക്രിപ്ചർ"],
+        profiles: {
+          neutral: "തിരുവെഴുത്ത്",
+          colloquial: "വേദപുസ്തകം",
+          formal: "വിശുദ്ധ തിരുവെഴുത്ത്",
+          technical: "തിരുവെഴുത്ത് (കാനോൻ)",
+        },
+      },
+      ar: {
+        preferred: "الكتاب المقدس",
+        acceptableAlternatives: ["الكتب المقدسة", "النصوص المقدسة"],
+        disallowedLiteral: ["سكربتشر"],
+        profiles: {
+          neutral: "الكتاب المقدس",
+          colloquial: "الكتاب",
+          formal: "الكتاب المقدس",
+          technical: "النص الكتابي القانوني",
+        },
+      },
+      pt: {
+        preferred: "Escritura",
+        acceptableAlternatives: ["Escritura Sagrada", "as Escrituras"],
+        disallowedLiteral: ["Escriptura"],
+        profiles: {
+          neutral: "Escritura",
+          colloquial: "a Bíblia",
+          formal: "Sagrada Escritura",
+          technical: "Escritura canônica",
+        },
+      },
+      fr: {
+        preferred: "Écriture",
+        acceptableAlternatives: ["Sainte Écriture", "les Écritures"],
+        disallowedLiteral: ["Scriptur"],
+        profiles: {
+          neutral: "Écriture",
+          colloquial: "la Bible",
+          formal: "Sainte Écriture",
+          technical: "Écriture canonique",
+        },
+      },
+    },
+  },
+  {
+    termId: "gospel",
+    sourceEn: "Gospel",
+    category: "theology",
+    translations: {
+      es: {
+        preferred: "Evangelio",
+        acceptableAlternatives: ["Buena Nueva"],
+        disallowedLiteral: ["Gáspel"],
+        profiles: {
+          neutral: "Evangelio",
+          colloquial: "Buena Nueva",
+          formal: "Santo Evangelio",
+          technical: "Evangelio sinóptico",
+        },
+      },
+      te: {
+        preferred: "సువార్త",
+        acceptableAlternatives: ["శుభవార్త", "సుసమాచారం"],
+        disallowedLiteral: ["గాస్పెల్"],
+        profiles: {
+          neutral: "సువార్త",
+          colloquial: "శుభవార్త",
+          formal: "పవిత్ర సువార్త",
+          technical: "సువార్త (సినోప్టిక్)",
+        },
+      },
+      hi: {
+        preferred: "सुसमाचार",
+        acceptableAlternatives: ["इंजील", "शुभ संदेश"],
+        disallowedLiteral: ["गॉस्पेल"],
+        profiles: {
+          neutral: "सुसमाचार",
+          colloquial: "शुभ संदेश",
+          formal: "पवित्र सुसमाचार",
+          technical: "सुसमाचार (सिनॉप्टिक)",
+        },
+      },
+      ta: {
+        preferred: "நற்செய்தி",
+        acceptableAlternatives: ["சுவிசேஷம்", "நல்ல செய்தி"],
+        disallowedLiteral: ["காஸ்பெல்"],
+        profiles: {
+          neutral: "நற்செய்தி",
+          colloquial: "நல்ல செய்தி",
+          formal: "திரு நற்செய்தி",
+          technical: "சுவிசேஷம்",
+        },
+      },
+      ml: {
+        preferred: "സുവിശേഷം",
+        acceptableAlternatives: ["ശുഭവാർത്ത", "നല്ല വാർത്ത"],
+        disallowedLiteral: ["ഗോസ്പൽ"],
+        profiles: {
+          neutral: "സുവിശേഷം",
+          colloquial: "ശുഭവാർത്ത",
+          formal: "വിശുദ്ധ സുവിശേഷം",
+          technical: "സുവിശേഷം (സിനോപ്റ്റിക്)",
+        },
+      },
+      ar: {
+        preferred: "الإنجيل",
+        acceptableAlternatives: ["البشارة"],
+        disallowedLiteral: ["غوسبل"],
+        profiles: {
+          neutral: "الإنجيل",
+          colloquial: "البشارة",
+          formal: "الإنجيل المقدس",
+          technical: "الأناجيل الإزائية",
+        },
+      },
+      pt: {
+        preferred: "Evangelho",
+        acceptableAlternatives: ["Boa Nova"],
+        disallowedLiteral: ["Góspel"],
+        profiles: {
+          neutral: "Evangelho",
+          colloquial: "Boa Nova",
+          formal: "Santo Evangelho",
+          technical: "Evangelho sinótico",
+        },
+      },
+      fr: {
+        preferred: "Évangile",
+        acceptableAlternatives: ["Bonne Nouvelle"],
+        disallowedLiteral: ["Gospel"],
+        profiles: {
+          neutral: "Évangile",
+          colloquial: "Bonne Nouvelle",
+          formal: "Saint Évangile",
+          technical: "Évangile synoptique",
+        },
+      },
+    },
+  },
+  {
+    termId: "prophet",
+    sourceEn: "Prophet",
+    category: "theology",
+    translations: {
+      es: {
+        preferred: "Profeta",
+        acceptableAlternatives: ["el Profeta"],
+        disallowedLiteral: ["Proféta"],
+        profiles: { neutral: "Profeta", colloquial: "Profeta", formal: "el Profeta", technical: "Profeta" },
+      },
+      te: {
+        preferred: "ప్రవక్త",
+        acceptableAlternatives: ["దైవ ప్రవక్త", "ప్రవచనకర్త"],
+        disallowedLiteral: ["ప్రాఫెట్"],
+        profiles: { neutral: "ప్రవక్త", colloquial: "ప్రవక్త", formal: "దైవ ప్రవక్త", technical: "ప్రవచనకర్త" },
+      },
+      hi: {
+        preferred: "नबी",
+        acceptableAlternatives: ["भविष्यवक्ता", "पैगंबर"],
+        disallowedLiteral: ["प्रॉफेट"],
+        profiles: { neutral: "नबी", colloquial: "पैगंबर", formal: "भविष्यवक्ता", technical: "नबी" },
+      },
+      ta: {
+        preferred: "தீர்க்கதரிசி",
+        acceptableAlternatives: ["இறைவாக்கினர்", "நபி"],
+        disallowedLiteral: ["புரோபெட்"],
+        profiles: { neutral: "தீர்க்கதரிசி", colloquial: "நபி", formal: "இறைவாக்கினர்", technical: "தீர்க்கதரிசி" },
+      },
+      ml: {
+        preferred: "പ്രവാചകൻ",
+        acceptableAlternatives: ["ദൈവദൂതൻ", "നബി"],
+        disallowedLiteral: ["പ്രോഫറ്റ്"],
+        profiles: { neutral: "പ്രവാചകൻ", colloquial: "നബി", formal: "ദൈവപ്രവാചകൻ", technical: "പ്രവാചകൻ" },
+      },
+      ar: {
+        preferred: "النبي",
+        acceptableAlternatives: ["الرسول", "نبي الله"],
+        disallowedLiteral: ["بروفيت"],
+        profiles: { neutral: "النبي", colloquial: "النبي", formal: "نبي الله", technical: "النبي" },
+      },
+      pt: {
+        preferred: "Profeta",
+        acceptableAlternatives: ["o Profeta"],
+        disallowedLiteral: ["Profêta"],
+        profiles: { neutral: "Profeta", colloquial: "Profeta", formal: "o Profeta", technical: "Profeta" },
+      },
+      fr: {
+        preferred: "Prophète",
+        acceptableAlternatives: ["le Prophète"],
+        disallowedLiteral: ["Prophet"],
+        profiles: { neutral: "Prophète", colloquial: "Prophète", formal: "le Prophète", technical: "Prophète" },
+      },
+    },
+  },
+  {
+    termId: "resurrection",
+    sourceEn: "Resurrection",
+    category: "theology",
+    translations: {
+      es: {
+        preferred: "Resurrección",
+        acceptableAlternatives: ["la Resurrección"],
+        disallowedLiteral: ["Resurección"],
+        profiles: { neutral: "Resurrección", colloquial: "Resurrección", formal: "la Santa Resurrección", technical: "Resurrección" },
+      },
+      te: {
+        preferred: "పునరుత్థానం",
+        acceptableAlternatives: ["మరణం నుండి లేచుట"],
+        disallowedLiteral: ["రిజరెక్షన్"],
+        profiles: { neutral: "పునరుత్థానం", colloquial: "మరణం నుండి లేచుట", formal: "పునరుత్థానం", technical: "పునరుత్థానం" },
+      },
+      hi: {
+        preferred: "पुनरुत्थान",
+        acceptableAlternatives: ["जी उठना", "मृतकों में से जी उठना"],
+        disallowedLiteral: ["रिज़रेक्शन"],
+        profiles: { neutral: "पुनरुत्थान", colloquial: "जी उठना", formal: "पवित्र पुनरुत्थान", technical: "पुनरुत्थान" },
+      },
+      ta: {
+        preferred: "உயிர்த்தெழுதல்",
+        acceptableAlternatives: ["உயிர்ப்பு"],
+        disallowedLiteral: ["ரிசரக்ஷன்"],
+        profiles: { neutral: "உயிர்த்தெழுதல்", colloquial: "உயிர்ப்பு", formal: "பரிசுத்த உயிர்த்தெழுதல்", technical: "உயிர்த்தெழுதல்" },
+      },
+      ml: {
+        preferred: "ഉയിർപ്പ്",
+        acceptableAlternatives: ["പുനരുത്ഥാനം"],
+        disallowedLiteral: ["റിസറക്ഷൻ"],
+        profiles: { neutral: "ഉയിർപ്പ്", colloquial: "ഉയിർപ്പ്", formal: "വിശുദ്ധ ഉയിർപ്പ്", technical: "പുനരുത്ഥാനം" },
+      },
+      ar: {
+        preferred: "القيامة",
+        acceptableAlternatives: ["البعث", "القيام من الموت"],
+        disallowedLiteral: ["ريزاريكشن"],
+        profiles: { neutral: "القيامة", colloquial: "البعث", formal: "القيامة المقدسة", technical: "القيامة" },
+      },
+      pt: {
+        preferred: "Ressurreição",
+        acceptableAlternatives: ["a Ressurreição"],
+        disallowedLiteral: ["Resureiçao"],
+        profiles: { neutral: "Ressurreição", colloquial: "Ressurreição", formal: "a Santa Ressurreição", technical: "Ressurreição" },
+      },
+      fr: {
+        preferred: "Résurrection",
+        acceptableAlternatives: ["la Résurrection"],
+        disallowedLiteral: ["Resurection"],
+        profiles: { neutral: "Résurrection", colloquial: "Résurrection", formal: "la Sainte Résurrection", technical: "Résurrection" },
+      },
+    },
+  },
+  {
+    termId: "crucifixion",
+    sourceEn: "Crucifixion",
+    category: "theology",
+    translations: {
+      es: {
+        preferred: "Crucifixión",
+        acceptableAlternatives: ["la Cruz"],
+        disallowedLiteral: ["Crucificción"],
+        profiles: { neutral: "Crucifixión", colloquial: "la Cruz", formal: "la Santa Crucifixión", technical: "Crucifixión" },
+      },
+      te: {
+        preferred: "సిలువ మరణం",
+        acceptableAlternatives: ["సిలువ వేయడం", "క్రూసిఫిక్షన్"],
+        disallowedLiteral: ["సిలువ చేయడం"],
+        profiles: { neutral: "సిలువ మరణం", colloquial: "సిలువ వేయడం", formal: "సిలువ మరణం", technical: "క్రూసిఫిక్షన్" },
+      },
+      hi: {
+        preferred: "सूली पर चढ़ाना",
+        acceptableAlternatives: ["क्रूस पर मृत्यु", "सलीब"],
+        disallowedLiteral: ["क्रूसीफिक्शन"],
+        profiles: { neutral: "सूली पर चढ़ाना", colloquial: "सूली", formal: "क्रूस पर मृत्यु", technical: "क्रूसीकरण" },
+      },
+      ta: {
+        preferred: "சிலுவை மரணம்",
+        acceptableAlternatives: ["சிலுவையில் அறையப்படுதல்"],
+        disallowedLiteral: ["க்ரூசிபிக்ஷன்"],
+        profiles: { neutral: "சிலுவை மரணம்", colloquial: "சிலுவை", formal: "பரிசுத்த சிலுவை மரணம்", technical: "சிலுவையில் அறையப்படுதல்" },
+      },
+      ml: {
+        preferred: "കുരിശുമരണം",
+        acceptableAlternatives: ["ക്രൂശീകരണം"],
+        disallowedLiteral: ["ക്രൂസിഫിക്ഷൻ"],
+        profiles: { neutral: "കുരിശുമരണം", colloquial: "കുരിശ്", formal: "വിശുദ്ധ കുരിശുമരണം", technical: "ക്രൂശീകരണം" },
+      },
+      ar: {
+        preferred: "الصلب",
+        acceptableAlternatives: ["صلب المسيح"],
+        disallowedLiteral: ["كروسيفيكشن"],
+        profiles: { neutral: "الصلب", colloquial: "الصلب", formal: "صلب المسيح", technical: "الصلب" },
+      },
+      pt: {
+        preferred: "Crucificação",
+        acceptableAlternatives: ["a Cruz"],
+        disallowedLiteral: ["Crucifição"],
+        profiles: { neutral: "Crucificação", colloquial: "a Cruz", formal: "a Santa Crucificação", technical: "Crucificação" },
+      },
+      fr: {
+        preferred: "Crucifixion",
+        acceptableAlternatives: ["la Croix"],
+        disallowedLiteral: ["Crucifiction"],
+        profiles: { neutral: "Crucifixion", colloquial: "la Croix", formal: "la Sainte Crucifixion", technical: "Crucifixion" },
+      },
+    },
+  },
+  {
+    termId: "salvation",
+    sourceEn: "Salvation",
+    category: "theology",
+    translations: {
+      es: {
+        preferred: "Salvación",
+        acceptableAlternatives: ["la Salvación"],
+        disallowedLiteral: ["Salvamento"],
+        profiles: { neutral: "Salvación", colloquial: "Salvación", formal: "la Santa Salvación", technical: "Soteriología" },
+      },
+      te: {
+        preferred: "రక్షణ",
+        acceptableAlternatives: ["మోక్షం", "విముక్తి"],
+        disallowedLiteral: ["సాల్వేషన్"],
+        profiles: { neutral: "రక్షణ", colloquial: "రక్షణ", formal: "ఆత్మ రక్షణ", technical: "రక్షణ శాస్త్రం" },
+      },
+      hi: {
+        preferred: "मुक्ति",
+        acceptableAlternatives: ["उद्धार", "मोक्ष"],
+        disallowedLiteral: ["सैल्वेशन"],
+        profiles: { neutral: "मुक्ति", colloquial: "उद्धार", formal: "आत्मिक मुक्ति", technical: "मुक्तिशास्त्र" },
+      },
+      ta: {
+        preferred: "இரட்சிப்பு",
+        acceptableAlternatives: ["மீட்பு", "முக்தி"],
+        disallowedLiteral: ["சால்வேஷன்"],
+        profiles: { neutral: "இரட்சிப்பு", colloquial: "மீட்பு", formal: "ஆன்ம இரட்சிப்பு", technical: "இரட்சிப்பு இறையியல்" },
+      },
+      ml: {
+        preferred: "രക്ഷ",
+        acceptableAlternatives: ["മോക്ഷം", "വിമോചനം"],
+        disallowedLiteral: ["സാൽവേഷൻ"],
+        profiles: { neutral: "രക്ഷ", colloquial: "രക്ഷ", formal: "ആത്മരക്ഷ", technical: "രക്ഷാശാസ്ത്രം" },
+      },
+      ar: {
+        preferred: "الخلاص",
+        acceptableAlternatives: ["النجاة", "الفداء"],
+        disallowedLiteral: ["سالفيشن"],
+        profiles: { neutral: "الخلاص", colloquial: "النجاة", formal: "الخلاص الإلهي", technical: "علم الخلاص" },
+      },
+      pt: {
+        preferred: "Salvação",
+        acceptableAlternatives: ["a Salvação", "Redenção"],
+        disallowedLiteral: ["Salvamento"],
+        profiles: { neutral: "Salvação", colloquial: "Salvação", formal: "a Santa Salvação", technical: "Soteriologia" },
+      },
+      fr: {
+        preferred: "Salut",
+        acceptableAlternatives: ["le Salut", "Rédemption"],
+        disallowedLiteral: ["Salvation"],
+        profiles: { neutral: "Salut", colloquial: "Salut", formal: "le Saint Salut", technical: "Sotériologie" },
+      },
+    },
+  },
+
+  // ─── FACT-CHECKING (expanded) ─────────────────────────────────────────────
+
+  {
+    termId: "disinformation",
+    sourceEn: "disinformation",
+    category: "fact_checking",
+    translations: {
+      es: {
+        preferred: "desinformación intencionada",
+        acceptableAlternatives: ["desinformación deliberada"],
+        disallowedLiteral: ["des-información"],
+        profiles: { neutral: "desinformación intencionada", colloquial: "mentiras organizadas", formal: "desinformación deliberada y orquestada", technical: "campaña de desinformación" },
+        notes: "Distinct from 'misinformation' (unintentional). Disinformation implies deliberate intent.",
+      },
+      te: {
+        preferred: "ఉద్దేశపూర్వక తప్పుడు సమాచారం",
+        acceptableAlternatives: ["ఉద్దేశపూర్వక అపోహలు", "డిస్ఇన్ఫర్మేషన్"],
+        disallowedLiteral: ["చెడు ఇన్ఫర్మేషన్"],
+        profiles: { neutral: "ఉద్దేశపూర్వక తప్పుడు సమాచారం", colloquial: "కావాలని వ్యాపించే అబద్ధాలు", formal: "ఉద్దేశపూర్వక అసత్య ప్రచారం", technical: "డిస్-ఇన్ఫర్మేషన్ (ఉద్దేశపూర్వక)" },
+      },
+      hi: {
+        preferred: "दुष्प्रचार",
+        acceptableAlternatives: ["जानबूझकर गलत सूचना", "प्रोपेगैंडा"],
+        disallowedLiteral: ["डिसइन्फॉर्मेशन"],
+        profiles: { neutral: "दुष्प्रचार", colloquial: "जानबूझकर फैलाया गया झूठ", formal: "संगठित दुष्प्रचार", technical: "डिस-इन्फॉर्मेशन (जानबूझकर)" },
+      },
+      ta: {
+        preferred: "திட்டமிட்ட தவறான தகவல்",
+        acceptableAlternatives: ["வேண்டுமென்றே பரப்பும் தகவல்"],
+        disallowedLiteral: ["கெட்ட இன்பர்மேஷன்"],
+        profiles: { neutral: "திட்டமிட்ட தவறான தகவல்", colloquial: "வேண்டுமென்றே பரப்பும் பொய்", formal: "திட்டமிட்ட தகவல் திரிபு", technical: "டிஸ்-இன்பர்மேஷன்" },
+      },
+      ml: {
+        preferred: "ബോധപൂർവ്വമായ തെറ്റായ വിവരം",
+        acceptableAlternatives: ["ആസൂത്രിത തെറ്റായ പ്രചാരണം"],
+        disallowedLiteral: ["ഡിസ്ഇൻഫർമേഷൻ"],
+        profiles: { neutral: "ബോധപൂർവ്വമായ തെറ്റായ വിവരം", colloquial: "മനഃപൂർവ്വം പരത്തുന്ന നുണ", formal: "ആസൂത്രിത ദുഷ്പ്രചാരണം", technical: "ഡിസ്-ഇൻഫർമേഷൻ" },
+      },
+      ar: {
+        preferred: "تضليل إعلامي",
+        acceptableAlternatives: ["معلومات مضللة متعمدة"],
+        disallowedLiteral: ["ديسانفورميشن"],
+        profiles: { neutral: "تضليل إعلامي", colloquial: "أكاذيب منظمة", formal: "حملة تضليل إعلامي متعمد", technical: "تضليل معلوماتي" },
+      },
+      pt: {
+        preferred: "desinformação",
+        acceptableAlternatives: ["desinformação deliberada"],
+        disallowedLiteral: ["des-informação"],
+        profiles: { neutral: "desinformação", colloquial: "mentiras organizadas", formal: "desinformação deliberada e orquestrada", technical: "campanha de desinformação" },
+      },
+      fr: {
+        preferred: "désinformation",
+        acceptableAlternatives: ["désinformation délibérée"],
+        disallowedLiteral: ["des-information"],
+        profiles: { neutral: "désinformation", colloquial: "intox", formal: "désinformation délibérée et orchestrée", technical: "campagne de désinformation" },
+      },
+    },
+  },
+  {
+    termId: "deepfake",
+    sourceEn: "deepfake",
+    category: "fact_checking",
+    translations: {
+      es: {
+        preferred: "deepfake",
+        acceptableAlternatives: ["ultrafalso", "falsificación profunda"],
+        disallowedLiteral: ["falso profundo"],
+        profiles: { neutral: "deepfake", colloquial: "deepfake", formal: "contenido sintético deepfake", technical: "deepfake (síntesis generativa adversarial)" },
+      },
+      te: {
+        preferred: "డీప్‌ఫేక్",
+        acceptableAlternatives: ["కృత్రిమ వీడియో"],
+        disallowedLiteral: ["లోతైన నకిలీ"],
+        profiles: { neutral: "డీప్‌ఫేక్", colloquial: "డీప్‌ఫేక్", formal: "కృత్రిమ సింథటిక్ మీడియా", technical: "డీప్‌ఫేక్ (GAN ఆధారిత)" },
+      },
+      hi: {
+        preferred: "डीपफेक",
+        acceptableAlternatives: ["कृत्रिम वीडियो"],
+        disallowedLiteral: ["गहरा नकली"],
+        profiles: { neutral: "डीपफेक", colloquial: "डीपफेक", formal: "कृत्रिम सिंथेटिक मीडिया", technical: "डीपफेक (GAN-आधारित)" },
+      },
+      ta: {
+        preferred: "டீப்ஃபேக்",
+        acceptableAlternatives: ["செயற்கை வீடியோ"],
+        disallowedLiteral: ["ஆழமான போலி"],
+        profiles: { neutral: "டீப்ஃபேக்", colloquial: "டீப்ஃபேக்", formal: "செயற்கை ஊடகம்", technical: "டீப்ஃபேக் (GAN அடிப்படையிலான)" },
+      },
+      ml: {
+        preferred: "ഡീപ്ഫേക്ക്",
+        acceptableAlternatives: ["കൃത്രിമ വീഡിയോ"],
+        disallowedLiteral: ["ആഴത്തിലുള്ള വ്യാജം"],
+        profiles: { neutral: "ഡീപ്ഫേക്ക്", colloquial: "ഡീപ്ഫേക്ക്", formal: "കൃത്രിമ സിന്തറ്റിക് മീഡിയ", technical: "ഡീപ്ഫേക്ക് (GAN അധിഷ്ഠിത)" },
+      },
+      ar: {
+        preferred: "التزييف العميق",
+        acceptableAlternatives: ["ديبفيك", "فيديو مزيف بالذكاء الاصطناعي"],
+        disallowedLiteral: ["مزيف عميق"],
+        profiles: { neutral: "التزييف العميق", colloquial: "ديبفيك", formal: "وسائط اصطناعية مزيفة", technical: "التزييف العميق (GAN)" },
+      },
+      pt: {
+        preferred: "deepfake",
+        acceptableAlternatives: ["vídeo sintético"],
+        disallowedLiteral: ["falso profundo"],
+        profiles: { neutral: "deepfake", colloquial: "deepfake", formal: "conteúdo sintético deepfake", technical: "deepfake (síntese adversarial generativa)" },
+      },
+      fr: {
+        preferred: "deepfake",
+        acceptableAlternatives: ["hypertrucage", "vidéo synthétique"],
+        disallowedLiteral: ["faux profond"],
+        profiles: { neutral: "deepfake", colloquial: "deepfake", formal: "hypertrucage synthétique", technical: "deepfake (réseau antagoniste génératif)" },
+      },
+    },
+  },
+  {
+    termId: "source_verification",
+    sourceEn: "source verification",
+    category: "fact_checking",
+    translations: {
+      es: {
+        preferred: "verificación de fuentes",
+        acceptableAlternatives: ["comprobación de fuentes"],
+        disallowedLiteral: ["verificación de origen"],
+        profiles: { neutral: "verificación de fuentes", colloquial: "comprobar las fuentes", formal: "verificación y autenticación de fuentes", technical: "protocolo de verificación de fuentes" },
+      },
+      te: {
+        preferred: "మూలం ధ్రువీకరణ",
+        acceptableAlternatives: ["సోర్స్ వెరిఫికేషన్", "ఆధారాల ధ్రువీకరణ"],
+        disallowedLiteral: ["మూలం చెకింగ్"],
+        profiles: { neutral: "మూలం ధ్రువీకరణ", colloquial: "సోర్స్ చెక్", formal: "ఆధారాల ధ్రువీకరణ మరియు ప్రమాణీకరణ", technical: "సోర్స్ వెరిఫికేషన్ ప్రోటోకాల్" },
+      },
+      hi: {
+        preferred: "स्रोत सत्यापन",
+        acceptableAlternatives: ["सोर्स वेरिफिकेशन", "मूल जांच"],
+        disallowedLiteral: ["सोर्स चेकिंग"],
+        profiles: { neutral: "स्रोत सत्यापन", colloquial: "सोर्स चेक", formal: "स्रोत प्रमाणीकरण एवं सत्यापन", technical: "सोर्स वेरिफिकेशन प्रोटोकॉल" },
+      },
+      ta: {
+        preferred: "ஆதார சரிபார்ப்பு",
+        acceptableAlternatives: ["மூல ஆய்வு"],
+        disallowedLiteral: ["சோர்ஸ் செக்கிங்"],
+        profiles: { neutral: "ஆதார சரிபார்ப்பு", colloquial: "மூல சோதனை", formal: "ஆதார சரிபார்ப்பு மற்றும் உறுதிப்படுத்தல்", technical: "மூல சரிபார்ப்பு நெறிமுறை" },
+      },
+      ml: {
+        preferred: "ഉറവിട പരിശോധന",
+        acceptableAlternatives: ["സോഴ്സ് വെരിഫിക്കേഷൻ"],
+        disallowedLiteral: ["സോഴ്സ് ചെക്കിംഗ്"],
+        profiles: { neutral: "ഉറവിട പരിശോധന", colloquial: "സോഴ്സ് ചെക്ക്", formal: "ഉറവിട പരിശോധനയും സ്ഥിരീകരണവും", technical: "സോഴ്സ് വെരിഫിക്കേഷൻ പ്രോട്ടോക്കോൾ" },
+      },
+      ar: {
+        preferred: "التحقق من المصادر",
+        acceptableAlternatives: ["مراجعة المصادر"],
+        disallowedLiteral: ["فحص السورس"],
+        profiles: { neutral: "التحقق من المصادر", colloquial: "مراجعة المصادر", formal: "التحقق من مصداقية المصادر", technical: "بروتوكول التحقق من المصادر" },
+      },
+      pt: {
+        preferred: "verificação de fontes",
+        acceptableAlternatives: ["checagem de fontes"],
+        disallowedLiteral: ["verificação de origem"],
+        profiles: { neutral: "verificação de fontes", colloquial: "checar fontes", formal: "verificação e autenticação de fontes", technical: "protocolo de verificação de fontes" },
+      },
+      fr: {
+        preferred: "vérification des sources",
+        acceptableAlternatives: ["contrôle des sources"],
+        disallowedLiteral: ["vérification d'origine"],
+        profiles: { neutral: "vérification des sources", colloquial: "vérifier les sources", formal: "vérification et authentification des sources", technical: "protocole de vérification des sources" },
+      },
+    },
+  },
+  {
+    termId: "propaganda",
+    sourceEn: "propaganda",
+    category: "fact_checking",
+    translations: {
+      es: {
+        preferred: "propaganda",
+        acceptableAlternatives: ["propaganda política"],
+        disallowedLiteral: ["publicidad política"],
+        profiles: { neutral: "propaganda", colloquial: "propaganda", formal: "propaganda y manipulación informativa", technical: "propaganda sistemática" },
+      },
+      te: {
+        preferred: "ప్రచారం",
+        acceptableAlternatives: ["ప్రొపగాండా", "దుష్ప్రచారం"],
+        disallowedLiteral: ["ప్రమోషన్"],
+        profiles: { neutral: "ప్రచారం", colloquial: "ప్రొపగాండా", formal: "దుష్ప్రచారం", technical: "ప్రొపగాండా (వ్యవస్థీకృత)" },
+      },
+      hi: {
+        preferred: "प्रोपेगैंडा",
+        acceptableAlternatives: ["प्रचार", "दुष्प्रचार"],
+        disallowedLiteral: ["प्रमोशन"],
+        profiles: { neutral: "प्रोपेगैंडा", colloquial: "प्रोपेगैंडा", formal: "संगठित दुष्प्रचार", technical: "प्रोपेगैंडा (व्यवस्थित)" },
+      },
+      ta: {
+        preferred: "பிரச்சாரம்",
+        acceptableAlternatives: ["புரொபகாண்டா", "தீவிர பிரச்சாரம்"],
+        disallowedLiteral: ["விளம்பரம்"],
+        profiles: { neutral: "பிரச்சாரம்", colloquial: "புரொபகாண்டா", formal: "திட்டமிட்ட பிரச்சாரம்", technical: "புரொபகாண்டா (முறையான)" },
+      },
+      ml: {
+        preferred: "പ്രചാരണം",
+        acceptableAlternatives: ["പ്രൊപഗാണ്ട", "ദുഷ്പ്രചാരണം"],
+        disallowedLiteral: ["പ്രമോഷൻ"],
+        profiles: { neutral: "പ്രചാരണം", colloquial: "പ്രൊപഗാണ്ട", formal: "ആസൂത്രിത ദുഷ്പ്രചാരണം", technical: "പ്രൊപഗാണ്ട (ഘടനാപരമായ)" },
+      },
+      ar: {
+        preferred: "بروباغندا",
+        acceptableAlternatives: ["دعاية", "إعلام موجه"],
+        disallowedLiteral: ["إعلان سياسي"],
+        profiles: { neutral: "بروباغندا", colloquial: "بروباغندا", formal: "دعاية منظمة وموجهة", technical: "بروباغندا منهجية" },
+      },
+      pt: {
+        preferred: "propaganda",
+        acceptableAlternatives: ["propaganda política"],
+        disallowedLiteral: ["publicidade política"],
+        profiles: { neutral: "propaganda", colloquial: "propaganda", formal: "propaganda e manipulação informativa", technical: "propaganda sistemática" },
+      },
+      fr: {
+        preferred: "propagande",
+        acceptableAlternatives: ["propagande politique"],
+        disallowedLiteral: ["publicité politique"],
+        profiles: { neutral: "propagande", colloquial: "propagande", formal: "propagande et manipulation de l'information", technical: "propagande systématique" },
+      },
+    },
+  },
+  {
+    termId: "credibility_score",
+    sourceEn: "credibility score",
+    category: "fact_checking",
+    translations: {
+      es: {
+        preferred: "puntuación de credibilidad",
+        acceptableAlternatives: ["índice de credibilidad"],
+        disallowedLiteral: ["puntaje de creencia"],
+        profiles: { neutral: "puntuación de credibilidad", colloquial: "puntuación de confianza", formal: "índice de credibilidad informativa", technical: "métrica de credibilidad" },
+      },
+      te: {
+        preferred: "విశ్వసనీయత స్కోరు",
+        acceptableAlternatives: ["క్రెడిబిలిటీ స్కోర్"],
+        disallowedLiteral: ["నమ్మకం పాయింట్లు"],
+        profiles: { neutral: "విశ్వసనీయత స్కోరు", colloquial: "క్రెడిబిలిటీ స్కోర్", formal: "విశ్వసనీయత సూచిక", technical: "క్రెడిబిలిటీ మెట్రిక్" },
+      },
+      hi: {
+        preferred: "विश्वसनीयता स्कोर",
+        acceptableAlternatives: ["क्रेडिबिलिटी स्कोर"],
+        disallowedLiteral: ["भरोसा अंक"],
+        profiles: { neutral: "विश्वसनीयता स्कोर", colloquial: "क्रेडिबिलिटी स्कोर", formal: "विश्वसनीयता सूचकांक", technical: "क्रेडिबिलिटी मेट्रिक" },
+      },
+      ta: {
+        preferred: "நம்பகத்தன்மை மதிப்பெண்",
+        acceptableAlternatives: ["கிரெடிபிலிட்டி ஸ்கோர்"],
+        disallowedLiteral: ["நம்பிக்கை புள்ளிகள்"],
+        profiles: { neutral: "நம்பகத்தன்மை மதிப்பெண்", colloquial: "கிரெடிபிலிட்டி ஸ்கோர்", formal: "நம்பகத்தன்மை குறியீடு", technical: "நம்பகத்தன்மை அளவீடு" },
+      },
+      ml: {
+        preferred: "വിശ്വാസ്യത സ്കോർ",
+        acceptableAlternatives: ["ക്രെഡിബിലിറ്റി സ്കോർ"],
+        disallowedLiteral: ["വിശ്വാസം പോയിന്റുകൾ"],
+        profiles: { neutral: "വിശ്വാസ്യത സ്കോർ", colloquial: "ക്രെഡിബിലിറ്റി സ്കോർ", formal: "വിശ്വാസ്യത സൂചിക", technical: "ക്രെഡിബിലിറ്റി മെട്രിക്" },
+      },
+      ar: {
+        preferred: "درجة المصداقية",
+        acceptableAlternatives: ["مؤشر المصداقية"],
+        disallowedLiteral: ["نقاط الثقة"],
+        profiles: { neutral: "درجة المصداقية", colloquial: "درجة الثقة", formal: "مؤشر المصداقية الإعلامية", technical: "مقياس المصداقية" },
+      },
+      pt: {
+        preferred: "pontuação de credibilidade",
+        acceptableAlternatives: ["índice de credibilidade"],
+        disallowedLiteral: ["pontos de crença"],
+        profiles: { neutral: "pontuação de credibilidade", colloquial: "nota de confiança", formal: "índice de credibilidade informativa", technical: "métrica de credibilidade" },
+      },
+      fr: {
+        preferred: "score de crédibilité",
+        acceptableAlternatives: ["indice de crédibilité"],
+        disallowedLiteral: ["points de croyance"],
+        profiles: { neutral: "score de crédibilité", colloquial: "note de confiance", formal: "indice de crédibilité informationnelle", technical: "métrique de crédibilité" },
+      },
+    },
+  },
+
+  // ─── SCIENCE (new category — previously zero entries) ─────────────────────
+
+  {
+    termId: "climate_change",
+    sourceEn: "climate change",
+    category: "science",
+    translations: {
+      es: {
+        preferred: "cambio climático",
+        acceptableAlternatives: ["crisis climática"],
+        disallowedLiteral: ["cambio de clima"],
+        profiles: { neutral: "cambio climático", colloquial: "crisis climática", formal: "cambio climático global", technical: "cambio climático antropogénico" },
+      },
+      te: {
+        preferred: "వాతావరణ మార్పు",
+        acceptableAlternatives: ["క్లైమేట్ చేంజ్"],
+        disallowedLiteral: ["వాతావరణం మారడం"],
+        profiles: { neutral: "వాతావరణ మార్పు", colloquial: "క్లైమేట్ చేంజ్", formal: "ప్రపంచ వాతావరణ మార్పు", technical: "మానవజనిత వాతావరణ మార్పు" },
+      },
+      hi: {
+        preferred: "जलवायु परिवर्तन",
+        acceptableAlternatives: ["क्लाइमेट चेंज"],
+        disallowedLiteral: ["मौसम बदलना"],
+        profiles: { neutral: "जलवायु परिवर्तन", colloquial: "क्लाइमेट चेंज", formal: "वैश्विक जलवायु परिवर्तन", technical: "मानवजनित जलवायु परिवर्तन" },
+      },
+      ta: {
+        preferred: "காலநிலை மாற்றம்",
+        acceptableAlternatives: ["கிளைமேட் சேஞ்ச்"],
+        disallowedLiteral: ["வானிலை மாறுதல்"],
+        profiles: { neutral: "காலநிலை மாற்றம்", colloquial: "கிளைமேட் சேஞ்ச்", formal: "உலகளாவிய காலநிலை மாற்றம்", technical: "மனிதனால் ஏற்படும் காலநிலை மாற்றம்" },
+      },
+      ml: {
+        preferred: "കാലാവസ്ഥാ വ്യതിയാനം",
+        acceptableAlternatives: ["ക്ലൈമറ്റ് ചേഞ്ച്"],
+        disallowedLiteral: ["കാലാവസ്ഥ മാറ്റം"],
+        profiles: { neutral: "കാലാവസ്ഥാ വ്യതിയാനം", colloquial: "ക്ലൈമറ്റ് ചേഞ്ച്", formal: "ആഗോള കാലാവസ്ഥാ വ്യതിയാനം", technical: "മനുഷ്യനിർമ്മിത കാലാവസ്ഥാ വ്യതിയാനം" },
+      },
+      ar: {
+        preferred: "تغير المناخ",
+        acceptableAlternatives: ["أزمة المناخ"],
+        disallowedLiteral: ["تغيير الطقس"],
+        profiles: { neutral: "تغير المناخ", colloquial: "أزمة المناخ", formal: "تغير المناخ العالمي", technical: "تغير المناخ البشري المنشأ" },
+      },
+      pt: {
+        preferred: "mudança climática",
+        acceptableAlternatives: ["alteração climática", "crise climática"],
+        disallowedLiteral: ["mudança de clima"],
+        profiles: { neutral: "mudança climática", colloquial: "crise climática", formal: "mudança climática global", technical: "mudança climática antropogênica" },
+      },
+      fr: {
+        preferred: "changement climatique",
+        acceptableAlternatives: ["crise climatique", "dérèglement climatique"],
+        disallowedLiteral: ["changement de climat"],
+        profiles: { neutral: "changement climatique", colloquial: "crise climatique", formal: "changement climatique mondial", technical: "changement climatique anthropique" },
+      },
+    },
+  },
+  {
+    termId: "vaccine",
+    sourceEn: "vaccine",
+    category: "science",
+    translations: {
+      es: {
+        preferred: "vacuna",
+        acceptableAlternatives: ["la vacuna"],
+        disallowedLiteral: ["vaxina"],
+        profiles: { neutral: "vacuna", colloquial: "vacuna", formal: "vacuna inmunológica", technical: "inmunógeno vacunal" },
+      },
+      te: {
+        preferred: "టీకా",
+        acceptableAlternatives: ["వ్యాక్సిన్"],
+        disallowedLiteral: ["వాక్సీన్"],
+        profiles: { neutral: "టీకా", colloquial: "టీకా", formal: "రోగ నిరోధక టీకా", technical: "వ్యాక్సిన్ (ఇమ్యునోజెన్)" },
+      },
+      hi: {
+        preferred: "टीका",
+        acceptableAlternatives: ["वैक्सीन"],
+        disallowedLiteral: ["वाक्सीन"],
+        profiles: { neutral: "टीका", colloquial: "टीका", formal: "प्रतिरक्षा टीका", technical: "वैक्सीन (इम्यूनोजेन)" },
+      },
+      ta: {
+        preferred: "தடுப்பூசி",
+        acceptableAlternatives: ["வாக்சின்"],
+        disallowedLiteral: ["வேக்சின்"],
+        profiles: { neutral: "தடுப்பூசி", colloquial: "தடுப்பூசி", formal: "நோய்த்தடுப்பு தடுப்பூசி", technical: "வாக்சின் (இம்யூனோஜென்)" },
+      },
+      ml: {
+        preferred: "വാക്സിൻ",
+        acceptableAlternatives: ["പ്രതിരോധ കുത്തിവയ്പ്"],
+        disallowedLiteral: ["വാക്സീൻ"],
+        profiles: { neutral: "വാക്സിൻ", colloquial: "കുത്തിവയ്പ്", formal: "രോഗപ്രതിരോധ വാക്സിൻ", technical: "വാക്സിൻ (ഇമ്യൂണോജൻ)" },
+      },
+      ar: {
+        preferred: "لقاح",
+        acceptableAlternatives: ["اللقاح", "تطعيم"],
+        disallowedLiteral: ["فاكسين"],
+        profiles: { neutral: "لقاح", colloquial: "تطعيم", formal: "لقاح مناعي", technical: "لقاح مناعي (مولد المضاد)" },
+      },
+      pt: {
+        preferred: "vacina",
+        acceptableAlternatives: ["a vacina"],
+        disallowedLiteral: ["vaxina"],
+        profiles: { neutral: "vacina", colloquial: "vacina", formal: "vacina imunológica", technical: "imunógeno vacinal" },
+      },
+      fr: {
+        preferred: "vaccin",
+        acceptableAlternatives: ["le vaccin"],
+        disallowedLiteral: ["vaxin"],
+        profiles: { neutral: "vaccin", colloquial: "vaccin", formal: "vaccin immunologique", technical: "immunogène vaccinal" },
+      },
+    },
+  },
+  {
+    termId: "peer_review",
+    sourceEn: "peer review",
+    category: "science",
+    translations: {
+      es: {
+        preferred: "revisión por pares",
+        acceptableAlternatives: ["evaluación por pares"],
+        disallowedLiteral: ["revisión de compañeros"],
+        profiles: { neutral: "revisión por pares", colloquial: "revisión por pares", formal: "revisión por pares académica", technical: "arbitraje científico por pares" },
+      },
+      te: {
+        preferred: "పీర్ రివ్యూ",
+        acceptableAlternatives: ["సహచర సమీక్ష"],
+        disallowedLiteral: ["తోటివారి సమీక్ష"],
+        profiles: { neutral: "పీర్ రివ్యూ", colloquial: "పీర్ రివ్యూ", formal: "సహచర నిపుణుల సమీక్ష", technical: "పీర్ రివ్యూ (శాస్త్రీయ మధ్యవర్తిత్వం)" },
+      },
+      hi: {
+        preferred: "पीयर रिव्यू",
+        acceptableAlternatives: ["सहकर्मी समीक्षा"],
+        disallowedLiteral: ["साथी समीक्षा"],
+        profiles: { neutral: "पीयर रिव्यू", colloquial: "पीयर रिव्यू", formal: "सहकर्मी विशेषज्ञ समीक्षा", technical: "पीयर रिव्यू (वैज्ञानिक मध्यस्थता)" },
+      },
+      ta: {
+        preferred: "சக மதிப்பாய்வு",
+        acceptableAlternatives: ["பியர் ரிவியூ"],
+        disallowedLiteral: ["நண்பர் மதிப்பாய்வு"],
+        profiles: { neutral: "சக மதிப்பாய்வு", colloquial: "பியர் ரிவியூ", formal: "சக நிபுணர் மதிப்பாய்வு", technical: "பியர் ரிவியூ (அறிவியல் நடுவர் முறை)" },
+      },
+      ml: {
+        preferred: "പിയർ റിവ്യൂ",
+        acceptableAlternatives: ["സഹപ്രവർത്തക അവലോകനം"],
+        disallowedLiteral: ["സുഹൃദ് അവലോകനം"],
+        profiles: { neutral: "പിയർ റിവ്യൂ", colloquial: "പിയർ റിവ്യൂ", formal: "സഹപ്രവർത്തക വിദഗ്ധ അവലോകനം", technical: "പിയർ റിവ്യൂ (ശാസ്ത്രീയ മധ്യസ്ഥത)" },
+      },
+      ar: {
+        preferred: "مراجعة الأقران",
+        acceptableAlternatives: ["التحكيم العلمي"],
+        disallowedLiteral: ["مراجعة الأصدقاء"],
+        profiles: { neutral: "مراجعة الأقران", colloquial: "مراجعة الأقران", formal: "مراجعة الأقران الأكاديمية", technical: "التحكيم العلمي بالأقران" },
+      },
+      pt: {
+        preferred: "revisão por pares",
+        acceptableAlternatives: ["avaliação por pares"],
+        disallowedLiteral: ["revisão de colegas"],
+        profiles: { neutral: "revisão por pares", colloquial: "revisão por pares", formal: "revisão por pares acadêmica", technical: "arbitragem científica por pares" },
+      },
+      fr: {
+        preferred: "évaluation par les pairs",
+        acceptableAlternatives: ["examen par les pairs"],
+        disallowedLiteral: ["revue de camarades"],
+        profiles: { neutral: "évaluation par les pairs", colloquial: "relecture par les pairs", formal: "évaluation par les pairs académique", technical: "arbitrage scientifique par les pairs" },
+      },
+    },
+  },
+  {
+    termId: "carbon_emissions",
+    sourceEn: "carbon emissions",
+    category: "science",
+    translations: {
+      es: {
+        preferred: "emisiones de carbono",
+        acceptableAlternatives: ["emisiones de CO2"],
+        disallowedLiteral: ["emisiones de carbón"],
+        profiles: { neutral: "emisiones de carbono", colloquial: "emisiones de CO2", formal: "emisiones de dióxido de carbono", technical: "emisiones de gases de efecto invernadero" },
+        notes: "Never translate as 'emisiones de carbón' (coal emissions). Carbon ≠ coal.",
+      },
+      te: {
+        preferred: "కార్బన్ ఉద్గారాలు",
+        acceptableAlternatives: ["CO2 ఉద్గారాలు"],
+        disallowedLiteral: ["బొగ్గు ఉద్గారాలు"],
+        profiles: { neutral: "కార్బన్ ఉద్గారాలు", colloquial: "CO2 ఉద్గారాలు", formal: "కార్బన్ డయాక్సైడ్ ఉద్గారాలు", technical: "గ్రీన్‌హౌస్ వాయు ఉద్గారాలు" },
+      },
+      hi: {
+        preferred: "कार्बन उत्सर्जन",
+        acceptableAlternatives: ["CO2 उत्सर्जन"],
+        disallowedLiteral: ["कोयला उत्सर्जन"],
+        profiles: { neutral: "कार्बन उत्सर्जन", colloquial: "CO2 उत्सर्जन", formal: "कार्बन डाइऑक्साइड उत्सर्जन", technical: "ग्रीनहाउस गैस उत्सर्जन" },
+      },
+      ta: {
+        preferred: "கார்பன் உமிழ்வுகள்",
+        acceptableAlternatives: ["CO2 உமிழ்வுகள்"],
+        disallowedLiteral: ["நிலக்கரி உமிழ்வுகள்"],
+        profiles: { neutral: "கார்பன் உமிழ்வுகள்", colloquial: "CO2 உமிழ்வுகள்", formal: "கார்பன் டை ஆக்சைடு உமிழ்வுகள்", technical: "பசுமை இல்ல வாயு உமிழ்வுகள்" },
+      },
+      ml: {
+        preferred: "കാർബൺ ഉദ്വമനം",
+        acceptableAlternatives: ["CO2 ഉദ്വമനം"],
+        disallowedLiteral: ["കൽക്കരി ഉദ്വമനം"],
+        profiles: { neutral: "കാർബൺ ഉദ്വമനം", colloquial: "CO2 ഉദ്വമനം", formal: "കാർബൺ ഡൈ ഓക്സൈഡ് ഉദ്വമനം", technical: "ഹരിതഗൃഹ വാതക ഉദ്വമനം" },
+      },
+      ar: {
+        preferred: "انبعاثات الكربون",
+        acceptableAlternatives: ["انبعاثات ثاني أكسيد الكربون"],
+        disallowedLiteral: ["انبعاثات الفحم"],
+        profiles: { neutral: "انبعاثات الكربون", colloquial: "انبعاثات CO2", formal: "انبعاثات ثاني أكسيد الكربون", technical: "انبعاثات غازات الدفيئة" },
+      },
+      pt: {
+        preferred: "emissões de carbono",
+        acceptableAlternatives: ["emissões de CO2"],
+        disallowedLiteral: ["emissões de carvão"],
+        profiles: { neutral: "emissões de carbono", colloquial: "emissões de CO2", formal: "emissões de dióxido de carbono", technical: "emissões de gases de efeito estufa" },
+      },
+      fr: {
+        preferred: "émissions de carbone",
+        acceptableAlternatives: ["émissions de CO2"],
+        disallowedLiteral: ["émissions de charbon"],
+        profiles: { neutral: "émissions de carbone", colloquial: "émissions de CO2", formal: "émissions de dioxyde de carbone", technical: "émissions de gaz à effet de serre" },
+      },
+    },
+  },
+
+  // ─── STATISTICS (new category — previously zero entries) ──────────────────
+
+  {
+    termId: "confidence_interval",
+    sourceEn: "confidence interval",
+    category: "statistics",
+    translations: {
+      es: {
+        preferred: "intervalo de confianza",
+        acceptableAlternatives: ["IC"],
+        disallowedLiteral: ["intervalo de fe"],
+        profiles: { neutral: "intervalo de confianza", colloquial: "margen de confianza", formal: "intervalo de confianza estadístico", technical: "IC (intervalo de confianza)" },
+      },
+      te: {
+        preferred: "విశ్వాస అంతరం",
+        acceptableAlternatives: ["కాన్ఫిడెన్స్ ఇంటర్వల్"],
+        disallowedLiteral: ["నమ్మకం అంతరం"],
+        profiles: { neutral: "విశ్వాస అంతరం", colloquial: "కాన్ఫిడెన్స్ ఇంటర్వల్", formal: "సాంఖ్యిక విశ్వాస అంతరం", technical: "CI (విశ్వాస అంతరం)" },
+      },
+      hi: {
+        preferred: "विश्वास अंतराल",
+        acceptableAlternatives: ["कॉन्फिडेंस इंटरवल"],
+        disallowedLiteral: ["भरोसा अंतराल"],
+        profiles: { neutral: "विश्वास अंतराल", colloquial: "कॉन्फिडेंस इंटरवल", formal: "सांख्यिकी विश्वास अंतराल", technical: "CI (विश्वास अंतराल)" },
+      },
+      ta: {
+        preferred: "நம்பக இடைவெளி",
+        acceptableAlternatives: ["கான்ஃபிடன்ஸ் இன்டர்வல்"],
+        disallowedLiteral: ["நம்பிக்கை இடைவெளி"],
+        profiles: { neutral: "நம்பக இடைவெளி", colloquial: "கான்ஃபிடன்ஸ் இன்டர்வல்", formal: "புள்ளியியல் நம்பக இடைவெளி", technical: "CI (நம்பக இடைவெளி)" },
+      },
+      ml: {
+        preferred: "വിശ്വാസ ഇടവേള",
+        acceptableAlternatives: ["കോൺഫിഡൻസ് ഇന്റർവൽ"],
+        disallowedLiteral: ["വിശ്വാസം ഇടവേള"],
+        profiles: { neutral: "വിശ്വാസ ഇടവേള", colloquial: "കോൺഫിഡൻസ് ഇന്റർവൽ", formal: "സ്ഥിതിവിവര വിശ്വാസ ഇടവേള", technical: "CI (വിശ്വാസ ഇടവേള)" },
+      },
+      ar: {
+        preferred: "فترة الثقة",
+        acceptableAlternatives: ["مجال الثقة"],
+        disallowedLiteral: ["فاصل الإيمان"],
+        profiles: { neutral: "فترة الثقة", colloquial: "هامش الثقة", formal: "فترة الثقة الإحصائية", technical: "CI (فترة الثقة)" },
+      },
+      pt: {
+        preferred: "intervalo de confiança",
+        acceptableAlternatives: ["IC"],
+        disallowedLiteral: ["intervalo de fé"],
+        profiles: { neutral: "intervalo de confiança", colloquial: "margem de confiança", formal: "intervalo de confiança estatístico", technical: "IC (intervalo de confiança)" },
+      },
+      fr: {
+        preferred: "intervalle de confiance",
+        acceptableAlternatives: ["IC"],
+        disallowedLiteral: ["intervalle de foi"],
+        profiles: { neutral: "intervalle de confiance", colloquial: "marge de confiance", formal: "intervalle de confiance statistique", technical: "IC (intervalle de confiance)" },
+      },
+    },
+  },
+  {
+    termId: "correlation_causation",
+    sourceEn: "correlation does not imply causation",
+    category: "statistics",
+    translations: {
+      es: {
+        preferred: "correlación no implica causalidad",
+        acceptableAlternatives: ["correlación no es causalidad"],
+        disallowedLiteral: ["correlación no significa causar"],
+        profiles: { neutral: "correlación no implica causalidad", colloquial: "que dos cosas se relacionen no significa que una cause la otra", formal: "la correlación estadística no implica relación causal", technical: "cum hoc ergo propter hoc" },
+      },
+      te: {
+        preferred: "సహసంబంధం కారణత్వం కాదు",
+        acceptableAlternatives: ["కొరిలేషన్ ఈజ్ నాట్ కాజేషన్"],
+        disallowedLiteral: ["సంబంధం అంటే కారణం"],
+        profiles: { neutral: "సహసంబంధం కారణత్వం కాదు", colloquial: "రెండు విషయాలు కలిసి జరగడం అంటే ఒకటి మరొకదానికి కారణం కాదు", formal: "సాంఖ్యిక సహసంబంధం కారణాత్మక సంబంధాన్ని సూచించదు", technical: "కొరిలేషన్ ≠ కాజేషన్" },
+      },
+      hi: {
+        preferred: "सहसंबंध कारण नहीं है",
+        acceptableAlternatives: ["कोरिलेशन इज़ नॉट कॉज़ेशन"],
+        disallowedLiteral: ["संबंध का मतलब कारण"],
+        profiles: { neutral: "सहसंबंध कारण नहीं है", colloquial: "दो चीज़ें एक साथ होने का मतलब यह नहीं कि एक दूसरी की वजह है", formal: "सांख्यिकी सहसंबंध कार्य-कारण संबंध नहीं दर्शाता", technical: "कोरिलेशन ≠ कॉज़ेशन" },
+      },
+      ta: {
+        preferred: "தொடர்பு காரணம் அல்ல",
+        acceptableAlternatives: ["கோரிலேஷன் காசேஷன் அல்ல"],
+        disallowedLiteral: ["தொடர்பு என்றால் காரணம்"],
+        profiles: { neutral: "தொடர்பு காரணம் அல்ல", colloquial: "இரண்டு விஷயங்கள் ஒரே நேரத்தில் நடப்பதால் ஒன்று மற்றதற்கு காரணம் என்று அர்த்தமில்லை", formal: "புள்ளியியல் தொடர்பு காரண-காரிய உறவை குறிக்காது", technical: "கோரிலேஷன் ≠ காசேஷன்" },
+      },
+      ml: {
+        preferred: "പരസ്പരബന്ധം കാരണമല്ല",
+        acceptableAlternatives: ["കോറിലേഷൻ കോസേഷൻ അല്ല"],
+        disallowedLiteral: ["ബന്ധം എന്നാൽ കാരണം"],
+        profiles: { neutral: "പരസ്പരബന്ധം കാരണമല്ല", colloquial: "രണ്ട് കാര്യങ്ങൾ ഒരുമിച്ച് സംഭവിക്കുന്നത് ഒന്ന് മറ്റൊന്നിന്റെ കാരണമാണെന്ന് അർത്ഥമാക്കുന്നില്ല", formal: "സ്ഥിതിവിവര പരസ്പരബന്ധം കാരണ-ഫല ബന്ധത്തെ സൂചിപ്പിക്കുന്നില്ല", technical: "കോറിലേഷൻ ≠ കോസേഷൻ" },
+      },
+      ar: {
+        preferred: "الارتباط لا يعني السببية",
+        acceptableAlternatives: ["التلازم ليس تسبباً"],
+        disallowedLiteral: ["الارتباط يعني السبب"],
+        profiles: { neutral: "الارتباط لا يعني السببية", colloquial: "حدوث شيئين معاً لا يعني أن أحدهما سبب الآخر", formal: "الارتباط الإحصائي لا يستلزم علاقة سببية", technical: "الارتباط ≠ السببية" },
+      },
+      pt: {
+        preferred: "correlação não implica causalidade",
+        acceptableAlternatives: ["correlação não é causalidade"],
+        disallowedLiteral: ["correlação significa causa"],
+        profiles: { neutral: "correlação não implica causalidade", colloquial: "duas coisas acontecerem juntas não significa que uma causa a outra", formal: "a correlação estatística não implica relação causal", technical: "correlação ≠ causalidade" },
+      },
+      fr: {
+        preferred: "corrélation n'implique pas causalité",
+        acceptableAlternatives: ["corrélation n'est pas causalité"],
+        disallowedLiteral: ["corrélation signifie cause"],
+        profiles: { neutral: "corrélation n'implique pas causalité", colloquial: "ce n'est pas parce que deux choses arrivent ensemble que l'une cause l'autre", formal: "la corrélation statistique n'implique pas une relation de causalité", technical: "corrélation ≠ causalité" },
+      },
+    },
+  },
+
+  // ─── MONETIZATION (expanded) ──────────────────────────────────────────────
+
+  {
+    termId: "revenue_share",
+    sourceEn: "revenue share",
+    category: "monetization",
+    translations: {
+      es: {
+        preferred: "reparto de ingresos",
+        acceptableAlternatives: ["participación en ingresos"],
+        disallowedLiteral: ["compartir ingresos"],
+        profiles: { neutral: "reparto de ingresos", colloquial: "reparto de ganancias", formal: "distribución proporcional de ingresos", technical: "modelo de revenue share" },
+      },
+      te: {
+        preferred: "ఆదాయ భాగస్వామ్యం",
+        acceptableAlternatives: ["రెవెన్యూ షేర్"],
+        disallowedLiteral: ["ఆదాయం పంచుకోవడం"],
+        profiles: { neutral: "ఆదాయ భాగస్వామ్యం", colloquial: "రెవెన్యూ షేర్", formal: "ఆదాయ విభజన నమూనా", technical: "రెవెన్యూ షేర్ మోడల్" },
+      },
+      hi: {
+        preferred: "राजस्व हिस्सेदारी",
+        acceptableAlternatives: ["रेवेन्यू शेयर"],
+        disallowedLiteral: ["आय बांटना"],
+        profiles: { neutral: "राजस्व हिस्सेदारी", colloquial: "रेवेन्यू शेयर", formal: "राजस्व वितरण मॉडल", technical: "रेवेन्यू शेयर मॉडल" },
+      },
+      ta: {
+        preferred: "வருவாய் பகிர்வு",
+        acceptableAlternatives: ["ரெவின்யூ ஷேர்"],
+        disallowedLiteral: ["வருமானம் பகிர்தல்"],
+        profiles: { neutral: "வருவாய் பகிர்வு", colloquial: "ரெவின்யூ ஷேர்", formal: "வருவாய் விநியோக மாதிரி", technical: "ரெவின்யூ ஷேர் மாடல்" },
+      },
+      ml: {
+        preferred: "വരുമാന പങ്കിടൽ",
+        acceptableAlternatives: ["റെവന്യൂ ഷെയർ"],
+        disallowedLiteral: ["വരുമാനം പങ്കുവയ്ക്കൽ"],
+        profiles: { neutral: "വരുമാന പങ്കിടൽ", colloquial: "റെവന്യൂ ഷെയർ", formal: "വരുമാന വിതരണ മാതൃക", technical: "റെവന്യൂ ഷെയർ മോഡൽ" },
+      },
+      ar: {
+        preferred: "تقاسم الإيرادات",
+        acceptableAlternatives: ["المشاركة في الإيرادات"],
+        disallowedLiteral: ["مشاركة الدخل"],
+        profiles: { neutral: "تقاسم الإيرادات", colloquial: "تقاسم الأرباح", formal: "نموذج تقاسم الإيرادات", technical: "نموذج ريفينيو شير" },
+      },
+      pt: {
+        preferred: "compartilhamento de receita",
+        acceptableAlternatives: ["divisão de receita"],
+        disallowedLiteral: ["compartilhar receita"],
+        profiles: { neutral: "compartilhamento de receita", colloquial: "divisão de ganhos", formal: "modelo de distribuição de receita", technical: "modelo de revenue share" },
+      },
+      fr: {
+        preferred: "partage des revenus",
+        acceptableAlternatives: ["répartition des revenus"],
+        disallowedLiteral: ["partager les revenus"],
+        profiles: { neutral: "partage des revenus", colloquial: "partage des gains", formal: "modèle de répartition des revenus", technical: "modèle de revenue share" },
+      },
+    },
+  },
+
+  // ─── HISTORICAL (new category — previously zero entries) ──────────────────
+
+  {
+    termId: "sovereignty",
+    sourceEn: "sovereignty",
+    category: "historical",
+    translations: {
+      es: {
+        preferred: "soberanía",
+        acceptableAlternatives: ["la soberanía"],
+        disallowedLiteral: ["soberanidad"],
+        profiles: { neutral: "soberanía", colloquial: "soberanía", formal: "soberanía nacional", technical: "soberanía estatal" },
+      },
+      te: {
+        preferred: "సార్వభౌమత్వం",
+        acceptableAlternatives: ["సావరిన్టీ", "సార్వభౌమాధికారం"],
+        disallowedLiteral: ["సావరిన్"],
+        profiles: { neutral: "సార్వభౌమత్వం", colloquial: "సార్వభౌమత్వం", formal: "జాతీయ సార్వభౌమత్వం", technical: "రాజ్య సార్వభౌమత్వం" },
+      },
+      hi: {
+        preferred: "संप्रभुता",
+        acceptableAlternatives: ["सोवरेनिटी", "सार्वभौमता"],
+        disallowedLiteral: ["सोवरेन"],
+        profiles: { neutral: "संप्रभुता", colloquial: "संप्रभुता", formal: "राष्ट्रीय संप्रभुता", technical: "राज्य संप्रभुता" },
+      },
+      ta: {
+        preferred: "இறையாண்மை",
+        acceptableAlternatives: ["சார்வபௌமத்துவம்"],
+        disallowedLiteral: ["சாவரன்டி"],
+        profiles: { neutral: "இறையாண்மை", colloquial: "இறையாண்மை", formal: "தேசிய இறையாண்மை", technical: "அரசு இறையாண்மை" },
+      },
+      ml: {
+        preferred: "പരമാധികാരം",
+        acceptableAlternatives: ["സോവറിന്റി"],
+        disallowedLiteral: ["സോവറൻ"],
+        profiles: { neutral: "പരമാധികാരം", colloquial: "പരമാധികാരം", formal: "ദേശീയ പരമാധികാരം", technical: "രാഷ്ട്ര പരമാധികാരം" },
+      },
+      ar: {
+        preferred: "السيادة",
+        acceptableAlternatives: ["سيادة الدولة"],
+        disallowedLiteral: ["سوفرنتي"],
+        profiles: { neutral: "السيادة", colloquial: "السيادة", formal: "السيادة الوطنية", technical: "سيادة الدولة" },
+      },
+      pt: {
+        preferred: "soberania",
+        acceptableAlternatives: ["a soberania"],
+        disallowedLiteral: ["soberanidade"],
+        profiles: { neutral: "soberania", colloquial: "soberania", formal: "soberania nacional", technical: "soberania estatal" },
+      },
+      fr: {
+        preferred: "souveraineté",
+        acceptableAlternatives: ["la souveraineté"],
+        disallowedLiteral: ["souverainité"],
+        profiles: { neutral: "souveraineté", colloquial: "souveraineté", formal: "souveraineté nationale", technical: "souveraineté étatique" },
+      },
+    },
+  },
+  {
+    termId: "democracy",
+    sourceEn: "democracy",
+    category: "historical",
+    translations: {
+      es: {
+        preferred: "democracia",
+        acceptableAlternatives: ["sistema democrático"],
+        disallowedLiteral: ["democratia"],
+        profiles: { neutral: "democracia", colloquial: "democracia", formal: "democracia representativa", technical: "sistema democrático" },
+        example: {
+          sourceSentence: "Democracy depends on informed citizens.",
+          targetSentence: "La democracia depende de ciudadanos informados.",
+        },
+      },
+      te: {
+        preferred: "ప్రజాస్వామ్యం",
+        acceptableAlternatives: ["డెమోక్రసీ"],
+        disallowedLiteral: ["డెమాక్రసీ"],
+        profiles: { neutral: "ప్రజాస్వామ్యం", colloquial: "డెమోక్రసీ", formal: "ప్రజాస్వామ్య వ్యవస్థ", technical: "ప్రాతినిధ్య ప్రజాస్వామ్యం" },
+        example: {
+          sourceSentence: "Democracy depends on informed citizens.",
+          targetSentence: "సమాచారం తెలిసిన పౌరులపై ప్రజాస్వామ్యం ఆధారపడి ఉంటుంది.",
+        },
+      },
+      hi: {
+        preferred: "लोकतंत्र",
+        acceptableAlternatives: ["डेमोक्रेसी", "जनतंत्र", "लोकतन्त्र"],
+        disallowedLiteral: ["डेमोक्रसी"],
+        profiles: { neutral: "लोकतंत्र", colloquial: "डेमोक्रेसी", formal: "प्रतिनिधि लोकतंत्र", technical: "लोकतांत्रिक व्यवस्था" },
+        example: {
+          sourceSentence: "Democracy depends on informed citizens.",
+          targetSentence: "सजग नागरिकों पर लोकतंत्र निर्भर करता है।",
+        },
+      },
+      ta: {
+        preferred: "ஜனநாயகம்",
+        acceptableAlternatives: ["டெமாக்ரசி"],
+        disallowedLiteral: ["டிமாக்ரசி"],
+        profiles: { neutral: "ஜனநாயகம்", colloquial: "டெமாக்ரசி", formal: "பிரதிநிதித்துவ ஜனநாயகம்", technical: "ஜனநாயக அமைப்பு" },
+      },
+      ml: {
+        preferred: "ജനാധിപത്യം",
+        acceptableAlternatives: ["ഡെമോക്രസി"],
+        disallowedLiteral: ["ഡെമാക്രസി"],
+        profiles: { neutral: "ജനാധിപത്യം", colloquial: "ഡെമോക്രസി", formal: "പ്രാതിനിധ്യ ജനാധിപത്യം", technical: "ജനാധിപത്യ സംവിധാനം" },
+      },
+      ar: {
+        preferred: "الديمقراطية",
+        acceptableAlternatives: ["النظام الديمقراطي"],
+        disallowedLiteral: ["ديموكراسي"],
+        profiles: { neutral: "الديمقراطية", colloquial: "الديمقراطية", formal: "الديمقراطية التمثيلية", technical: "النظام الديمقراطي" },
+      },
+      pt: {
+        preferred: "democracia",
+        acceptableAlternatives: ["sistema democrático"],
+        disallowedLiteral: ["democratia"],
+        profiles: { neutral: "democracia", colloquial: "democracia", formal: "democracia representativa", technical: "sistema democrático" },
+      },
+      fr: {
+        preferred: "démocratie",
+        acceptableAlternatives: ["système démocratique"],
+        disallowedLiteral: ["democratie"],
+        profiles: { neutral: "démocratie", colloquial: "démocratie", formal: "démocratie représentative", technical: "système démocratique" },
+      },
+    },
+  },
 ];
 
 export interface TerminologyComplianceResult {
@@ -640,7 +1907,7 @@ export class TerminologyService {
     const style = options?.localeStyle;
 
     for (const entry of DOMAIN_GLOSSARY) {
-      const sourceRegex = new RegExp(`\\b${entry.sourceEn.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+      const sourceRegex = new RegExp(`\\b${escapeRegex(entry.sourceEn)}\\b`, 'i');
       if (sourceRegex.test(sourceText)) {
         matchedTerms.push(entry.termId);
 
@@ -651,12 +1918,12 @@ export class TerminologyService {
         }
 
         // Check preferred, profile-specific, or acceptable alternatives
-        const preferredRegex = new RegExp(langData.preferred.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+        const preferredRegex = new RegExp(escapeRegex(langData.preferred), 'i');
         const profileTerm = style && langData.profiles?.[style] ? langData.profiles[style] : null;
-        const profileRegex = profileTerm ? new RegExp(profileTerm.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i') : null;
+        const profileRegex = profileTerm ? new RegExp(escapeRegex(profileTerm), 'i') : null;
 
         const altMatches = langData.acceptableAlternatives.some((alt) =>
-          new RegExp(alt.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i').test(translatedText)
+          new RegExp(escapeRegex(alt), 'i').test(translatedText)
         );
 
         // Check for documented reviewer exception
@@ -675,8 +1942,19 @@ export class TerminologyService {
 
         // Check for disallowed literal machine translation errors
         for (const disallowed of langData.disallowedLiteral) {
-          const disRegex = new RegExp(disallowed.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+          const disRegex = new RegExp(escapeRegex(disallowed), 'i');
           if (disRegex.test(translatedText) && !isApprovedException) {
+            // Guard: If the matched disallowed token is part of preferred or profile term, ignore false positive
+            const isSelfSubstring = (langData.preferred.includes(disallowed) && preferredRegex.test(translatedText)) ||
+              Boolean(profileTerm && profileTerm.includes(disallowed) && profileRegex && profileRegex.test(translatedText));
+            if (isSelfSubstring) {
+              const stripped = translatedText
+                .replace(preferredRegex, "")
+                .replace(profileRegex || "", "");
+              if (!disRegex.test(stripped)) {
+                continue;
+              }
+            }
             violations.push({
               termId: entry.termId,
               source: entry.sourceEn,

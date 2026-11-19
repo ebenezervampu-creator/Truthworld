@@ -228,7 +228,7 @@ class ClaimLedgerSummary {
 
   factory ClaimLedgerSummary.fromMap(Map<String, dynamic> map) {
     return ClaimLedgerSummary(
-      totalClaimsChecked: (map['totalClaimsChecked'] ?? 0) as int,
+      totalClaimsChecked: (map['totalClaimsChecked'] ?? map['totalChecked'] ?? 0) as int,
       confirmedCount: (map['confirmedCount'] ?? 0) as int,
       disputedCount: (map['disputedCount'] ?? 0) as int,
       unprovenCount: (map['unprovenCount'] ?? 0) as int,
@@ -1140,7 +1140,9 @@ class UIReport {
       ..sort((a, b) => verdictPriority(a).compareTo(verdictPriority(b)));
 
     ClaimLedgerSummary? parsedLedger;
-    if (map['claimLedger'] is Map) {
+    if (map['claimLedgerSummary'] is Map) {
+      parsedLedger = ClaimLedgerSummary.fromMap(Map<String, dynamic>.from(map['claimLedgerSummary']));
+    } else if (map['claimLedger'] is Map) {
       parsedLedger = ClaimLedgerSummary.fromMap(Map<String, dynamic>.from(map['claimLedger']));
     } else if (prioritizedKeyClaims.isNotEmpty) {
       final confirmed = prioritizedKeyClaims.where((c) => verdictPriority(c) == 3).length;

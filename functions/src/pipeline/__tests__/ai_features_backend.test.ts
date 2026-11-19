@@ -442,7 +442,7 @@ function testAutoChaptersAndSeparateThumbnails() {
   // 1. Check AssemblyAI payload inclusion
   const executionPlan = { autoChapters: true, enableDiarization: true };
   const payload: any = {
-    speech_models: ["universal-3-5-pro"],
+    speech_models: ["assemblyai-stt-3-7"],
     speaker_labels: executionPlan.enableDiarization,
     auto_chapters: !!executionPlan.autoChapters,
   };
@@ -600,20 +600,22 @@ function testSpeakerDiarizationSubtitlesAndVideoMetadata() {
 }
 
 // ----------------------------------------------------------------------
-// FEATURE 11: Transcription Provider Routing Policy (AssemblyAI Universal-3.5 Pro strictly 18 languages)
+// ----------------------------------------------------------------------
+// FEATURE 11: Transcription Provider Routing Policy (AssemblyAI Universal 3.7 Pro)
 // ----------------------------------------------------------------------
 function testTranscriptionRoutingPolicy() {
-  console.log("\n--- [Feature 11] Testing Transcription Provider Routing Policy (AssemblyAI Universal-3.5 Pro 18 Languages) ---");
+  console.log("\n--- [Feature 11] Testing Transcription Provider Routing Policy (AssemblyAI Universal 3.7 Pro) ---");
 
-  const ASSEMBLYAI_UNIVERSAL_35_LANGUAGES = new Set([
-    "en", "hi", "es", "fr", "de", "it", "pt", "ar", "zh", "ja", "nl", "tr", "vi", "he", "sv", "da", "no", "fi"
+  const ASSEMBLYAI_UNIVERSAL_37_LANGUAGES = new Set([
+    "en", "hi", "es", "fr", "de", "it", "pt", "ar", "zh", "ja", "nl", "tr", "vi", "he", "sv", "da", "no", "fi",
+    "ur", "ru", "ko", "ca", "gl", "ro", "et", "fa", "yue", "af", "mr", "zu", "xh", "nn"
   ]);
 
   const resolveProvider = (
     lang: string,
     executionPlan: any,
     targetJobData: any = {}
-  ): { provider: "assemblyai" | "gemini"; isSupported: boolean; requestedDubbing: boolean } => {
+  ): { provider: "assemblyai" | "gemini" | "none"; isSupported: boolean; requestedDubbing: boolean } => {
     const requestedSubtitles = Boolean(
       executionPlan.genLangSubs === true ||
       (Array.isArray(executionPlan.subtitleLanguages) && executionPlan.subtitleLanguages.length > 0) ||
@@ -637,47 +639,55 @@ function testTranscriptionRoutingPolicy() {
       targetDubLangs.length > 0
     );
 
-    const isSupported = ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(lang);
-
-    if (requestedDubbing && !isSupported && lang !== "auto") {
-      return { provider: "assemblyai", isSupported: false, requestedDubbing: true };
-    }
+    const isSupported = ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(lang);
 
     if (requestedDubbing) {
-      return { provider: "assemblyai", isSupported: true, requestedDubbing: true };
+      return { provider: isSupported ? "assemblyai" : "none", isSupported, requestedDubbing: true };
     }
 
-    // Zero Automatic Dubbing: When dubbing is NOT requested, dubbing is skipped and video transcribes with Gemini
-    return { provider: (isSupported && requestedSubtitles) ? "assemblyai" : "gemini", isSupported: true, requestedDubbing: false };
+    if (requestedSubtitles) {
+      return { provider: isSupported ? "assemblyai" : "none", isSupported, requestedDubbing: false };
+    }
+
+    // Standard video transcription remains on Gemini when no localization is requested.
+    return { provider: "gemini", isSupported, requestedDubbing: false };
   };
 
-  // Case 1: Hindi (hi) -> Supported in AssemblyAI Universal-3.5 Pro
+  // Case 1: Hindi (hi) -> Supported in AssemblyAI Universal 3.7 Pro
   const subsHi = resolveProvider("hi", { genLangSubs: true, subtitleLanguages: ["en"] });
-  assert(subsHi.provider === "assemblyai" && subsHi.isSupported === true, "Hindi routes strictly to AssemblyAI Universal-3.5 Pro");
+  assert(subsHi.provider === "assemblyai" && subsHi.isSupported === true, "Hindi routes strictly to AssemblyAI Universal 3.7 Pro");
 
-  // Case 2: English (en) -> Supported in AssemblyAI Universal-3.5 Pro
+  // Case 2: English (en) -> Supported in AssemblyAI Universal 3.7 Pro
   const dubEn = resolveProvider("en", { generateDubbing: true, dubbingLanguages: ["es"] });
-  assert(dubEn.provider === "assemblyai" && dubEn.isSupported === true, "English routes strictly to AssemblyAI Universal-3.5 Pro");
+  assert(dubEn.provider === "assemblyai" && dubEn.isSupported === true, "English routes strictly to AssemblyAI Universal 3.7 Pro");
 
-  // Case 3: Spanish (es) -> Supported in AssemblyAI Universal-3.5 Pro
+  // Case 3: Spanish (es) -> Supported in AssemblyAI Universal 3.7 Pro
   const dubEs = resolveProvider("es", { generateDubbing: true, dubbingLanguages: ["fr"] });
-  assert(dubEs.provider === "assemblyai" && dubEs.isSupported === true, "Spanish routes strictly to AssemblyAI Universal-3.5 Pro");
+  assert(dubEs.provider === "assemblyai" && dubEs.isSupported === true, "Spanish routes strictly to AssemblyAI Universal 3.7 Pro");
 
-  // Case 4: Japanese (ja) -> Supported in AssemblyAI Universal-3.5 Pro
+  // Case 4: Japanese (ja) -> Supported in AssemblyAI Universal 3.7 Pro
   const dubJa = resolveProvider("ja", { generateDubbing: true, dubbingLanguages: ["en"] });
-  assert(dubJa.provider === "assemblyai" && dubJa.isSupported === true, "Japanese routes strictly to AssemblyAI Universal-3.5 Pro");
+  assert(dubJa.provider === "assemblyai" && dubJa.isSupported === true, "Japanese routes strictly to AssemblyAI Universal 3.7 Pro");
 
-  // Case 5: German (de) -> Supported in AssemblyAI Universal-3.5 Pro
+  // Case 5: German (de) -> Supported in AssemblyAI Universal 3.7 Pro
   const subsDe = resolveProvider("de", { genLangSubs: true, subtitleLanguages: ["en"] });
-  assert(subsDe.provider === "assemblyai" && subsDe.isSupported === true, "German routes strictly to AssemblyAI Universal-3.5 Pro");
+  assert(subsDe.provider === "assemblyai" && subsDe.isSupported === true, "German routes strictly to AssemblyAI Universal 3.7 Pro");
 
-  // Case 6: Non-Universal-3.5 language (e.g. Telugu 'te') for manual dubbing -> Rejected as unsupported for dubbing
-  const unsuppTe = resolveProvider("te", { generateDubbing: true, dubbingLanguages: ["en"] });
-  assert(unsuppTe.isSupported === false, "Languages outside Universal-3.5 Pro 18 languages rejected for dubbing STT");
+  // Case 6: Telugu (te) -> Unsupported by AssemblyAI-STT-3.7.
+  const unsupportedTe = resolveProvider("te", { generateDubbing: true, dubbingLanguages: ["en"] });
+  assert(unsupportedTe.provider === "none" && unsupportedTe.isSupported === false, "Telugu is rejected for AssemblyAI-STT-3.7 dubbing");
 
-  // Case 7: Non-Universal-3.5 language (e.g. Telugu 'te') without dubbing -> ZERO automatic dubbing, passes smoothly!
+  // Case 7: Non-supported language (e.g. 'xyz') for manual dubbing -> Rejected as unsupported for dubbing
+  const unsuppXyz = resolveProvider("xyz", { generateDubbing: true, dubbingLanguages: ["en"] });
+  assert(unsuppXyz.provider === "none" && unsuppXyz.isSupported === false, "Unregistered languages rejected for dubbing STT");
+
+  // Case 8: Telugu without localization is still ingested with Gemini.
   const zeroAutoDubTe = resolveProvider("te", { generateDubbing: false });
-  assert(zeroAutoDubTe.requestedDubbing === false && zeroAutoDubTe.isSupported === true, "Telugu video without manual dubbing never triggers or fails dubbing");
+  assert(zeroAutoDubTe.provider === "gemini" && zeroAutoDubTe.requestedDubbing === false, "Non-localization video transcription stays on Gemini");
+
+  // Case 9: Unsupported subtitle source languages never fall back to Gemini localization.
+  const unsupportedSubsTe = resolveProvider("te", { genLangSubs: true, subtitleLanguages: ["en"] });
+  assert(unsupportedSubsTe.provider === "none" && unsupportedSubsTe.isSupported === false, "Telugu subtitles are rejected rather than generated by Gemini");
 }
 
 // ----------------------------------------------------------------------

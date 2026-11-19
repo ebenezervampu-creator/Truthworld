@@ -67,8 +67,8 @@ class PipelineArtifactLinksPanel extends StatelessWidget {
                   onPressed: () => _launchURL(entry.value),
                 );
               }),
-            if (video.resolutions.isNotEmpty)
-              ...video.adaptiveResolutions.map((res) {
+            if (video.adaptiveResolutions.isNotEmpty)
+              ...video.adaptiveResolutions.where((res) => !res.isSynthetic).map((res) {
                 return PipelineActionButton(
                   icon: Icons.hd_outlined,
                   label: '${res.label} Direct Link',

@@ -1,24 +1,38 @@
 /**
- * 🌍 TRANSLATION SERVICE — Google Cloud Translation v3 (Advanced) + Vertex AI Gemini
+ * 🌍 TRANSLATION SERVICE — Google Cloud Translation v3 (general/translation-llm + AdaptiveMtTranslate)
  *
  * ✅ WORLD-CLASS PRODUCTION GRADE (Tier-1 Enterprise / Netflix / YouTube Standard):
- *   1. Zero HTML entity leakage: Automatic sanitization & decoding across all engines (v3, v2, Gemini).
- *   2. Native Gemini Structured Outputs (JSON Schema enforcement) with defensive fallback repair.
- *   3. Real-time Dubbing Sync & Audio Pacing constraints (durationSeconds & maxWords).
- *   4. Bounded concurrent batch processing (mapConcurrent pool) eliminating serialization bottlenecks.
- *   5. Resilient transient error & quota retries with exponential backoff & jitter (429/503/RESOURCE_EXHAUSTED).
- *   6. Multi-tier fallback hierarchy: Google v3 -> Google v2 -> Vertex AI Gemini -> Safe original text.
+ *   1. Zero HTML entity leakage: Automatic sanitization & decoding across all engines.
+ *   2. Composite primary translation: Google Cloud Translation v3 (general/translation-llm)
+ *      followed by required AdaptiveMtTranslate.
+ *   3. Translation fails explicitly if either required stage cannot produce a result.
+ *   4. Real-time Dubbing Sync & Audio Pacing constraints (durationSeconds & maxWords).
+ *   5. Bounded concurrent batch processing (mapConcurrent pool) eliminating serialization bottlenecks.
+ *   6. Resilient transient error & quota retries with exponential backoff & jitter (429/503/RESOURCE_EXHAUSTED).
+ *   7. No source-text fallback: both translation stages must succeed.
+ *   8. Exclusive Unified Pipeline: Google Cloud Translation v3 (general/translation-llm + AdaptiveMt) exclusively powers all subtitles & dubbing.
  */
 
-import type { v3, v2 } from "@google-cloud/translate";
-import type { VertexAI } from "../utils/ai-client";
+import type { v3 } from "@google-cloud/translate";
 import { TranslationResult, TranslatedSegment, CreatorDNA } from "../types";
 import { SpeakerProfile } from "./speaker-profiling";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
-import { getVertexAI } from "../utils/ai-client";
-import { extractCandidateText } from "../utils/ai-utils";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
+import {
+  DOMAIN_GLOSSARY,
+  TerminologyService,
+  TerminologyProfile,
+  TerminologyComplianceResult,
+  escapeRegex,
+  resolveTerminologyProfile,
+} from "./terminology_glossary";
+import {
+  TranslationQualityGate,
+  QualityGateSegmentInput,
+} from "./translationQualityGate";
+import { NumericalEntityGuard } from "./numericalEntityGuard";
+import { adaptiveMtDatasetService } from "./adaptiveMtDatasetService";
 
 const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
 
@@ -28,8 +42,17 @@ const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || "t
  */
 const TRANSLATION_LOCATION = process.env.TRANSLATION_LOCATION || "global";
 
+/**
+ * AdaptiveMt requires a regional endpoint (NOT "global").
+ * Default: us-central1; override via ADAPTIVE_MT_LOCATION env var.
+ */
+const ADAPTIVE_MT_LOCATION = PIPELINE_CONFIG.ADAPTIVE_MT_LOCATION || "us-central1";
+
 /** Max segments per v3 batch call (API limit is 128 content items per request) */
 const V3_BATCH_SIZE = 100;
+
+/** Max segments per AdaptiveMt batch call (conservative to stay within API limits) */
+const ADAPTIVE_MT_BATCH_SIZE = 50;
 
 /** Default concurrency limit for parallel batch requests */
 const DEFAULT_CONCURRENCY = 3;
@@ -454,8 +477,7 @@ export function computeSyllableBudgetCompliance(
 
 export class TranslationService {
   private _v3Client: v3.TranslationServiceClient | null | undefined = undefined;
-  private _v2Client: v2.Translate | null | undefined = undefined;
-  private _gemini:   VertexAI | null = null;
+  private _adaptiveMtClient: v3.TranslationServiceClient | null | undefined = undefined;
 
   private get v3Client(): v3.TranslationServiceClient | null {
     if (this._v3Client === undefined) {
@@ -467,34 +489,35 @@ export class TranslationService {
         const { v3 } = require("@google-cloud/translate");
         this._v3Client = new v3.TranslationServiceClient();
       } catch (err) {
-        console.warn("[Translation] v3 client init failed — falling back to v2", err);
+        console.warn("[Translation] v3 client init failed", err);
         this._v3Client = null;
       }
     }
     return this._v3Client ?? null;
   }
 
-  private get v2Client(): v2.Translate | null {
-    if (this._v2Client === undefined) {
-      const key = PIPELINE_CONFIG.GOOGLE_TRANSLATION_API_KEY;
+  /**
+   * Dedicated v3 client for AdaptiveMtTranslate calls.
+   * AdaptiveMt requires a regional endpoint (NOT "global"), so this client
+   * is configured separately to target the ADAPTIVE_MT_LOCATION region.
+   */
+  private get adaptiveMtClient(): v3.TranslationServiceClient | null {
+    if (this._adaptiveMtClient === undefined) {
+      if (!PIPELINE_CONFIG.ADAPTIVE_MT_ENABLED) {
+        this._adaptiveMtClient = null;
+        return null;
+      }
       try {
-        const { v2 } = require("@google-cloud/translate");
-        this._v2Client = key 
-          ? new v2.Translate({ projectId, key }) 
-          : new v2.Translate({ projectId });
+        const { v3 } = require("@google-cloud/translate");
+        this._adaptiveMtClient = new v3.TranslationServiceClient({
+          apiEndpoint: `translate-${ADAPTIVE_MT_LOCATION}.googleapis.com`,
+        });
       } catch (err) {
-        console.warn("[Translation] v2 client init failed", err);
-        this._v2Client = null;
+        console.warn("[Translation] AdaptiveMt client init failed", err);
+        this._adaptiveMtClient = null;
       }
     }
-    return this._v2Client ?? null;
-  }
-
-  private get gemini(): VertexAI | null {
-    if (!this._gemini) {
-      this._gemini = getVertexAI();
-    }
-    return this._gemini;
+    return this._adaptiveMtClient ?? null;
   }
 
   /** v3 parent path: projects/{project}/locations/{location} */
@@ -502,7 +525,17 @@ export class TranslationService {
     return `projects/${projectId}/locations/${TRANSLATION_LOCATION}`;
   }
 
+  /** AdaptiveMt parent path: projects/{project}/locations/{adaptiveMtLocation} */
+  private get adaptiveMtParent(): string {
+    return `projects/${projectId}/locations/${ADAPTIVE_MT_LOCATION}`;
+  }
+
   public defaultModel: string = "general/translation-llm";
+
+  /** Full v3 model resource path — MUST be passed to every translateText call to enforce LLM quality */
+  private get v3ModelPath(): string {
+    return `projects/${projectId}/locations/${TRANSLATION_LOCATION}/models/${this.defaultModel}`;
+  }
 
   constructor() {}
 
@@ -516,57 +549,47 @@ export class TranslationService {
   ): Promise<string> {
     const src = normalizeLanguageCode(sourceLanguage);
     const tgt = normalizeLanguageCode(targetLanguage);
+    const profileKey = resolveTerminologyProfile(options);
 
-    // ── v3 path (with retry & HTML entity sanitization) ────────────────────
-    if (this.v3Client) {
-      try {
-        const translated = await withTransientRetry(async () => {
-          const [response] = await this.v3Client!.translateText({
-            parent: this.parent,
-            contents: [text],
-            mimeType: "text/plain",
-            sourceLanguageCode: src,
-            targetLanguageCode: tgt,
-          });
-          return response.translations?.[0]?.translatedText;
-        }, { maxAttempts: 2, label: "Google v3 translateText" });
-
-        if (translated) return decodeHtmlEntities(translated);
-      } catch (error) {
-        console.error("[Translation] v3 translateText error — falling back to v2:", error);
-      }
+    if (!this.v3Client) {
+      throw new Error("[Translation] Required Google Cloud Translation v3 client is unavailable.");
     }
 
-    // ── v2 fallback (with retry & HTML entity sanitization) ────────────────
-    if (this.v2Client) {
-      try {
-        const translated = await withTransientRetry(async () => {
-          const [translations] = await this.v2Client!.translate(text, {
-            from: src,
-            to: tgt,
-          });
-          return Array.isArray(translations) ? translations[0] : translations;
-        }, { maxAttempts: 2, label: "Google v2 translateText" });
+    const [response] = await withTransientRetry(
+      () => this.v3Client!.translateText({
+        parent: this.parent,
+        model: this.v3ModelPath,
+        contents: [text],
+        mimeType: "text/plain",
+        sourceLanguageCode: src,
+        targetLanguageCode: tgt,
+      }),
+      { maxAttempts: 3, label: "Google v3 translateText (general/translation-llm)" }
+    );
 
-        if (translated) return decodeHtmlEntities(translated);
-      } catch (error) {
-        console.error("[Translation] v2 translateText error — falling back to Gemini:", error);
-      }
+    const translated = response.translations?.[0]?.translatedText;
+    if (!translated?.trim()) {
+      throw new Error("[Translation] Google Cloud Translation v3 returned no translation.");
     }
 
-    // ── Gemini fallback ────────────────────────────────────────────────────
-    if (this.gemini) {
-      try {
-        const geminiRes = await this.translatePremiumBatch([text], src, tgt, "formal", "neutral", "youtube");
-        if (geminiRes.translations?.[0]) return decodeHtmlEntities(geminiRes.translations[0]);
-      } catch (error) {
-        console.error("[Translation] Gemini fallback translateText error:", error);
-      }
+    const decoded = decodeHtmlEntities(translated);
+    const adaptiveTranslated = await this.applyAdaptiveMtTranslation(decoded, text, src, tgt, profileKey);
+
+    const comp = TerminologyService.checkTerminologyCompliance(text, adaptiveTranslated, tgt, {
+      localeStyle: profileKey,
+    });
+    if (!comp.isFullyCompliant && comp.violations.length > 0) {
+      return this.remedyTerminologyViolations(
+        text,
+        adaptiveTranslated,
+        src,
+        tgt,
+        comp.violations,
+        profileKey
+      );
     }
 
-    // Graceful fallback to original text (sanitized)
-    console.warn("[Translation] All translation engines failed — returning original text");
-    return decodeHtmlEntities(text);
+    return adaptiveTranslated;
   }
 
   /**
@@ -683,7 +706,7 @@ export class TranslationService {
     options?: { 
       model?: "standard" | "premium" | "dynamic"; 
       dubbingTier?: "audio_track";
-      subtitleTier?: "ultra" | "starter" | "pro";
+      subtitleTier?: "ultra";
       isCinemaGrade?: boolean;
       tone?: "casual" | "formal"; 
       localeStyle?: "neutral" | "hinglish" | "hinglish_urban" | "hinglish_professional" | "slang";
@@ -710,86 +733,23 @@ export class TranslationService {
       const confidenceScores: number[] = new Array(texts.length).fill(0.95);
       const segmentVariants: any[] = new Array(texts.length).fill(undefined);
 
-      const isKnownDubbingTier = Boolean(options?.dubbingTier);
-      const requestedModel = (isKnownDubbingTier || options?.model === "premium") ? "premium" : (options?.model || "standard");
+      const profileKey = resolveTerminologyProfile(options);
 
-      // ── Lane Routing Logic ───────────────────────────────────────────────
-      const premiumIndices: number[] = [];
-      const standardIndices: number[] = [];
-
-      if (requestedModel === "dynamic") {
-        texts.forEach((text, i) => {
-          // Dynamic escalation: Hook Priority, tight audio pacing, or high-complexity brands/terms
-          if (segments[i].isHook || this.shouldEscalateToPremium(text, durations[i])) {
-            premiumIndices.push(i);
-          } else {
-            standardIndices.push(i);
-          }
-        });
-        console.log(`[Translation] Dynamic routing: ${premiumIndices.length} premium (including hooks & tight pacing), ${standardIndices.length} standard`);
-      } else if (requestedModel === "premium") {
-        texts.forEach((_, i) => premiumIndices.push(i));
-      } else {
-        texts.forEach((_, i) => standardIndices.push(i));
+      // The composite primary requires both v3 translation and Adaptive MT translation.
+      const standardTranslated = await this.batchTranslateStandard(
+        texts,
+        normSourceLang,
+        normTargetLang,
+        profileKey
+      );
+      if (standardTranslated.length !== texts.length || standardTranslated.some((text) => !text?.trim())) {
+        throw new Error("[Translation] Composite primary returned incomplete segment translations.");
       }
 
-      // ── Execution: Standard Lane (Google Cloud Translation v3/v2) ────────
-      if (standardIndices.length > 0) {
-        const standardTexts = standardIndices.map((i) => texts[i]);
-        const standardTranslated = await this.batchTranslateStandard(standardTexts, normSourceLang, normTargetLang);
-        standardIndices.forEach((idx, i) => {
-          translatedTexts[idx] = decodeHtmlEntities(standardTranslated[i]);
-          confidenceScores[idx] = 0.90;
-        });
-      }
-
-      // ── Execution: Premium Lane (Vertex AI Gemini Structured Outputs) ───
-      if (premiumIndices.length > 0 && this.gemini) {
-        try {
-          const premiumSegments = premiumIndices.map((i) => ({
-            text: texts[i],
-            speaker: segments[i].speaker,
-            isHook: segments[i].isHook,
-            duration: durations[i],
-            emotionTag: segments[i].emotionTag,
-          }));
-
-          const isUltraSubtitle = options?.subtitleTier === "ultra" || options?.subtitleTier === "pro";
-          const isCinema = Boolean(options?.isCinemaGrade) || isUltraSubtitle;
-
-          const premiumResult = await this.translatePremiumBatch(
-            premiumSegments.map((s) => s.text), 
-            normSourceLang, 
-            normTargetLang, 
-            options?.tone || "formal",
-            options?.localeStyle || "neutral",
-            options?.targetPlatform || "youtube",
-            options?.creatorDNA,
-            options?.enableABHooks,
-            options?.speakerProfiles,
-            premiumSegments.map((s) => s.speaker),
-            premiumSegments.map((s) => s.isHook),
-            premiumSegments.map((s) => s.duration),
-            isCinema,
-            options?.subtitleTier,
-            options?.dubbingTier,
-            premiumSegments.map((s) => s.emotionTag)
-          );
-
-          premiumIndices.forEach((idx, i) => {
-            translatedTexts[idx] = decodeHtmlEntities(premiumResult.translations[i] || texts[idx]);
-            confidenceScores[idx] = premiumResult.confidences[i] ?? 0.95;
-            segmentVariants[idx] = premiumResult.variants?.[i] || undefined;
-          });
-        } catch (error) {
-          console.error("[Translation] Premium lane failed — falling back to standard:", error);
-          const remainingTexts = premiumIndices.map((i) => texts[i]);
-          const fallbackTranslated = await this.batchTranslateStandard(remainingTexts, normSourceLang, normTargetLang);
-          premiumIndices.forEach((idx, i) => {
-            translatedTexts[idx] = decodeHtmlEntities(fallbackTranslated[i] || texts[idx]);
-          });
-        }
-      }
+      texts.forEach((_, idx) => {
+        translatedTexts[idx] = decodeHtmlEntities(standardTranslated[idx]);
+        confidenceScores[idx] = 0.95;
+      });
 
       // ✅ Cost tracking: record actual character count translated
       const totalChars = texts.reduce((sum, t) => sum + t.length, 0);
@@ -797,6 +757,86 @@ export class TranslationService {
       costEngine.recordTranslationCost(jobId, targetUserId, totalChars).catch((err) => {
         console.warn("[Translation] Non-blocking cost recording error:", err);
       });
+
+      // ── Checkpoint A: Terminology Compliance & Targeted Re-inflection ─────────
+      const complianceResults: TerminologyComplianceResult[] = new Array(texts.length);
+
+      for (let i = 0; i < texts.length; i++) {
+        let currentText = translatedTexts[i];
+        let comp = TerminologyService.checkTerminologyCompliance(
+          texts[i],
+          currentText,
+          normTargetLang,
+          { localeStyle: profileKey }
+        );
+
+        if (!comp.isFullyCompliant && comp.violations.length > 0) {
+          // 🛡️ Fix 3: Targeted re-inflection remedy pass (NEVER blind string replace)
+          const remediedText = await this.remedyTerminologyViolations(
+            texts[i],
+            currentText,
+            normSourceLang,
+            normTargetLang,
+            comp.violations,
+            profileKey
+          );
+          if (remediedText && remediedText !== currentText) {
+            const recheck = TerminologyService.checkTerminologyCompliance(
+              texts[i],
+              remediedText,
+              normTargetLang,
+              { localeStyle: profileKey }
+            );
+            if (recheck.violations.length < comp.violations.length || recheck.isFullyCompliant) {
+              currentText = remediedText;
+              comp = recheck;
+              translatedTexts[i] = currentText;
+            }
+          }
+
+          if (!comp.isFullyCompliant) {
+            console.warn(`[Translation] Terminology compliance warning on segment #${i} in ${normTargetLang}:`, {
+              violations: comp.violations.map((v) => `${v.disallowedFound} -> ${v.suggested}`),
+            });
+          }
+        }
+        complianceResults[i] = comp;
+      }
+
+      // ── Checkpoint B: Translation Quality Gate (Numerical Parity & Semantic Spot-Check) ──
+      const qualityGateInput: QualityGateSegmentInput[] = segments.map((seg: any, idx: number) => ({
+        index: idx,
+        original: texts[idx],
+        translated: translatedTexts[idx],
+        isClaim: seg.isClaim,
+        isHook: seg.isHook,
+        confidence: confidenceScores?.[idx],
+        terminologyComplianceRate: complianceResults[idx]?.complianceRate ?? 1.0,
+      }));
+
+      const qualityGateResults = await TranslationQualityGate.evaluateQualityGate(
+        qualityGateInput,
+        normSourceLang,
+        normTargetLang,
+        {
+          sampleRate: 0.10,
+          semanticThreshold: 0.85,
+          enableSelfHealing: true,
+          repairCallback: async (source, drifted, tgtLang, details) => {
+            return await this.repairNumericalDrift(source, drifted, normSourceLang, tgtLang, details, profileKey);
+          },
+          backTranslateCallback: async (targetText, tgtLang) => {
+            return await this.translateText(targetText, tgtLang, "en", { tone: "formal" });
+          },
+        }
+      );
+
+      // Update translatedTexts with any self-healed translations
+      for (let i = 0; i < qualityGateResults.length; i++) {
+        if (qualityGateResults[i].translated !== translatedTexts[i]) {
+          translatedTexts[i] = qualityGateResults[i].translated;
+        }
+      }
 
       const translatedSegments: TranslatedSegment[] = segments.map(
         (segment, index) => {
@@ -815,6 +855,7 @@ export class TranslationService {
             normTargetLang,
             segDurationMs
           );
+          const qg = qualityGateResults[index];
           return {
             original: segment.text,
             translated: decodedText,
@@ -830,6 +871,18 @@ export class TranslationService {
             pitchRangeSemitones: segment.pitchRangeSemitones,
             voiceQuality: segment.voiceQuality,
             syllableBudgetCompliance,
+            terminologyWarning: complianceResults[index]?.violations?.length > 0
+              ? `Non-compliant term "${complianceResults[index].violations[0].disallowedFound}" detected. Recommended: "${complianceResults[index].violations[0].suggested}".`
+              : undefined,
+            terminologyViolations: complianceResults[index]?.violations?.length > 0
+              ? complianceResults[index].violations
+              : undefined,
+            terminologyComplianceRate: complianceResults[index]?.complianceRate ?? 1.0,
+            numericalParityVerified: qg?.numericalParityVerified ?? true,
+            numericalParityWarning: qg?.numericalParityWarning,
+            semanticParityScore: qg?.semanticParityScore,
+            reviewRecommended: qg?.reviewRecommended ?? false,
+            polarityFlipped: qg?.polarityFlipped,
           };
         }
       );
@@ -846,10 +899,16 @@ export class TranslationService {
     }
   }
 
-  // ─── Language detection ────────────────────────────────────────────────────
+  // ─── Language detection (utility only — NOT used in dubbing pipeline) ────────
+  // AssemblyAI Universal 3.7 Pro provides the authoritative source language
+  // upstream via AudioLanguageProbe. These methods exist only as standalone
+  // utilities for edge cases where language is truly unknown.
 
+  /**
+   * @deprecated Prefer AssemblyAI-detected sourceLanguage from the transcription layer.
+   * This is a standalone utility only — never silently defaults to "en".
+   */
   async detectLanguage(text: string): Promise<string> {
-    // ── v3 path (with retry) ────────────────────────────────────────────────
     if (this.v3Client) {
       try {
         const best = await withTransientRetry(async () => {
@@ -859,53 +918,31 @@ export class TranslationService {
             mimeType: "text/plain",
           });
           return response.languages?.[0]?.languageCode;
-        }, { maxAttempts: 2, label: "Google v3 detectLanguage" });
+        }, { maxAttempts: 3, label: "Google v3 detectLanguage" });
 
         if (best) return best;
       } catch (error) {
-        console.error("[Translation] v3 detectLanguage error — falling back:", error);
+        console.error("[Translation] v3 detectLanguage error:", error);
       }
     }
 
-    // ── v2 fallback (with retry) ────────────────────────────────────────────
-    if (this.v2Client) {
-      try {
-        const detection = await withTransientRetry(async () => {
-          const [detections] = await this.v2Client!.detect(text);
-          return Array.isArray(detections) ? detections[0] : detections;
-        }, { maxAttempts: 2, label: "Google v2 detectLanguage" });
-
-        return detection?.language || "en";
-      } catch (error) {
-        console.error("[Translation] v2 detectLanguage error:", error);
-      }
-    }
-
-    return "en"; // fallback
+    console.warn("[Translation] Language detection failed — no AssemblyAI fallback available. Caller must handle undefined source language.");
+    throw new Error("[Translation] Language detection unavailable. Source language must be provided by AssemblyAI transcription layer.");
   }
 
-  // ─── Batch language detection ──────────────────────────────────────────────
-
+  /**
+   * @deprecated Prefer AssemblyAI-detected sourceLanguage from the transcription layer.
+   */
   async detectLanguages(texts: string[]): Promise<string[]> {
-    if (this.v2Client) {
+    if (this.v3Client) {
       try {
-        const detections = await withTransientRetry(async () => {
-          const [results] = await this.v2Client!.detect(texts);
-          return results;
-        }, { maxAttempts: 2, label: "Google v2 detectLanguages batch" });
-
-        return detections.map((d: any) => d.language || "en");
+        return await mapConcurrent(texts, DEFAULT_CONCURRENCY, (text) => this.detectLanguage(text));
       } catch (error) {
-        console.error("[Translation] Batch language detection error:", error);
+        console.error("[Translation] v3 batch language detection error:", error);
       }
     }
 
-    // Fallback: iterate with v3 using bounded concurrency
-    if (this.v3Client) {
-      return await mapConcurrent(texts, DEFAULT_CONCURRENCY, (text) => this.detectLanguage(text));
-    }
-
-    return texts.map(() => "en");
+    throw new Error("[Translation] Batch language detection unavailable. Source languages must be provided by AssemblyAI transcription layer.");
   }
 
   // ─── Private: v3 batched translation ───────────────────────────────────────
@@ -919,6 +956,11 @@ export class TranslationService {
     sourceLanguage: string,
     targetLanguage: string
   ): Promise<string[]> {
+    if (texts.length === 0) return [];
+    if (!this.v3Client) {
+      throw new Error("[Translation] Required Google Cloud Translation v3 client is unavailable.");
+    }
+
     const batches: string[][] = [];
     for (let i = 0; i < texts.length; i += V3_BATCH_SIZE) {
       batches.push(texts.slice(i, i + V3_BATCH_SIZE));
@@ -928,13 +970,18 @@ export class TranslationService {
       return await withTransientRetry(async () => {
         const [response] = await this.v3Client!.translateText({
           parent: this.parent,
+          model: this.v3ModelPath,
           contents: batch,
           mimeType: "text/plain",
           sourceLanguageCode: sourceLanguage,
           targetLanguageCode: targetLanguage,
         });
 
-        return (response.translations ?? []).map((t) => decodeHtmlEntities(t.translatedText ?? ""));
+        const translated = (response.translations ?? []).map((t) => decodeHtmlEntities(t.translatedText ?? ""));
+        if (translated.length !== batch.length || translated.some((text) => !text.trim())) {
+          throw new Error(`[Translation] Google Cloud Translation v3 returned incomplete results for batch ${batchIdx}.`);
+        }
+        return translated;
       }, { maxAttempts: 3, label: `Google v3 batchTranslate #${batchIdx}` });
     });
 
@@ -942,49 +989,330 @@ export class TranslationService {
   }
 
   /**
-   * Helper for batching standard translations with fallback logic.
-   * Multi-tier hierarchy: Google v3 -> Google v2 -> Vertex AI Gemini -> Safe fallback
+   * Composite primary translation: Google v3 results followed by required Adaptive MT output.
    */
-  public async batchTranslateStandard(texts: string[], source: string, target: string): Promise<string[]> {
-    if (this.v3Client) {
-      try {
-        return await this.batchTranslateV3(texts, source, target);
-      } catch (err) {
-        console.warn("[Translation] v3 batch fallback to v2", err);
-      }
+  public async batchTranslateStandard(
+    texts: string[],
+    source: string,
+    target: string,
+    profileKey?: TerminologyProfile
+  ): Promise<string[]> {
+    if (texts.length === 0) return [];
+    const v3Results = await this.batchTranslateV3(texts, source, target);
+    if (v3Results.length !== texts.length) {
+      throw new Error("[Translation] Google Cloud Translation v3 returned an incomplete batch.");
     }
-    if (this.v2Client) {
-      try {
-        const translations = await withTransientRetry(async () => {
-          const [res] = await this.v2Client!.translate(texts, { from: source, to: target });
-          return Array.isArray(res) ? res : [res];
-        }, { maxAttempts: 2, label: "Google v2 batchTranslate" });
+    return this.batchApplyAdaptiveMtTranslation(v3Results, texts, source, target, profileKey);
+  }
 
-        return translations.map((t) => decodeHtmlEntities(t));
-      } catch (err) {
-        console.warn("[Translation] v2 batch fallback to Gemini", err);
+  // ─── Required Adaptive MT Translation Stage ─────────────────────────────────
+
+  /**
+   * Builds inline reference sentence pairs from the DOMAIN_GLOSSARY for AdaptiveMtTranslate.
+   * Hardened Fixes:
+   *  1. Profile-Aware Reference Pairs: selects langData.profiles[toneMode] over hardcoded preferred.
+   *  2. Full-Sentence Context Pairs: includes contextual example sentences for natural inflection & case agreement.
+   *  4. Word-Boundary Matching: uses whole-word regex boundaries preventing false positive substring matches.
+   */
+  private buildGlossaryReferencePairs(
+    sourceTexts: string[],
+    sourceLanguage: string,
+    targetLanguage: string,
+    profileKey?: TerminologyProfile
+  ): Array<{ sourceSentence: string; targetSentence: string }> {
+    const normTarget = targetLanguage.toLowerCase().slice(0, 2);
+    const pairs: Array<{ sourceSentence: string; targetSentence: string }> = [];
+    const joinedSource = sourceTexts.join(" ");
+
+    for (const entry of DOMAIN_GLOSSARY) {
+      // 🛡️ Fix 4: Whole-word boundary matching (prevents "Lord" in "landlord", "sin" in "single", etc.)
+      const wordBoundaryRegex = new RegExp(`\\b${escapeRegex(entry.sourceEn)}\\b`, "i");
+      if (!wordBoundaryRegex.test(joinedSource)) continue;
+
+      const langData = entry.translations[normTarget];
+      if (!langData) continue;
+
+      // 🛡️ Fix 1: Profile-aware term selection (colloquial/formal/technical/neutral)
+      const selectedTerm = (profileKey && langData.profiles?.[profileKey]) || langData.preferred;
+
+      // 🛡️ Fix 2: Full-sentence context pair for natural case inflection & verb agreement
+      if (langData.example) {
+        pairs.push({
+          sourceSentence: langData.example.sourceSentence,
+          targetSentence: langData.example.targetSentence,
+        });
       }
-    }
-    if (this.gemini) {
-      try {
-        console.info(`[Translation] Using Gemini Vertex AI translation fallback for ${texts.length} segments (${source} -> ${target})`);
-        const geminiRes = await this.translatePremiumBatch(texts, source, target, "formal", "neutral", "youtube");
-        if (geminiRes.translations && geminiRes.translations.length === texts.length) {
-          return geminiRes.translations.map((t) => decodeHtmlEntities(t));
+
+      pairs.push({
+        sourceSentence: entry.sourceEn,
+        targetSentence: selectedTerm,
+      });
+
+      // Include alternative profile translations if distinct
+      if (langData.profiles) {
+        for (const [prof, profileTranslation] of Object.entries(langData.profiles)) {
+          if (profileTranslation !== selectedTerm && (!profileKey || prof === profileKey)) {
+            pairs.push({
+              sourceSentence: entry.sourceEn,
+              targetSentence: profileTranslation,
+            });
+          }
         }
-      } catch (err) {
-        console.error("[Translation] Gemini standard translation fallback failed:", err);
       }
     }
-    console.warn("[Translation] All translation services failed — returning original texts as graceful fallback");
-    return texts.map((t) => decodeHtmlEntities(t));
+
+    return pairs;
   }
 
   /**
-   * Complexity Scouter: Determines if a segment requires premium Gemini processing
-   * based on high-value keywords, tech terms, emotion, or tight dubbing speech rate constraints.
+   * 🧠 Required second stage of the composite primary translation engine.
+   *
+   * Adaptive MT receives the v3 candidate plus glossary/verified examples and
+   * supplies the final result for the composite primary translation engine.
    */
-  private shouldEscalateToPremium(text: string, durationMs?: number): boolean {
+  private async applyAdaptiveMtTranslation(
+    v3TranslatedText: string,
+    sourceText: string,
+    sourceLanguage: string,
+    targetLanguage: string,
+    profileKey?: TerminologyProfile
+  ): Promise<string> {
+    if (!this.adaptiveMtClient) {
+      throw new Error("[Translation] Required Google Adaptive MT client is unavailable.");
+    }
+
+    const referencePairs = this.buildGlossaryReferencePairs([sourceText], sourceLanguage, targetLanguage, profileKey);
+    const tmPairs = await adaptiveMtDatasetService.getRecentVerifiedPairs(sourceLanguage, targetLanguage, 3).catch(() => []);
+    const combinedPairs = [
+      { sourceSentence: sourceText, targetSentence: v3TranslatedText },
+      ...referencePairs,
+      ...tmPairs,
+    ].slice(0, 8);
+
+    const request: any = {
+      parent: this.adaptiveMtParent,
+      sourceLanguageCode: sourceLanguage,
+      targetLanguageCode: targetLanguage,
+      content: [sourceText],
+    };
+    if (combinedPairs.length > 0) {
+      request.referenceSentenceConfig = {
+        referenceSentencePairLists: [{ referenceSentencePairs: combinedPairs }],
+      };
+    }
+    if (PIPELINE_CONFIG.ADAPTIVE_MT_DATASET) {
+      request.dataset = PIPELINE_CONFIG.ADAPTIVE_MT_DATASET;
+    }
+
+    const [response] = await withTransientRetry(
+      () => this.adaptiveMtClient!.adaptiveMtTranslate(request),
+      { maxAttempts: 2, label: "Required Google Adaptive MT translation" }
+    );
+    const translated = response.translations?.[0]?.translatedText;
+    if (!translated?.trim()) {
+      throw new Error("[Translation] Required Google Adaptive MT returned no translation.");
+    }
+    console.info("[Translation] Adaptive MT produced the composite primary result", {
+      referencePairCount: combinedPairs.length,
+      glossaryPairCount: referencePairs.length,
+    });
+    return decodeHtmlEntities(translated);
+  }
+
+  /**
+   * Batch variant of the required Adaptive MT stage for the composite primary.
+   */
+  private async batchApplyAdaptiveMtTranslation(
+    v3TranslatedTexts: string[],
+    sourceTexts: string[],
+    sourceLanguage: string,
+    targetLanguage: string,
+    profileKey?: TerminologyProfile
+  ): Promise<string[]> {
+    if (sourceTexts.length === 0) return [];
+    if (v3TranslatedTexts.length !== sourceTexts.length) {
+      throw new Error("[Translation] Cannot run Adaptive MT without a complete v3 translation batch.");
+    }
+    if (!this.adaptiveMtClient) {
+      throw new Error("[Translation] Required Google Adaptive MT client is unavailable.");
+    }
+
+    const referencePairs = this.buildGlossaryReferencePairs(sourceTexts, sourceLanguage, targetLanguage, profileKey);
+    const tmPairs = await adaptiveMtDatasetService.getRecentVerifiedPairs(sourceLanguage, targetLanguage, 5).catch(() => []);
+    const sharedPairs = [...referencePairs, ...tmPairs].slice(0, 7);
+
+    // Batch AdaptiveMt calls with bounded concurrency
+    const batches: Array<{ indices: number[]; sources: string[] }> = [];
+    for (let i = 0; i < sourceTexts.length; i += ADAPTIVE_MT_BATCH_SIZE) {
+      const end = Math.min(i + ADAPTIVE_MT_BATCH_SIZE, sourceTexts.length);
+      batches.push({
+        indices: Array.from({ length: end - i }, (_, k) => i + k),
+        sources: sourceTexts.slice(i, end),
+      });
+    }
+
+    const results: string[] = new Array(sourceTexts.length);
+
+    await mapConcurrent(batches, DEFAULT_CONCURRENCY, async (batch, batchIdx) => {
+      const request: any = {
+        parent: this.adaptiveMtParent,
+        sourceLanguageCode: sourceLanguage,
+        targetLanguageCode: targetLanguage,
+        content: batch.sources,
+        referenceSentenceConfig: {
+          referenceSentencePairLists: batch.indices.map((sourceIndex) => ({
+            referenceSentencePairs: [
+              {
+                sourceSentence: sourceTexts[sourceIndex],
+                targetSentence: v3TranslatedTexts[sourceIndex],
+              },
+              ...sharedPairs,
+            ],
+          })),
+        },
+      };
+      if (PIPELINE_CONFIG.ADAPTIVE_MT_DATASET) {
+        request.dataset = PIPELINE_CONFIG.ADAPTIVE_MT_DATASET;
+      }
+
+      const [response] = await withTransientRetry(
+        () => this.adaptiveMtClient!.adaptiveMtTranslate(request),
+        { maxAttempts: 2, label: `Required Adaptive MT batch translation #${batchIdx}` }
+      );
+      const translated = response.translations?.map((item) => item.translatedText ?? "") ?? [];
+      if (translated.length !== batch.sources.length || translated.some((text) => !text.trim())) {
+        throw new Error(`[Translation] Adaptive MT returned incomplete results for batch ${batchIdx}.`);
+      }
+      batch.indices.forEach((origIdx, i) => {
+        results[origIdx] = decodeHtmlEntities(translated[i]);
+      });
+    });
+
+    return results;
+  }
+
+  /**
+   * 🛡️ Fix 3: Targeted re-inflection pass for terminology violations.
+   * CRITICAL: Never performs blind string-replacement on inflected/agglutinative
+   * Indic or Arabic scripts. Instead, routes through targeted AdaptiveMtTranslate
+   * with explicit domain glossary reference pairs.
+   */
+  private async remedyTerminologyViolations(
+    sourceText: string,
+    currentTranslation: string,
+    sourceLang: string,
+    targetLang: string,
+    violations: Array<{ termId: string; source: string; disallowedFound: string; suggested: string; context?: string }>,
+    profileKey?: TerminologyProfile
+  ): Promise<string> {
+    const normTarget = targetLang.toLowerCase().slice(0, 2);
+    try {
+      // 1. Try targeted AdaptiveMt with specific high-priority reference pairs
+      if (this.adaptiveMtClient) {
+        const targetedPairs: Array<{ sourceSentence: string; targetSentence: string }> = [];
+        for (const v of violations) {
+          const entry = DOMAIN_GLOSSARY.find((g) => g.termId === v.termId);
+          if (entry) {
+            const langData = entry.translations[normTarget];
+            if (langData?.example) {
+              targetedPairs.push({
+                sourceSentence: langData.example.sourceSentence,
+                targetSentence: langData.example.targetSentence,
+              });
+            }
+            targetedPairs.push({
+              sourceSentence: entry.sourceEn,
+              targetSentence: v.suggested,
+            });
+          }
+        }
+
+        if (targetedPairs.length > 0) {
+          const request: any = {
+            parent: this.adaptiveMtParent,
+            content: [sourceText],
+            referenceSentenceConfig: {
+              referenceSentencePairLists: [{ referenceSentencePairs: targetedPairs }],
+            },
+          };
+          if (PIPELINE_CONFIG.ADAPTIVE_MT_DATASET) {
+            request.dataset = PIPELINE_CONFIG.ADAPTIVE_MT_DATASET;
+          }
+          const [response]: any = await (this.adaptiveMtClient as any).adaptiveMtTranslate(request);
+          const refined = response?.translations?.[0]?.translatedText;
+          if (refined) {
+            const decoded = decodeHtmlEntities(refined);
+            const recheck = TerminologyService.checkTerminologyCompliance(sourceText, decoded, targetLang, {
+              localeStyle: profileKey,
+            });
+            if (recheck.violations.length < violations.length) {
+              return decoded;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[Translation] Targeted terminology remedy pass skipped:", err);
+    }
+    return currentTranslation;
+  }
+
+  /**
+   * 🛡️ Targeted numerical self-healing repair.
+   * If numerical entities drifted or scales were improperly mapped during translation,
+   * performs a single repair pass constraining the model to preserve all numbers and units.
+   */
+  public async repairNumericalDrift(
+    sourceText: string,
+    currentTranslation: string,
+    sourceLang: string,
+    targetLang: string,
+    _driftDetails?: string,
+    _profileKey?: TerminologyProfile
+  ): Promise<string> {
+    const src = normalizeLanguageCode(sourceLang);
+    const tgt = normalizeLanguageCode(targetLang);
+
+    if (this.adaptiveMtClient) {
+      try {
+        const sourceEntities = NumericalEntityGuard.extractNumericEntities(sourceText);
+        const refPairs = sourceEntities.map((e) => ({
+          sourceSentence: sourceText,
+          targetSentence: `${currentTranslation} [Preserve: ${e.raw}]`,
+        }));
+
+        const request: any = {
+          parent: this.adaptiveMtParent,
+          sourceLanguageCode: src,
+          targetLanguageCode: tgt,
+          content: [sourceText],
+          referenceSentenceConfig: {
+            referenceSentencePairLists: [{ referenceSentencePairs: refPairs.slice(0, 3) }],
+          },
+        };
+        if (PIPELINE_CONFIG.ADAPTIVE_MT_DATASET) {
+          request.dataset = PIPELINE_CONFIG.ADAPTIVE_MT_DATASET;
+        }
+        const [response]: any = await (this.adaptiveMtClient as any).adaptiveMtTranslate(request);
+        const result = response?.translations?.[0]?.translatedText;
+        if (result && result.trim().length > 0) {
+          const recheck = NumericalEntityGuard.verifyNumericalParity(sourceText, result, tgt);
+          if (recheck.isParity) return decodeHtmlEntities(result);
+        }
+      } catch (adErr) {
+        // Fallback to currentTranslation
+      }
+    }
+
+    return currentTranslation;
+  }
+
+  /**
+   * @deprecated Audio Pacing & Density Scouter.
+   * Diagnostic utility for acoustic telemetry; all translation is handled exclusively
+   * by Google Cloud Translation v3 (general/translation-llm + AdaptiveMt).
+   */
+  public shouldEscalateToPremium(text: string, durationMs?: number): boolean {
     const regexPatterns = [
       /\b(?:Anthropic|Claude|Figma|Adobe|Nvidia|OpenAI|Google|Apple|Microsoft)\b/i, // Brands
       /\b(?:launched|announced|released|revealed|exclusive|breaking)\b/i,            // High-value keywords
@@ -996,259 +1324,10 @@ export class TranslationService {
     const isLong = text.length > 150;
     const matchesRegex = regexPatterns.some((p) => p.test(text));
 
-    // Dubbing audio sync constraint: if segment speech rate exceeds 18 chars/sec, escalate to Gemini for concise localization
+    // Audio pacing constraint: speech rate exceeds 18 chars/sec
     const isTightPacing = durationMs && durationMs > 0 ? (text.length / (durationMs / 1000)) > 18 : false;
 
     return isLong || matchesRegex || isTightPacing;
-  }
-
-  // ─── Private: Premium Gemini translation (Structured Outputs & Concurrency) ─
-
-  private async translatePremiumBatch(
-    texts: string[],
-    sourceLanguage: string,
-    targetLanguage: string,
-    tone: "casual" | "formal",
-    localeStyle: string,
-    targetPlatform: string,
-    creatorDNA?: CreatorDNA,
-    enableABHooks?: boolean,
-    speakerProfiles?: SpeakerProfile[],
-    speakersInBatch?: (string | undefined)[],
-    hooksInBatch?: (boolean | undefined)[],
-    durationsInBatch?: (number | undefined)[],
-    isCinemaGrade?: boolean,
-    subtitleTier?: "ultra" | "starter" | "pro",
-    dubbingTier?: "audio_track",
-    emotionsInBatch?: (string | undefined)[]
-  ): Promise<{ translations: string[]; confidences: number[]; variants?: any[] }> {
-    if (!this.gemini) {
-      throw new Error("Gemini client not initialized for premium translation");
-    }
-
-    const { Type: SchemaType } = require("@google/genai");
-
-    // Native Structured Output Schema for Gemini
-    const responseSchema = {
-      type: SchemaType.OBJECT,
-      properties: {
-        translations: {
-          type: SchemaType.ARRAY,
-          items: { type: SchemaType.STRING },
-          description: "Array of translated text segments matching input segments index-for-index."
-        },
-        confidences: {
-          type: SchemaType.ARRAY,
-          items: { type: SchemaType.NUMBER },
-          description: "Array of localization quality / confidence scores (0.0 to 1.0) per segment."
-        },
-        variants: {
-          type: SchemaType.ARRAY,
-          items: {
-            type: SchemaType.OBJECT,
-            nullable: true,
-            properties: {
-              viral: { type: SchemaType.STRING },
-              safe: { type: SchemaType.STRING },
-              professional: { type: SchemaType.STRING }
-            }
-          },
-          description: "Optional hook variants per segment when requested, or null."
-        }
-      },
-      required: ["translations", "confidences"]
-    };
-
-    const isUltraTier = dubbingTier === "audio_track";
-    const isProOrCinema = Boolean(isCinemaGrade) || subtitleTier === "ultra" || subtitleTier === "pro" || isUltraTier;
-    // Unified on Gemini 2.5 Flash for all dubbing & cinema-grade subtitles
-    const targetModelName = PIPELINE_CONFIG.GEMINI_MODELS?.translation || "gemini-2.5-flash";
-
-    const model = this.gemini.getGenerativeModel({
-      model: targetModelName,
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema,
-        temperature: isProOrCinema ? 0.15 : 0.2,
-      } as any,
-    });
-
-    const CHUNK_SIZE = 20;
-    const chunkInputs: Array<{
-      chunkIndex: number;
-      texts: string[];
-      speakers: (string | undefined)[];
-      hooks: (boolean | undefined)[];
-      durations: (number | undefined)[];
-      emotions: (string | undefined)[];
-    }> = [];
-
-    for (let i = 0; i < texts.length; i += CHUNK_SIZE) {
-      chunkInputs.push({
-        chunkIndex: Math.floor(i / CHUNK_SIZE),
-        texts: texts.slice(i, i + CHUNK_SIZE),
-        speakers: speakersInBatch?.slice(i, i + CHUNK_SIZE) || [],
-        hooks: hooksInBatch?.slice(i, i + CHUNK_SIZE) || [],
-        durations: durationsInBatch?.slice(i, i + CHUNK_SIZE) || [],
-        emotions: emotionsInBatch?.slice(i, i + CHUNK_SIZE) || [],
-      });
-    }
-
-    // Process chunks concurrently with bounded concurrency pool (DEFAULT_CONCURRENCY = 3)
-    const chunkResults = await mapConcurrent(chunkInputs, DEFAULT_CONCURRENCY, async (chunkInput) => {
-      // Inject speaker persona context if available
-      let personaContext = "";
-      if (speakerProfiles && chunkInput.speakers.length > 0) {
-        const uniqueSpeakers = Array.from(new Set(chunkInput.speakers.filter(Boolean)));
-        const relevantProfiles = speakerProfiles.filter((p) => uniqueSpeakers.includes(p.speakerId));
-        if (relevantProfiles.length > 0) {
-          personaContext = "\nSpeaker Personas for this batch:\n" + 
-            relevantProfiles.map((p) => `- ${p.speakerId}: ${p.ageTone} ${p.energy} energy, ${p.style} style`).join("\n");
-        }
-      }
-
-      // Inject Creator DNA if available
-      let dnaContext = "";
-      if (creatorDNA) {
-        dnaContext = `\nCreator DNA Style Memory:\n- Overall Vibe: ${creatorDNA.vibe}\n- Slang Tolerance: ${creatorDNA.slangTolerance}\n- Vocab Preference: ${creatorDNA.vocabPreference}`;
-        if (creatorDNA.customInstructions) dnaContext += `\n- Extra Instructions: ${creatorDNA.customInstructions}`;
-      }
-
-      // Structured segment input with language-calibrated syllable budgeting, acoustic counts, and audio dubbing pacing limits
-      const tgtLangKey = targetLanguage.toLowerCase().split(/[-_]/)[0];
-      const srcLangKey = sourceLanguage.toLowerCase().split(/[-_]/)[0];
-      const tgtRatio = LANG_SYLLABLE_RATIOS[tgtLangKey] ?? 1.2;
-      const srcRatio = LANG_SYLLABLE_RATIOS[srcLangKey] ?? 1.1;
-
-      const segmentsPromptData = chunkInput.texts.map((t, idx) => {
-        const durMs = chunkInput.durations[idx];
-        const durSec = durMs && durMs > 0 ? (durMs / 1000) : null;
-        // Natural speech rate: ~2.8 words/second maximum for clear articulation
-        const maxWords = durSec ? Math.max(3, Math.ceil(durSec * 2.8)) : null;
-        const sourceSyllableCount = Math.max(1, countSourceSyllables(t, sourceLanguage));
-        // Language-calibrated target syllable budget: scales natural speech rate (~3.8 syl/s) or source ratio
-        const targetSyllableBudget = durSec
-          ? Math.max(4, Math.round(durSec * 3.8 * Math.min(1.35, Math.max(0.85, tgtRatio))))
-          : Math.max(4, Math.round(sourceSyllableCount * (tgtRatio / Math.max(0.7, srcRatio)) * 1.15));
-
-        return {
-          segmentIndex: idx,
-          text: t,
-          isHook: Boolean(chunkInput.hooks[idx]),
-          speaker: chunkInput.speakers[idx] || undefined,
-          emotionTag: chunkInput.emotions[idx] || undefined,
-          sourceSyllableCount,
-          targetSyllableBudget,
-          ...(durSec ? { durationSeconds: Number(durSec.toFixed(2)), maxWords } : {}),
-        };
-      });
-
-      const isAudioTrack = dubbingTier === "audio_track" || !dubbingTier;
-
-      const cadenceLockPrompt = isAudioTrack
-        ? `\n\n*** CREATOR VOICE CLONING VISEME CADENCE HARMONY (GEMINI 2.5 FLASH) ***
-- This audio track is undergoing voice cloning via ElevenLabs v4 with Anti-Uncanny Viseme Cadence Locking.
-- STRICT VISEME DURATION & MOUTH-CLOSURE CONSTRAINT: Match the speaker's on-screen pacing within +/- 5% of durationSeconds.
-- PREVENT VOCAL OVERHANG: Spoken delivery must stop before or exactly when the speaker's mouth closes (utterance.end). The translated phrase MUST NOT exceed targetSyllableBudget.
-- NATURAL PAUSE CADENCE: Align translated sentence pauses with the original speaker's breath and pauses so speech cadence feels visually harmonious with the creator's natural body language without audio-visual mismatch.`
-        : `\n\n*** NATURAL CREATOR CONVERSATIONAL SPEECH (GEMINI 2.5 FLASH) ***
-- Deliver lively, natural conversational dialogue. Avoid archaic, literary, or textbook translations. Use modern creator phrasing.`;
-
-      const prompt = `Translate the following ${sourceLanguage} text segments to ${targetLanguage}.
-Tone: ${tone}
-Style Preference: ${localeStyle}
-Target Platform: ${targetPlatform}${personaContext}${dnaContext}${cadenceLockPrompt}
-
-Special Rules for World-Class Localization:
-1. Preserve Brand Names & Tech Entities: Keep brand names and technical terms in English or accurate phonetic transliteration (e.g., Anthropic, Claude, Figma, Adobe, Gemini, ChatGPT, API, UI, GPU).
-2. Audience & Regional Dialect Adaptation:
-   - Telugu (te): Speak like a contemporary YouTube/podcast creator from Hyderabad or AP. Use conversational Telugu naturally blended with familiar English creator/tech terminology ("scene", "concept", "clarity", "point", "bro", "super hit", "content", "feel"). Absolutely avoid archaic literary Telugu or Sanskrit compounds (e.g. use "clarity vachindi" or "clear ga undi" instead of archaic "spashtata labhinchindi").
-   - Hindi (hi): Blend natural urban Hinglish. Use conversational vocabulary ("vibe", "scene", "next level", "tension mat lo", "solid logic") unless formal tone is strictly requested.
-   - Tamil (ta): Speak like a contemporary Chennai social media creator. Blend popular conversational vernacular ("pakka", "semma", "mass", "clarity", "concept"). Avoid archaic classical Tamil in dubbing.
-   - Kannada (kn): Use lively Bengaluru creator conversational style ("sakkath", "chindi", "concept"), blending modern tech words.
-   - Malayalam (ml): Use vibrant Kerala creator conversational Malayalam ("poli", "kidu", "scene").
-   - Spanish (es): Use clean, expressive Latin American creator Spanish, avoiding stiff peninsular archaisms.
-   - If Style Preference is 'hinglish', use natural code-switching.
-   - If 'hinglish_urban', use Gen-Z slang and very casual Mumbai/Delhi urban Hinglish.
-   - If 'hinglish_professional', use a sophisticated Bangalore/Corporate Hinglish (mix of English professional terms with formal Hindi structure).
-3. Idiomatic Transcreation (No Literal Word-for-Word Metaphors):
-   - NEVER translate idioms, colloquial metaphors, or comedic punchlines word-for-word (e.g. "bite the bullet", "cost an arm and a leg", "hit the nail on the head", "piece of cake", "game changer", "touch grass", "spill the beans").
-   - Transcreate the true emotional intent and punchline into the equivalent native cultural saying or punchy conversational phrase.
-4. Syllable Budgeting, Phonetic Difficulty Avoidance & Audio Timing Constraints:
-   - Each segment provides 'sourceSyllableCount' and a language-calibrated 'targetSyllableBudget' (based on target expansion ratio ${tgtRatio.toFixed(2)} vs source ${srcRatio.toFixed(2)}).
-   - The spoken syllable count of the translated text MUST NOT exceed 'targetSyllableBudget'.
-   - In polysyllabic/agglutinative languages (Telugu, Tamil, Kannada, Malayalam, German, Japanese), select concise conversational phrases rather than verbose compound words so speech fits the original video cut cleanly.
-   - Phonetic Difficulty Avoidance for TTS Clarity: avoid dense consonant clusters, tongue-twister alliterations, or unnaturally long agglutinative compounds when speaking duration is tight (< 2.5s); prefer crisp vowel-balanced natural spoken phrasing.
-5. Platform Optimization:
-   - If Target Platform is 'reels' or 'shorts', keep hooks fast-paced, high emotion, and catchy.
-   - If 'linkedin', ensure the first few segments sound authoritative and deliver a punchy insight.
-6. Expressive ElevenLabs v4 Prosody & Performance Audio Tags (Critical for Dubbing):
-   - When an input segment specifies an "emotionTag" (e.g., "excited", "whispers", "laughs", "said angrily", "sad", "sarcastic", "calm", "shouts", "sighs", "gasps", "sorrowful", "angry", "serious"), preserve or prepend that exact bracketed English tag (e.g. "[whispers] ...") inside the translated string so the ElevenLabs v4 voice actor performs with matching vocal emotion. NEVER translate the English keyword inside [...] brackets.
-7. A/B Hook Generation: If 'isHook' is true AND enableABHooks is true, return 3 variants in the "variants" object:
-   - viral: High-energy, catchy, slang-friendly.
-   - safe: Reliable, standard translation.
-   - professional: Authoritative, formal.
-8. Return a JSON object with:
-   - translations: array of strings matching input length exactly (${chunkInput.texts.length} items)
-   - confidences: array of numbers (0.0 to 1.0)
-   - variants: array of objects (one per segment, null if no variants)
-
-Input Segments:
-${JSON.stringify(segmentsPromptData, null, 2)}`;
-
-      const result = await withTransientRetry(async () => {
-        return await model.generateContent(prompt);
-      }, { maxAttempts: 3, label: `Gemini premium translation chunk ${chunkInput.chunkIndex}` });
-
-      const responseText = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      
-      let parsed: any = null;
-      try {
-        const clean = responseText.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
-        parsed = JSON.parse(clean);
-      } catch (parseErr) {
-        // Defensive fallback: attempt regex extraction
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            parsed = JSON.parse(jsonMatch[0]);
-          } catch (_) {}
-        }
-      }
-
-      const chunkTranslations: string[] = [];
-      const chunkConfidences: number[] = [];
-      const chunkVariants: any[] = [];
-
-      for (let i = 0; i < chunkInput.texts.length; i++) {
-        const rawTranslated = parsed?.translations?.[i] || chunkInput.texts[i];
-        chunkTranslations.push(decodeHtmlEntities(rawTranslated));
-        chunkConfidences.push(typeof parsed?.confidences?.[i] === "number" ? parsed.confidences[i] : 0.95);
-        chunkVariants.push(parsed?.variants?.[i] || null);
-      }
-
-      return {
-        chunkIndex: chunkInput.chunkIndex,
-        translations: chunkTranslations,
-        confidences: chunkConfidences,
-        variants: chunkVariants,
-      };
-    });
-
-    // Reassemble ordered results
-    chunkResults.sort((a, b) => a.chunkIndex - b.chunkIndex);
-
-    const allTranslations: string[] = [];
-    const allConfidences: number[] = [];
-    const allVariants: any[] = [];
-
-    for (const res of chunkResults) {
-      allTranslations.push(...res.translations);
-      allConfidences.push(...res.confidences);
-      allVariants.push(...res.variants);
-    }
-
-    return { translations: allTranslations, confidences: allConfidences, variants: allVariants };
   }
 }
 

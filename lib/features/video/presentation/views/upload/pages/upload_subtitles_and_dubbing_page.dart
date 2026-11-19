@@ -440,14 +440,14 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.search, color: Color(0xFF38BDF8), size: 13),
-                          SizedBox(width: 4),
+                          const Icon(Icons.search, color: Color(0xFF38BDF8), size: 13),
+                          const SizedBox(width: 4),
                           Text(
-                            'More (18 Languages)',
-                            style: TextStyle(
+                            'Browse (${allSpokenLanguages.length - 1} Languages)',
+                            style: const TextStyle(
                               color: Color(0xFF38BDF8),
                               fontSize: 11.5,
                               fontWeight: FontWeight.w600,

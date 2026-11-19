@@ -26,6 +26,7 @@ class DubbingEditableSegmentModel {
   final double? syllableBudgetCompliance;
   final String? deliveryStyle;
   final String? synthesizedAudioUrl;
+  final int? actualSynthesizedDurationMs;
 
   const DubbingEditableSegmentModel({
     required this.index,
@@ -44,6 +45,7 @@ class DubbingEditableSegmentModel {
     this.syllableBudgetCompliance,
     this.deliveryStyle,
     this.synthesizedAudioUrl,
+    this.actualSynthesizedDurationMs,
   });
 
   String get displayText =>
@@ -71,6 +73,9 @@ class DubbingEditableSegmentModel {
           (map['syllableBudgetCompliance'] as num?)?.toDouble(),
       deliveryStyle: map['deliveryStyle'] as String?,
       synthesizedAudioUrl: map['synthesizedAudioUrl'] as String?,
+      actualSynthesizedDurationMs:
+          (map['actualSynthesizedDurationMs'] as num?)?.toInt() ??
+              (map['durationMs'] as num?)?.toInt(),
     );
   }
 
@@ -89,6 +94,7 @@ class DubbingEditableSegmentModel {
     double? syllableBudgetCompliance,
     String? deliveryStyle,
     String? synthesizedAudioUrl,
+    int? actualSynthesizedDurationMs,
   }) {
     return DubbingEditableSegmentModel(
       index: index,
@@ -109,6 +115,8 @@ class DubbingEditableSegmentModel {
           syllableBudgetCompliance ?? this.syllableBudgetCompliance,
       deliveryStyle: deliveryStyle ?? this.deliveryStyle,
       synthesizedAudioUrl: synthesizedAudioUrl ?? this.synthesizedAudioUrl,
+      actualSynthesizedDurationMs:
+          actualSynthesizedDurationMs ?? this.actualSynthesizedDurationMs,
     );
   }
 }
@@ -358,6 +366,7 @@ class DubbingSegmentEditorController extends GetxController {
       final data = Map<String, dynamic>.from(response.data as Map);
       final updatedMap = Map<String, dynamic>.from(data['segment'] as Map);
       final playableUrl = data['playableAudioUrl'] as String?;
+      final terminologyWarning = data['terminologyWarning'] as String?;
       final updatedModel = DubbingEditableSegmentModel.fromMap(updatedMap);
 
       segments[idx] = updatedModel.copyWith(
@@ -367,9 +376,13 @@ class DubbingSegmentEditorController extends GetxController {
       manifestVersion.value =
           (data['version'] as num?)?.toInt() ?? manifestVersion.value;
       hasPendingRemaster.value = true;
-      AppSnackbar.success(
-        'Line ${segmentIndex + 1} regenerated. Click Remaster & Publish when ready.',
-      );
+      if (terminologyWarning != null && terminologyWarning.isNotEmpty) {
+        AppSnackbar.warning(terminologyWarning);
+      } else {
+        AppSnackbar.success(
+          'Line ${segmentIndex + 1} regenerated. Click Remaster & Publish when ready.',
+        );
+      }
     } catch (e, st) {
       LoggerService().error(
         'Failed regenerating segment $segmentIndex',

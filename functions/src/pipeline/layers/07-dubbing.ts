@@ -4,7 +4,7 @@
  * Translation + TTS + video merge. Full parallel execution per language and per segment.
  *
  * ✅ UPGRADED PIPELINE:
- *   - Translation: Google Cloud Translation v3 (`TranslationServiceClient`) exclusively for all dubbing & subtitles
+ *   - Translation: Composite Google Cloud Translation v3 (`general/translation-llm`) + required Adaptive MT
  *   - Language Detection: Google Cloud Translation v3 (`TranslationServiceClient`) exclusively
  *   - TTS: Strictly ElevenLabs v4 (eleven_v4) for all audio track dubbing & creator voice cloning (Chirp 3: HD terminated)
  *   - Subtitles: Native AssemblyAI subtitles for source lang; custom alignment for translated
@@ -57,7 +57,7 @@ import {
 } from "../services/tts";
 import { expressiveV4Bus } from "../services/expressiveV4Bus";
 import { mediaService, parseDurationToSeconds, parseAnyStorageUrl, type MergeAudioMetrics } from "../services/media";
-import { ASSEMBLYAI_UNIVERSAL_35_LANGUAGES } from "./05-transcription";
+import { ASSEMBLYAI_UNIVERSAL_37_LANGUAGES } from "./05-transcription";
 import { costEngine, getFlatDubbingPricePerLanguage } from "../services/cost-engine";
 import { speakerProfilingService } from "../services/speaker-profiling";
 import { audioIdentityService } from "../services/audio-identity";
@@ -76,6 +76,7 @@ import {
 import { logger }             from "../utils/logger";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 import { filterVideoIds } from "../../utils/videosCollectionGuard";
+import { hlsPackagerService } from "../services/hlsPackager";
 
 const db = () => admin.firestore();
 
@@ -360,9 +361,32 @@ export class DubbingEngine {
       }
       if (!transcript) throw new Error(`Transcript not found for job ${jobId}`);
 
-      // ── Source Language Policy Gate (AssemblyAI Universal-3.5 Pro: 18 Languages Only) ──
-      // TruthWorld strictly provides dubbing and subtitles ONLY when the source language is among
-      // the 18 languages supported by AssemblyAI Universal-3.5 Pro.
+      const transcriptModel = transcript.model || transcript.provider;
+      if (transcriptModel !== "assemblyai-stt-3-7") {
+        const modelError = `Subtitles and dubbing require an AssemblyAI-STT-3.7 transcript; received '${transcriptModel || "unknown"}'.`;
+        const dubbingRequested = executionPlan.generateDubbing === true || executionPlan.enableDubbing === true;
+        const subtitlesRequested = executionPlan.genLangSubs === true ||
+          (Array.isArray(executionPlan.subtitleLanguages) && executionPlan.subtitleLanguages.length > 0) ||
+          (Array.isArray((executionPlan as any).features) && (executionPlan as any).features.includes("subtitles"));
+
+        if (dubbingRequested) {
+          await EdgeLayer.failStage(jobId, "dubbing", modelError).catch(() => {});
+          await refundDubbingFeeOnFailure({
+            jobId,
+            userId,
+            failedLanguages: executionPlan.dubbingLanguages || [],
+            totalLanguages: executionPlan.dubbingLanguages || [],
+            reason: modelError,
+          }).catch((err) => logger.error("[Dubbing] Refund error on unsupported transcript model:", err));
+        }
+        if (subtitlesRequested) {
+          await EdgeLayer.failStage(jobId, "subtitles", modelError).catch(() => {});
+        }
+        return [];
+      }
+
+      // ── Source Language Policy Gate (AssemblyAI Universal 3.7 Pro) ──
+      // TruthWorld supports dubbing and subtitles only for the 32 AssemblyAI-STT-3.7 source languages.
       const vDoc = await db().collection("videos").doc(jobId).get().catch(() => null);
       const vData = vDoc?.exists ? vDoc.data() : null;
       const authenticSource = normalizeLanguageCode(
@@ -373,13 +397,13 @@ export class DubbingEngine {
         vData?.language ||
         ""
       );
-      // Prefer the authentic source language of the video if it is supported by AssemblyAI Universal-3.5 Pro
-      const rawSource = (authenticSource && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(authenticSource))
+      // Prefer the authentic source language of the video if it is supported by AssemblyAI-STT-3.7
+      const rawSource = (authenticSource && ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(authenticSource))
         ? authenticSource
         : (transcript.language || transcript.detectedLanguage || authenticSource || "en");
       const normSource = normalizeLanguageCode(rawSource);
-      if (!ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normSource)) {
-        const unsupportedMsg = `Source language '${normSource}' is unsupported for Dubbing. TruthWorld strictly supports the 18 core source languages of AssemblyAI Universal-3.5 Pro for audio dubbing.`;
+      if (!ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(normSource)) {
+        const unsupportedMsg = `Source language '${normSource}' is unsupported for dubbing. TruthWorld supports only the 32 source languages supported by AssemblyAI-STT-3.7.`;
         logger.warn(`[Dubbing Gate] ${unsupportedMsg}`, { jobId, sourceLang: normSource, authenticSource, transcriptLang: transcript.language });
         const isDubbingActive = Boolean(
           executionPlan.generateDubbing &&
@@ -1814,6 +1838,27 @@ export class DubbingEngine {
 
                     // Step 4: Regenerate audio for concise text
                     const voiceIdForSeg = voiceMapping[seg.speaker || "speaker_0"] || (executionPlan as any).voiceId;
+                    const prevNormalised = index > 0 ? normalised[index - 1] : undefined;
+                    const nextNormalised = index < normalised.length - 1 ? normalised[index + 1] : undefined;
+                    const targetDurationMs = (seg.end !== undefined && seg.start !== undefined) ? Math.max(0, seg.end - seg.start) : undefined;
+
+                    // 🛡️ Guardrail 3: Context-Windowing Gate — Same-speaker adjacent turns within 2.5s gap
+                    const prevGapMs = (prevNormalised && seg.start !== undefined && prevNormalised.end !== undefined)
+                      ? (seg.start > 500 || prevNormalised.end > 500 ? (seg.start - prevNormalised.end) : (seg.start - prevNormalised.end) * 1000)
+                      : Infinity;
+                    const isPrevSameSpeaker = Boolean(prevNormalised && prevNormalised.speaker && seg.speaker && prevNormalised.speaker === seg.speaker);
+                    const gatedPrevText = (isPrevSameSpeaker && prevGapMs >= 0 && prevGapMs <= 2500)
+                      ? prevNormalised?.translatedText
+                      : undefined;
+
+                    const nextGapMs = (nextNormalised && nextNormalised.start !== undefined && seg.end !== undefined)
+                      ? (nextNormalised.start > 500 || seg.end > 500 ? (nextNormalised.start - seg.end) : (nextNormalised.start - seg.end) * 1000)
+                      : Infinity;
+                    const isNextSameSpeaker = Boolean(nextNormalised && nextNormalised.speaker && seg.speaker && nextNormalised.speaker === seg.speaker);
+                    const gatedNextText = (isNextSameSpeaker && nextGapMs >= 0 && nextGapMs <= 2500)
+                      ? nextNormalised?.translatedText
+                      : undefined;
+
                     const busPayload = expressiveV4Bus.processSegment({
                       jobId,
                       language: targetLang,
@@ -1832,6 +1877,9 @@ export class DubbingEngine {
                       },
                       preferVoiceCloning: isVoiceClone,
                       voiceType: voiceType as any,
+                      targetDurationMs,
+                      previousText: gatedPrevText,
+                      nextText: gatedNextText,
                     });
                     const resynth = await ttsService.synthesize({
                       jobId,
@@ -1847,8 +1895,14 @@ export class DubbingEngine {
                       style: busPayload.voiceSettings.style,
                       emotionTag: busPayload.emotionTag,
                       energyDb: seg.energyDb,
+                      previousText: busPayload.previousText,
+                      nextText: busPayload.nextText,
                     });
                     if (resynth?.audioUrl) {
+                      const resynthDurMs = Math.round(resynth.duration * 1000);
+                      normalised[index].actualSynthesizedDurationMs = resynthDurMs;
+                      normalised[index].durationMs = resynthDurMs;
+                      normalised[index].synthesizedAudioUrl = resynth.audioUrl;
                       ttsUrls[index] = resynth.audioUrl;
                       const segIdx = normalised[index]?.index ?? index;
                       await this.saveDubbingCheckpoint(jobId, targetLang, {
@@ -2877,6 +2931,29 @@ export class DubbingEngine {
           }
 
           // Cache miss → Condition speech turn via Expressive v4 Bus
+          const segGlobalIdx = segments.findIndex((s) => s.index === seg.index);
+          const prevSeg = segGlobalIdx > 0 ? segments[segGlobalIdx - 1] : undefined;
+          const nextSeg = segGlobalIdx >= 0 && segGlobalIdx < segments.length - 1 ? segments[segGlobalIdx + 1] : undefined;
+          const targetDurationMs = (seg.end !== undefined && seg.start !== undefined) ? Math.max(0, seg.end - seg.start) : undefined;
+
+          // 🛡️ Guardrail 3: Context-Windowing Gate — Same-speaker adjacent turns within 2.5s gap
+          // Prevents Speaker A's emotional tone from bleeding into Speaker B's speech turn.
+          const prevGapMs = (prevSeg && seg.start !== undefined && prevSeg.end !== undefined)
+            ? (seg.start > 500 || prevSeg.end > 500 ? (seg.start - prevSeg.end) : (seg.start - prevSeg.end) * 1000)
+            : Infinity;
+          const isPrevSameSpeaker = Boolean(prevSeg && prevSeg.speaker && seg.speaker && prevSeg.speaker === seg.speaker);
+          const gatedPrevText = (isPrevSameSpeaker && prevGapMs >= 0 && prevGapMs <= 2500)
+            ? prevSeg?.translatedText
+            : undefined;
+
+          const nextGapMs = (nextSeg && nextSeg.start !== undefined && seg.end !== undefined)
+            ? (nextSeg.start > 500 || seg.end > 500 ? (nextSeg.start - seg.end) : (nextSeg.start - seg.end) * 1000)
+            : Infinity;
+          const isNextSameSpeaker = Boolean(nextSeg && nextSeg.speaker && seg.speaker && nextSeg.speaker === seg.speaker);
+          const gatedNextText = (isNextSameSpeaker && nextGapMs >= 0 && nextGapMs <= 2500)
+            ? nextSeg?.translatedText
+            : undefined;
+
           const busPayload = expressiveV4Bus.processSegment({
             jobId,
             language,
@@ -2897,6 +2974,9 @@ export class DubbingEngine {
             },
             preferVoiceCloning,
             voiceType: (voiceType as any),
+            targetDurationMs,
+            previousText: gatedPrevText,
+            nextText: gatedNextText,
           });
 
           // Call Hybrid TTS Service (with ElevenLabs v4 expressive emotion, style & stability controls)
@@ -2918,7 +2998,15 @@ export class DubbingEngine {
             style: busPayload.voiceSettings.style,
             emotionTag: busPayload.emotionTag,
             energyDb: seg.energyDb,
+            previousText: busPayload.previousText,
+            nextText: busPayload.nextText,
           });
+
+          // Record actual synthesized audio duration for subtitle cue snapping (Option 2)
+          const chunkDurationMs = Math.round(result.duration * 1000);
+          seg.actualSynthesizedDurationMs = chunkDurationMs;
+          seg.durationMs = chunkDurationMs;
+          seg.synthesizedAudioUrl = result.audioUrl;
 
           // In-memory EMA voice profile tracking across speech turns (0 Firestore cost during batch execution)
           const currentProfile = speakerProfileCache.get(profileKey);
@@ -3073,7 +3161,7 @@ export class DubbingEngine {
       enableABHooks?: boolean;
       speakerProfiles?: any[];
       dubbingTier?: "audio_track";
-      subtitleTier?: "ultra" | "starter" | "pro";
+      subtitleTier?: "ultra";
       isCinemaGrade?: boolean;
     }
   ): Promise<DubbingSegment[]> {
@@ -3088,6 +3176,9 @@ export class DubbingEngine {
       confidence?: number;
       variants?: any;
       syllableBudgetCompliance?: number;
+      terminologyWarning?: string;
+      terminologyViolations?: any[];
+      terminologyComplianceRate?: number;
     }> = [];
 
     if (toTranslate.length > 0) {
@@ -3116,7 +3207,18 @@ export class DubbingEngine {
         confidence: s.confidence,
         variants: s.variants,
         syllableBudgetCompliance: s.syllableBudgetCompliance,
+        terminologyWarning: s.terminologyWarning,
+        terminologyViolations: s.terminologyViolations,
+        terminologyComplianceRate: s.terminologyComplianceRate,
+        numericalParityVerified: s.numericalParityVerified,
+        numericalParityWarning: s.numericalParityWarning,
+        semanticParityScore: s.semanticParityScore,
+        reviewRecommended: s.reviewRecommended,
+        polarityFlipped: s.polarityFlipped,
       }));
+      if (newTranslations.length !== toTranslate.length || newTranslations.some((translation) => !translation.text?.trim())) {
+        throw new Error(`[Dubbing] Composite primary returned incomplete translations for ${targetLang}.`);
+      }
 
       await this.performanceLayer.cacheTranslations(
         toTranslate.map((s) => s.text),
@@ -3128,9 +3230,12 @@ export class DubbingEngine {
 
     let newIdx = 0;
     return segments.map((seg, i) => {
-      const translation = cached[i] 
-        ? { text: decodeHtmlEntities(cached[i]!), confidence: 0.99, variants: undefined, syllableBudgetCompliance: undefined } 
-        : newTranslations[newIdx++] || { text: seg.text, confidence: 0, variants: undefined, syllableBudgetCompliance: undefined };
+      const translation = cached[i]
+        ? { text: decodeHtmlEntities(cached[i]!), confidence: 0.99, variants: undefined, syllableBudgetCompliance: undefined, terminologyWarning: undefined, terminologyViolations: undefined, terminologyComplianceRate: 1.0, numericalParityVerified: true, numericalParityWarning: undefined, semanticParityScore: 1.0, reviewRecommended: false, polarityFlipped: false }
+        : newTranslations[newIdx++];
+      if (!translation?.text?.trim()) {
+        throw new Error(`[Dubbing] Missing required ${targetLang} translation for segment ${seg.index}.`);
+      }
 
       let cleanTranslated = decodeHtmlEntities(translation.text);
       if (targetLang === "te") {
@@ -3161,6 +3266,14 @@ export class DubbingEngine {
         emotionalIntensity: seg.emotionalIntensity,
         energyEnvelopePattern: seg.energyEnvelopePattern,
         syllableBudgetCompliance: translation.syllableBudgetCompliance,
+        terminologyWarning: translation.terminologyWarning,
+        terminologyViolations: translation.terminologyViolations,
+        terminologyComplianceRate: translation.terminologyComplianceRate,
+        numericalParityVerified: (translation as any).numericalParityVerified ?? true,
+        numericalParityWarning: (translation as any).numericalParityWarning,
+        semanticParityScore: (translation as any).semanticParityScore,
+        reviewRecommended: (translation as any).reviewRecommended ?? false,
+        polarityFlipped: (translation as any).polarityFlipped,
       };
     });
   }
@@ -3212,14 +3325,21 @@ export class DubbingEngine {
           sourceWords: words,
           sourceLanguage,
           targetLanguage: language,
-          fallbackSegments: segments.map((s, idx) => ({
-            index: idx + 1,
-            start: s.start,
-            end: s.end,
-            duration: s.end - s.start,
-            text: stripAudioTagsForSubtitles(s.translatedText),
-            words: [],
-          })),
+          fallbackSegments: segments.map((s, idx) => {
+            const actualDurMs = s.actualSynthesizedDurationMs || s.durationMs || (s.end - s.start);
+            const actualDur = actualDurMs > 500 ? actualDurMs : actualDurMs * 1000;
+            const nextSeg = idx < segments.length - 1 ? segments[idx + 1] : undefined;
+            const nextStart = nextSeg ? nextSeg.start : (s.start + actualDur + 2000);
+            const snappedEnd = Math.min(s.start + actualDur, Math.max(s.start + 300, nextStart - 50));
+            return {
+              index: idx + 1,
+              start: s.start,
+              end: snappedEnd,
+              duration: snappedEnd - s.start,
+              text: stripAudioTagsForSubtitles(s.translatedText),
+              words: [],
+            };
+          }),
         });
 
         const bucket = admin.storage().bucket();
@@ -3265,11 +3385,18 @@ export class DubbingEngine {
 
     return mediaService.generateAllSubtitles(
       jobId,
-      segments.map((s) => ({
-        start: s.start,
-        end: s.end,
-        text: stripAudioTagsForSubtitles(s.translatedText),
-      })),
+      segments.map((s, idx) => {
+        const actualDurMs = s.actualSynthesizedDurationMs || s.durationMs || (s.end - s.start);
+        const actualDur = actualDurMs > 500 ? actualDurMs : actualDurMs * 1000;
+        const nextSeg = idx < segments.length - 1 ? segments[idx + 1] : undefined;
+        const nextStart = nextSeg ? nextSeg.start : (s.start + actualDur + 2000);
+        const snappedEnd = Math.min(s.start + actualDur, Math.max(s.start + 300, nextStart - 50));
+        return {
+          start: s.start,
+          end: snappedEnd,
+          text: stripAudioTagsForSubtitles(s.translatedText),
+        };
+      }),
       language
     );
   }
@@ -3594,11 +3721,11 @@ export class DubbingEngine {
       "en"
     );
     let sourceSubLang = Object.keys(existingSubs).find((k) => normalizeLanguageCode(k) === preferredLang);
-    if (!sourceSubLang && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(preferredLang)) {
+    if (!sourceSubLang && ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(preferredLang)) {
       sourceSubLang = preferredLang;
     }
     if (!sourceSubLang) {
-      sourceSubLang = Object.keys(existingSubs).find((k) => ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normalizeLanguageCode(k))) ||
+      sourceSubLang = Object.keys(existingSubs).find((k) => ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(normalizeLanguageCode(k))) ||
         Object.keys(existingSubs)[0] ||
         preferredLang;
     }
@@ -3632,7 +3759,7 @@ export class DubbingEngine {
     if (doc.exists) {
       const data = doc.data();
       if (data?.utterances && data.utterances.length > 0) {
-        if (preferredLang && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normalizeLanguageCode(data.language || ""))) {
+        if (preferredLang && ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(normalizeLanguageCode(data.language || ""))) {
           logger.info("[Dubbing] Restoring authentic supported source language over contaminated transcript language", { jobId, contaminated: data.language, authentic: preferredLang });
           data.language = preferredLang;
         }
@@ -3645,7 +3772,7 @@ export class DubbingEngine {
       if (doc.exists) {
         const data = doc.data();
         if (data?.utterances && data.utterances.length > 0) {
-          if (preferredLang && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normalizeLanguageCode(data.language || ""))) {
+          if (preferredLang && ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(normalizeLanguageCode(data.language || ""))) {
             logger.info("[Dubbing] Restoring authentic supported source language over contaminated orig transcript language", { origJobId, contaminated: data.language, authentic: preferredLang });
             data.language = preferredLang;
           }
@@ -3703,14 +3830,14 @@ export class DubbingEngine {
       ...(vData?.mediaSubtitles || {}),
     };
 
-    // Prioritize preferredLang first, then supported AssemblyAI Universal-3.5 Pro languages, then others
+    // Prioritize preferredLang first, then supported AssemblyAI Universal 3.7 Pro languages, then others
     const availableLangs = Object.keys(fallbackSubs).sort((a, b) => {
       const normA = normalizeLanguageCode(a);
       const normB = normalizeLanguageCode(b);
       if (normA === preferredLang && normB !== preferredLang) return -1;
       if (normB === preferredLang && normA !== preferredLang) return 1;
-      const aSupp = ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normA) ? 1 : 0;
-      const bSupp = ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normB) ? 1 : 0;
+      const aSupp = ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(normA) ? 1 : 0;
+      const bSupp = ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(normB) ? 1 : 0;
       return bSupp - aSupp;
     });
     if (availableLangs.length > 0) {
@@ -3724,7 +3851,7 @@ export class DubbingEngine {
             if (utterances.length > 0) {
               const fullText = utterances.map((u) => u.text).join(" ");
               const normLang = normalizeLanguageCode(lang);
-              const recoveredLang = (normLang === preferredLang || (ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(normLang)))
+              const recoveredLang = (normLang === preferredLang || (ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(preferredLang) && !ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(normLang)))
                 ? preferredLang
                 : normLang;
               const normalized = {
@@ -3892,6 +4019,14 @@ export class DubbingEngine {
       synthesizedAudioUrl: params.ttsUrls[idx] || undefined,
       durationMs: Math.max(200, Math.round(seg.end - seg.start)),
       updatedAt: Date.now(),
+      terminologyWarning: seg.terminologyWarning,
+      terminologyViolations: seg.terminologyViolations,
+      terminologyComplianceRate: seg.terminologyComplianceRate,
+      numericalParityVerified: (seg as any).numericalParityVerified ?? true,
+      numericalParityWarning: (seg as any).numericalParityWarning,
+      semanticParityScore: (seg as any).semanticParityScore,
+      reviewRecommended: (seg as any).reviewRecommended ?? false,
+      polarityFlipped: (seg as any).polarityFlipped,
     }));
 
     const manifest: DubbingEditableManifest = {
@@ -4563,6 +4698,33 @@ export class DubbingEngine {
       },
       reelOrchestration: { enabled: true, totalReels, status: "completed", completedAt },
     }, { merge: true });
+
+    // 🎬 Package Multilingual HLS Master Manifest (master.m3u8) with frame-aligned audio & snapped subtitles
+    try {
+      const audioRenditions = Object.entries(audioPaths).map(([lang, aUrl]) => ({
+        language: lang,
+        audioUrl: aUrl,
+        isDefault: lang === (meta.sourceLanguage || "en"),
+      }));
+      const subtitleRenditions = Object.entries(subtitlePaths).map(([lang, subUrl]) => ({
+        language: lang,
+        vttUrl: subUrl.replace(/\.srt$/, ".vtt"),
+        isDefault: false,
+      }));
+
+      const targetVideoId = meta.videoId || jobId;
+      await hlsPackagerService.packageMultilingualHlsManifest({
+        jobId,
+        videoId: targetVideoId,
+        sourceLanguage: meta.sourceLanguage || "en",
+        audioRenditions,
+        subtitleRenditions,
+        baseVideoUrl: (payload as any).videoUrl,
+        totalDurationSec: totalDurationMs > 0 ? totalDurationMs / 1000 : undefined,
+      });
+    } catch (hlsErr) {
+      logger.warn("[Dubbing:Assemble] Notice packaging HLS multi-audio manifest:", hlsErr);
+    }
 
     await aggregationLayer.onStageComplete(jobId, "dubbing", userId, executionPlan);
   }

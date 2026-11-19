@@ -1,7 +1,7 @@
 /**
  * 🎙️ TRUTHWORLD EXPRESSIVE V4 BUS
  *
- * Sits directly between the Translation Layer (Google Cloud Translation v3 / Gemini)
+ * Sits directly between the Translation Layer (Google Cloud Translation v3)
  * and the Synthesis Layer (ElevenLabs v4).
  *
  * Ingests per-segment acoustic telemetry (pitch dynamics, RMS loudness, speaking tempo,
@@ -48,6 +48,8 @@ export interface ExpressiveV4BusParams {
   preferVoiceCloning?: boolean;
   voiceType?: "standard" | "cloned" | "voice_clone";
   targetDurationMs?: number;
+  previousText?: string;
+  nextText?: string;
 }
 
 export interface ExpressiveV4BusPayload {
@@ -63,6 +65,9 @@ export interface ExpressiveV4BusPayload {
   similarityBoost: number;
   style: number;
   detectedStyle: string;
+  previousText?: string;
+  nextText?: string;
+  pacingAdjustment?: "compressed" | "expanded" | "neutral";
 }
 
 export class ExpressiveV4Bus {
@@ -211,8 +216,25 @@ export class ExpressiveV4Bus {
       similarityBoost = Number(Math.max(0.65, Math.min(0.95, baseSimilarity)).toFixed(2));
     }
 
-    // ── 5. Clean Text Sanitization & Inline Tag Formatting ───────────────────
-    const vocalText = sanitizeTextForElevenLabsV4(translatedText, resolvedTag);
+    // ── 5. Pre-Synthesis Micro-Pacing Punctuation Conditioning ───────────────
+    const { pacedText, pacingAdjustment } = this.applyMicroPacing(
+      translatedText,
+      language,
+      params.targetDurationMs,
+      t.speakingRateRatio
+    );
+
+    // ── 6. Clean Text Sanitization & Inline Tag Formatting ───────────────────
+    const vocalText = sanitizeTextForElevenLabsV4(pacedText, resolvedTag);
+
+    // Clean context texts for non-billed ElevenLabs cadence continuity
+    const cleanContext = (ctx?: string): string | undefined => {
+      if (!ctx || typeof ctx !== "string") return undefined;
+      const stripped = ctx.replace(/\[[^\]]+\]/g, " ").replace(/\s+/g, " ").trim();
+      return stripped.length > 0 ? stripped : undefined;
+    };
+    const cleanPrev = cleanContext(params.previousText);
+    const cleanNext = cleanContext(params.nextText);
 
     const detectedStyle = t.deliveryStyle || (resolvedTag ? `expressive:${resolvedTag}` : "natural");
 
@@ -224,6 +246,9 @@ export class ExpressiveV4Bus {
       style,
       similarityBoost,
       detectedStyle,
+      pacingAdjustment,
+      hasPrevContext: Boolean(cleanPrev),
+      hasNextContext: Boolean(cleanNext),
       originalLength: translatedText.length,
       vocalLength: vocalText.length,
     });
@@ -241,7 +266,62 @@ export class ExpressiveV4Bus {
       similarityBoost,
       style,
       detectedStyle,
+      previousText: cleanPrev,
+      nextText: cleanNext,
+      pacingAdjustment,
     };
+  }
+
+  /**
+   * Applies pre-synthesis punctuation micro-pacing based on target duration
+   * and speaking tempo ratio to optimize cadence and minimize post-synthesis ffmpeg atempo warping.
+   */
+  public applyMicroPacing(
+    text: string,
+    language: string,
+    targetDurationMs?: number,
+    speakingRateRatio?: number
+  ): { pacedText: string; pacingAdjustment: "compressed" | "expanded" | "neutral" } {
+    if (!text || text.trim().length === 0) {
+      return { pacedText: text, pacingAdjustment: "neutral" };
+    }
+
+    const clean = text.replace(/\[[^\]]+\]/g, "").trim();
+    const charsPerSec = ["te", "ta", "ml", "kn", "hi", "mr", "bn"].includes(language) ? 14 : 16;
+    const estDurationMs = (clean.length / charsPerSec) * 1000;
+
+    const isFastTempo =
+      (speakingRateRatio !== undefined && speakingRateRatio > 1.15) ||
+      (targetDurationMs !== undefined && targetDurationMs > 500 && estDurationMs > targetDurationMs * 1.15);
+
+    const isSlowTempo =
+      (speakingRateRatio !== undefined && speakingRateRatio < 0.88) ||
+      (targetDurationMs !== undefined && targetDurationMs > 1500 && estDurationMs < targetDurationMs * 0.72);
+
+    if (isFastTempo) {
+      // Tight window / fast speech: prune non-essential pauses so speech articulates briskly
+      let paced = text
+        .replace(/\.{3,}/g, ",")                     // Ellipses into short comma pause
+        .replace(/—|–/g, ",")                        // Em/en-dashes into short comma pause
+        .replace(/,\s*,+/g, ",")                     // Collapse duplicate commas
+        .replace(/,\s*(మరియు|కానీ|కాబట్టి|and|but|because|so|pero|mais|ou)(?=\s|$)/gi, " $1") // Prune pause before coordinating conjunctions
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      return { pacedText: paced, pacingAdjustment: "compressed" };
+    }
+
+    if (isSlowTempo && clean.length > 35) {
+      // Loose window / slow speech: insert natural syntactic clause micro-pauses at conjunctions
+      // to let the speaker naturally breathe instead of rushing through followed by dead air.
+      let paced = text
+        .replace(/(?<![,;:!?.—])\s+(మరియు|కానీ|కాబట్టి|and|but|because|so|pero|mais)(?=\s|$)/gi, ", $1")
+        .replace(/;\s*/g, ", ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      return { pacedText: paced, pacingAdjustment: "expanded" };
+    }
+
+    return { pacedText: text, pacingAdjustment: "neutral" };
   }
 }
 

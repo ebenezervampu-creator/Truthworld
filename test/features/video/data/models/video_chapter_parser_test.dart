@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_chapter.dart';
 
 void main() {
   group('VideoChapterParser Unit Tests', () {
@@ -290,6 +291,68 @@ Timestamps:
           expect(video.chapters.length, 2);
           expect(video.chapters[0].title, 'Intro');
           expect(video.chapters[1].title, 'Deep Dive');
+        },
+      );
+    },
+  );
+
+  group(
+    'Telugu Cross-Script Chapter Sanitization Tests',
+    () {
+      test(
+        'VideoChapter.sanitizeTitle cleanses Hindi परिचय to Telugu పరిచయం in Telugu context',
+        () {
+          expect(
+            VideoChapter.sanitizeTitle('परिचय', isTeluguContext: true),
+            'పరిచయం',
+          );
+          expect(
+            VideoChapter.sanitizeTitle('Introduction', isTeluguContext: true),
+            'పరిచయం',
+          );
+          expect(
+            VideoChapter.sanitizeTitle('Introduction', targetLanguage: 'te'),
+            'పరిచయం',
+          );
+          // Pure Hindi context preserves परिचय
+          expect(
+            VideoChapter.sanitizeTitle('परिचय', targetLanguage: 'hi'),
+            'परिचय',
+          );
+        },
+      );
+
+      test(
+        'VideoChapter.localizedTitle returns పరిచయం for te code when title is परिचय or Introduction',
+        () {
+          final chHindi = VideoChapter(title: 'परिचय', startTime: Duration.zero);
+          expect(chHindi.localizedTitle('te'), 'పరిచయం');
+
+          final chEnglish = VideoChapter(title: 'Introduction', startTime: Duration.zero);
+          expect(chEnglish.localizedTitle('te'), 'పరిచయం');
+        },
+      );
+
+      test(
+        'VideoChapterParser.resolveChapters cleanses परिचय in Telugu auto-chapters',
+        () {
+          final teluguAutoChapters = [
+            {'title': 'परिचय', 'startTimeMs': 0},
+            {'title': 'ఎలక్ట్రానిక్ ఓటింగ్ సిస్టమ్', 'startTimeMs': 43000},
+            {'title': 'అధికారిక వాదనలు', 'startTimeMs': 108000},
+          ];
+
+          final resolved = VideoChapterParser.resolveChapters(
+            explicitChapters: null,
+            description: 'EVMలు నిజంగా సురక్షితమేనా? VVPAT, ఎన్నికల పారదర్శకత',
+            rawAutoChapters: teluguAutoChapters,
+            autoChaptersEnabled: true,
+          );
+
+          expect(resolved.length, 3);
+          expect(resolved[0].title, 'పరిచయం');
+          expect(resolved[1].title, 'ఎలక్ట్రానిక్ ఓటింగ్ సిస్టమ్');
+          expect(resolved[2].title, 'అధికారిక వాదనలు');
         },
       );
     },

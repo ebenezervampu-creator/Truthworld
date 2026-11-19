@@ -138,4 +138,52 @@ describe("TruthWorld Expressive v4 Bus Pipeline Integration", () => {
     expect(payload.text).not.toContain("[laughs] [laughs]");
     expect(payload.text).toContain("[laughs] నిజంగానా?");
   });
+
+  test("7. Context windowing: previousText and nextText are sanitized and returned for cadence continuity", () => {
+    const payload = expressiveV4Bus.processSegment({
+      jobId: "job_ctx_1",
+      language: "te",
+      translatedText: "ఇది రెండవ వాక్యం.",
+      previousText: "[music] ఇది మొదటి వాక్యం.",
+      nextText: "ఇది మూడవ వాక్యం. [applause]",
+    });
+
+    expect(payload.previousText).toBe("ఇది మొదటి వాక్యం.");
+    expect(payload.nextText).toBe("ఇది మూడవ వాక్యం.");
+    expect(payload.text).toBe("ఇది రెండవ వాక్యం.");
+  });
+
+  test("8. Micro-pacing: tight duration / high tempo (ratio > 1.15) prunes pauses for brisk articulation", () => {
+    const payload = expressiveV4Bus.processSegment({
+      jobId: "job_pace_fast",
+      language: "te",
+      translatedText: "మేము వెళ్లాము... మరియు మేము చూశాము — అంతా బాగుంది.",
+      telemetry: {
+        speakingRateRatio: 1.25,
+      },
+      targetDurationMs: 1500,
+    });
+
+    expect(payload.pacingAdjustment).toBe("compressed");
+    // Ellipses and em-dashes collapsed into commas, pause before మరియు pruned
+    expect(payload.text).not.toContain("...");
+    expect(payload.text).not.toContain("—");
+    expect(payload.text).toContain(" మరియు ");
+  });
+
+  test("9. Micro-pacing: loose duration / slow tempo (ratio < 0.88) inserts syntactic clause micro-pauses", () => {
+    const payload = expressiveV4Bus.processSegment({
+      jobId: "job_pace_slow",
+      language: "te",
+      translatedText: "ఈ సత్యాన్ని మనం గ్రహించాలి మరియు మన జీవితంలో ఆచరణలో పెట్టాలి.",
+      telemetry: {
+        speakingRateRatio: 0.82,
+      },
+      targetDurationMs: 8000,
+    });
+
+    expect(payload.pacingAdjustment).toBe("expanded");
+    // Inserts natural breathing pause before the major conjunction
+    expect(payload.text).toContain(", మరియు ");
+  });
 });

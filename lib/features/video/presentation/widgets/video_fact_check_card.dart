@@ -63,7 +63,9 @@ class VideoFactCheckCard extends StatelessWidget {
             controller.loadFactCheckData(controller.video.factCheckUrl);
           }
         });
-        return _buildLoadingSkeleton();
+        if (controller.video.uiReport == null) {
+          return _buildLoadingSkeleton();
+        }
       }
 
       final parsed = FactCheckDataParser.parse(

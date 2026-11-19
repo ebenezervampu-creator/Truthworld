@@ -30,14 +30,7 @@ function testSubtitlePricing() {
   const ultra10m2Langs = calculateSubtitleCost(2, 600, "standard", 0, "ultra");
   assert(ultra10m2Langs === 0.70, `Ultra 10m 2 languages is $0.70 (got $${ultra10m2Langs})`);
 
-  // Test 3: Backward compatibility - starter/pro map to Ultra rate ($0.50 for 10m)
-  const legacyStarter10m = calculateSubtitleCost(1, 600, "standard", 0, "starter");
-  assert(legacyStarter10m === 0.50, `Legacy starter 10m maps to Ultra $0.50 (got $${legacyStarter10m})`);
-
-  const legacyPro10m = calculateSubtitleCost(1, 600, "standard", 0, "pro");
-  assert(legacyPro10m === 0.50, `Legacy pro 10m maps to Ultra $0.50 (got $${legacyPro10m})`);
-
-  // Test 4: Rate Cards & Flat Price per language Check
+  // Test 3: Rate Cards & Flat Price per language Check
   const flatUltra = getFlatSubtitlePricePerLanguage(600, "standard", "ultra");
   assert(flatUltra === 0.50, `Flat Ultra 600s is $0.50 (got $${flatUltra})`);
 

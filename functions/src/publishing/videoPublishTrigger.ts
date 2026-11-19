@@ -233,6 +233,7 @@ export const onVideoPublished = onDocumentUpdated(
       }, { merge: true }).catch(() => {});
 
       const eventId = `dispute_re_eval_${videoId}_${Date.now()}`;
+      const resolvedVideoUrl = afterData.originalUrl || afterData.media?.originalVideoUrl || afterData.videoUrl || "";
       await distributionLayer.publish("fact-processing", {
         eventId,
         eventType: "fact-processing",
@@ -240,7 +241,7 @@ export const onVideoPublished = onDocumentUpdated(
         userId: afterData.userId || afterData.creatorId || "unknown",
         timestamp: Date.now(),
         data: {
-          videoUrl: afterData.videoUrl || "",
+          videoUrl: resolvedVideoUrl,
           executionPlan,
         },
         retryCount: 0,

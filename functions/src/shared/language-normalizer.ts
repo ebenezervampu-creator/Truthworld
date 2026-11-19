@@ -363,3 +363,99 @@ export function isSummaryLanguageMismatch(summaryText?: string, targetLanguage?:
 
   return false;
 }
+
+/**
+ * 📖 Canonical Introduction Chapter Titles Across World Languages
+ */
+export const DEFAULT_INTRODUCTION_TITLES: Record<string, string> = {
+  te: "పరిచయం",
+  ta: "அறிமுகம்",
+  kn: "ಪರಿಚಯ",
+  ml: "ആമുഖം",
+  hi: "परिचय",
+  mr: "प्रस्तावना",
+  bn: "ভূমিকা",
+  gu: "પરિચય",
+  pa: "ਜਾਣ-ਪਛਾਣ",
+  or: "ପରିଚୟ",
+  ur: "تعارف",
+  ar: "مقدمة",
+  es: "Introducción",
+  fr: "Introduction",
+  de: "Einführung",
+  ja: "はじめに",
+  ko: "소개",
+  zh: "引言",
+  ru: "Введение",
+  pt: "Introdução",
+  it: "Introduzione",
+  tr: "Giriş",
+  vi: "Giới thiệu",
+  th: "บทนำ",
+  id: "Pengantar",
+  nl: "Inleiding",
+  en: "Introduction",
+};
+
+export function getDefaultIntroductionTitle(langCode?: string): string {
+  const norm = normalizeLanguageCode(langCode || "en");
+  return DEFAULT_INTRODUCTION_TITLES[norm] || "Introduction";
+}
+
+/**
+ * 🛡️ Sanitize Chapter Title & Eliminate Cross-Script Hallucinations
+ * Specifically catches Hindi/Devanagari tokens like "परिचय" erroneously generated for Telugu videos.
+ */
+export function sanitizeChapterTitle(title: string, targetLanguage?: string, isFirstChapter?: boolean): string {
+  if (!title || typeof title !== "string") return "Chapter";
+  const trimmed = title.trim();
+  const normLang = normalizeLanguageCode(targetLanguage || "");
+
+  // Indic Cross-Script Hallucination: Telugu video with Hindi/Devanagari "परिचय"
+  if (normLang === "te") {
+    if (trimmed === "परिचय" || trimmed === "Introduction" || trimmed.toLowerCase() === "introduction") {
+      return "పరిచయం";
+    }
+    // If the chapter title contains Devanagari script and represents the opening chapter
+    if (isFirstChapter && (/[\u0900-\u097F]/.test(trimmed) || /introduction/i.test(trimmed))) {
+      return "పరిచయం";
+    }
+    // Remove isolated Devanagari contamination while keeping Telugu text if mixed
+    if (/[\u0900-\u097F]/.test(trimmed) && /[\u0C00-\u0C7F]/.test(trimmed)) {
+      const cleaned = trimmed.replace(/[\u0900-\u097F]+/g, "").trim();
+      if (cleaned.length >= 2) return cleaned;
+    }
+  }
+
+  // General non-English language: if first chapter is titled "Introduction" or "परिचय" (when not Hindi)
+  if (isFirstChapter && normLang && normLang !== "en") {
+    if (trimmed === "Introduction" || trimmed.toLowerCase() === "introduction") {
+      return getDefaultIntroductionTitle(normLang);
+    }
+    if (normLang !== "hi" && normLang !== "mr" && normLang !== "ne" && trimmed === "परिचय") {
+      return getDefaultIntroductionTitle(normLang);
+    }
+  }
+
+  return trimmed;
+}
+
+/**
+ * 🛡️ Sanitize an array of chapters for the specified target language
+ */
+export function sanitizeChaptersForLanguage(chapters: any[], targetLanguage?: string): any[] {
+  if (!Array.isArray(chapters)) return [];
+  const normLang = normalizeLanguageCode(targetLanguage || "");
+
+  return chapters.map((ch, idx) => {
+    if (!ch || typeof ch !== "object") return ch;
+    const isFirst = idx === 0 || Number(ch.startMs ?? ch.startTimeMs ?? 0) === 0;
+    const sanitizedTitle = sanitizeChapterTitle(ch.title, normLang, isFirst);
+
+    return {
+      ...ch,
+      title: sanitizedTitle,
+    };
+  });
+}
+

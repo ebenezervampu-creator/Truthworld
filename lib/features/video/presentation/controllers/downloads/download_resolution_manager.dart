@@ -181,17 +181,8 @@ class DownloadResolutionManager {
   }
 
   /// Parses numeric height from resolution labels (e.g. "1080p" -> 1080, "1080p60" -> 1080).
-  static int inferHeightFromLabel(String label) {
-    final upper = label.toUpperCase();
-    if (upper.contains('4K') || upper.contains('2160')) return 2160;
-    if (upper.contains('2K') || upper.contains('1440')) return 1440;
-    final match = RegExp(r'(\d{3,4})[pP]').firstMatch(label);
-    if (match != null) {
-      return int.tryParse(match.group(1)!) ?? 720;
-    }
-    final clean = label.replaceAll(RegExp('[^0-9]'), '');
-    return int.tryParse(clean) ?? 720;
-  }
+  static int inferHeightFromLabel(String label) =>
+      VideoResolutionV2.inferHeightFromLabel(label);
 
   /// Returns user-friendly badge text for resolution chips.
   static String getResolutionBadge(String label, int height, {int fps = 30}) {

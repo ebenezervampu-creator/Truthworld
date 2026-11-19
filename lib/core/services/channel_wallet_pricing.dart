@@ -65,50 +65,16 @@ class ChannelWalletPricing {
     ),
   ];
 
-  /// Transparent proportional per-minute pricing rate cards (like ElevenLabs model):
-  /// - Audio Starter: $0.10 / min ($1.00 for 10-minute video)
-  /// - Audio Pro: $0.20 / min ($2.00 for 10-minute video)
-  /// - Audio Ultra: $0.30 / min ($3.00 for 10-minute video)
-  /// - Video Pro: $0.40 / min ($4.00 for 10-minute video)
-  /// - Video Ultra (Hollywood Cinema Grade): $0.50 / min ($5.00 for 10-minute video)
   /// Transparent proportional per-minute pricing rate card:
-  /// - Audio Starter: $0.10 / min ($1.00 for 10-minute video)
-  /// - Audio Pro: $0.20 / min ($2.00 for 10-minute video)
-  /// - Audio Track / Ultra (Studio Voice Cloning & 100% BGM Preservation): $0.30 / min ($3.00 for 10-minute video)
-  /// - Video Pro: $0.40 / min ($4.00 for 10-minute video)
-  /// - Video Ultra (Cinema Grade): $0.50 / min ($5.00 for 10-minute video)
+  /// Single unified Audio Track rate ($0.30/min for ElevenLabs v4 Studio Dubbing with 100% BGM Preservation)
   static const double perMinuteAudioTrackRate = 0.30;
-
-  // Tier-specific rates ($0.30/min baseline for ElevenLabs v4 Studio Dubbing)
-  static const double perMinuteAudioStarterRate = 0.30;
-  static const double perMinuteAudioProRate = 0.30;
-  static const double perMinuteAudioUltraRate = 0.30;
-  static const double perMinuteVideoProRate = 0.40;
-  static const double perMinuteVideoUltraRate = 0.50;
-
-  // Legacy aliases for backward compatibility ($0.30/min baseline)
-  static const double perMinuteStandardDubbingRate = 0.30;
-  static const double perMinuteVoiceCloneRate = 0.30;
 
   /// Production-Ready Dubbing Tiers Catalog
   static const List<DubbingProductionTier> productionTiers = DubbingProductionTier.allTiers;
 
-  /// Resolve the per-minute rate for a given tier ID
-  static double getTierRatePerMinute(String tierId) {
-    switch (tierId) {
-      case 'audio_starter':
-        return perMinuteAudioStarterRate;
-      case 'audio_pro':
-        return perMinuteAudioProRate;
-      case 'video_pro':
-        return perMinuteVideoProRate;
-      case 'video_ultra':
-        return perMinuteVideoUltraRate;
-      case 'audio_ultra':
-      case 'audio_track':
-      default:
-        return perMinuteAudioTrackRate;
-    }
+  /// Resolve the per-minute rate for dubbing
+  static double getTierRatePerMinute([String? tierId]) {
+    return perMinuteAudioTrackRate;
   }
 
   /// Get the flat dubbing rate per language based on tier and duration.
@@ -211,8 +177,7 @@ class ChannelWalletPricing {
     String voiceType = 'standard',
     bool isVoiceClone = false,
   }) {
-    final clone = isVoiceClone || voiceType == 'cloned' || voiceType == 'voice_clone';
-    final perMinuteRate = clone ? perMinuteVoiceCloneRate : perMinuteStandardDubbingRate;
+    const perMinuteRate = perMinuteAudioTrackRate;
 
     if (durationSeconds <= 0) {
       return perMinuteRate; // Default 1-minute floor
@@ -414,12 +379,6 @@ class ChannelWalletPricing {
   static const double perMinuteSubtitleUltraRate = 0.05;
   static const double perMinuteSubtitleUltraAddLangRate = 0.02;
 
-  // Backward compatibility aliases
-  static const double perMinuteSubtitleStarterRate = 0.05;
-  static const double perMinuteSubtitleProRate = 0.05;
-  static const double perMinuteSubtitleStarterAddLangRate = 0.02;
-  static const double perMinuteSubtitleProAddLangRate = 0.02;
-
   /// Calculate total cost for Subtitles (Ultra tier default)
   static double calculateSubtitleTierCost({
     required int languageCount,
@@ -581,6 +540,10 @@ class ChannelWalletPricing {
   /// AI Fact-Checking is 100% FREE for creators across all channels
   static const double standardFactCheckBaseCost = 0.0;
   static const double customFactCheckBaseCost = 0.0;
+
+  /// Cost & Quota Protections: Daily Grounding Quotas for unverified channels
+  static const int unverifiedChannelDailyGroundingLimit = 3;
+  static const int unverifiedChannelMaxGroundingClaimsPerVideo = 30;
 
   /// Pre-defined Fact-Checking Depth Plans:
   /// Single unified tier: All claims verified against full ground truth, 100% free for creators.

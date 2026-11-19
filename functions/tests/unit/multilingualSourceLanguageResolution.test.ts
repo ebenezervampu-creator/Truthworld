@@ -43,10 +43,13 @@ describe("Multilingual Source Language Resolution & Dubbing Gate", () => {
       expect(ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(resolvedPrimaryLang)).toBe(true);
     });
 
-    it("verifies AssemblyAI Universal-3.5 Pro supports English and Hindi, but strictly excludes Telugu as source STT", () => {
+    it("allows only AssemblyAI-STT-3.7's 32 supported source languages", () => {
       expect(ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has("en")).toBe(true);
       expect(ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has("hi")).toBe(true);
       expect(ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has("te")).toBe(false);
+      expect(ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has("nn")).toBe(true);
+      expect(ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.size).toBe(32);
+      expect(ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has("la")).toBe(false);
     });
 
     it("ensures fallbackSubs sorts preferredLang ('en') ahead of target language subtitles ('te')", () => {
@@ -77,9 +80,9 @@ describe("Multilingual Source Language Resolution & Dubbing Gate", () => {
       };
       const preferredLang = normalizeLanguageCode(vData.sourceLanguage || vData.language || "en");
 
-      // Suppose previous Telugu subtitle generation or recovery set language to 'te' on transcript doc
+      // Suppose previous subtitle generation or recovery set language to 'la' (unsupported) on transcript doc
       const contaminatedTranscriptData = {
-        language: "te",
+        language: "la",
         utterances: [
           { start: 0, end: 1000, text: "Welcome to the show." },
         ],

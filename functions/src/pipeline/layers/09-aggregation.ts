@@ -19,7 +19,7 @@ import { logger } from "../utils/logger";
 import { reputationService } from "../services/reputationService";
 import { SpeakerReputationService } from "../services/speakerReputationService";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
-import { normalizeLanguageCode } from "../../shared/language-normalizer";
+import { normalizeLanguageCode, sanitizeChaptersForLanguage } from "../../shared/language-normalizer";
 import { notifyUser } from "../../notifications/notifications";
 
 const db = () => admin.firestore();
@@ -695,7 +695,7 @@ export class AggregationLayer {
           ...(Array.isArray(trans?.chapters) ? trans.chapters : []),
         ];
         const mainCoverThumb = vData?.thumbnailUrl || "";
-        const resolvedChapters = (rawResolvedChapters || []).map((ch: any, idx: number) => {
+        const cleanResolvedChapters = (rawResolvedChapters || []).map((ch: any, idx: number) => {
           let thumb = ch.thumbnailUrl;
           if (!thumb || thumb === mainCoverThumb) {
             const chStart = Number(ch.startTimeMs ?? ch.startMs ?? 0);
@@ -712,6 +712,11 @@ export class AggregationLayer {
             thumbnailUrl: thumb || undefined,
           };
         });
+
+        const effectiveVideoLang = normalizeLanguageCode(
+          jobOutputs.language || trans?.detectedLanguage || trans?.language || vData?.primaryLanguage || vData?.detectedLanguage || "en"
+        );
+        const resolvedChapters = sanitizeChaptersForLanguage(cleanResolvedChapters, effectiveVideoLang);
 
         // 🛡 Deep-Merge Media & Independent Fields:
         // Never let Credibility completion wipe Dubbing/Subtitles, or Dubbing completion wipe Credibility.
@@ -1224,9 +1229,36 @@ export class AggregationLayer {
             unverifiable: cred.factCheckStats.unverifiable,
             extractionPartial: cred.factCheckStats.extractionPartial || false,
           };
+
+          // Denormalize compact claimLedgerSummary on root video document for instant zero-fetch feed rendering
+          const fcStats = cred.factCheckStats as any;
+          const totalChecked = (fcStats.correct || 0) + (fcStats.mostly_correct || fcStats.mostly_true || 0) +
+            (fcStats.incorrect || fcStats.false_claim || 0) + (fcStats.unproven || fcStats.unsupported || 0) +
+            (fcStats.disputed || 0);
+          const confirmedCount = (fcStats.correct || 0) + (fcStats.mostly_correct || fcStats.mostly_true || 0);
+          const disputedCount = fcStats.disputed || 0;
+          const unprovenCount = (fcStats.unproven || fcStats.unsupported || 0);
+          const falseCount = fcStats.incorrect || fcStats.false_claim || 0;
+          const contextualCount = (cred?.contextualFlags || []).length;
+          const highestSeverity = falseCount > 0 ? "false" : (disputedCount > 0 ? "disputed" : (confirmedCount > 0 ? "verified" : "none"));
+          const headline = falseCount > 0 ? `${falseCount} Contradicted Claims` : (confirmedCount > 0 ? `${confirmedCount} Confirmed Claims` : "Analyzed");
+
+          videoUpdate.claimLedger = {
+            totalClaimsChecked: totalChecked,
+            confirmedCount,
+            disputedCount,
+            unprovenCount,
+            falseCount,
+            contextualCount,
+            highestSeverityVerdict: highestSeverity,
+            verdictHeadline: headline,
+            verifiableRatio: fcStats.totalClaims > 0 ? totalChecked / fcStats.totalClaims : 1.0,
+          };
+          videoUpdate.claimLedgerSummary = videoUpdate.claimLedger;
         }
         videoUpdate["media.factCheckUrl"] = directFactCheckUrl;
         videoUpdate["media.transcriptionUrl"] = directTranscriptUrl;
+        videoUpdate.factCheckCompletedAt = admin.firestore.FieldValue.serverTimestamp();
 
         await db().collection("videos").doc(videoId).collection("media").doc("credibility").set({
           trustLabel: null,

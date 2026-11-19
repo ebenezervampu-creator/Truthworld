@@ -1433,7 +1433,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Unified cinema-grade subtitles powered by AssemblyAI Universal 3.5 Pro (18 Languages) and Google Cloud Translation v3.',
+            'Unified cinema-grade subtitles powered by AssemblyAI Universal 3.7 Pro and Google Cloud Translation v3.',
             style: TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
@@ -1449,7 +1449,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             badgeColor: AppColors.brand,
             badgeTextColor: Colors.black, // High contrast: black on brand
             modelsDescription:
-                'AssemblyAI Universal 3.5 Pro (18 Languages) • Google Cloud Translation v3',
+                'AssemblyAI Universal 3.7 Pro • Google Cloud Translation v3',
             featuresDescription:
                 'Cultural transcreation, reading pacing & precision timing',
             isSelected: true,

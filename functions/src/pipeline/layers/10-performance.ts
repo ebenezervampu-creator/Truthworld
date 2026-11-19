@@ -16,7 +16,7 @@
  *
  * ✅ TTL STRATEGY:
  *   - Claim cache: 1-7 days (by category)
- *   - Translation: 30 days (stable language outputs)
+ *   - Translation: 30 days (composite Google v3 + Adaptive MT outputs only)
  *   - TTS audio: 3 days (lower retention for audio files)
  *   - In-memory: 1 hour max per instance (ephemeral)
  */
@@ -33,6 +33,8 @@ import {
 } from "../types";
 import { getCache, setCache } from "../utils/memory-cache";
 import { logger } from "../utils/logger";
+
+const TRANSLATION_CACHE_VERSION = "google-v3-adaptive-mt-v1";
 import { alerting } from "../utils/alerting";
 import { getClaimCacheProvider, ClaimCacheProvider } from "../services/claimCacheProvider";
 
@@ -206,8 +208,8 @@ export class PerformanceLayer {
     const src = (sourceLanguage || "en").toLowerCase().trim();
     const tgt = (targetLanguage || "en").toLowerCase().trim();
     const textHash = crypto.createHash("md5").update(text).digest("hex");
-    const docId = crypto.createHash("md5").update(`${src}:${tgt}:${text}`).digest("hex");
-    const cacheKey = `translation:${src}:${tgt}:${textHash}`;
+    const docId = crypto.createHash("md5").update(`${TRANSLATION_CACHE_VERSION}:${src}:${tgt}:${text}`).digest("hex");
+    const cacheKey = `translation:${TRANSLATION_CACHE_VERSION}:${src}:${tgt}:${textHash}`;
 
     // ── L1: In-memory ────────────────────────────────────────────────────────
     const memCached = getCache(cacheKey);
@@ -227,6 +229,9 @@ export class PerformanceLayer {
       }
 
       const data = doc.data()!;
+      if (data.translationEngine !== TRANSLATION_CACHE_VERSION) {
+        return null;
+      }
       // Strict language guard: verify that cached document matches exact source and target language
       if (
         (data.sourceLanguage && data.sourceLanguage.toLowerCase().trim() !== src) ||
@@ -261,8 +266,8 @@ export class PerformanceLayer {
     const src = (sourceLanguage || "en").toLowerCase().trim();
     const tgt = (targetLanguage || "en").toLowerCase().trim();
     const textHash = crypto.createHash("md5").update(text).digest("hex");
-    const docId = crypto.createHash("md5").update(`${src}:${tgt}:${text}`).digest("hex");
-    const cacheKey = `translation:${src}:${tgt}:${textHash}`;
+    const docId = crypto.createHash("md5").update(`${TRANSLATION_CACHE_VERSION}:${src}:${tgt}:${text}`).digest("hex");
+    const cacheKey = `translation:${TRANSLATION_CACHE_VERSION}:${src}:${tgt}:${textHash}`;
     const ttlSeconds = this.config.cacheTTL.translation;
 
     try {
@@ -278,6 +283,7 @@ export class PerformanceLayer {
           sourceLanguage: src,
           targetLanguage: tgt,
           translation,
+          translationEngine: TRANSLATION_CACHE_VERSION,
           expiresAt: Date.now() + ttlSeconds * 1000,
           cachedAt: admin.firestore.FieldValue.serverTimestamp(),
           ttl: Date.now() + ttlSeconds * 1000,

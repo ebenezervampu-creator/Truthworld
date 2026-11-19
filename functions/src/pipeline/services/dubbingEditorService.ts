@@ -34,6 +34,10 @@ import { DubbingQualityGate } from "../layers/quality-gate";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 import { filterVideoIds } from "../../utils/videosCollectionGuard";
 import { logger } from "../utils/logger";
+import { TerminologyService } from "./terminology_glossary";
+import { hlsPackagerService } from "./hlsPackager";
+import { NumericalEntityGuard } from "./numericalEntityGuard";
+import { adaptiveMtDatasetService } from "./adaptiveMtDatasetService";
 
 const db = () => admin.firestore();
 
@@ -177,6 +181,7 @@ export class DubbingEditorService {
     version: number;
     subtitleUrl?: string;
     playableAudioUrl?: string;
+    terminologyWarning?: string;
   }> {
     const normLang = normalizeLanguageCode(params.language);
     const { jobId, jobData } = await this.authorizeAndResolveJobId({
@@ -251,8 +256,64 @@ export class DubbingEditorService {
     }
     textToVocalize = normalizeScriptureCitationsForTts(textToVocalize, normLang);
 
+    // ── Checkpoint B: Creator DAW Override - Terminology & Numerical Parity Check ──
+    const compCheck = TerminologyService.checkTerminologyCompliance(
+      existingSeg.originalText || "",
+      nextTextRaw,
+      normLang
+    );
+    const numParity = NumericalEntityGuard.verifyNumericalParity(
+      existingSeg.originalText || "",
+      nextTextRaw,
+      normLang
+    );
+
+    let terminologyWarning: string | undefined = undefined;
+    if (compCheck.violations.length > 0) {
+      const v = compCheck.violations[0];
+      terminologyWarning = `Non-compliant term "${v.disallowedFound}" detected. Recommended: "${v.suggested}".`;
+      logger.warn("[DubbingEditor] Terminology violation in creator manual line edit", {
+        jobId,
+        segmentIndex: params.segmentIndex,
+        language: normLang,
+        violations: compCheck.violations.map((viol) => `${viol.disallowedFound} -> ${viol.suggested}`),
+      });
+    }
+
+    let numericalParityWarning: string | undefined = undefined;
+    if (!numParity.isParity) {
+      numericalParityWarning = numParity.details;
+      const numAlert = `Numerical discrepancy detected: The original stated "${existingSeg.originalText}". Your edit may alter factual numbers.`;
+      terminologyWarning = terminologyWarning ? `${terminologyWarning} ${numAlert}` : numAlert;
+      logger.warn("[DubbingEditor] Numerical parity drift in creator manual line edit", {
+        jobId,
+        segmentIndex: params.segmentIndex,
+        language: normLang,
+        details: numParity.details,
+      });
+    }
+
     // 🛡️ Guardrail 1: Re-Run Rule 2c/2d & Lexical Guards on Single-Segment Resynthesis
+    const prevSeg = targetIdx > 0 ? manifest.segments[targetIdx - 1] : undefined;
     const nextSeg = manifest.segments[targetIdx + 1];
+
+    // 🛡️ Guardrail 3: Context-Windowing Gate — Same-speaker adjacent turns within 2.5s gap
+    const prevGapMs = (prevSeg && existingSeg.startMs !== undefined && prevSeg.endMs !== undefined)
+      ? (existingSeg.startMs - prevSeg.endMs)
+      : Infinity;
+    const isPrevSameSpeaker = Boolean(prevSeg && prevSeg.speaker && existingSeg.speaker && prevSeg.speaker === existingSeg.speaker);
+    const gatedPrevText = (isPrevSameSpeaker && prevGapMs >= 0 && prevGapMs <= 2500)
+      ? (prevSeg?.editedText || prevSeg?.translatedText)
+      : undefined;
+
+    const nextGapMs = (nextSeg && nextSeg.startMs !== undefined && existingSeg.endMs !== undefined)
+      ? (nextSeg.startMs - existingSeg.endMs)
+      : Infinity;
+    const isNextSameSpeaker = Boolean(nextSeg && nextSeg.speaker && existingSeg.speaker && nextSeg.speaker === existingSeg.speaker);
+    const gatedNextText = (isNextSameSpeaker && nextGapMs >= 0 && nextGapMs <= 2500)
+      ? (nextSeg?.editedText || nextSeg?.translatedText)
+      : undefined;
+
     const totalDurMs = manifest.totalDurationMs || 0;
     const hardCeilingMs = nextSeg
       ? Math.max(existingSeg.startMs + 200, nextSeg.startMs - 120)
@@ -287,6 +348,9 @@ export class DubbingEditorService {
       },
       preferVoiceCloning: isJobVoiceClone,
       voiceType: voiceType as any,
+      targetDurationMs: permissibleWindowMs,
+      previousText: gatedPrevText,
+      nextText: gatedNextText,
     });
 
     const synthResult = await ttsService.synthesize({
@@ -305,8 +369,11 @@ export class DubbingEditorService {
       emotionTag: busPayload.emotionTag,
       energyDb: existingSeg.energyDb,
       pronunciationGlossary: manifest.pronunciationGlossary || [],
+      previousText: busPayload.previousText,
+      nextText: busPayload.nextText,
     });
 
+    const synthDurationMs = Math.round(synthResult.duration * 1000);
     const updatedSeg: DubbingEditableSegment = {
       ...existingSeg,
       editedText: nextTextRaw,
@@ -316,7 +383,22 @@ export class DubbingEditorService {
       similarityBoostOverride: busPayload.voiceSettings.similarity_boost,
       voiceId: nextVoiceId || synthResult.voiceName,
       synthesizedAudioUrl: synthResult.audioUrl,
+      durationMs: synthDurationMs,
+      actualSynthesizedDurationMs: synthDurationMs,
       updatedAt: Date.now(),
+      terminologyWarning,
+      terminologyViolations: compCheck.violations.length > 0
+        ? compCheck.violations.map((v) => ({
+            termId: v.termId,
+            source: v.source,
+            disallowedFound: v.disallowedFound,
+            suggested: v.suggested,
+          }))
+        : undefined,
+      terminologyComplianceRate: compCheck.complianceRate,
+      numericalParityVerified: numParity.isParity,
+      numericalParityWarning,
+      reviewRecommended: !numParity.isParity || compCheck.violations.length > 0,
     };
 
     const updatedSegments = [...manifest.segments];
@@ -360,6 +442,25 @@ export class DubbingEditorService {
         { merge: true }
       );
 
+    // ── Option 3: Safe Quarantined Ingestion into Translation Memory ──
+    // Ingests creator edits ONLY after audio synthesis & manifest persistence succeed
+    // AND strictly gated behind: numericalParityPassed === true && complianceRate === 1.0!
+    if (existingSeg.originalText) {
+      await adaptiveMtDatasetService.ingestCreatorCorrection({
+        jobId,
+        sourceText: existingSeg.originalText,
+        editedText: nextTextRaw,
+        sourceLang: manifest.sourceLanguage || "en",
+        targetLang: normLang,
+        numericalParityPassed: numParity.isParity,
+        terminologyComplianceRate: compCheck.complianceRate,
+        reviewRecommended: !numParity.isParity || compCheck.violations.length > 0,
+        segmentIndex: params.segmentIndex,
+      }).catch((err) => {
+        logger.warn("[AdaptiveMtDataset] TM ingestion skipped on edit:", err);
+      });
+    }
+
     const playableAudioUrl = await audioIdentityService
       .getAccessibleUrl(synthResult.audioUrl)
       .catch(() => synthResult.audioUrl);
@@ -369,6 +470,7 @@ export class DubbingEditorService {
       version: nextVersion,
       subtitleUrl,
       playableAudioUrl,
+      terminologyWarning,
     };
   }
 
@@ -381,11 +483,17 @@ export class DubbingEditorService {
     try {
       const subRes = await mediaService.generateAllSubtitles(
         jobId,
-        segments.map((s) => ({
-          start: s.startMs,
-          end: s.endMs,
-          text: stripAudioTagsForSubtitles(s.editedText || s.translatedText),
-        })),
+        segments.map((s, idx) => {
+          const actualDurMs = s.actualSynthesizedDurationMs || s.durationMs || (s.endMs - s.startMs);
+          const nextSeg = idx < segments.length - 1 ? segments[idx + 1] : undefined;
+          const nextStart = nextSeg ? nextSeg.startMs : (s.startMs + actualDurMs + 2000);
+          const snappedEnd = Math.min(s.startMs + actualDurMs, Math.max(s.startMs + 300, nextStart - 50));
+          return {
+            start: s.startMs,
+            end: snappedEnd,
+            text: stripAudioTagsForSubtitles(s.editedText || s.translatedText),
+          };
+        }),
         normLang
       );
       return subRes.srtUrl;
@@ -624,6 +732,28 @@ export class DubbingEditorService {
         }
         textToVocalize = normalizeScriptureCitationsForTts(textToVocalize, normLang);
 
+        const prevSeg = i > 0 ? updatedSegments[i - 1] : undefined;
+        const nextSeg = i < updatedSegments.length - 1 ? updatedSegments[i + 1] : undefined;
+
+        // 🛡️ Guardrail 3: Context-Windowing Gate — Same-speaker adjacent turns within 2.5s gap
+        const prevGapMs = (prevSeg && seg.startMs !== undefined && prevSeg.endMs !== undefined)
+          ? (seg.startMs - prevSeg.endMs)
+          : Infinity;
+        const isPrevSameSpeaker = Boolean(prevSeg && prevSeg.speaker && seg.speaker && prevSeg.speaker === seg.speaker);
+        const gatedPrevText = (isPrevSameSpeaker && prevGapMs >= 0 && prevGapMs <= 2500)
+          ? (prevSeg?.editedText || prevSeg?.translatedText)
+          : undefined;
+
+        const nextGapMs = (nextSeg && nextSeg.startMs !== undefined && seg.endMs !== undefined)
+          ? (nextSeg.startMs - seg.endMs)
+          : Infinity;
+        const isNextSameSpeaker = Boolean(nextSeg && nextSeg.speaker && seg.speaker && nextSeg.speaker === seg.speaker);
+        const gatedNextText = (isNextSameSpeaker && nextGapMs >= 0 && nextGapMs <= 2500)
+          ? (nextSeg?.editedText || nextSeg?.translatedText)
+          : undefined;
+
+        const targetDurationMs = (seg.endMs && seg.startMs) ? Math.max(0, seg.endMs - seg.startMs) : undefined;
+
         const busPayload = expressiveV4Bus.processSegment({
           jobId,
           language: normLang,
@@ -641,6 +771,9 @@ export class DubbingEditorService {
           },
           preferVoiceCloning: isJobVoiceClone,
           voiceType: voiceType as any,
+          targetDurationMs,
+          previousText: gatedPrevText,
+          nextText: gatedNextText,
         });
 
         const synth = await ttsService.synthesize({
@@ -658,12 +791,17 @@ export class DubbingEditorService {
           style: busPayload.voiceSettings.style,
           emotionTag: busPayload.emotionTag,
           pronunciationGlossary: manifest.pronunciationGlossary || [],
+          previousText: busPayload.previousText,
+          nextText: busPayload.nextText,
         });
+        const synthDurMs = Math.round(synth.duration * 1000);
         updatedSegments[i] = {
           ...seg,
           translatedText: busPayload.text,
           emotionTag: busPayload.emotionTag,
           synthesizedAudioUrl: synth.audioUrl,
+          durationMs: synthDurMs,
+          actualSynthesizedDurationMs: synthDurMs,
           updatedAt: Date.now(),
         };
         segmentUrls.push(synth.audioUrl);
@@ -762,6 +900,14 @@ export class DubbingEditorService {
     }
 
     let masterVideoUrl = manifest.masterVideoUrl || undefined;
+    // 🛡️ Guardrail 2: Synchronize snapped captions cleanly
+    const updatedSubtitleUrl = await this.syncEditableSubtitles(
+      jobId,
+      normLang,
+      updatedSegments,
+      manifest.subtitleUrl || undefined
+    );
+
     const sourceVideoUrl = jobData.videoUrl as string | undefined;
     if (sourceVideoUrl) {
       masterVideoUrl = await mediaService
@@ -769,7 +915,7 @@ export class DubbingEditorService {
           jobId,
           videoUrl: sourceVideoUrl,
           audioUrl: masterAudioUrl,
-          subtitleUrl: manifest.subtitleUrl || undefined,
+          subtitleUrl: updatedSubtitleUrl || manifest.subtitleUrl || undefined,
           language: normLang,
           format: "mp4",
           audioFilters: dspFilters,
@@ -781,6 +927,7 @@ export class DubbingEditorService {
     await manifestRef.set(
       {
         segments: updatedSegments,
+        subtitleUrl: updatedSubtitleUrl || manifest.subtitleUrl || null,
         dialogueStemUrl,
         masterAudioUrl,
         masterVideoUrl: masterVideoUrl ?? null,
@@ -829,6 +976,48 @@ export class DubbingEditorService {
           },
           { merge: true }
         );
+    }
+
+    // 🎬 Package / Update Multilingual HLS Master Manifest (master.m3u8) with frame-aligned tracks
+    const targetVideoId = videoId || jobData.videoId || (linkedVideoIds.length > 0 ? linkedVideoIds[0] : jobId);
+    if (targetVideoId) {
+      try {
+        const videoSnap = await db().collection("videos").doc(targetVideoId).get();
+        const videoData = videoSnap.exists ? videoSnap.data() || {} : {};
+        const existingAudioTracks: Record<string, string> = {
+          ...(videoData.audioTracks || {}),
+          [normLang]: directAudioUrl,
+        };
+        const activeSubUrl = updatedSubtitleUrl || manifest.subtitleUrl;
+        const existingSubtitles: Record<string, string> = {
+          ...(videoData.mediaSubtitles || {}),
+          ...(activeSubUrl ? { [normLang]: activeSubUrl.replace(/\.srt$/, ".vtt") } : {}),
+        };
+
+        const audioRenditions = Object.entries(existingAudioTracks).map(([lang, aUrl]) => ({
+          language: lang,
+          audioUrl: aUrl,
+          isDefault: lang === (jobData.sourceLanguage || "en"),
+        }));
+
+        const subtitleRenditions = Object.entries(existingSubtitles).map(([lang, subUrl]) => ({
+          language: lang,
+          vttUrl: subUrl.replace(/\.srt$/, ".vtt"),
+          isDefault: false,
+        }));
+
+        await hlsPackagerService.packageMultilingualHlsManifest({
+          jobId,
+          videoId: targetVideoId,
+          sourceLanguage: jobData.sourceLanguage || "en",
+          audioRenditions,
+          subtitleRenditions,
+          baseVideoUrl: sourceVideoUrl,
+          totalDurationSec: totalDurationMs > 0 ? totalDurationMs / 1000 : undefined,
+        });
+      } catch (hlsErr) {
+        logger.warn("[DubbingEditor:Remaster] Notice packaging HLS multi-audio manifest:", hlsErr);
+      }
     }
 
     const playableMasterUrl = await audioIdentityService

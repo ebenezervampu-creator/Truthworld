@@ -59,6 +59,7 @@ import {
   urlVerificationService,
   buildDirectNavigationUrl,
 } from "./urlVerificationService";
+import { ClaimClusteringService } from "./claimClusteringService";
 
 export { isVerifiedRichSource, enforceClosedWorldCitationFirewall, buildDirectNavigationUrl };
 export { EvidenceProvider, VerifiedSource, AdjudicatedClaim } from "../types";
@@ -216,6 +217,9 @@ Every claim must be evaluated with utmost precision. DO NOT default to or rubber
 - Do NOT write or invent raw URLs in your rationale.
 - When search grounding returns evidence chunks, always cite the relevant chunk indices in citedChunkIndices.
 - Rationale MUST be clear, objective, neutral, and educational. Explain WHY the claim is Verified, False, Misleading, or Disputed in standard accessible language without raw developer terms.
+
+### THEMATIC GROUNDING & QUERY AMORTIZATION:
+- If this batch contains thematically related claims or shared entities, synthesize 1 to 2 comprehensive, focused search queries that capture the cluster's core subject simultaneously, avoiding fragmented single-claim queries.
 ${evidenceBlock}
 
 Claims to adjudicate:
@@ -353,8 +357,11 @@ export async function verifyClaimsHybrid(
   const results: AdjudicatedClaim[] = [];
   const claimById = new Map(uncachedClaims.map((c) => [c.claimId, c]));
 
-  // 1. Tier 2: Batched Bulk Verification (thinkingLevel: LOW)
-  const routineBatches = chunkClaims(routineClaims, PIPELINE_LIMITS.BATCH_SIZE_GROUNDING);
+  // 1. Tier 2: Batched Bulk Verification (thinkingLevel: LOW, Thematically Clustered)
+  const routineClusters = ClaimClusteringService.clusterClaims(routineClaims, {
+    maxClusterSize: Math.min(PIPELINE_LIMITS.BATCH_SIZE_GROUNDING, 4),
+  });
+  const routineBatches = ClaimClusteringService.toBatches(routineClusters);
   const uncoveredTier2Claims: ModernExtractedClaim[] = [];
 
   for (const batch of routineBatches) {
@@ -371,7 +378,7 @@ export async function verifyClaimsHybrid(
     for (const res of batchResults) {
       const original = claimById.get(res.claimId);
 
-      // Edge-Case Safeguard: If a claim was evaluated in closed-world mode and marked
+      // Edge-Case Safeguard 1: If a claim was evaluated in closed-world mode and marked
       // UNVERIFIABLE, but had ZERO entries in preRetrievedEvidence, do not drop it as
       // unverifiable. Route it through a live Search Grounding fallback batch.
       if (
@@ -379,6 +386,14 @@ export async function verifyClaimsHybrid(
         res.verdict === "UNVERIFIABLE" &&
         !hasPreRetrievedEvidenceForClaim(res.claimId, preRetrievedEvidence)
       ) {
+        if (original) uncoveredTier2Claims.push(original);
+        continue;
+      }
+
+      // Safeguard 2 (Single-Claim Retry Fallback): If a claim inside a multi-claim cluster (batch.length > 1)
+      // returns UNVERIFIABLE, it may have suffered from clustered query dilution.
+      // Route it to an isolated single-claim search grounding pass so clustering NEVER degrades accuracy.
+      if (batch.length > 1 && res.verdict === "UNVERIFIABLE") {
         if (original) uncoveredTier2Claims.push(original);
         continue;
       }
@@ -391,9 +406,9 @@ export async function verifyClaimsHybrid(
     }
   }
 
-  // Fallback pass: Uncovered Tier-2 claims that had no Layer 06C evidence run with live search grounding
+  // Fallback pass: Uncovered Tier-2 claims run with dedicated single-claim live search grounding
   if (uncoveredTier2Claims.length > 0) {
-    const fallbackBatches = chunkClaims(uncoveredTier2Claims, PIPELINE_LIMITS.BATCH_SIZE_GROUNDING);
+    const fallbackBatches = chunkClaims(uncoveredTier2Claims, 1);
     for (const fBatch of fallbackBatches) {
       const fallbackResults = await runGroundedAdjudication({
         videoId,
@@ -418,7 +433,8 @@ export async function verifyClaimsHybrid(
 
   // 2. Tier 3: Gemini 4 Hydrogen 3-Stage Arbiter (MEDIUM -> HIGH on confidence < 0.85 -> XHIGH on conflict)
   if (sensitiveClaims.length > 0) {
-    const tier3Batches = chunkClaims(sensitiveClaims, 3);
+    const tier3Clusters = ClaimClusteringService.clusterClaims(sensitiveClaims, { maxClusterSize: 3 });
+    const tier3Batches = ClaimClusteringService.toBatches(tier3Clusters);
     for (const batch of tier3Batches) {
       // Stage 3A: MEDIUM default pass
       const mediumPassResults = await runGroundedAdjudication({

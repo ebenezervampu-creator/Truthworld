@@ -100,6 +100,14 @@ export const PIPELINE_CONFIG = {
   TRANSLATION_MODEL: process.env.TRANSLATION_MODEL || "general/translation-llm",
   TRANSLATION_LOCATION: process.env.TRANSLATION_LOCATION || "global",
 
+  // ─── AdaptiveMt Configuration (Real-Time Glossary/Terminology Consistency) ──
+  /** AdaptiveMt requires a regional endpoint (NOT "global"). */
+  ADAPTIVE_MT_LOCATION: process.env.ADAPTIVE_MT_LOCATION || "us-central1",
+  /** Optional: pre-created AdaptiveMt dataset resource name for persistent terminology memory. */
+  ADAPTIVE_MT_DATASET: process.env.ADAPTIVE_MT_DATASET || "",
+  /** Required composite-translation stage; disabling it causes translation to fail. */
+  ADAPTIVE_MT_ENABLED: process.env.ADAPTIVE_MT_ENABLED !== "false",
+
   /** Last-known-good configuration for automatic fallback / zero-downtime rollback */
   LAST_KNOWN_GOOD_TRANSLATION_CONFIG: {
     provider: "google",
@@ -124,7 +132,6 @@ export const PIPELINE_CONFIG = {
     reasoning: GEMINI_MODELS.reasoning.model,
     synthesis: process.env.GEMINI_SYNTHESIS_MODEL || GEMINI_MODELS.extraction.model,
     consistency: process.env.GEMINI_CONSISTENCY_MODEL || GEMINI_MODELS.extraction.model,
-    translation: process.env.GEMINI_TRANSLATION_MODEL || GEMINI_MODELS.extraction.model,
     profiling: process.env.GEMINI_PROFILING_MODEL || GEMINI_MODELS.extraction.model,
     moderation: process.env.GEMINI_MODERATION_MODEL || GEMINI_MODELS.verification.model,
     fastTier: process.env.GEMINI_FAST_TIER_MODEL || GEMINI_MODELS.extraction.model,

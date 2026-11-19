@@ -66,7 +66,51 @@ class VideoChapter {
       final loc = localizedTitles[code];
       if (loc != null && loc.trim().isNotEmpty) return loc;
     }
+
+    // Cleanse cross-script hallucination: if user is requesting Telugu or title is in Hindi for intro
+    if (code == 'te' && (title == 'परिचय' || title == 'Introduction')) {
+      return 'పరిచయం';
+    }
+
     return title;
+  }
+
+  VideoChapter copyWith({
+    String? title,
+    Duration? startTime,
+    String? thumbnailUrl,
+    Map<String, String>? localizedTitles,
+  }) {
+    return VideoChapter(
+      title: title ?? this.title,
+      startTime: startTime ?? this.startTime,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      localizedTitles: localizedTitles ?? this.localizedTitles,
+    );
+  }
+
+  /// Canonical sanitizer for cross-script hallucinations (e.g. Hindi 'परिचय' in Telugu context)
+  static String sanitizeTitle(
+    String title, {
+    String? targetLanguage,
+    bool isTeluguContext = false,
+    Duration startTime = Duration.zero,
+  }) {
+    final trimmed = title.trim();
+    final isTe = targetLanguage == 'te' || isTeluguContext;
+
+    if (isTe) {
+      if (trimmed == 'परिचय' ||
+          trimmed == 'Introduction' ||
+          trimmed.toLowerCase() == 'introduction') {
+        return 'పరిచయం';
+      }
+      if (startTime == Duration.zero &&
+          RegExp(r'[\u0900-\u097F]').hasMatch(trimmed)) {
+        return 'పరిచయం';
+      }
+    }
+    return trimmed;
   }
 
   Map<String, dynamic> toMap() {

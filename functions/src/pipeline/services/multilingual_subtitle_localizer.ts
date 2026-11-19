@@ -3,7 +3,7 @@
  *
  * Architecture: "Translate first, segment second"
  * 1. Groups source speech into complete grammatical sentences with word timestamps.
- * 2. Translates complete contextual sentences via Google Cloud Translation v3.
+ * 2. Translates complete contextual sentences via the required v3 + Adaptive MT composite.
  * 3. Independently segments translated text according to target-language grammar and reading speed.
  * 4. Temporally aligns target phrases to source speech intervals with intelligent retiming:
  *    - Eliminates 1:1 cue-time projection bottlenecks (fixes Spanish 48.29 CPS blowout).
@@ -195,16 +195,18 @@ export class MultilingualSubtitleLocalizer {
         });
         translatedSentenceTexts = fallbackSegments.map((fb) => fb.text.trim());
       } else {
-        try {
-          translatedSentenceTexts = await translationService.batchTranslateStandard(
-            sentences.map((s) => s.text),
-            sourceLanguage,
-            targetLanguage
-          );
-        } catch (err) {
-          logger.warn("[MultilingualLocalizer] High-throughput batch translation notice:", { jobId, err });
-          translatedSentenceTexts = sentences.map((s) => s.text);
-        }
+        translatedSentenceTexts = await translationService.batchTranslateStandard(
+          sentences.map((s) => s.text),
+          sourceLanguage,
+          targetLanguage
+        );
+      }
+
+      if (
+        translatedSentenceTexts.length !== sentences.length ||
+        translatedSentenceTexts.some((text) => !text?.trim())
+      ) {
+        throw new Error(`[MultilingualLocalizer] Required translation returned incomplete results for ${targetLanguage}.`);
       }
     }
 
@@ -214,7 +216,10 @@ export class MultilingualSubtitleLocalizer {
 
     for (let sIdx = 0; sIdx < sentences.length; sIdx++) {
       const sentence = sentences[sIdx];
-      const rawText = translatedSentenceTexts[sIdx] || sentence.text;
+      const rawText = translatedSentenceTexts[sIdx];
+      if (!rawText?.trim()) {
+        throw new Error(`[MultilingualLocalizer] Missing required ${targetLanguage} translation for sentence ${sIdx}.`);
+      }
       const translatedText = SubtitleGuardrails.sanitize(rawText, {
         targetLanguage,
         sourceLanguage,

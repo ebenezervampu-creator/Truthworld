@@ -426,6 +426,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     final credibilityData = stages['credibility'] as Map<String, dynamic>?;
     final rawCredibilityStatus =
         (credibilityData?['status'] as String?)?.toLowerCase() ?? 'pending';
+    final isCredibilityRunning = rawCredibilityStatus == 'running' ||
+        rawCredibilityStatus == 'in_progress' ||
+        rawCredibilityStatus == 'processing';
+    final isCredibilityFailed = rawCredibilityStatus == 'failed';
 
     final jobOutputs =
         (jobDocData?['outputs'] as Map<String, dynamic>?) ?? {};
@@ -495,10 +499,15 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                     label: '${cred.claims.length} Claims Verified',
                     color: AppColors.success,
                   )
-                else if (rawCredibilityStatus == 'in_progress')
+                else if (isCredibilityRunning)
                   _buildMiniBadge(
                     label: 'Verifying Claims...',
                     color: AppColors.info,
+                  )
+                else if (isCredibilityFailed)
+                  _buildMiniBadge(
+                    label: 'Verification Interrupted',
+                    color: AppColors.warning,
                   )
                 else
                   _buildMiniBadge(
@@ -595,7 +604,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                 ),
               )
             // Case 2: Credibility In Progress
-            else if (rawCredibilityStatus == 'in_progress')
+            else if (isCredibilityRunning)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -638,6 +647,94 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ),
+                  ],
+                ),
+              )
+            // Case 2.5: Credibility Interrupted / Degraded
+            else if (isCredibilityFailed)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 16,
+                          color: AppColors.warning,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Fact-Checking Interrupted',
+                            style: AppTextStyles.labelMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      UserFeedbackSanitizer.sanitizeMessage(
+                        (credibilityData?['suggestedRemedy'] as String?) ??
+                            (credibilityData?['error'] as String?) ??
+                            'We encountered a temporary interruption while verifying claims. Tap below to retry.',
+                      ),
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.refresh_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        'Retry Fact-Check',
+                        style: AppTextStyles.labelSmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      onPressed: () {
+                        final controller =
+                            Get.isRegistered<VideoManagementController>()
+                                ? Get.find<VideoManagementController>()
+                                : Get.put(VideoManagementController());
+                        showGenerateAIFeaturesQuickModal(
+                          context,
+                          video,
+                          controller,
+                        );
+                      },
                     ),
                   ],
                 ),

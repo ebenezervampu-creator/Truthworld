@@ -251,6 +251,7 @@ class FactCheckDataParser {
     // 7. Claims
     final rawClaims = (data['claims'] as List?) ??
         (data['keyClaims'] as List?) ??
+        (data['claimLedger'] as List?) ??
         (data['uiReport']?['keyClaims'] as List?) ??
         (data['uiReport']?['claims'] as List?) ??
         (data['evaluatedClaims'] as List?) ??
@@ -511,11 +512,26 @@ class FactCheckDataParser {
     final factors = (data['scoringFactors'] ?? data['factors']) as Map? ?? {};
     final factorsMap = Map<String, dynamic>.from(factors);
 
-    // 10. Metrics & urgency computation
+    // 10. Metrics & calibrated urgency computation
+    final summaryMap = data['claimLedgerSummary'] is Map
+        ? (data['claimLedgerSummary'] as Map)
+        : (data['claimLedger'] is Map ? (data['claimLedger'] as Map) : null);
+    if (claimsList.isEmpty && summaryMap != null) {
+      verifiedCount = (summaryMap['confirmedCount'] as num?)?.toInt() ?? 0;
+      falseCount = (summaryMap['falseCount'] as num?)?.toInt() ?? 0;
+      cautionCount = (summaryMap['disputedCount'] as num?)?.toInt() ??
+          (summaryMap['unprovenCount'] as num?)?.toInt() ??
+          0;
+    }
+
     final isDisputed = falseCount > 0 && falseCount >= verifiedCount;
     final isCaution = !isDisputed && cautionCount > verifiedCount;
     final isLowTrust = isDisputed;
-    final needsUrgency = isDisputed || isCaution;
+    final totalChecked = verifiedCount + cautionCount + falseCount;
+    final falseRatio = totalChecked > 0 ? falseCount / totalChecked : 0.0;
+    final intentionalDeceptionScore = (data['intentToMisleadScore'] as num?)?.toDouble() ?? 0.0;
+    final isHighStakes = (data['isHighStakes'] == true) || (data['domain'] == 'HEALTH_MEDICAL') || (data['riskDomain'] == 'HEALTH_MEDICAL');
+    final needsUrgency = isHighStakes || falseRatio > 0.15 || intentionalDeceptionScore > 0.5;
 
     final scoreColor = isDisputed
         ? AppColors.error

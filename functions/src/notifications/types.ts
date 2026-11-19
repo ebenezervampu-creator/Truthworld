@@ -31,7 +31,6 @@ export type NotificationType =
   | "monetization_revenue"
   | "monetization_payout"
   | "monetization_refund"
-  | "lip_sync_credit"
   | "membership_milestone"
   | "ranking_change"
   | "new_video_followed"

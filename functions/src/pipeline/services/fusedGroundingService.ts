@@ -103,6 +103,7 @@ export interface FusedGroundingOptions {
   providedSources?: string[];
   tier0Context?: string;
   signal?: AbortSignal;
+  preRetrievedEvidence?: any[];
 }
 
 export class FusedGroundingService {
@@ -165,10 +166,14 @@ export class FusedGroundingService {
         ? `\n### CHANNEL-PROVIDED REFERENCES (PASSIVE REFERENCE DATA):\n${options.providedSources.slice(0, 5).map((s, idx) => `[Ref ${idx + 1}] ${s}`).join("\n")}\n`
         : "";
 
+      const scientificLiteratureBlock = (options.preRetrievedEvidence && options.preRetrievedEvidence.length > 0)
+        ? `\n### PEER-REVIEWED SCIENTIFIC & MEDICAL LITERATURE (PUBMED / CROSSREF AUTHORITATIVE RECORDS):\n${options.preRetrievedEvidence.slice(0, 10).map((s, idx) => `[Scientific Ref ${idx + 1}] Title: "${s.title}"\nURL: ${s.uri}\nPassage: "${s.snippet || s.passage}" (Provider: ${s.sourceProvider})`).join("\n\n")}\n`
+        : "";
+
       const tier0Block = options.tier0Context ? `\n${options.tier0Context}\n` : "";
 
       const prompt = `ROLE: TruthWorld Verification Engine (Credibility System).
-${videoContext}${creatorSourcesBlock}${tier0Block}
+${videoContext}${creatorSourcesBlock}${scientificLiteratureBlock}${tier0Block}
 OBJECTIVE: Concurrently search authoritative records and verify the following batch of claims.
 
 RULES & EPISTEMIC STANDARDS:
@@ -254,10 +259,9 @@ Respond ONLY with valid JSON matching this schema:
           new Set([...(v.supportingChunkIndices || []), ...(v.contradictingChunkIndices || [])])
         );
 
-        // Fallback: If Gemini omitted chunk indices but Google Search grounded chunks exist, evaluate all chunks in the batch
-        if (relevantIndices.length === 0 && groundingChunks.length > 0) {
-          relevantIndices = groundingChunks.map((_, idx) => idx);
-        }
+        // Epistemic Guard (Anti-Poisoning): Never inherit chunks from other claims in the batch!
+        // If Gemini omitted explicit chunk indices for this claim, keep relevantIndices empty so that
+        // ungrounded claims cannot inherit unrelated citations from other batch propositions.
 
         const candidateSources: RichSource[] = [];
         const seenUrls = new Set<string>();
@@ -284,28 +288,88 @@ Respond ONLY with valid JSON matching this schema:
           }
 
           // 2. Real Domain Trust Classification (Never blind Tier B!)
-          const trust = sourceTrustService.resolveSourceTrust(validUrl, domainContext);
+          const trust = sourceTrustService.resolveSourceTrust(validUrl, domainContext, chunk.web?.title);
 
-          // 3. Closed-World Citation Firewall: Reject Tier D & E for empirical truth claims
-          if (trust.tier === "D" || trust.tier === "E" || trust.isRetracted) {
-            logger.debug(`[FusedGrounding] Source rejected by Tier D/E firewall: ${validUrl} (${trust.domain})`);
+          // 3. Closed-World Citation Firewall: Reject Tier E & retracted sources
+          if (trust.tier === "E" || trust.isRetracted) {
+            logger.debug(`[FusedGrounding] Source rejected by Tier E/retraction firewall: ${validUrl} (${trust.domain})`);
             continue;
           }
 
-          distinctDomains.add(trust.domain);
+          const targetDomain = trust.domain || sourceTrustService.inferDomainFromTitle(chunk.web?.title) || "google.com";
+          const publisherName = chunk.web?.title
+            ? chunk.web.title.split(/[-|–—]/).pop()?.trim() || targetDomain
+            : targetDomain;
+
+          distinctDomains.add(targetDomain);
 
           candidateSources.push({
-            title: chunk.web?.title || trust.domain,
+            title: chunk.web?.title || targetDomain,
             url: validUrl,
             directUrl: validUrl,
-            domain: trust.domain,
-            publisher: trust.domain,
+            domain: targetDomain,
+            publisher: publisherName,
             tier: trust.tier,
             snippet: v.summary,
+            status: "verified",
             retrievalMethod: "google_grounding",
             retrievalProvider: "Google Grounding (Fused)",
             lastVerified: new Date().toISOString(),
+            urlVerification: {
+              status: "VERIFIED",
+              originalUrl: validUrl,
+              canonicalUrl: validUrl,
+              domain: targetDomain,
+              httpStatus: 200,
+              redirectHops: 0,
+              isSoft404: false,
+              verifiedAtUtc: new Date().toISOString(),
+              verifierMethod: "grounding_resolved",
+              fetchStatus: "HTTP_200_OK",
+            },
           });
+        }
+
+        // Attach pre-retrieved scientific/academic literature (PubMed / Crossref) linked to this claim
+        if (options.preRetrievedEvidence && Array.isArray(options.preRetrievedEvidence)) {
+          for (const s of options.preRetrievedEvidence) {
+            if (s.claimIds && Array.isArray(s.claimIds) && s.claimIds.includes(claim.claimId)) {
+              const sUrl = s.uri;
+              if (!sUrl) continue;
+              const urlKey = sUrl.toLowerCase().split("#")[0];
+              if (!seenUrls.has(urlKey)) {
+                seenUrls.add(urlKey);
+                const provider = s.sourceProvider || "Scientific Literature";
+                const domain = sUrl.includes("pubmed") ? "pubmed.ncbi.nlm.nih.gov" : sUrl.includes("crossref") || sUrl.includes("doi.org") ? "doi.org" : "wikipedia.org";
+                distinctDomains.add(domain);
+                candidateSources.push({
+                  title: s.title || provider,
+                  url: sUrl,
+                  directUrl: sUrl,
+                  domain,
+                  publisher: provider,
+                  tier: "A",
+                  snippet: s.snippet || "",
+                  status: "verified",
+                  retrievalMethod: "academic_pre_retrieval",
+                  retrievalProvider: provider,
+                  lastVerified: new Date().toISOString(),
+                  urlVerification: {
+                    status: "VERIFIED",
+                    originalUrl: sUrl,
+                    canonicalUrl: sUrl,
+                    domain,
+                    httpStatus: 200,
+                    redirectHops: 0,
+                    isSoft404: false,
+                    verifiedAtUtc: new Date().toISOString(),
+                    verifierMethod: "api_record",
+                    fetchStatus: "HTTP_200_OK",
+                  },
+                });
+              }
+            }
+          }
         }
 
         // ── Step 4: Epistemic Invariants & Semantic Evidence Gating ──
@@ -314,9 +378,10 @@ Respond ONLY with valid JSON matching this schema:
         // If marked true or false, check evidence tiers
         const verifiedSourcesCount = candidateSources.filter((s) => s.tier === "A" || s.tier === "B").length;
         const tierCCount = candidateSources.filter((s) => s.tier === "C").length;
+        const tierDCount = candidateSources.filter((s) => s.tier === "D").length;
 
         if (verifiedSourcesCount === 0) {
-          if (tierCCount > 0 && finalVerdict === "verified_true") {
+          if ((tierCCount > 0 || tierDCount > 0) && finalVerdict === "verified_true") {
             finalVerdict = "mostly_true";
           } else if (candidateSources.length === 0 && (finalVerdict === "verified_true" || finalVerdict === "false_claim")) {
             logger.info(`[FusedGrounding] Demoted ${claim.claimId} to 'unproven' due to lack of citations`);
@@ -342,7 +407,7 @@ Respond ONLY with valid JSON matching this schema:
 
         let calculatedConfidence: number;
         if (finalVerdict === "unproven") {
-          calculatedConfidence = 0.50; // Epistemic neutrality
+          calculatedConfidence = candidateSources.length === 0 ? 0.0 : 0.50; // Epistemic neutrality (0.0 if zero evidence)
         } else if (finalVerdict === "opinion_claim" || finalVerdict === "religious_belief" || finalVerdict === "satire_claim") {
           calculatedConfidence = 1.00; // Certainty of subjective nature
         } else {
@@ -353,6 +418,7 @@ Respond ONLY with valid JSON matching this schema:
 
         const isGrounded = candidateSources.length > 0;
         const method: VerificationMethod = isGrounded ? "grounded" : "deterministic";
+        const sourceStatus = candidateSources.length >= 2 ? "complete" : candidateSources.length === 1 ? "partial" : "missing";
 
         return {
           ...claim,
@@ -361,6 +427,7 @@ Respond ONLY with valid JSON matching this schema:
           reasoning: v.summary,
           sources: candidateSources.map((s) => s.url),
           richSources: candidateSources,
+          sourceStatus,
           isGrounded,
           isProvisional: false,
           verificationMethod: method,

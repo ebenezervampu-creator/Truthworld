@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { appealsDeskService } from "./services/appealsDeskService";
 
 const APPEALS_ENDPOINT_OPTIONS = {
@@ -114,3 +115,25 @@ export const verifyGovernanceAuditChain = onCall(APPEALS_ENDPOINT_OPTIONS, async
     throw new HttpsError("internal", "Unable to verify governance audit log chain. Please try again later.");
   }
 });
+
+/**
+ * 🛡️ Appeals SLA Watchdog: Auto-escalates pending appeals stuck in "submitted" for > 72 hours.
+ * Runs every 6 hours (asia-south1).
+ */
+export const sweepPendingAppealsSla = onSchedule(
+  {
+    schedule: "every 6 hours",
+    region: "asia-south1",
+    timeoutSeconds: 120,
+    memory: "256MiB",
+    retryCount: 1,
+  },
+  async () => {
+    try {
+      const result = await appealsDeskService.sweepPendingAppealsSla();
+      console.log("[sweepPendingAppealsSla] SLA sweep completed:", result);
+    } catch (err: any) {
+      console.error("[sweepPendingAppealsSla] SLA sweep failed:", err);
+    }
+  }
+);

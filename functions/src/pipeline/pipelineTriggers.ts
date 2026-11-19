@@ -383,7 +383,7 @@ export const triggerVideoAIFeatures = onRequest(
         }
       }
 
-      const subtitleTier = (req.body?.subtitleTier || req.body?.tier || "ultra") as "ultra" | "starter" | "pro";
+      const subtitleTier = "ultra" as const;
 
       let subtitleCost = 0;
       if (wantSubtitles && nonPrimaryTargetLanguages.length > 0) {
@@ -1005,11 +1005,9 @@ export const handleTranscriptionComplete = onMessagePublished(
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0, // Scale-to-zero when idle for cost efficiency
-    maxInstances: 20,
-    concurrency: 2,
-    cpu: 1,
+    maxInstances: 2,
     retry: true,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GEMINI_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
   async (event) => {
     try {
@@ -1204,13 +1202,11 @@ export const handleDubbing = onMessagePublished(
     topic: "dubbing.requested",
     region: "asia-south1",
     timeoutSeconds: 540,
-    memory: "4GiB",   // ⚡ Headroom for parallel vocal isolation + M&E extraction
-    minInstances: 0,  // Scale-to-zero when idle for cost efficiency
-    maxInstances: 10, // Fit within Cloud Run 20 vCPU regional quota (10 instances × 2 vCPU = 20 vCPU)
-    concurrency: 4,   // ⚡ 4 concurrent dubbing jobs per instance (handles up to 40 concurrent jobs)
-    cpu: 2,           // ⚡ 2 vCPU for true parallel async execution
+    memory: "2GiB",
+    minInstances: 0,
+    maxInstances: 2,
     retry: true,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GEMINI_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
   async (event) => {
     try {
@@ -1917,9 +1913,9 @@ export const handleDubbingReel = onMessagePublished(
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
-    maxInstances: 16,
+    maxInstances: 2,
     retry: true,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GEMINI_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
   async (event) => {
     try {
@@ -1946,7 +1942,7 @@ export const handleAssembleDubbingReels = onMessagePublished(
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
-    maxInstances: 6,
+    maxInstances: 2,
     retry: true,
     secrets: ["ELEVENLABS_API_KEY"],
   },
@@ -2141,6 +2137,8 @@ export const remasterDubbedAudioTrack = onCall(
     region: "asia-south1",
     timeoutSeconds: 540,
     memory: "2GiB",
+    minInstances: 0,
+    maxInstances: 2,
     secrets: ["ELEVENLABS_API_KEY"],
   },
   async (request) => {

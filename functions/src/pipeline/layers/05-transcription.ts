@@ -1,10 +1,10 @@
 /**
- * 🎤 LAYER 05 — TRANSCRIPTION LAYER (Universal-3 Pro)
+ * 🎤 LAYER 05 — TRANSCRIPTION LAYER (AssemblyAI-STT-3.7)
  *
- * Audio extraction → AssemblyAI (Universal-3 Pro) → structured word/segment output → emit event.
+ * Audio extraction → AssemblyAI-STT-3.7 → structured word/segment output → emit event.
  *
  * ✅ ALL UPGRADES:
- *   1. Model: `universal-3-pro` (English-only mode: language_code: "en", language_detection: false)
+ *   1. Subtitles and dubbing: `assemblyai-stt-3-7` only, for its 32 supported source languages
  *   2. Native subtitle export — SRT/VTT fetched directly from AssemblyAI (source language)
  *   3. Consumer idempotency gate — checks eventId via DistributionLayer before doing any work
  *   4. Structured storage — full JSON stored in GCS (avoids Firestore doc size limit)
@@ -39,21 +39,24 @@ import { getVertexAI } from "../utils/ai-client";
 import { normalizeToGcsUri } from "../utils/ai-utils";
 import { extractCandidateText } from "../utils/ai-utils";
 import { notifyUser } from "../../notifications/notifications";
-import { normalizeLanguageCode, normalizeLanguageCodes, detectScriptsFromText, getLanguageDisplayName, isSummaryLanguageMismatch } from "../../shared/language-normalizer";
+import { normalizeLanguageCode, normalizeLanguageCodes, detectScriptsFromText, getLanguageDisplayName, isSummaryLanguageMismatch, getDefaultIntroductionTitle, sanitizeChaptersForLanguage } from "../../shared/language-normalizer";
 import { parseDurationToSeconds } from "../services/media";
 import { generateHighQualityChapterThumbnailsForVideo } from "../../resolution/resolution";
 
 const ASSEMBLY_BASE = "https://api.assemblyai.com/v2";
 const db = () => admin.firestore();
 
-/**
- * 18 Core Source Languages strictly and exclusively supported by AssemblyAI Universal-3.5 Pro
- * for Subtitles and Dubbing. All other source languages do NOT receive subtitles or dubbing.
- * Google Speech-to-Text has been completely terminated.
- */
-export const ASSEMBLYAI_UNIVERSAL_35_LANGUAGES = new Set([
-  "en", "hi", "es", "fr", "de", "it", "pt", "ar", "zh", "ja", "nl", "tr", "vi", "he", "sv", "da", "no", "fi"
+/** Source languages supported by AssemblyAI-STT-3.7 for subtitles and dubbing. */
+export const ASSEMBLYAI_UNIVERSAL_37_LANGUAGES = new Set([
+  "en", "hi", "es", "fr", "de", "it", "pt", "ar", "zh", "ja", "nl", "tr", "vi", "he", "sv", "da", "no", "fi",
+  "ur", "ru", "ko", "ca", "gl", "ro", "et", "fa", "yue", "af", "mr", "zu", "xh", "nn",
 ]);
+const ASSEMBLYAI_STT_MODEL = "assemblyai-stt-3-7";
+
+/**
+ * Backward compatibility alias for legacy imports/modules.
+ */
+export const ASSEMBLYAI_UNIVERSAL_35_LANGUAGES = ASSEMBLYAI_UNIVERSAL_37_LANGUAGES;
 
 export interface AudioLanguageProbeResult {
   primaryLanguage: string;
@@ -112,6 +115,8 @@ export class TranscriptionLayer {
     let isCredibilityRequestedEarly = isCredibilityEnabled(executionPlan);
     let dubbingSttFailed = false;
     let dubbingSttFailureError: string | null = null;
+    let localizationSttFailed = false;
+    let localizationSttFailureError: string | null = null;
 
     try {
       // 0. Google Cloud Content Moderation Pre-check (Cost Guard & Language Detection)
@@ -171,14 +176,7 @@ export class TranscriptionLayer {
       let transcriptId: string | null = null;
       let attempts = 0;
 
-      // ── Language Routing Policy: AssemblyAI Universal-3.5 Pro (Strictly 18 Languages) ──
-      // In Dubbing, Subtitles, and Audio Tracks Pipelines:
-      // Strictly uses ONLY AssemblyAI Universal-3.5 Pro for the 18 supported languages:
-      // en, hi, es, fr, de, it, pt, ar, zh, ja, nl, tr, vi, he, sv, da, no, fi.
-      // All legacy speech engines are completely terminated.
-      const ASSEMBLYAI_UNIVERSAL_35_LANGUAGES = new Set([
-        "en", "hi", "es", "fr", "de", "it", "pt", "ar", "zh", "ja", "nl", "tr", "vi", "he", "sv", "da", "no", "fi"
-      ]);
+      // ── Language Routing Policy: AssemblyAI-STT-3.7 ──
 
       const targetJobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
       const targetJobData: any = targetJobSnap?.exists ? targetJobSnap.data() : {};
@@ -271,29 +269,27 @@ export class TranscriptionLayer {
       });
 
       // ── Speech-to-Text (STT) & Cognitive Intelligence Routing Policy ──
-      // 1. Dubbing & Subtitles: Strictly and exclusively routed to AssemblyAI Universal-3.5 Pro for the 18 core supported languages
-      //    (capturing acoustic millisecond-accurate word timestamps needed for high-fidelity dubbing and studio subtitle synchronization).
-      //    Languages outside the 18 core languages are strictly unsupported for dubbing and studio subtitles.
+      // 1. Dubbing & Subtitles: AssemblyAI-STT-3.7 only, and only for its supported languages.
       // 2. Standard Video Ingestion (Transcription, Summary, Content Moderation, Chapters, Fact-Checking):
       //    Exclusively routed to Google Cloud Vertex AI Gemini 3.5 Flash Lite across ALL 100+ languages
       //    (fastest turnaround, highest linguistic comprehension for code-mixed speech, and 92% cost savings).
-      let hasUniversal35 = resolvedSourceLang
-        ? ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(resolvedSourceLang)
+      let isSupportedLocalizationSourceLanguage = resolvedSourceLang
+        ? ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(resolvedSourceLang)
         : false;
 
       // 🛡️ Reconcile: If probe returned an unsupported language, but the video document or job plan
-      // specifies an authentic source language supported by AssemblyAI Universal-3.5 Pro (e.g. 'en'),
+      // specifies an authentic source language supported by AssemblyAI Universal 3.7 Pro (e.g. 'en'),
       // honor the authentic supported source language rather than failing dubbing/subtitles!
-      if (!hasUniversal35 && isDubbingOrSubtitles) {
+      if (!isSupportedLocalizationSourceLanguage && isDubbingOrSubtitles) {
         const authenticCandidate = normalizeLanguageCode(rawPre);
-        if (authenticCandidate && ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(authenticCandidate)) {
+        if (authenticCandidate && ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(authenticCandidate)) {
           logger.info("[Transcription] Reconciling unsupported probe result with authentic supported source language", {
             jobId,
             unsupportedProbe: resolvedSourceLang,
             authenticSource: authenticCandidate,
           });
           resolvedSourceLang = authenticCandidate;
-          hasUniversal35 = true;
+          isSupportedLocalizationSourceLanguage = true;
         }
       }
 
@@ -303,17 +299,20 @@ export class TranscriptionLayer {
         if (!hasAudioStream) {
           dubbingSttFailed = true;
           dubbingSttFailureError = "The uploaded video does not contain an audio track. Dubbing requires spoken audio.";
+          localizationSttFailed = true;
+          localizationSttFailureError = dubbingSttFailureError;
           logger.warn("[Transcription] Video contains no audio stream — isolating Dubbing failure", { jobId });
-        } else if (resolvedSourceLang && !hasUniversal35 && resolvedSourceLang !== "auto") {
+        } else if (!isSupportedLocalizationSourceLanguage) {
+          const unsupportedError = `Source language '${resolvedSourceLang || "unknown"}' is unsupported for Dubbing. TruthWorld supports only the 32 source languages supported by AssemblyAI-STT-3.7.`;
           if (!isCredibilityRequested) {
             // Dedicated manual dubbing request with unsupported language
-            throw new Error(
-              `[Transcription] Source language '${resolvedSourceLang}' is unsupported for Dubbing. TruthWorld strictly supports the 18 core source languages of AssemblyAI Universal-3.5 Pro (English, Hindi, Spanish, French, German, Italian, Portuguese, Arabic, Chinese, Japanese, Dutch, Turkish, Vietnamese, Hebrew, Swedish, Danish, Norwegian, Finnish) for voice dubbing.`
-            );
+            throw new Error(`[Transcription] ${unsupportedError}`);
           }
           // Standard video publishing upload with manual dubbing requested: isolate dubbing failure so video publishes cleanly
           dubbingSttFailed = true;
-          dubbingSttFailureError = `Source language '${resolvedSourceLang}' is unsupported for dubbing. TruthWorld strictly supports the 18 core source languages of AssemblyAI Universal-3.5 Pro.`;
+          dubbingSttFailureError = unsupportedError;
+          localizationSttFailed = true;
+          localizationSttFailureError = unsupportedError;
           logger.warn("[Transcription] Unsupported source language for Dubbing — isolating failure", {
             jobId,
             sourceLanguage: resolvedSourceLang,
@@ -321,16 +320,25 @@ export class TranscriptionLayer {
         }
       }
 
+      if (requestedSubtitles && (!isSupportedLocalizationSourceLanguage || !hasAudioStream)) {
+        localizationSttFailed = true;
+        localizationSttFailureError = !hasAudioStream
+          ? "Subtitles require an audio track."
+          : `Source language '${resolvedSourceLang || "unknown"}' is unsupported for subtitles. TruthWorld supports only the 32 source languages supported by AssemblyAI-STT-3.7.`;
+      }
+
       const shouldUseAssemblyAI = Boolean(
-        ((requestedDubbing && !dubbingSttFailed) || (requestedSubtitles && hasUniversal35)) &&
+        isDubbingOrSubtitles &&
+        isSupportedLocalizationSourceLanguage &&
+        !localizationSttFailed &&
         hasAudioStream
       );
-      const usedProvider: "assemblyai" | "gemini" = shouldUseAssemblyAI ? "assemblyai" : "gemini";
+      let usedProvider: "assemblyai" | "gemini" = shouldUseAssemblyAI ? "assemblyai" : "gemini";
 
       logger.info("[Transcription] STT & Cognitive routing resolved", {
         jobId,
         resolvedSourceLang,
-        hasUniversal35,
+        isSupportedLocalizationSourceLanguage,
         isDubbingOrSubtitles,
         shouldUseAssemblyAI,
         selectedProvider: usedProvider,
@@ -338,7 +346,7 @@ export class TranscriptionLayer {
 
       if (shouldUseAssemblyAI) {
         if (!apiKey) {
-          throw new Error(`[Transcription] AssemblyAI API key missing. TruthWorld speech recognition for dubbing and studio subtitles strictly requires AssemblyAI Universal-3.5 Pro.`);
+          throw new Error(`[Transcription] AssemblyAI API key missing. TruthWorld speech recognition for dubbing and studio subtitles strictly requires AssemblyAI Universal 3.7 Pro.`);
         }
         try {
           const headers = { authorization: apiKey, "content-type": "application/json" };
@@ -347,9 +355,9 @@ export class TranscriptionLayer {
           const shouldDiarize = await this.shouldEnableDiarization(jobId, userId, executionPlan);
           logger.info("[Transcription] Diarization decision", { jobId, shouldDiarize });
 
-          // 3. Submit to AssemblyAI Universal-3.5 Pro
+          // 3. Submit to AssemblyAI Universal 3.7 Pro
           const isAccuracyMode = executionPlan.priorityMode === "accuracy";
-          const speechModels = ["universal-3-5-pro"];
+          const speechModels = [ASSEMBLYAI_STT_MODEL];
 
           const payload: any = {
             audio_url: accessibleUrl,
@@ -456,7 +464,21 @@ export class TranscriptionLayer {
             throw new Error("Transcription timed out after 8 minutes");
           }
 
-          // 4. Transform Result from AssemblyAI (Universal-3.5 Pro)
+          if (assemblyResult.speech_model_used !== ASSEMBLYAI_STT_MODEL) {
+            throw new Error(
+              `[Transcription] AssemblyAI returned model '${assemblyResult.speech_model_used || "unknown"}'; expected ${ASSEMBLYAI_STT_MODEL}.`
+            );
+          }
+          const assemblyLanguage = assemblyResult.language_code
+            ? normalizeLanguageCode(assemblyResult.language_code)
+            : resolvedSourceLang;
+          if (!ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(assemblyLanguage)) {
+            throw new Error(
+              `[Transcription] AssemblyAI detected unsupported source language '${assemblyLanguage || "unknown"}'. Subtitles and dubbing require one of the 32 AssemblyAI-STT-3.7 languages.`
+            );
+          }
+
+          // 4. Transform Result from AssemblyAI-STT-3.7
           const utterances = assemblyResult.utterances && assemblyResult.utterances.length > 0
             ? assemblyResult.utterances.map((u, idx) => ({
                 index: idx,
@@ -518,7 +540,7 @@ export class TranscriptionLayer {
               return rawChs;
             })(),
             duration: assemblyResult.audio_duration ?? 0,
-            model: "universal-3-5-pro",
+            model: "assemblyai-stt-3-7",
             provider: "assemblyai",
             entities: (assemblyResult.entities || []).map((e: any) => ({
               name: String(e.text || "").trim(),
@@ -528,7 +550,10 @@ export class TranscriptionLayer {
 
         } catch (assemblyError) {
           const cleanErr = assemblyError instanceof Error ? assemblyError.message : String(assemblyError);
-          logger.error("[Transcription] AssemblyAI Universal-3.5 Pro failed for dubbing/subtitles", {
+          localizationSttFailed = true;
+          localizationSttFailureError = cleanErr;
+          usedProvider = "gemini";
+          logger.error("[Transcription] AssemblyAI Universal 3.7 Pro failed for dubbing/subtitles", {
             jobId,
             error: cleanErr,
           });
@@ -541,7 +566,7 @@ export class TranscriptionLayer {
           }
 
           if (isCredibilityRequested) {
-            logger.info("[Transcription] Falling back to Gemini 3.5 Flash Lite after AssemblyAI failure to preserve video ingestion", { jobId });
+            logger.info("[Transcription] AssemblyAI localization transcription failed; using Gemini only for independent video ingestion", { jobId });
             enhanced = await this.transcribeWithGeminiFallback(
               jobId,
               userId,
@@ -551,7 +576,7 @@ export class TranscriptionLayer {
               allSpokenLangs
             );
           } else {
-            throw new Error(`[Transcription] AssemblyAI Universal-3.5 Pro speech-to-text failed: ${cleanErr}.`);
+            throw new Error(`[Transcription] AssemblyAI Universal 3.7 Pro speech-to-text failed: ${cleanErr}.`);
           }
         }
       } else {
@@ -592,19 +617,19 @@ export class TranscriptionLayer {
       const isMultiSpeakerDiarized = (enhanced.speakers?.length || 0) > 1 ||
         (new Set(enhanced.segments?.map(s => s.speaker).filter(Boolean)).size > 1);
 
-      const subtitleProvider = usedProvider === "assemblyai" ? "assemblyai-universal-3-5-pro" : "gemini-3-5-flash-lite";
+      const subtitleProvider = ASSEMBLYAI_STT_MODEL;
 
       // ⚡ PARALLEL: Save transcript to GCS/Firestore + fetch/generate native subtitles simultaneously (saves 2-4s)
       const storeTranscriptPromise = this.storeTranscript(jobId, userId, enhanced, resolvedVideoId);
 
       const storeSubtitlesPromise = (async (): Promise<boolean> => {
-        // Strict Policy: Only provide subtitles if source language is among the 18 AssemblyAI Universal-3.5 Pro supported languages and STT succeeded
-        if (!hasUniversal35 || dubbingSttFailed || usedProvider !== "assemblyai") {
-          logger.info("[Transcription] Subtitles skipped — source language is outside the 18 AssemblyAI Universal-3.5 Pro supported languages or speech recognition failed", {
+        // Strict Policy: Only provide subtitles if source language is among the AssemblyAI Universal 3.7 Pro supported languages and STT succeeded
+        if (!isSupportedLocalizationSourceLanguage || localizationSttFailed || usedProvider !== "assemblyai") {
+          logger.info("[Transcription] Subtitles skipped — source language is outside the AssemblyAI Universal 3.7 Pro supported languages or speech recognition failed", {
             jobId,
             resolvedSourceLang,
-            hasUniversal35,
-            dubbingSttFailed,
+            isSupportedLocalizationSourceLanguage,
+            localizationSttFailed,
           });
           return false;
         }
@@ -925,6 +950,8 @@ export class TranscriptionLayer {
           thumbnailUrl: thumb || undefined,
         };
       });
+
+      finalChapters = sanitizeChaptersForLanguage(finalChapters, enhanced.detectedLanguage || resolvedVideoLang);
 
       // Industry standard: Generate discrete high-quality chapter thumbnails (640x360 qHD / 1280x720 HD)
       // directly from the authentic source video and AWAIT completion so chapters have real thumbnails
@@ -1307,6 +1334,9 @@ ${safeEnhancedText}
           const failReason = dubbingSttFailureError || "Strict speech-to-text failed for dubbing";
           logger.error(`[Transcription Gateway] Isolating Dubbing STT failure for job ${jobId} (Credibility remains unaffected)`, { failReason });
           fanoutTasks.push(EdgeLayer.failStage(jobId, "dubbing", failReason));
+          if (requestedSubtitles) {
+            fanoutTasks.push(EdgeLayer.failStage(jobId, "subtitles", localizationSttFailureError || failReason));
+          }
           fanoutTasks.push(
             EdgeLayer.upsertDubbingJob(jobId, { status: "failed", error: failReason, completedAt: Date.now() }),
             refundDubbingFeeOnFailure({
@@ -1358,9 +1388,17 @@ ${safeEnhancedText}
           }).catch(() => {})
         );
 
+        if (requestedSubtitles && localizationSttFailed) {
+          fanoutTasks.push(EdgeLayer.failStage(
+            jobId,
+            "subtitles",
+            localizationSttFailureError || "Subtitle generation requires AssemblyAI-STT-3.7 on a supported source language."
+          ));
+        }
+
         // If multilingual subtitles were requested (without dubbing), launch localization for subtitles only
         const targetSubLangs = (executionPlan.subtitleLanguages || executionPlan.languages || []).filter(l => normalizeLanguageCode(l) !== resolvedVideoLang);
-        if (requestedSubtitles && targetSubLangs.length > 0) {
+        if (requestedSubtitles && !localizationSttFailed && targetSubLangs.length > 0) {
           logger.info(`[Transcription Gateway] Subtitle localization requested for job ${jobId} — launching localization for subtitles only`);
           fanoutTasks.push(this.distribution.publish("dubbing-processing", {
             eventId: `sub_${jobId}`,
@@ -1474,6 +1512,40 @@ ${safeEnhancedText}
     assemblyResult: any,
     eventId: string
   ): Promise<void> {
+    const detectedLanguage = assemblyResult?.language_code
+      ? normalizeLanguageCode(assemblyResult.language_code)
+      : "";
+    if (
+      assemblyResult?.speech_model_used !== ASSEMBLYAI_STT_MODEL ||
+      !ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(detectedLanguage)
+    ) {
+      const error = `AssemblyAI webhook returned model '${assemblyResult?.speech_model_used || "unknown"}' and language '${detectedLanguage || "unknown"}'; subtitles and dubbing require AssemblyAI-STT-3.7 and one of its 32 supported source languages.`;
+      const dubbingRequested = executionPlan.generateDubbing === true || executionPlan.enableDubbing === true;
+      const subtitlesRequested = executionPlan.genLangSubs === true ||
+        (Array.isArray(executionPlan.subtitleLanguages) && executionPlan.subtitleLanguages.length > 0) ||
+        (Array.isArray((executionPlan as any).features) && (executionPlan as any).features.includes("subtitles"));
+
+      logger.error("[Transcription] Rejecting webhook transcript that violates the localization model policy", {
+        jobId,
+        error,
+      });
+      await EdgeLayer.failStage(jobId, "transcription", error);
+      if (dubbingRequested) {
+        await EdgeLayer.failStage(jobId, "dubbing", error);
+        await refundDubbingFeeOnFailure({
+          jobId,
+          userId,
+          failedLanguages: executionPlan.dubbingLanguages || [],
+          totalLanguages: executionPlan.dubbingLanguages || [],
+          reason: error,
+        }).catch((refundError) => logger.error("[Transcription] Dubbing failure refund error:", refundError));
+      }
+      if (subtitlesRequested) {
+        await EdgeLayer.failStage(jobId, "subtitles", error);
+      }
+      return;
+    }
+
     logger.info("[Transcription] Resuming pipeline from AssemblyAI webhook transcript result", {
       jobId,
       userId,
@@ -1509,8 +1581,8 @@ ${safeEnhancedText}
 
     const enhanced = {
       jobId,
-      language: assemblyResult?.language_code ?? "en",
-      detectedLanguage: assemblyResult?.language_code ?? "en",
+      language: detectedLanguage,
+      detectedLanguage,
       text: assemblyResult?.text ?? "",
       confidence: assemblyResult?.confidence ?? 0.95,
       speakerConfidence: this.calculateSpeakerConfidence(assemblyResult),
@@ -1521,6 +1593,8 @@ ${safeEnhancedText}
       speakers: this.extractSpeakersFromUtterances(assemblyResult?.utterances ?? []),
       chapters: [],
       entities: [],
+      model: ASSEMBLYAI_STT_MODEL,
+      provider: ASSEMBLYAI_STT_MODEL,
     };
 
     // Store enhanced transcription in Firestore
@@ -1647,7 +1721,7 @@ ${safeEnhancedText}
             vttPath: `gs://${bucket.name}/${vttPath}`,
             jsonPath: `gs://${bucket.name}/${jsonPath}`,
             format: "native",
-            provider: "assemblyai-universal-3-5-pro",
+            provider: "assemblyai-stt-3-7",
             createdAt: Date.now(),
           }
         }
@@ -1662,7 +1736,7 @@ ${safeEnhancedText}
               vttPath: `gs://${bucket.name}/${vttPath}`,
               jsonPath: `gs://${bucket.name}/${jsonPath}`,
               format: "native",
-              provider: "assemblyai-universal-3-5-pro",
+              provider: "assemblyai-stt-3-7",
               createdAt: Date.now(),
             }
           }
@@ -1806,8 +1880,8 @@ ${safeEnhancedText}
       speakerCount: result.speakers.length,
       duration: result.duration,
       chapters: result.chapters || [], // ✅ Store chapters in Firestore summary
-      model: result.model || "universal-3-5-pro",
-      provider: result.provider || "assemblyai-universal-3-5-pro",
+      model: result.model || "assemblyai-stt-3-7",
+      provider: result.provider || "assemblyai-stt-3-7",
       createdAt: Date.now(),
       // Store compact utterance summary (not full word array)
       utterances: result.segments.map((s) => ({
@@ -2155,164 +2229,6 @@ ${safeEnhancedText}
   }
 
   /**
-   * 🎙️ ElevenLabs Scribe v2 Speech-to-Text Transcription Engine
-   *
-   * Directly transcribes speech using ElevenLabs Scribe v2 (POST https://api.elevenlabs.io/v1/speech-to-text)
-   * across 90+ languages (including Telugu, Hindi, Tamil, Kannada, English, etc.) with speaker diarization,
-   * millisecond word timestamps, and native punctuation.
-   */
-  public async transcribeWithElevenLabsScribe(
-    jobId: string,
-    userId: string,
-    accessibleUrl: string,
-    executionPlan: ExecutionPlan,
-    targetLanguage?: string
-  ): Promise<EnhancedTranscriptionResult> {
-    const apiKey = PIPELINE_CONFIG.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
-    const normLang = normalizeLanguageCode(targetLanguage || executionPlan.primaryLanguage || "");
-
-    logger.info("[Transcription] Running ElevenLabs Scribe speech-to-text transcription", {
-      jobId,
-      targetLanguage: normLang,
-      accessibleUrl: accessibleUrl.substring(0, 80),
-    });
-
-    if (!apiKey) {
-      throw new Error("[ElevenLabs Scribe] ElevenLabs API key is not configured");
-    }
-
-    const formData = new FormData();
-    formData.append("model_id", "scribe_v2");
-    formData.append("diarize", "true");
-    formData.append("tag_audio_events", "false");
-    if (normLang && normLang.trim()) {
-      formData.append("language_code", normLang.trim().toLowerCase().split("-")[0]);
-    }
-
-    let scribeResponse: any;
-    try {
-      formData.append("cloud_storage_url", accessibleUrl);
-      const res = await axios.post("https://api.elevenlabs.io/v1/speech-to-text", formData, {
-        headers: {
-          "xi-api-key": apiKey,
-        },
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-        timeout: 300000,
-      });
-      scribeResponse = res.data;
-    } catch (urlErr: any) {
-      logger.warn("[Transcription] ElevenLabs Scribe cloud_storage_url attempt failed — fetching audio buffer directly", {
-        jobId,
-        error: urlErr.response?.data ? JSON.stringify(urlErr.response.data) : urlErr.message,
-      });
-      const audioBufferRes = await axios.get(accessibleUrl, { responseType: "arraybuffer", timeout: 60000 });
-      const audioBlob = new Blob([audioBufferRes.data], { type: "audio/mp4" });
-      const fileFormData = new FormData();
-      fileFormData.append("file", audioBlob, "audio.mp4");
-      fileFormData.append("model_id", "scribe_v2");
-      fileFormData.append("diarize", "true");
-      if (normLang && normLang.trim()) {
-        fileFormData.append("language_code", normLang.trim().toLowerCase().split("-")[0]);
-      }
-      const res = await axios.post("https://api.elevenlabs.io/v1/speech-to-text", fileFormData, {
-        headers: {
-          "xi-api-key": apiKey,
-        },
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-        timeout: 300000,
-      });
-      scribeResponse = res.data;
-    }
-
-    const detectedLang = normalizeLanguageCode(scribeResponse?.language_code || normLang || "en");
-    const rawWords = Array.isArray(scribeResponse?.words) ? scribeResponse.words : [];
-
-    const words: WordTimestamp[] = [];
-    const segments: TimedSegment[] = [];
-    let currentSegWords: WordTimestamp[] = [];
-    let currentSpeaker = "speaker_0";
-    let segIndex = 0;
-
-    for (const w of rawWords) {
-      if (w.type === "spacing" || !w.text || !w.text.trim()) continue;
-      const startMs = Math.round(Number(w.start) * 1000);
-      const endMs = Math.round(Number(w.end) * 1000);
-      const speaker = w.speaker_id || currentSpeaker;
-      const wordObj: WordTimestamp = {
-        text: w.text.trim(),
-        start: startMs,
-        end: endMs,
-        confidence: 0.95,
-        speaker,
-      };
-      words.push(wordObj);
-
-      const isSpeakerChange = speaker !== currentSpeaker;
-      const isPause = currentSegWords.length > 0 && (startMs - currentSegWords[currentSegWords.length - 1].end > 1200);
-      const isPunctuation = /[.!?।]$/.test(currentSegWords[currentSegWords.length - 1]?.text || "");
-      const isMaxWords = currentSegWords.length >= 25;
-
-      if (currentSegWords.length > 0 && (isSpeakerChange || (isPause && isPunctuation) || isMaxWords)) {
-        const segStart = currentSegWords[0].start;
-        const segEnd = currentSegWords[currentSegWords.length - 1].end;
-        segments.push({
-          index: segIndex++,
-          start: segStart,
-          end: segEnd,
-          duration: Math.max(1, segEnd - segStart),
-          speaker: currentSpeaker,
-          text: currentSegWords.map((cw) => cw.text).join(" "),
-          words: [...currentSegWords],
-        });
-        currentSegWords = [];
-      }
-
-      currentSpeaker = speaker;
-      currentSegWords.push(wordObj);
-    }
-
-    if (currentSegWords.length > 0) {
-      const segStart = currentSegWords[0].start;
-      const segEnd = currentSegWords[currentSegWords.length - 1].end;
-      segments.push({
-        index: segIndex++,
-        start: segStart,
-        end: segEnd,
-        duration: Math.max(1, segEnd - segStart),
-        speaker: currentSpeaker,
-        text: currentSegWords.map((cw) => cw.text).join(" "),
-        words: [...currentSegWords],
-      });
-    }
-
-    const durationSec = segments.length > 0
-      ? Math.ceil(segments[segments.length - 1].end / 1000)
-      : (executionPlan.duration || 60);
-
-    const speakers = this.extractSpeakersFromUtterances(segments);
-
-    return {
-      jobId,
-      language: detectedLang,
-      detectedLanguage: detectedLang,
-      text: scribeResponse?.text || segments.map((s) => s.text).join(" "),
-      confidence: 0.95,
-      speakerConfidence: 0.92,
-      words,
-      segments,
-      speakers: speakers.length > 0 ? speakers : [{ speakerId: "speaker_0", label: "Speaker 1", totalDuration: durationSec * 1000, segments: segments.map((_, i) => i) }],
-      chapters: [],
-      duration: durationSec,
-    };
-  }
-
-
-
-
-
-  /**
    * 🔍 Industry-Standard Spoken Language Identification (SLID) & Multilingual Probe
    * Fuses zero-cost Unicode script prior analysis with context-conditioned Vertex AI Gemini 3.5 Flash Lite.
    * Accurately identifies primary spoken language, detects multilingual speech across multiple languages,
@@ -2448,7 +2364,7 @@ VIDEO CONTEXT:
 ${scriptEvidence ? `- Metadata Script Analysis: ${scriptEvidence} detected in video title/description.` : ""}
 
 GUIDELINES FOR 100% ACCURACY:
-1. PRIMARY SPOKEN LANGUAGE: The predominant language spoken by the host or main dialogue (ISO 639-1 code). TruthWorld's speech recognition strictly supports the 18 languages of AssemblyAI Universal-3.5 Pro: 'en' (English), 'hi' (Hindi), 'es' (Spanish), 'fr' (French), 'de' (German), 'it' (Italian), 'pt' (Portuguese), 'ar' (Arabic), 'zh' (Chinese), 'ja' (Japanese), 'nl' (Dutch), 'tr' (Turkish), 'vi' (Vietnamese), 'he' (Hebrew), 'sv' (Swedish), 'da' (Danish), 'no' (Norwegian), 'fi' (Finnish).
+1. PRIMARY SPOKEN LANGUAGE: The predominant language spoken by the host or main dialogue (ISO 639-1 code). Subtitles and dubbing use AssemblyAI-STT-3.7, which supports source language codes en, hi, es, fr, de, it, pt, ar, zh, ja, nl, tr, vi, he, sv, da, no, fi, ur, ru, ko, ca, gl, ro, et, fa, yue, af, mr, zu, xh, and nn. Detect other languages accurately too, but do not imply that subtitles or dubbing are available for unsupported source languages.
 2. MULTILINGUAL VIDEOS: If the video features speech in multiple distinct languages, list ALL spoken languages in "spokenLanguages", set "isMultilingual": true, and designate the predominant host language as "primaryLanguage".
 3. CODE-MIXED SPEECH: If Hindi (or another supported language) is spoken with English loanwords, technical terms, intro/outro greetings, or numbers (e.g. Hinglish), classify "primaryLanguage" as 'hi', set "isCodeMixed": true, and include both in "spokenLanguages" (["hi", "en"]).
 4. SILENT / MUSIC-ONLY: If no speech is present at all, set "primaryLanguage" to the channel designated language, with "confidence": 0.5.
@@ -2632,6 +2548,7 @@ Ensure segments span the full timeline up to the end of the recording.
 - The first chapter MUST start at startTimeMs: 0 (0:00).
 - Chapters must be in ascending chronological order, each >= 10 seconds long.
 - Include startTimeMs, endTimeMs, title (under 50 chars), and summary.
+- You MUST write all chapter titles and summaries in the video's authentic primary spoken language (${normLang ? getLanguageDisplayName(normLang) : "native language"}) using authentic native script. Never use Devanagari/Hindi script (e.g. "परिचय") for Telugu content.
 
 Return STRICT JSON:
 {
@@ -2816,18 +2733,20 @@ Return STRICT JSON:
         chapters.sort((a: any, b: any) => a.startTimeMs - b.startTimeMs);
         if (chapters.length > 0) {
           if (chapters[0].startTimeMs > 0) {
+            const introTitle = getDefaultIntroductionTitle(detectedLanguage);
             chapters.unshift({
               startTimeMs: 0,
               startMs: 0,
               endTimeMs: chapters[0].startTimeMs,
               endMs: chapters[0].startTimeMs,
-              title: "Introduction",
-              summary: "Opening chapter"
+              title: introTitle,
+              summary: detectedLanguage === "te" ? "వీడియో పరిచయం" : "Opening chapter"
             });
           } else {
             chapters[0].startTimeMs = 0;
             chapters[0].startMs = 0;
           }
+          chapters = sanitizeChaptersForLanguage(chapters, detectedLanguage);
         }
 
         const totalDurationSec = parseDurationToSeconds(parsed.durationSeconds) ||
@@ -3054,7 +2973,7 @@ Return STRICT JSON:
             vttPath: `gs://${bucket.name}/${vttPath}`,
             jsonPath: `gs://${bucket.name}/${jsonPath}`,
             format: "native",
-            provider: providerName || "assemblyai-universal-3-5-pro",
+            provider: providerName || "assemblyai-stt-3-7",
             createdAt: Date.now(),
           }
         }
@@ -3068,7 +2987,7 @@ Return STRICT JSON:
               vttPath: `gs://${bucket.name}/${vttPath}`,
               jsonPath: `gs://${bucket.name}/${jsonPath}`,
               format: "native",
-              provider: providerName || "assemblyai-universal-3-5-pro",
+              provider: providerName || "assemblyai-stt-3-7",
               createdAt: Date.now(),
             }
           }
@@ -3131,15 +3050,22 @@ Return STRICT JSON:
         return `[${mmss}] ${s.text}`;
       }).join("\n");
 
+      const langName = getLanguageDisplayName(language || "en");
+      const introTitle = getDefaultIntroductionTitle(language);
+      const isTe = normalizeLanguageCode(language) === "te";
+
       const prompt = `ROLE: TruthWorld Video Chaptering Specialist (Google Cloud AI).
 TASK: Generate 3 to 8 logical, engaging video chapters for this video based on the timeline outline below.
+LANGUAGE & SCRIPT: The video is in ${langName} (language code "${language}").
+You MUST generate all chapter titles and summaries in fluent ${langName} using authentic native script (e.g., Telugu script for Telugu: తెలుగు లిపి).
+CRITICAL: NEVER output Hindi or Devanagari script (e.g. "परिचय") for Telugu or non-Hindi content!
 
 CRITICAL YOUTUBE-STYLE CHAPTER RULES:
-1. The first chapter MUST start at startTimeMs: 0 (0:00) with title "Introduction" or covering the opening topic.
+1. The first chapter MUST start at startTimeMs: 0 (0:00) with title "${introTitle}" or covering the opening topic in ${langName}.
 2. Chapters MUST be in strictly ascending chronological order.
 3. Each chapter MUST have at least 10 seconds (10,000 ms) duration.
 4. Total video duration: ~${totalSec} seconds.
-5. Provide a clear, engaging "title" (under 50 chars) and concise "summary" for each chapter.
+5. Provide a clear, engaging "title" (under 50 chars) and concise "summary" for each chapter in ${langName}.
 
 <timeline_outline>
 ${timelineText}
@@ -3147,7 +3073,7 @@ ${timelineText}
 
 RETURN STRICT JSON ARRAY ONLY:
 [
-  { "startTimeMs": 0, "endTimeMs": 30000, "title": "Introduction", "summary": "Video overview" }
+  { "startTimeMs": 0, "endTimeMs": 30000, "title": "${introTitle}", "summary": "${isTe ? "వీడియో పరిచయం" : "Video overview"}" }
 ]`;
 
       const res = await model.generateContent(prompt);
@@ -3178,15 +3104,15 @@ RETURN STRICT JSON ARRAY ONLY:
             startMs: 0,
             endTimeMs: chapters[0].startTimeMs,
             endMs: chapters[0].startTimeMs,
-            title: "Introduction",
-            summary: "Video introduction",
+            title: introTitle,
+            summary: isTe ? "వీడియో పరిచయం" : "Video introduction",
           });
         } else {
           chapters[0].startTimeMs = 0;
           chapters[0].startMs = 0;
         }
       }
-      return chapters;
+      return sanitizeChaptersForLanguage(chapters, language);
     } catch (err) {
       logger.warn("[Transcription] Error synthesizing auto chapters fallback via Gemini, using segment heuristics:", err);
       // Robust heuristic fallback so video NEVER misses chapters
@@ -3198,6 +3124,8 @@ RETURN STRICT JSON ARRAY ONLY:
       const heuristicCount = Math.min(5, Math.max(2, Math.floor(totalSec / 45)));
       const stepMs = Math.floor(totalMs / heuristicCount);
       const fallbackChapters: any[] = [];
+      const introTitle = getDefaultIntroductionTitle(language);
+      const isTe = normalizeLanguageCode(language) === "te";
 
       for (let i = 0; i < heuristicCount; i++) {
         const start = i === 0 ? 0 : i * stepMs;
@@ -3205,8 +3133,8 @@ RETURN STRICT JSON ARRAY ONLY:
         const nearestSeg = segments.find(s => s.start >= start) || segments[Math.min(i, segments.length - 1)];
         const titleSnippet = nearestSeg && nearestSeg.text
           ? nearestSeg.text.slice(0, 40).replace(/[.,!?]+$/, "")
-          : (i === 0 ? "Introduction" : `Part ${i + 1}`);
-        const title = i === 0 ? "Introduction" : titleSnippet;
+          : (i === 0 ? introTitle : (isTe ? `భాగం ${i + 1}` : `Part ${i + 1}`));
+        const title = i === 0 ? introTitle : titleSnippet;
 
         fallbackChapters.push({
           startTimeMs: start,
@@ -3219,7 +3147,7 @@ RETURN STRICT JSON ARRAY ONLY:
           summary: nearestSeg ? nearestSeg.text.slice(0, 100) : "Video section",
         });
       }
-      return fallbackChapters;
+      return sanitizeChaptersForLanguage(fallbackChapters, language);
     }
   }
 }
@@ -3229,6 +3157,7 @@ RETURN STRICT JSON ARRAY ONLY:
 interface AssemblyResult {
   id: string;
   status: string;
+  speech_model_used?: string;
   text?: string;
   language_code?: string;
   audio_duration?: number;

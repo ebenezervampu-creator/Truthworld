@@ -5,7 +5,7 @@
  *  - Default (`--dry-run`): Zero paid API credits. Exercises local FFmpeg audio fixture
  *    generation, real duration/loudness/bleed probes, Levenshtein WER & diarization math,
  *    ElevenLabs v4 tag + subtitle sanitization, and Gemini syllable-budget scoring.
- *  - Opt-in (`--execute-live`): Metered execution against real AssemblyAI Universal-3.5 Pro, Demucs /
+ *  - Opt-in (`--execute-live`): Metered execution against real AssemblyAI Universal 3.7 Pro, Demucs /
  *    ElevenLabs Audio Isolation, Gemini 3.5 Flash Lite, and ElevenLabs eleven_v4 APIs.
  *
  * Usage:

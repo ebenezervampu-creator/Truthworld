@@ -221,6 +221,20 @@ export interface TranslatedSegment {
     safe: string;
     professional: string;
   };
+  terminologyWarning?: string;
+  terminologyViolations?: Array<{
+    termId: string;
+    source: string;
+    disallowedFound: string;
+    suggested: string;
+    context?: string;
+  }>;
+  terminologyComplianceRate?: number;
+  numericalParityVerified?: boolean;
+  numericalParityWarning?: string;
+  semanticParityScore?: number;
+  reviewRecommended?: boolean;
+  polarityFlipped?: boolean;
 }
 
 export interface TTSRequest {
@@ -245,6 +259,8 @@ export interface TTSRequest {
   emotionTag?: string;
   energyDb?: number;
   pronunciationGlossary?: PronunciationRule[];
+  previousText?: string;
+  nextText?: string;
 }
 
 export interface TTSResult {
@@ -519,6 +535,9 @@ export type EvidenceProvider =
   | "PUBMED"
   | "CROSSREF"
   | "WIKIPEDIA"
+  | "FRED"
+  | "WORLDBANK"
+  | "WIKIDATA"
   | "SERP"
   | "VERTEX_GROUNDING";
 
@@ -584,6 +603,7 @@ export interface RichSource {
   independenceGroup?: string;
   calculationVersion?: string;
   sourceTier?: SourceTier;
+  status?: string;
   evidenceAssessment?: DocumentEvidenceAssessment;
   urlVerification?: UrlVerificationRecord;
   isContradictory?: boolean;
@@ -2732,7 +2752,7 @@ export interface ExecutionPlan {
   reelTimeOffsetMs?: number; // Starting offset in milliseconds for this reel
   isReelJob?: boolean;       // Flag indicating this is a sub-reel task
   subtitleLanguages?: string[];
-  subtitleTier?: 'ultra' | 'starter' | 'pro';
+  subtitleTier?: 'ultra';
   voiceGender?: 'auto' | 'male' | 'female';
   durationSeconds?: number;
 
@@ -3059,6 +3079,7 @@ export interface ExplainabilityResult {
   whyWrong?: string;
   correction?: string;
   sources: SourceReference[];
+  richSources?: RichSource[];
   sourceStatus?: 'complete' | 'partial' | 'missing';
   verifiedAcademicMetadata?: VerifiedAcademicMetadata[];
   timestampStart: number;
@@ -3181,6 +3202,9 @@ export interface CredibilityResult {
   isLongform: boolean;
   isFinal: boolean;         // Preliminary vs Final
   
+  sources?: any[];
+  richSources?: RichSource[];
+
   summary?: string;
   conclusion?: {
     label: string;
@@ -3297,7 +3321,22 @@ export interface DubbingSegment {
   syllableBudgetCompliance?: number;
   synthesizedAudioUrl?: string;
   durationMs?: number;
+  actualSynthesizedDurationMs?: number;
   speedFactor?: number;
+  terminologyWarning?: string;
+  terminologyViolations?: Array<{
+    termId: string;
+    source: string;
+    disallowedFound: string;
+    suggested: string;
+    context?: string;
+  }>;
+  terminologyComplianceRate?: number;
+  numericalParityVerified?: boolean;
+  numericalParityWarning?: string;
+  semanticParityScore?: number;
+  reviewRecommended?: boolean;
+  polarityFlipped?: boolean;
 }
 
 export interface SyncInstruction {
@@ -3749,9 +3788,24 @@ export interface DubbingEditableSegment {
   voiceId?: string;
   synthesizedAudioUrl?: string;
   durationMs?: number;
+  actualSynthesizedDurationMs?: number;
   speedFactor?: number;
   locked?: boolean;
   updatedAt?: number;
+  terminologyWarning?: string;
+  terminologyViolations?: Array<{
+    termId: string;
+    source: string;
+    disallowedFound: string;
+    suggested: string;
+    context?: string;
+  }>;
+  terminologyComplianceRate?: number;
+  numericalParityVerified?: boolean;
+  numericalParityWarning?: string;
+  semanticParityScore?: number;
+  reviewRecommended?: boolean;
+  polarityFlipped?: boolean;
 }
 
 export interface DubbingEditableManifest {

@@ -82,6 +82,8 @@ class VideoSerializer {
         'provisionalClaims': video.provisionalClaims,
       if (video.credibilityStatus != null)
         'credibilityStatus': video.credibilityStatus,
+      if (video.factCheckCompletedAt != null)
+        'factCheckCompletedAt': video.factCheckCompletedAt,
     };
   }
 

@@ -28,12 +28,14 @@ class VideoMapParser {
     final rawVideoUrl = firstNonEmpty([
       data['videoUrl'],
       data['originalUrl'],
+      data['hlsMasterUrl'],
       data['hlsUrl'],
       data['dashUrl'],
       data['url'],
       data['downloadUrl'],
       mediaMap?['videoUrl'],
       mediaMap?['originalUrl'],
+      mediaMap?['hlsMasterUrl'],
       mediaMap?['hlsUrl'],
       mediaMap?['dashUrl'],
       mediaMap?['url'],
@@ -46,6 +48,40 @@ class VideoMapParser {
             [])
         .map((e) => VideoResolutionV2.fromMap(Map<String, dynamic>.from(e)))
         .toList();
+
+    // Support legacy and direct resolutions map/list formats
+    if (rawResolutions.isEmpty) {
+      final legacyResolutions = data['resolutions'] ??
+          (data['media'] is Map ? data['media']['resolutions'] : null);
+      if (legacyResolutions is Map) {
+        legacyResolutions.forEach((k, v) {
+          if (k != null && v != null) {
+            final label = k.toString();
+            final url = v is Map ? (v['url']?.toString() ?? '') : v.toString();
+            if (url.isNotEmpty) {
+              final height = VideoResolutionV2.inferHeightFromLabel(label);
+              rawResolutions.add(
+                VideoResolutionV2(
+                  label: label,
+                  url: url,
+                  width: (height * 16 / 9).round(),
+                  height: height > 0 ? height : 1080,
+                  bitrate: 0,
+                  fps: VideoResolutionV2.inferFpsFromLabel(label),
+                ),
+              );
+            }
+          }
+        });
+      } else if (legacyResolutions is List) {
+        for (final item in legacyResolutions) {
+          if (item is Map) {
+            rawResolutions.add(VideoResolutionV2.fromMap(Map<String, dynamic>.from(item)));
+          }
+        }
+      }
+    }
+
     final resolutionsList = rawResolutions.isNotEmpty
         ? VideoResolutionV2.ensureCompleteLadder(
             rawResolutions,
@@ -219,7 +255,9 @@ class VideoMapParser {
     );
 
     final parsedHlsUrl = _cleanHlsUrl(
-      data['hlsUrl'] ?? (data['media'] is Map ? data['media']['hlsUrl'] : null),
+      data['hlsMasterUrl'] ??
+          data['hlsUrl'] ??
+          (data['media'] is Map ? (data['media']['hlsMasterUrl'] ?? data['media']['hlsUrl']) : null),
     );
     final parsedDashUrl = _cleanDashUrl(
       data['dashUrl'] ??
@@ -493,27 +531,41 @@ class VideoMapParser {
         return const <String, String>{};
       }(),
       audioTracks: () {
-        final tracks = data['media'] != null && data['media']['audioTracks'] != null
-            ? Map<String, String>.from(data['media']['audioTracks'] as Map)
-            : (data['audioTracks'] != null
-                  ? Map<String, String>.from(data['audioTracks'] as Map)
-                  : (data['media'] != null && data['media']['audio'] != null
-                        ? Map<String, String>.from(data['media']['audio'] as Map)
-                        : (data['audio'] != null
-                              ? Map<String, String>.from(data['audio'] as Map)
-                              : <String, String>{})));
+        final res = <String, String>{};
+        void extractFrom(dynamic raw) {
+          if (raw is Map) {
+            raw.forEach((k, v) {
+              if (k != null) {
+                if (v is String && v.isNotEmpty) {
+                  res[k.toString()] = v;
+                } else if (v is Map) {
+                  final url = v['audioUrl'] ?? v['playlistUrl'] ?? v['url'];
+                  if (url != null && url.toString().isNotEmpty) {
+                    res[k.toString()] = url.toString();
+                  }
+                }
+              }
+            });
+          }
+        }
+
+        extractFrom(data['media'] is Map ? data['media']['audioTracks'] : null);
+        extractFrom(data['audioTracks']);
+        extractFrom(data['media'] is Map ? data['media']['audio'] : null);
+        extractFrom(data['audio']);
+
         data.forEach((key, val) {
           if (val is String && val.isNotEmpty) {
             if (key.startsWith('audioTracks.')) {
               final code = key.substring('audioTracks.'.length);
-              if (code.isNotEmpty) tracks[code] = val;
+              if (code.isNotEmpty) res[code] = val;
             } else if (key.startsWith('media.audioTracks.')) {
               final code = key.substring('media.audioTracks.'.length);
-              if (code.isNotEmpty) tracks[code] = val;
+              if (code.isNotEmpty) res[code] = val;
             }
           }
         });
-        return tracks;
+        return res;
       }(),
       jobId:
           ((data['jobId'] ?? data['pipelineJobId']) ??
@@ -572,6 +624,7 @@ class VideoMapParser {
                   (data['aiFeatures'] is Map
                       ? data['aiFeatures']['factCheckReviewMode']
                       : null)) != 'first_to_creator'),
+      factCheckCompletedAt: data['factCheckCompletedAt'],
       isVerified: data['isVerified'] ?? false,
       chapters: resolvedChapters,
       totalWatchTimeSeconds: resolvedWatchTime,
@@ -622,7 +675,9 @@ class VideoMapParser {
       intentToMisleadScore: (data['intentToMisleadScore'] ?? 0).toDouble(),
       uiReport: data['uiReport'] != null
           ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport']))
-          : null,
+          : (data['claimLedgerSummary'] != null || data['claimLedger'] != null)
+              ? UIReport.fromMap(Map<String, dynamic>.from(data))
+              : null,
       coinBattlePairVideoId: data['coinBattlePairVideoId'] as String?,
       coinBattleStance: data['coinBattleStance'] as String?,
       resubmitCount: (data['resubmitCount'] as num?)?.toInt() ??

@@ -12,6 +12,7 @@
 // ==========================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -178,6 +179,7 @@ class VideoMediaCredibility {
 
     final rawClaims = (data['claims'] as List?) ??
         (data['keyClaims'] as List?) ??
+        (data['claimLedger'] as List?) ??
         (data['uiReport']?['keyClaims'] as List?) ??
         (data['uiReport']?['claims'] as List?) ??
         [];
@@ -192,6 +194,7 @@ class VideoMediaCredibility {
 
     final rawSources = (data['sources'] as List?) ??
         (data['richSources'] as List?) ??
+        (data['conclusion']?['sources'] as List?) ??
         (data['uiReport']?['sources'] as List?) ??
         [];
     final sourcesList = <Map<String, dynamic>>[];
@@ -200,6 +203,58 @@ class VideoMediaCredibility {
         sourcesList.add(Map<String, dynamic>.from(s));
       } else if (s is UISource) {
         sourcesList.add(s.toMap());
+      } else if (s is String && s.trim().isNotEmpty) {
+        final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+        if (clean != null && clean.isNotEmpty) {
+          sourcesList.add({
+            'title': s.trim(),
+            'url': clean,
+            'directUrl': clean,
+            'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+          });
+        }
+      }
+    }
+
+    // Fallback: If top-level sources are empty, aggregate all distinct sources from claims!
+    if (sourcesList.isEmpty && claimsList.isNotEmpty) {
+      final seenKeys = <String>{};
+      for (final c in claimsList) {
+        final cSources = c['sources'] ??
+            c['effectiveSources'] ??
+            c['richSources'] ??
+            c['citations'] ??
+            c['references'];
+        if (cSources is List) {
+          for (final s in cSources) {
+            if (!SourceUrlSanitizer.isValidSource(s)) continue;
+            Map<String, dynamic>? sourceMap;
+            if (s is UISource) {
+              sourceMap = Map<String, dynamic>.from(SourceUrlSanitizer.sanitizeSourceMap(s.toMap()));
+            } else if (s is Map) {
+              sourceMap = Map<String, dynamic>.from(SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s)));
+            } else if (s is String && s.trim().isNotEmpty) {
+              final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+              if (clean != null && clean.isNotEmpty) {
+                sourceMap = {
+                  'title': s.trim(),
+                  'url': clean,
+                  'directUrl': clean,
+                  'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+                };
+              }
+            }
+            if (sourceMap != null) {
+              final url = sourceMap['url']?.toString().toLowerCase() ?? '';
+              final title = sourceMap['title']?.toString().toLowerCase() ?? '';
+              final key = url.isNotEmpty ? url : title;
+              if (key.isNotEmpty && !seenKeys.contains(key)) {
+                seenKeys.add(key);
+                sourcesList.add(sourceMap);
+              }
+            }
+          }
+        }
       }
     }
 

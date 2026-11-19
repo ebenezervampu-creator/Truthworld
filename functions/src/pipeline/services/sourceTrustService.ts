@@ -187,6 +187,19 @@ export class SourceTrustService {
     "investopedia.com": { domain: "investopedia.com", tier: "C", reputationScore: 0.9, verticals: ["finance"], isOfficial: false },
     "healthline.com": { domain: "healthline.com", tier: "C", reputationScore: 0.8, verticals: ["health"], isOfficial: false },
     "sciencedirect.com": { domain: "sciencedirect.com", tier: "C", reputationScore: 0.95, verticals: ["science", "academic"], isOfficial: false },
+    "google.com": { domain: "google.com", tier: "B", reputationScore: 0.95, verticals: ["general", "search"], isOfficial: true },
+    "cloud.google.com": { domain: "cloud.google.com", tier: "B", reputationScore: 0.95, verticals: ["technology"], isOfficial: true },
+    "eci.gov.in": { domain: "eci.gov.in", tier: "A", reputationScore: 1.0, verticals: ["elections", "governance"], isOfficial: true },
+    "pib.gov.in": { domain: "pib.gov.in", tier: "A", reputationScore: 1.0, verticals: ["governance", "news"], isOfficial: true },
+    "sci.gov.in": { domain: "sci.gov.in", tier: "A", reputationScore: 1.0, verticals: ["legal", "judiciary"], isOfficial: true },
+    "prsindia.org": { domain: "prsindia.org", tier: "B", reputationScore: 0.93, verticals: ["governance", "policy"], isOfficial: false },
+    "ndtv.com": { domain: "ndtv.com", tier: "B", reputationScore: 0.90, verticals: ["news"], isOfficial: false },
+    "hindustantimes.com": { domain: "hindustantimes.com", tier: "B", reputationScore: 0.90, verticals: ["news"], isOfficial: false },
+    "timesofindia.indiatimes.com": { domain: "timesofindia.indiatimes.com", tier: "B", reputationScore: 0.90, verticals: ["news"], isOfficial: false },
+    "indiatimes.com": { domain: "indiatimes.com", tier: "B", reputationScore: 0.90, verticals: ["news"], isOfficial: false },
+    "deccanchronicle.com": { domain: "deccanchronicle.com", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
+    "eenadu.net": { domain: "eenadu.net", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
+    "sakshi.com": { domain: "sakshi.com", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
 
     // Tier D: Mainstream Press
     "techcrunch.com": { domain: "techcrunch.com", tier: "D", reputationScore: 0.8, verticals: ["technology"], isOfficial: false },
@@ -636,10 +649,66 @@ export class SourceTrustService {
   }
 
   /**
+   * Infers publisher domain from grounded chunk title or text.
+   */
+  inferDomainFromTitle(title?: string): string | null {
+    if (!title) return null;
+    const cleanTitle = title.trim();
+
+    // 1. Direct FQDN match in title
+    const match = cleanTitle.match(/\b([a-zA-Z0-9-]+\.(?:gov(?:\.[a-z]{2})?|edu(?:\.[a-z]{2})?|org(?:\.[a-z]{2})?|ac\.[a-z]{2}|res\.[a-z]{2}|int|mil|com(?:\.[a-z]{2})?|net|in))\b/i);
+    if (match) return match[1].toLowerCase();
+
+    // 2. Known institutional & publisher keyword hints
+    const lower = cleanTitle.toLowerCase();
+    if (lower.includes("election commission") || lower.includes("eci home") || lower.includes("eci.gov")) return "eci.gov.in";
+    if (lower.includes("press information bureau") || lower.includes("pib.gov")) return "pib.gov.in";
+    if (lower.includes("supreme court of india")) return "sci.gov.in";
+    if (lower.includes("wikipedia")) return "wikipedia.org";
+    if (lower.includes("the hindu")) return "thehindu.com";
+    if (lower.includes("indian express")) return "indianexpress.com";
+    if (lower.includes("times of india")) return "timesofindia.indiatimes.com";
+    if (lower.includes("hindustan times")) return "hindustantimes.com";
+    if (lower.includes("ndtv")) return "ndtv.com";
+    if (lower.includes("deccan chronicle")) return "deccanchronicle.com";
+    if (lower.includes("eenadu")) return "eenadu.net";
+    if (lower.includes("sakshi")) return "sakshi.com";
+    if (lower.includes("bbc")) return "bbc.com";
+    if (lower.includes("reuters")) return "reuters.com";
+    if (lower.includes("ap news") || lower.includes("associated press")) return "apnews.com";
+    if (lower.includes("bloomberg")) return "bloomberg.com";
+    if (lower.includes("arxiv")) return "arxiv.org";
+    if (lower.includes("nature")) return "nature.com";
+    if (lower.includes("science")) return "science.org";
+    if (lower.includes("who") || lower.includes("world health organization")) return "who.int";
+    if (lower.includes("isro")) return "isro.gov.in";
+    if (lower.includes("nasa")) return "nasa.gov";
+    if (lower.includes("cdc")) return "cdc.gov";
+    if (lower.includes("nih") || lower.includes("national institutes of health")) return "nih.gov";
+
+    return null;
+  }
+
+  /**
    * Resolves the reputation and tier of a source URL.
    */
-  resolveSourceTrust(url: string, vertical?: string): SourceReputation {
-    const domain = this.extractDomain(url).toLowerCase();
+  resolveSourceTrust(url: string, vertical?: string, title?: string): SourceReputation {
+    const rawDomain = this.extractDomain(url).toLowerCase();
+
+    // Special handling for Google Search Grounding redirects:
+    const isGroundingRedirect =
+      rawDomain === "vertexaisearch.cloud.google.com" ||
+      rawDomain === "cloud.google.com" ||
+      (rawDomain === "google.com" && url.includes("grounding-api-redirect")) ||
+      url.includes("/grounding-api-redirect");
+
+    let domain = rawDomain;
+    if (isGroundingRedirect) {
+      const inferred = this.inferDomainFromTitle(title);
+      if (inferred) {
+        domain = inferred;
+      }
+    }
 
     // 1. Check if the specific URL or artifact is formally retracted
     if (this.isRetracted(url)) {
@@ -678,6 +747,16 @@ export class SourceTrustService {
         score = Math.min(1.0, score + 0.05);
       }
       return { ...rep, reputationScore: score };
+    }
+
+    // If this was an authentic Google Grounding redirect and not explicitly in TRUST_GRAPH
+    if (isGroundingRedirect) {
+      return {
+        domain,
+        tier: "B",
+        reputationScore: 0.88,
+        isOfficial: false,
+      };
     }
 
     // Dynamic Rule-Based Fallback Engine

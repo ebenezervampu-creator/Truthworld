@@ -1,6 +1,5 @@
 /**
  * 🧪 COMPREHENSIVE SAMPLE TEST:
- *    - Sample Telugu & Code-Mixed ("Tenglish") Speech-to-Text via ElevenLabs Scribe v2
  *    - Multilingual Empirical Claim Extraction (Telugu + English)
  *    - ElevenLabs V4 Premium Tier 1 Dubbing with Tier 2 (v3) Fallback
  *    - Zero Google Cloud Speech Models Guarantee
@@ -8,7 +7,6 @@
 
 import { ElevenLabsTTSService, TTSService } from '../../src/pipeline/services/tts';
 import { FactExtractionService } from '../../src/pipeline/services/factExtraction';
-import { transcriptionLayer } from '../../src/pipeline/layers/05-transcription';
 import { costEngine } from '../../src/pipeline/services/cost-engine';
 import { TTSRequest, ExtractedClaim } from '../../src/pipeline/types';
 
@@ -88,57 +86,7 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
     jest.spyOn(costEngine, 'recordTTSCost').mockImplementation(async () => {});
   });
 
-  describe('Sample 1: Speech-to-Text via ElevenLabs Scribe v2 for Code-Mixed Telugu', () => {
-    it('transcribes sample Telugu audio using ElevenLabs Scribe v2 with speaker diarization', async () => {
-      // Mock ElevenLabs Scribe response for sample Telugu audio
-      const mockScribeResponse = {
-        language_code: 'te',
-        text: 'హలో friends, ఈరోజు vaccine safety గురించి ఒక serious myth bust చేద్దాం. Covaxin 77.8 percent efficacy రేటును కలిగి ఉంది.',
-        words: [
-          { text: 'హలో', start: 0.1, end: 0.5, speaker_id: 'speaker_0', type: 'word' },
-          { text: 'friends', start: 0.6, end: 1.1, speaker_id: 'speaker_0', type: 'word' },
-          { text: 'ఈరోజు', start: 1.2, end: 1.7, speaker_id: 'speaker_0', type: 'word' },
-          { text: 'vaccine', start: 1.8, end: 2.3, speaker_id: 'speaker_0', type: 'word' },
-          { text: 'safety', start: 2.4, end: 2.9, speaker_id: 'speaker_0', type: 'word' },
-          { text: 'Covaxin', start: 3.2, end: 3.8, speaker_id: 'speaker_0', type: 'word' },
-          { text: '77.8', start: 3.9, end: 4.4, speaker_id: 'speaker_0', type: 'word' },
-          { text: 'percent', start: 4.5, end: 4.9, speaker_id: 'speaker_0', type: 'word' },
-          { text: 'efficacy', start: 5.0, end: 5.5, speaker_id: 'speaker_0', type: 'word' },
-        ],
-      };
-
-      mockedAxios.post.mockResolvedValueOnce({
-        data: mockScribeResponse,
-      });
-
-      const result = await transcriptionLayer.transcribeWithElevenLabsScribe(
-        'job_telugu_sample_stt',
-        'creator_123',
-        'gs://truthworld-media/videos/job_telugu_sample_stt/original.mp4',
-        { primaryLanguage: 'te' } as any,
-        'te'
-      );
-
-      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
-      const [url, formData] = mockedAxios.post.mock.calls[0];
-
-      // Verifies ElevenLabs Scribe endpoint and parameters
-      expect(url).toBe('https://api.elevenlabs.io/v1/speech-to-text');
-      const form = formData as any;
-      expect(form.get('model_id')).toBe('scribe_v2');
-      expect(form.get('diarize')).toBe('true');
-      expect(form.get('language_code')).toBe('te');
-
-      // Verifies structured transcription result
-      expect(result.detectedLanguage).toBe('te');
-      expect(result.text).toContain('హలో friends');
-      expect(result.text).toContain('Covaxin 77.8 percent efficacy');
-      expect(result.words.length).toBe(9);
-      expect(result.segments.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('Sample 2: Multilingual Fact Extraction from Code-Mixed Telugu', () => {
+  describe('Sample 1: Multilingual Fact Extraction from Code-Mixed Telugu', () => {
     it('extracts empirical factual claims from code-mixed Telugu chunks without dropping Telugu assertions', async () => {
       const sampleChunkUtterances = [
         {

@@ -13,7 +13,7 @@ const db = () => admin.firestore();
 // ─── Provider Rate Cards (USD) ──────────────────────────────────────────────
 
 export const RATE_CARDS = {
-  assemblyai: { perMinute: 0.00383 }, // Universal-3.5 Pro ($0.21/hr) + Speaker Diarization ($0.02/hr) = $0.23/hr ($0.00383/min)
+  assemblyai: { perMinute: 0.00383 }, // Universal 3.7 Pro ($0.21/hr) + Speaker Diarization ($0.02/hr) = $0.23/hr ($0.00383/min)
   "google-translate-v3": { perCharacter: 0.000020 },
   "google-translation-llm": { perInputCharacter: 0.000010, perOutputCharacter: 0.000010 }, // $10/M input + $10/M output chars
   elevenlabs: { perCharacter: 0.000200 }, // ElevenLabs Creator/Pro tier ($0.20 / 1K chars)
@@ -310,7 +310,7 @@ export function calculateDubbingCost(
 
 
 
-export type SubtitleTierId = "ultra" | "starter" | "pro";
+export type SubtitleTierId = "ultra";
 
 export interface SubtitleTierConfig {
   id: SubtitleTierId;
@@ -331,29 +331,8 @@ export const SUBTITLE_TIERS: Record<string, SubtitleTierConfig> = {
     perMinuteRateUSD: 0.05,
     additionalLang10MinUSD: 0.20,
     additionalLangPerMinuteUSD: 0.02,
-    sttEngine: "AssemblyAI Universal 3.5 Pro (18 Languages)",
-    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 3.5 Flash Lite",
-  },
-  // Backward compatibility mappings
-  starter: {
-    id: "starter",
-    name: "Ultra Subtitles",
-    basePrice10MinUSD: 0.50,
-    perMinuteRateUSD: 0.05,
-    additionalLang10MinUSD: 0.20,
-    additionalLangPerMinuteUSD: 0.02,
-    sttEngine: "AssemblyAI Universal 3.5 Pro (18 Languages)",
-    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 3.5 Flash Lite",
-  },
-  pro: {
-    id: "pro",
-    name: "Ultra Subtitles",
-    basePrice10MinUSD: 0.50,
-    perMinuteRateUSD: 0.05,
-    additionalLang10MinUSD: 0.20,
-    additionalLangPerMinuteUSD: 0.02,
-    sttEngine: "AssemblyAI Universal 3.5 Pro (18 Languages)",
-    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 3.5 Flash Lite",
+    sttEngine: "AssemblyAI Universal 3.7 Pro",
+    translationEngine: "Google Cloud Translation v3 (general/translation-llm + AdaptiveMt)",
   },
 };
 
@@ -419,7 +398,7 @@ export const SUBTITLE_DURATION_TIERS: SubtitleDurationTier[] = [
 export function getFlatSubtitlePricePerLanguage(
   durationSeconds: number,
   channelType: "standard" | "custom" = "standard",
-  tier: "ultra" | "starter" | "pro" = "ultra"
+  tier: SubtitleTierId = "ultra"
 ): number {
   const tierConfig = SUBTITLE_TIERS[tier] || SUBTITLE_TIERS.ultra;
   const effectiveSeconds = Math.max(60, durationSeconds || 600);
@@ -432,7 +411,7 @@ export function calculateSubtitleCost(
   durationSeconds: number = 0,
   channelType: "standard" | "custom" = "standard",
   discountPercent: number = 0,
-  tier: "ultra" | "starter" | "pro" = "ultra"
+  tier: SubtitleTierId = "ultra"
 ): number {
   if (languageCount <= 0) return 0.0;
   if (discountPercent >= 100) return 0.0;
@@ -739,7 +718,7 @@ export class CostEngine {
     userId: string,
     durationSeconds: number,
     languageCount: number,
-    tier: "ultra" | "starter" | "pro" = "ultra"
+    tier: SubtitleTierId = "ultra"
   ): Promise<void> {
     const cost = calculateSubtitleCost(languageCount, durationSeconds, "standard", 0, tier);
     await this.recordCost(

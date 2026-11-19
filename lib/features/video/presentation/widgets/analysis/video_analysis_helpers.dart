@@ -174,43 +174,45 @@ class VideoAnalysisHelpers {
         .toLowerCase();
     final isMissingSources = sourceStatus == 'missing';
 
+    final rawSources = claim['sources'] ??
+        claim['effectiveSources'] ??
+        claim['richSources'] ??
+        claim['evidence'] ??
+        claim['citations'] ??
+        claim['references'];
+
     final realSources = <Map<dynamic, dynamic>>[];
-    if (!isMissingSources) {
-      final rawSources = claim['sources'] ??
-          claim['effectiveSources'] ??
-          claim['richSources'] ??
-          claim['evidence'] ??
-          claim['citations'] ??
-          claim['references'];
-      if (rawSources is List) {
-        for (final s in rawSources) {
-          if (!SourceUrlSanitizer.isValidSource(s)) continue;
-          if (s is UISource) {
-            final sanitized = SourceUrlSanitizer.sanitizeSourceMap(s.toMap());
-            final url = sanitized['url']?.toString();
-            if (url != null && url.isNotEmpty) {
-              realSources.add(sanitized);
-            }
-          } else if (s is Map) {
-            final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
-            final url = sanitized['url']?.toString();
-            if (url != null && url.isNotEmpty) {
-              realSources.add(sanitized);
-            }
-          } else if (s is String && s.trim().isNotEmpty) {
-            final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
-            if (clean != null && clean.isNotEmpty) {
-              realSources.add({
-                'title': s.trim(),
-                'url': clean,
-                'directUrl': clean,
-                'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
-                'snippet': 'Historical citation reference',
-              });
-            }
+    if (rawSources is List) {
+      for (final s in rawSources) {
+        if (!SourceUrlSanitizer.isValidSource(s)) continue;
+        if (s is UISource) {
+          final sanitized = SourceUrlSanitizer.sanitizeSourceMap(s.toMap());
+          final url = sanitized['url']?.toString();
+          if (url != null && url.isNotEmpty) {
+            realSources.add(sanitized);
+          }
+        } else if (s is Map) {
+          final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
+          final url = sanitized['url']?.toString();
+          if (url != null && url.isNotEmpty) {
+            realSources.add(sanitized);
+          }
+        } else if (s is String && s.trim().isNotEmpty) {
+          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+          if (clean != null && clean.isNotEmpty) {
+            realSources.add({
+              'title': s.trim(),
+              'url': clean,
+              'directUrl': clean,
+              'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+              'snippet': 'Historical citation reference',
+            });
           }
         }
       }
+    }
+
+    if (!isMissingSources) {
 
       // Match global sources from report (legitimate cross-referencing)
       for (final s in allSources) {

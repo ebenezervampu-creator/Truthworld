@@ -94,8 +94,8 @@ void showAddSubtitlesOptionsSheet({
                 iconColor: Colors.white,
                 title: 'Generate Subtitles',
                 subtitle: targetName != null
-                    ? 'Ultra (\$0.50 / 10m) • Transcribe and generate $targetName with Universal 3.5 Pro & Indic STT'
-                    : 'Ultra (\$0.50 / 10m) • Universal 3.5 Pro (18 Languages) + Google Cloud Translation v3',
+                    ? 'Ultra (\$0.50 / 10m) • Transcribe and generate $targetName with Universal 3.7 Pro'
+                    : 'Ultra (\$0.50 / 10m) • Universal 3.7 Pro + Google Cloud Translation v3',
                 extraBadge: Container(
                   margin: const EdgeInsets.only(top: 8),
                   child: Row(

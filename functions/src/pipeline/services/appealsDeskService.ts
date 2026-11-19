@@ -689,6 +689,48 @@ export class AppealsDeskService {
 
     return { isValid: true, verifiedCount: docs.length };
   }
+
+  /**
+   * 🛡️ Sweeps pending creator appeals to flag or escalate those stuck in "submitted"
+   * or "under_review" exceeding 72 hours (IFCN SLA Compliance).
+   */
+  async sweepPendingAppealsSla(): Promise<{ escalatedCount: number }> {
+    const cutoff72h = Date.now() - 72 * 3600 * 1000;
+    try {
+      const snap = await db()
+        .collection("claim_appeals")
+        .where("status", "in", ["submitted", "under_review"])
+        .limit(50)
+        .get();
+
+      if (snap.empty) return { escalatedCount: 0 };
+
+      let escalatedCount = 0;
+      const batch = db().batch();
+
+      for (const doc of snap.docs) {
+        const data = doc.data() as ClaimAppealRecord;
+        if (data.submittedAt && data.submittedAt <= cutoff72h) {
+          batch.update(doc.ref, {
+            status: "escalated_to_board",
+            slaOverdue: true,
+            escalatedAt: Date.now(),
+          });
+          escalatedCount++;
+        }
+      }
+
+      if (escalatedCount > 0) {
+        await batch.commit();
+        logger.warn(`[AppealsDesk] SLA Watchdog: Escalated ${escalatedCount} overdue claim appeals (> 72h) to editorial board.`);
+      }
+
+      return { escalatedCount };
+    } catch (err: any) {
+      logger.error("[AppealsDesk] Error running SLA watchdog sweep", { err: err?.message });
+      return { escalatedCount: 0 };
+    }
+  }
 }
 
 export const appealsDeskService = new AppealsDeskService();

@@ -111,6 +111,18 @@ class VideoChapterParser {
       if (maxDuration != null && maxDuration > Duration.zero) {
         parsed = parsed.where((c) => c.startTime < maxDuration).toList();
       }
+      final isTelugu = RegExp(r'[\u0C00-\u0C7F]').hasMatch(description) ||
+          parsed.any((c) => RegExp(r'[\u0C00-\u0C7F]').hasMatch(c.title));
+      if (isTelugu) {
+        parsed = parsed.map((c) {
+          final s = VideoChapter.sanitizeTitle(
+            c.title,
+            isTeluguContext: true,
+            startTime: c.startTime,
+          );
+          return s != c.title ? c.copyWith(title: s) : c;
+        }).toList();
+      }
       if (parsed.isNotEmpty) return parsed;
     }
 
@@ -176,6 +188,18 @@ class VideoChapterParser {
           .toList();
       if (maxDuration != null && maxDuration > Duration.zero) {
         parsed = parsed.where((c) => c.startTime < maxDuration).toList();
+      }
+      final isTelugu = RegExp(r'[\u0C00-\u0C7F]').hasMatch(description) ||
+          parsed.any((c) => RegExp(r'[\u0C00-\u0C7F]').hasMatch(c.title));
+      if (isTelugu) {
+        parsed = parsed.map((c) {
+          final s = VideoChapter.sanitizeTitle(
+            c.title,
+            isTeluguContext: true,
+            startTime: c.startTime,
+          );
+          return s != c.title ? c.copyWith(title: s) : c;
+        }).toList();
       }
       return parsed;
     }

@@ -7,7 +7,7 @@ import { promisify } from "util";
 import { PIPELINE_CONFIG } from "../config";
 import { storage } from "firebase-admin";
 
-const execFileAsync = promisify(execFile);
+export const execFileAsync = promisify(execFile);
 
 export function getFfmpegPath(): string | null {
   for (const modName of ["ffmpeg-static", "@ffmpeg-installer/ffmpeg"]) {

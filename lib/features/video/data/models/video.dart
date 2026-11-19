@@ -113,6 +113,7 @@ class Video {
     this.provisionalViewerNote,
     this.provisionalClaims = const [],
     this.credibilityStatus,
+    dynamic factCheckCompletedAt,
   })  : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
             ? title.toLowerCase()
             : vTitleLowercase,
@@ -138,6 +139,7 @@ class Video {
                 : parseDuration(duration),
         createdAt = TimestampUtils.parse(createdAt ?? uploadedAt),
         updatedAt = TimestampUtils.parse(updatedAt ?? createdAt ?? uploadedAt),
+        factCheckCompletedAt = factCheckCompletedAt != null ? TimestampUtils.parse(factCheckCompletedAt) : null,
         status = status is VideoStatus
             ? status
             : (status?.toString().toLowerCase() == 'published' ||
@@ -311,6 +313,7 @@ class Video {
   // v8.0 Credibility Fields (lightweight)
   final String? trustLabel;
   final String? jobId;
+  final Timestamp? factCheckCompletedAt;
   final bool isProvisional;
   final double? provisionalScore;
   final String? provisionalLabel;
@@ -493,15 +496,15 @@ class Video {
 
   /// Whether the creator review grace period has expired, triggering public transparency.
   bool get isFactCheckGracePeriodExpired {
-    final createdTime = createdAt.toDate();
-    final elapsed = DateTime.now().difference(createdTime);
+    final baseTime = (factCheckCompletedAt ?? createdAt).toDate();
+    final elapsed = DateTime.now().difference(baseTime);
     return elapsed >= factCheckGracePeriod;
   }
 
   /// Remaining duration in the creator review grace period before automatic public transparency.
   Duration get factCheckGracePeriodRemaining {
-    final createdTime = createdAt.toDate();
-    final elapsed = DateTime.now().difference(createdTime);
+    final baseTime = (factCheckCompletedAt ?? createdAt).toDate();
+    final elapsed = DateTime.now().difference(baseTime);
     final diff = factCheckGracePeriod - elapsed;
     return diff.isNegative ? Duration.zero : diff;
   }
@@ -625,6 +628,7 @@ class Video {
     String? provisionalViewerNote,
     List<Map<String, dynamic>>? provisionalClaims,
     String? credibilityStatus,
+    dynamic factCheckCompletedAt,
   }) {
     return Video(
       id: id ?? this.id,
@@ -702,6 +706,7 @@ class Video {
       provisionalViewerNote: provisionalViewerNote ?? this.provisionalViewerNote,
       provisionalClaims: provisionalClaims ?? this.provisionalClaims,
       credibilityStatus: credibilityStatus ?? this.credibilityStatus,
+      factCheckCompletedAt: factCheckCompletedAt ?? this.factCheckCompletedAt,
     );
   }
 

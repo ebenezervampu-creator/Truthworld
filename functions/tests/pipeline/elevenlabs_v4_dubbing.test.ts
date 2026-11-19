@@ -195,4 +195,51 @@ describe("Strictly ElevenLabs v4 Dubbing Pipeline (Chirp 3: HD Terminated)", () 
     // Storage save was called for the silent MP3 chunks
     expect(mockFileSave).toHaveBeenCalledTimes(nonSpeechInputs.length);
   });
+
+  test("7. Context windowing: previous_text and next_text are passed to ElevenLabs API with zero extra character billing", async () => {
+    const configuredEleven = new ElevenLabsTTSService("valid-test-key");
+    const axios = require("axios");
+    let capturedBody: any = null;
+
+    jest.spyOn(axios, "post").mockImplementation(async (...args: any[]) => {
+      const url = args[0] as string;
+      if (url.includes("/text-to-speech/")) {
+        capturedBody = args[1];
+        return {
+          data: Buffer.from("v4-audio-chunk-bytes"),
+        };
+      }
+      return { data: {} };
+    });
+
+    const admin = require("firebase-admin");
+    const mockFileSave = jest.fn().mockResolvedValue(true);
+    jest.spyOn(admin, "storage").mockReturnValue({
+      bucket: () => ({
+        name: "test-bucket",
+        file: () => ({ save: mockFileSave }),
+      }),
+    });
+
+    const longPrev = "A".repeat(600); // Exceeds 450 chars limit
+    const longNext = "B".repeat(600); // Exceeds 450 chars limit
+
+    const tts = new TTSService(undefined, configuredEleven);
+    const result = await tts.synthesize({
+      jobId: "job_ctx_test",
+      language: "te",
+      text: "ముఖ్యమైన ప్రసంగం",
+      voiceId: "ErXwobaYiN019PkySvjV",
+      previousText: longPrev,
+      nextText: longNext,
+    });
+
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody.text).toBe("ముఖ్యమైన ప్రసంగం");
+    expect(capturedBody.model_id).toBe("eleven_v4");
+    // Context is capped to 450 characters
+    expect(capturedBody.previous_text.length).toBe(450);
+    expect(capturedBody.next_text.length).toBe(450);
+    expect(result.provider).toBe("elevenlabs");
+  });
 });

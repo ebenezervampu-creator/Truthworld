@@ -3,17 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Modal bottom sheets and quality dialogs for video playback speed, quality,
-/// loop toggles, and offline download settings.
+/// loop toggles, audio tracks, and offline download settings.
 class VideoPlayerSettingsSheet {
   static void showSettings({
     required BuildContext context,
     required VideoController controller,
   }) {
+    final playerCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
+
     Get.bottomSheet(
       Material(
         color: AppColors.bgSurface,
@@ -40,6 +44,27 @@ class VideoPlayerSettingsSheet {
                 () {},
               ),
               _settingsTile(Icons.high_quality_rounded, 'Quality', 'Auto', () {}),
+              Obx(() {
+                final audioTracks = playerCtrl?.audioTracks ?? controller.availableAudioTracks;
+                final activeAudio = playerCtrl?.activeAudioLang.value ?? 'Original';
+                return _settingsTile(
+                  Icons.audiotrack_rounded,
+                  'Audio Track',
+                  audioTracks.isEmpty ? 'Original' : activeAudio,
+                  () => showAudioTrackSheet(context: context, controller: controller),
+                );
+              }),
+              Obx(() {
+                final subEnabled = playerCtrl?.subtitlesEnabled.value ?? false;
+                final activeSub = playerCtrl?.activeSubLang.value ?? '';
+                final label = (subEnabled && activeSub.isNotEmpty) ? activeSub : 'Off';
+                return _settingsTile(
+                  Icons.subtitles_rounded,
+                  'Subtitles / CC',
+                  label,
+                  () => showSubtitleSheet(context: context, controller: controller),
+                );
+              }),
               _settingsTile(
                 Icons.loop_rounded,
                 'Loop Video',
@@ -48,6 +73,211 @@ class VideoPlayerSettingsSheet {
                     : 'Off',
                 () {},
               ),
+            ],
+          ),
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+    );
+  }
+
+  static void showAudioTrackSheet({
+    required BuildContext context,
+    required VideoController controller,
+  }) {
+    final playerCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
+    Get.bottomSheet(
+      Material(
+        color: AppColors.bgSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Audio Tracks',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Obx(() {
+                final tracks = playerCtrl?.audioTracks.toList() ??
+                    controller.availableAudioTracks.toList();
+                final activeLang = playerCtrl?.activeAudioLang.value ?? 'Original';
+
+                if (tracks.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'Original audio only',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                return ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: tracks.length,
+                    itemBuilder: (ctx, idx) {
+                      final track = tracks[idx];
+                      final isSelected =
+                          activeLang == track.label || activeLang == track.langCode;
+                      return ListTile(
+                        leading: Icon(
+                          Icons.audiotrack_rounded,
+                          color: isSelected ? AppColors.brand : Colors.white,
+                        ),
+                        title: Text(
+                          track.label,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? AppColors.brand : AppColors.textPrimary,
+                          ),
+                        ),
+                        subtitle: track.type.isNotEmpty && track.type != 'Original'
+                            ? Text(
+                                track.type,
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              )
+                            : null,
+                        trailing: isSelected
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.brand,
+                              )
+                            : null,
+                        onTap: () {
+                          if (playerCtrl != null) {
+                            playerCtrl.setAudioLanguage(track);
+                          }
+                          Get.back();
+                        },
+                      );
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+    );
+  }
+
+  static void showSubtitleSheet({
+    required BuildContext context,
+    required VideoController controller,
+  }) {
+    final playerCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
+    Get.bottomSheet(
+      Material(
+        color: AppColors.bgSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Subtitles / Captions',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Obx(() {
+                final subTracks = playerCtrl?.subtitleTracks.toList() ??
+                    controller.availableSubtitles.toList();
+                final subEnabled = playerCtrl?.subtitlesEnabled.value ?? false;
+                final activeLang = playerCtrl?.activeSubLang.value ?? '';
+
+                return ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                  ),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      ListTile(
+                        leading: Icon(
+                          Icons.subtitles_off_rounded,
+                          color: !subEnabled ? AppColors.brand : Colors.white,
+                        ),
+                        title: Text(
+                          'Off',
+                          style: TextStyle(
+                            fontWeight: !subEnabled ? FontWeight.bold : FontWeight.w500,
+                            color: !subEnabled ? AppColors.brand : AppColors.textPrimary,
+                          ),
+                        ),
+                        trailing: !subEnabled
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.brand,
+                              )
+                            : null,
+                        onTap: () {
+                          if (playerCtrl != null) {
+                            playerCtrl.setSubtitles(enabled: false);
+                          }
+                          Get.back();
+                        },
+                      ),
+                      ...subTracks.map((track) {
+                        final isSelected = subEnabled &&
+                            (activeLang == track.label ||
+                                activeLang == track.langCode);
+                        return ListTile(
+                          leading: Icon(
+                            Icons.subtitles_rounded,
+                            color: isSelected ? AppColors.brand : Colors.white,
+                          ),
+                          title: Text(
+                            track.label,
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected ? AppColors.brand : AppColors.textPrimary,
+                            ),
+                          ),
+                          trailing: isSelected
+                              ? const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.brand,
+                                )
+                              : null,
+                          onTap: () {
+                            if (playerCtrl != null) {
+                              playerCtrl.setSubtitles(enabled: true, track: track);
+                            }
+                            Get.back();
+                          },
+                        );
+                      }),
+                    ],
+                  ),
+                );
+              }),
             ],
           ),
         ),

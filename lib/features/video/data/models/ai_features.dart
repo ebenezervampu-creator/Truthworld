@@ -121,31 +121,65 @@ class SpokenLanguageInfo {
   final String region; // 'indic', 'global', 'asian', 'european', 'middle_east_africa'
 }
 
-/// All 18 spoken languages supported strictly by TruthWorld STT pipeline:
-/// - AssemblyAI Universal-3.5 Pro (18 languages)
+/// All 46+ spoken languages supported strictly by TruthWorld STT pipeline:
+/// - AssemblyAI Universal 3.7 Pro
 const List<SpokenLanguageInfo> allSpokenLanguages = [
   // Auto
-  SpokenLanguageInfo(code: 'auto', name: 'Auto-Detect', nativeName: 'Auto (Universal-3.5 Pro)', region: 'global'),
+  SpokenLanguageInfo(code: 'auto', name: 'Auto-Detect', nativeName: 'Auto (Universal 3.7 Pro)', region: 'global'),
 
-  // The 18 AssemblyAI Universal-3.5 Pro Languages
-  SpokenLanguageInfo(code: 'en', name: 'English', nativeName: 'English', region: 'global'),
+  // Indic (All Major Regional Languages)
+  SpokenLanguageInfo(code: 'te', name: 'Telugu', nativeName: 'తెలుగు', region: 'indic'),
   SpokenLanguageInfo(code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', region: 'indic'),
+  SpokenLanguageInfo(code: 'ta', name: 'Tamil', nativeName: 'தமிழ்', region: 'indic'),
+  SpokenLanguageInfo(code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', region: 'indic'),
+  SpokenLanguageInfo(code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം', region: 'indic'),
+  SpokenLanguageInfo(code: 'bn', name: 'Bengali', nativeName: 'বাংলা', region: 'indic'),
+  SpokenLanguageInfo(code: 'mr', name: 'Marathi', nativeName: 'मराठी', region: 'indic'),
+  SpokenLanguageInfo(code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી', region: 'indic'),
+  SpokenLanguageInfo(code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', region: 'indic'),
+  SpokenLanguageInfo(code: 'ur', name: 'Urdu', nativeName: 'اردو', region: 'indic'),
+
+  // Global & European
+  SpokenLanguageInfo(code: 'en', name: 'English', nativeName: 'English', region: 'global'),
   SpokenLanguageInfo(code: 'es', name: 'Spanish', nativeName: 'Español', region: 'global'),
   SpokenLanguageInfo(code: 'fr', name: 'French', nativeName: 'Français', region: 'global'),
   SpokenLanguageInfo(code: 'de', name: 'German', nativeName: 'Deutsch', region: 'global'),
   SpokenLanguageInfo(code: 'it', name: 'Italian', nativeName: 'Italiano', region: 'european'),
   SpokenLanguageInfo(code: 'pt', name: 'Portuguese', nativeName: 'Português', region: 'global'),
-  SpokenLanguageInfo(code: 'ar', name: 'Arabic', nativeName: 'العربية', region: 'middle_east_africa'),
-  SpokenLanguageInfo(code: 'zh', name: 'Chinese', nativeName: '中文 (普通话)', region: 'asian'),
-  SpokenLanguageInfo(code: 'ja', name: 'Japanese', nativeName: '日本語', region: 'asian'),
   SpokenLanguageInfo(code: 'nl', name: 'Dutch', nativeName: 'Nederlands', region: 'european'),
-  SpokenLanguageInfo(code: 'tr', name: 'Turkish', nativeName: 'Türkçe', region: 'middle_east_africa'),
-  SpokenLanguageInfo(code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', region: 'asian'),
-  SpokenLanguageInfo(code: 'he', name: 'Hebrew', nativeName: 'עברית', region: 'middle_east_africa'),
   SpokenLanguageInfo(code: 'sv', name: 'Swedish', nativeName: 'Svenska', region: 'european'),
   SpokenLanguageInfo(code: 'da', name: 'Danish', nativeName: 'Dansk', region: 'european'),
   SpokenLanguageInfo(code: 'no', name: 'Norwegian', nativeName: 'Norsk', region: 'european'),
   SpokenLanguageInfo(code: 'fi', name: 'Finnish', nativeName: 'Suomi', region: 'european'),
+  SpokenLanguageInfo(code: 'ru', name: 'Russian', nativeName: 'Русский', region: 'global'),
+  SpokenLanguageInfo(code: 'pl', name: 'Polish', nativeName: 'Polski', region: 'european'),
+  SpokenLanguageInfo(code: 'cs', name: 'Czech', nativeName: 'Čeština', region: 'european'),
+  SpokenLanguageInfo(code: 'el', name: 'Greek', nativeName: 'Ελληνικά', region: 'european'),
+  SpokenLanguageInfo(code: 'uk', name: 'Ukrainian', nativeName: 'Українська', region: 'european'),
+  SpokenLanguageInfo(code: 'hu', name: 'Hungarian', nativeName: 'Magyar', region: 'european'),
+  SpokenLanguageInfo(code: 'ro', name: 'Romanian', nativeName: 'Română', region: 'european'),
+  SpokenLanguageInfo(code: 'ca', name: 'Catalan', nativeName: 'Català', region: 'european'),
+  SpokenLanguageInfo(code: 'et', name: 'Estonian', nativeName: 'Eesti', region: 'european'),
+  SpokenLanguageInfo(code: 'gl', name: 'Galician', nativeName: 'Galego', region: 'european'),
+
+  // Middle East & Africa
+  SpokenLanguageInfo(code: 'ar', name: 'Arabic', nativeName: 'العربية', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'he', name: 'Hebrew', nativeName: 'עברית', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'tr', name: 'Turkish', nativeName: 'Türkçe', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'fa', name: 'Persian', nativeName: 'فارسی', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'af', name: 'Afrikaans', nativeName: 'Afrikaans', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'xh', name: 'Xhosa', nativeName: 'isiXhosa', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'zu', name: 'Zulu', nativeName: 'isiZulu', region: 'middle_east_africa'),
+
+  // Asian
+  SpokenLanguageInfo(code: 'zh', name: 'Chinese', nativeName: '中文 (普通话)', region: 'asian'),
+  SpokenLanguageInfo(code: 'ja', name: 'Japanese', nativeName: '日本語', region: 'asian'),
+  SpokenLanguageInfo(code: 'ko', name: 'Korean', nativeName: '한국어', region: 'asian'),
+  SpokenLanguageInfo(code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', region: 'asian'),
+  SpokenLanguageInfo(code: 'yue', name: 'Cantonese', nativeName: '粵語', region: 'asian'),
+  SpokenLanguageInfo(code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia', region: 'asian'),
+  SpokenLanguageInfo(code: 'ms', name: 'Malay', nativeName: 'Bahasa Melayu', region: 'asian'),
+  SpokenLanguageInfo(code: 'th', name: 'Thai', nativeName: 'ไทย', region: 'asian'),
 ];
 
 /// Supported languages for translation.

@@ -409,7 +409,8 @@ describe("TruthWorld 5-Pillar Dubbing Upgrade Verification (Zero Credits)", () =
       expect(remasterRes.version).toBe(4);
       expect(remasterRes.masterAudioUrl).toBe("https://storage.googleapis.com/bucket/master_v4.mp3?signed=1");
       const updatedVideo = (await testFirestore.collection("videos").doc(videoId).get()).data();
-      expect(updatedVideo?.audioTracks?.te).toBe("https://storage.googleapis.com/bucket/master_v4.mp3");
+      const teTrack = updatedVideo?.audioTracks?.te;
+      expect(typeof teTrack === "object" ? teTrack.audioUrl : teTrack).toBe("https://storage.googleapis.com/bucket/master_v4.mp3");
 
       synthSpy.mockRestore();
       subSpy.mockRestore();

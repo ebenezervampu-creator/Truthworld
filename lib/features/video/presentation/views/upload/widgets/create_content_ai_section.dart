@@ -124,7 +124,7 @@ class CreateContentSubtitlesDubbingSection extends StatelessWidget {
                 const SizedBox(height: 16),
               ],
 
-              // Spoken Video Language ("From") Selector: Strictly 18 languages for Subtitles & Dubbing via AssemblyAI Universal-3.5 Pro
+              // Spoken Video Language ("From") Selector: Powered by AssemblyAI Universal 3.7 Pro
               _buildSpokenLanguageSelector(context, uploadController),
               const SizedBox(height: 12),
 
@@ -215,7 +215,7 @@ class CreateContentSubtitlesDubbingSection extends StatelessWidget {
     });
   }
 
-  // Spoken Video Language ("From") Selector: Strictly 18 languages for Subtitles & Dubbing via AssemblyAI Universal-3.5 Pro
+  // Spoken Video Language ("From") Selector: Powered by AssemblyAI Universal 3.7 Pro
   Widget _buildSpokenLanguageSelector(BuildContext context, UploadController uploadController) =>
       buildSpokenLanguageSelector(context, uploadController);
 
@@ -338,7 +338,7 @@ Widget buildSpokenLanguageSelector(BuildContext context, UploadController upload
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '18 languages supported via AssemblyAI Universal-3.5 Pro',
+                    '46+ languages supported via AssemblyAI Universal 3.7 Pro',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.55),
                       fontSize: 11,
@@ -864,7 +864,7 @@ class CreateContentUnifiedAiSection extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Spoken Video Language ("From") Selector: Strictly 18 languages for Subtitles & Dubbing via AssemblyAI Universal-3.5 Pro (+ Auto-Detect)
+              // Spoken Video Language ("From") Selector: Powered by AssemblyAI Universal 3.7 Pro (+ Auto-Detect)
               buildSpokenLanguageSelector(context, uploadController),
               const SizedBox(height: 14),
 

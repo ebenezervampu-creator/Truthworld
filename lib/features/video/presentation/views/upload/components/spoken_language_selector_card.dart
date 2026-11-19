@@ -6,7 +6,7 @@ import 'package:truthworld/features/video/presentation/views/upload/components/d
 
 /// Clean, high-contrast Spoken Video Language ("From") Selector Card.
 /// Shared across Subtitles and Dubbing studios.
-/// Supports the exact 18 languages powered by AssemblyAI Universal-3.5 Pro (+ Auto-Detect).
+/// Supports 46+ languages powered by AssemblyAI Universal 3.7 Pro (+ Auto-Detect).
 class SpokenLanguageSelectorCard extends StatelessWidget {
   final UploadController controller;
   final String title;
@@ -15,14 +15,16 @@ class SpokenLanguageSelectorCard extends StatelessWidget {
   const SpokenLanguageSelectorCard({
     required this.controller,
     this.title = 'Spoken Video Language ("From")',
-    this.subtitle = 'Speech recognition strictly supports 18 languages via AssemblyAI Universal-3.5 Pro',
+    this.subtitle = 'Speech recognition powered by AssemblyAI Universal 3.7 Pro',
     super.key,
   });
 
   static const List<Map<String, String>> popularLanguages = [
     {'code': 'auto', 'name': 'Auto-Detect', 'native': 'Auto'},
     {'code': 'en', 'name': 'English', 'native': 'English'},
+    {'code': 'te', 'name': 'Telugu', 'native': 'తెలుగు'},
     {'code': 'hi', 'name': 'Hindi', 'native': 'हिन्दी'},
+    {'code': 'ta', 'name': 'Tamil', 'native': 'தமிழ்'},
     {'code': 'es', 'name': 'Spanish', 'native': 'Español'},
     {'code': 'fr', 'name': 'French', 'native': 'Français'},
     {'code': 'de', 'name': 'German', 'native': 'Deutsch'},
@@ -221,14 +223,14 @@ class SpokenLanguageSelectorCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.search, color: Color(0xFF38BDF8), size: 13),
-                            SizedBox(width: 4),
+                            const Icon(Icons.search, color: Color(0xFF38BDF8), size: 13),
+                            const SizedBox(width: 4),
                             Text(
-                              'Browse (18 Languages)',
-                              style: TextStyle(
+                              'Browse (${allSpokenLanguages.length - 1} Languages)',
+                              style: const TextStyle(
                                 color: Color(0xFF38BDF8),
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w600,

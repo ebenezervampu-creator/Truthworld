@@ -275,6 +275,6 @@ export {
 export { publicFeedServer } from "./feed/publicFeedServer";
 
 // ─── IFCN Fact-Check Appeals Desk & AI Credibility Assistant ───────────────
-export { submitClaimAppeal, submitFactualDispute, resolveClaimAppeal, verifyGovernanceAuditChain } from "./pipeline/appealsDeskEndpoints";
+export { submitClaimAppeal, submitFactualDispute, resolveClaimAppeal, verifyGovernanceAuditChain, sweepPendingAppealsSla } from "./pipeline/appealsDeskEndpoints";
 export { chatWithCredibilityAi, streamCredibilityAiChat } from "./pipeline/aiCredibilityChat";
 

@@ -91,7 +91,23 @@ describe('⚡ Chirp 2 Telugu Transcription & Remediation Unit Tests', () => {
       expect(chapters).toBeDefined();
       expect(chapters.length).toBeGreaterThan(0);
       expect(chapters[0].startTimeMs ?? chapters[0].start).toBe(0);
-      expect(chapters[0].title).toContain('Introduction');
+      expect(chapters[0].title).toMatch(/పరిచయం|Introduction/);
+    });
+
+    it('sanitizes hallucinated Hindi परिचय in Telugu auto-chapters to native Telugu పరిచయం', () => {
+      const { sanitizeChaptersForLanguage, getDefaultIntroductionTitle } = require('../../src/shared/language-normalizer');
+      expect(getDefaultIntroductionTitle('te')).toBe('పరిచయం');
+
+      const contaminatedChapters = [
+        { startMs: 0, startTimeMs: 0, endMs: 43000, endTimeMs: 43000, title: 'परिचय', summary: 'వీడియో పరిచయం' },
+        { startMs: 43000, startTimeMs: 43000, endMs: 108000, endTimeMs: 108000, title: 'ఎలక్ట్రానిక్ ఓటింగ్ సిస్టమ్', summary: 'EVM వివరాలు' },
+        { startMs: 108000, startTimeMs: 108000, endMs: 189000, endTimeMs: 189000, title: 'అధికారిక వాదనలు', summary: 'ఎన్నికల సంఘం స్పందన' },
+      ];
+
+      const cleaned = sanitizeChaptersForLanguage(contaminatedChapters, 'te');
+      expect(cleaned[0].title).toBe('పరిచయం');
+      expect(cleaned[1].title).toBe('ఎలక్ట్రానిక్ ఓటింగ్ సిస్టమ్');
+      expect(cleaned[2].title).toBe('అధికారిక వాదనలు');
     });
   });
 

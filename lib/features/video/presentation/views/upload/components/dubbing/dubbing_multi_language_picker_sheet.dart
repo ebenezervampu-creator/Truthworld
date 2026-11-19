@@ -997,7 +997,7 @@ void showSpokenLanguagePicker({
                 selectedCount: () => controller.isMultilingualSpoken.value
                     ? controller.spokenLanguages.length
                     : (controller.primarySpokenLanguage.value == 'auto' ? 0 : 1),
-                emptySubtitle: '18 languages supported via AssemblyAI Universal-3.5 Pro',
+                emptySubtitle: '46+ languages supported via AssemblyAI Universal 3.7 Pro',
                 selectedSubtitleBuilder: (count) => controller.isMultilingualSpoken.value
                     ? '$count spoken languages selected (code-mixed)'
                     : '1 primary spoken language selected',
@@ -1029,7 +1029,7 @@ void showSpokenLanguagePicker({
                           style: const TextStyle(color: Colors.white, fontSize: 13.5),
                           cursorColor: Colors.white,
                           decoration: const InputDecoration(
-                            hintText: 'Search 18 spoken languages (e.g. English, Hindi, Spanish)...',
+                            hintText: 'Search spoken languages (e.g. English, Telugu, Hindi, Spanish)...',
                             hintStyle: TextStyle(
                               color: Color(0xFF71717A),
                               fontSize: 13,

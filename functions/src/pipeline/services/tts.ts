@@ -856,14 +856,24 @@ export class ElevenLabsTTSService {
         const currentModel = TTS_MODELS.v4; // Strictly eleven_v4 (zero fallback models)
         const synthesisText = sanitizeTextForElevenLabsV4(glossarizedText, initialEmotionTag);
 
+        const payload: Record<string, any> = {
+          text: synthesisText || request.text,
+          model_id: currentModel,
+          voice_settings: voiceSettings,
+        };
+
+        // Context windowing: pass non-billed preceding & succeeding context to eliminate cadence cuts
+        if (request.previousText && request.previousText.trim().length > 0) {
+          payload.previous_text = request.previousText.trim().slice(-450);
+        }
+        if (request.nextText && request.nextText.trim().length > 0) {
+          payload.next_text = request.nextText.trim().slice(0, 450);
+        }
+
         try {
           const response = await axios.post(
             `${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`,
-            {
-              text: synthesisText || request.text,
-              model_id: currentModel,
-              voice_settings: voiceSettings,
-            },
+            payload,
             {
               headers: {
                 "xi-api-key": apiKey,

@@ -1,5 +1,6 @@
 import { MultilingualSubtitleLocalizer } from "../../src/pipeline/services/multilingual_subtitle_localizer";
 import { getSubtitleProfile, getGraphemeCount } from "../../src/pipeline/services/subtitle_language_profiles";
+import { translationService } from "../../src/pipeline/services/translation";
 import { WordTimestamp } from "../../src/pipeline/types";
 
 describe("⚡ 5-Pillar Subtitle Architecture & Edge Case Hardening Benchmark", () => {
@@ -50,6 +51,30 @@ describe("⚡ 5-Pillar Subtitle Architecture & Edge Case Hardening Benchmark", (
       expect(elapsedMs).toBeLessThan(100); // Near 0ms execution
       expect(result.cues.length).toBeGreaterThan(0);
       expect(result.cues[0].text).toContain("సౌర శక్తి");
+    });
+
+    it("propagates composite translation failures instead of substituting source text", async () => {
+      const sourceWords: WordTimestamp[] = [
+        { text: "Solar", start: 1000, end: 1500, confidence: 0.99 },
+        { text: "energy", start: 1550, end: 2000, confidence: 0.99 },
+        { text: "is", start: 2050, end: 2200, confidence: 0.99 },
+        { text: "sustainable.", start: 2250, end: 3000, confidence: 0.99 },
+      ];
+      const translateSpy = jest
+        .spyOn(translationService, "batchTranslateStandard")
+        .mockRejectedValueOnce(new Error("Required Adaptive MT unavailable"));
+
+      await expect(
+        MultilingualSubtitleLocalizer.localizeTrack({
+          jobId: "strict_translation_failure",
+          sourceWords,
+          sourceLanguage: "en",
+          targetLanguage: "te",
+        })
+      ).rejects.toThrow("Required Adaptive MT unavailable");
+
+      expect(translateSpy).toHaveBeenCalledTimes(1);
+      translateSpy.mockRestore();
     });
   });
 

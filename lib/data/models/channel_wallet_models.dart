@@ -233,22 +233,14 @@ class DubbingProductionTier {
     category: 'audio',
     perMinuteRateUSD: 0.30,
     tenMinutePriceUSD: 3.00,
-    asrProvider: 'AssemblyAI Universal 3.5 Pro (18 Languages)',
+    asrProvider: 'AssemblyAI Universal 3.7 Pro',
     translationEngine: 'Google Cloud Translation v3',
     ttsEngine: 'ElevenLabs v4 Studio Voice Cloning',
     visualSync: 'Viseme Cadence Locking (Zero Overhang)',
     badge: '100% BGM Preserved',
     description: 'Replicates creator vocal identity with 100% Studio Preservation & Viseme Cadence Locking (prevents vocal overhang on talking-head videos with zero phase cancellation).',
-    isCinemaGrade: false,
     isVoiceClone: true,
   );
-
-  // Backward compatibility aliases pointing to the single unified Audio Track plan
-  static const DubbingProductionTier audioUltra = audioTrack;
-  static const DubbingProductionTier audioPro = audioTrack;
-  static const DubbingProductionTier audioStarter = audioTrack;
-  static const DubbingProductionTier videoPro = audioTrack;
-  static const DubbingProductionTier videoUltra = audioTrack;
 
   static const List<DubbingProductionTier> allTiers = [
     audioTrack,
@@ -279,7 +271,6 @@ class SubtitleProductionTier {
   final String badge;
   final String description;
   final bool isUltra;
-  final bool isPro;
 
   const SubtitleProductionTier({
     required this.id,
@@ -293,7 +284,6 @@ class SubtitleProductionTier {
     required this.badge,
     required this.description,
     this.isUltra = true,
-    this.isPro = true,
   });
 
   static const SubtitleProductionTier ultra = SubtitleProductionTier(
@@ -303,17 +293,11 @@ class SubtitleProductionTier {
     tenMinutePriceUSD: 0.50,
     additionalLangTenMinutePriceUSD: 0.20,
     additionalLangPerMinuteUSD: 0.02,
-    asrProvider: 'AssemblyAI Universal 3.5 Pro (18 Languages)',
+    asrProvider: 'AssemblyAI Universal 3.7 Pro',
     translationEngine: 'Google Cloud Translation v3',
     badge: 'Ultra',
     description: 'Cinema-grade cultural adaptation, idiomatic transcreation, and precision split timing powered by Google Cloud Translation v3.',
-    isUltra: true,
-    isPro: true,
   );
-
-  // Backward-compatibility aliases mapping legacy tiers to ultra
-  static const SubtitleProductionTier starter = ultra;
-  static const SubtitleProductionTier pro = ultra;
 
   static const List<SubtitleProductionTier> allTiers = [ultra];
 
@@ -502,32 +486,28 @@ class UnifiedChannelTransaction {
 
   factory UnifiedChannelTransaction.fromWalletTransaction(WalletTransaction tx) {
     UnifiedTransactionType type;
-    bool isCredit = false;
-    String currency = 'USD';
+    var isCredit = false;
+    var currency = 'USD';
 
     switch (tx.category) {
       case WalletTransactionCategory.walletTopup:
         type = UnifiedTransactionType.topup;
         isCredit = true;
         currency = 'USD';
-        break;
       case WalletTransactionCategory.payoutWithdrawal:
         type = UnifiedTransactionType.payout;
         isCredit = false;
         currency = 'INR';
-        break;
       case WalletTransactionCategory.revenueEarned:
         type = UnifiedTransactionType.revenueEarned;
         isCredit = true;
         currency = 'INR';
-        break;
       case WalletTransactionCategory.customChannelPlan:
       case WalletTransactionCategory.storageTopup:
       case WalletTransactionCategory.bandwidthTopup:
         type = UnifiedTransactionType.planUpgrade;
         isCredit = false;
         currency = 'USD';
-        break;
       case WalletTransactionCategory.aiSubtitles:
       case WalletTransactionCategory.aiDubbing:
       case WalletTransactionCategory.aiFactcheck:
@@ -536,7 +516,6 @@ class UnifiedChannelTransaction {
         type = UnifiedTransactionType.aiSpend;
         isCredit = false;
         currency = 'USD';
-        break;
     }
 
     final rawStatus = tx.metadata?['status'] as String? ?? 'completed';
@@ -595,7 +574,6 @@ class UnifiedChannelTransaction {
       currency: 'INR',
       isCredit: true,
       type: UnifiedTransactionType.revenueEarned,
-      status: 'completed',
       timestamp: ts,
       metadata: data,
     );

@@ -32,14 +32,20 @@ export interface ExtractedClaim {
   endMs: number;
   verbatimQuote: string;
   normalizedClaim: string;
+  canonicalProposition?: string;
+  topicEntities?: string[];
   domain:
     | "GENERAL_FACT"
     | "HEALTH_MEDICAL"
     | "GEOPOLITICS_WAR"
     | "ELECTIONS_GOVERNANCE"
     | "MACROECONOMICS_FINANCE";
+  requiresLiveWeb?: boolean;
+  temporalVolatility?: "IMMUTABLE" | "PERIODIC" | "BREAKING_DEVELOPING";
   requiresVerification: boolean;
 }
+
+export type ModernExtractedClaim = ExtractedClaim;
 
 export const EXTRACTION_SCHEMA: Schema = {
   type: Type.ARRAY,
@@ -52,6 +58,15 @@ export const EXTRACTION_SCHEMA: Schema = {
       endMs: { type: Type.INTEGER },
       verbatimQuote: { type: Type.STRING },
       normalizedClaim: { type: Type.STRING },
+      canonicalProposition: {
+        type: Type.STRING,
+        description: "Normalized factual assertion in predicate or entity-attribute-value format (e.g. 'US_CPI_INFLATION(year=2024, value=3.4%)').",
+      },
+      topicEntities: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: "Key named entities, actors, laws, or topics mentioned in the claim for clustering.",
+      },
       domain: {
         type: Type.STRING,
         enum: [
@@ -61,6 +76,15 @@ export const EXTRACTION_SCHEMA: Schema = {
           "ELECTIONS_GOVERNANCE",
           "MACROECONOMICS_FINANCE",
         ],
+      },
+      requiresLiveWeb: {
+        type: Type.BOOLEAN,
+        description: "Set to TRUE only for breaking news, live statistics, or active disputes. Set to FALSE for settled historical, constitutional, scientific, or established general knowledge.",
+      },
+      temporalVolatility: {
+        type: Type.STRING,
+        enum: ["IMMUTABLE", "PERIODIC", "BREAKING_DEVELOPING"],
+        description: "Volatility classification: 'IMMUTABLE' for scientific constants/history; 'PERIODIC' for monthly/annual statistics, laws, elections; 'BREAKING_DEVELOPING' for unfolding real-time events, active conflicts, or breaking news.",
       },
       requiresVerification: { type: Type.BOOLEAN },
     },
@@ -83,7 +107,11 @@ CRITICAL BINDING CONSTRAINTS:
 2. Do NOT attempt to re-diarize, infer real names, merge distinct speaker turns, or alter timestamps.
 3. Extract ALL verifiable empirical, historical, legal, constitutional, and statistical assertions. Do NOT omit valid claims across any minute of the video.
 4. Exclude only pure subjective opinions, personal preferences, and religious faith beliefs.
-5. Multilingual & Indic support: Extract claims from Telugu, Hindi, and bilingual speech with equal rigor, preserving authentic quotes and millisecond boundaries.`;
+5. Multilingual & Indic support: Extract claims from Telugu, Hindi, and bilingual speech with equal rigor, preserving authentic quotes and millisecond boundaries.
+6. Emit canonicalProposition: Provide a clean, normalized predicate or entity-attribute-value representation for deduplication.
+7. Set requiresLiveWeb: Set to true ONLY if the assertion depends on real-time news, live markets/polls, or active conflicts. Set to false for settled historical, constitutional, or scientific knowledge.
+8. Identify topicEntities: Extract 1-3 primary named entities, laws, organizations, or metrics to enable thematic clustering.
+9. Classify temporalVolatility: 'IMMUTABLE' (settled history, scientific laws), 'PERIODIC' (cyclical economic data, census, laws), or 'BREAKING_DEVELOPING' (unfolding news, ongoing warfare, active breaking events).`;
 
 export async function extractEmpiricalClaims(
   videoId: string,

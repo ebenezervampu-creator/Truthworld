@@ -498,8 +498,15 @@ mixin VideoTrackManagementMixin on GetxController {
                 (data['media'] is Map ? (data['media']['audioTracks'] as Map?) : null);
             if (directAudio != null) {
               directAudio.forEach((k, v) {
-                if (k is String && v is String && v.isNotEmpty) {
-                  audioTracksMap[k] = v;
+                if (k is String) {
+                  if (v is String && v.isNotEmpty) {
+                    audioTracksMap[k] = v;
+                  } else if (v is Map) {
+                    final url = v['audioUrl'] ?? v['playlistUrl'] ?? v['url'];
+                    if (url is String && url.isNotEmpty) {
+                      audioTracksMap[k] = url;
+                    }
+                  }
                 }
               });
             }

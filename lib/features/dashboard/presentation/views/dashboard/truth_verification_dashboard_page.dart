@@ -72,7 +72,6 @@ class TruthVerificationDashboardPage extends StatelessWidget {
 
   final RxString _videoFilter = 'all'.obs; // 'all', 'concerns', 'pending', 'approved', 'disputed'
   final RxString _claimTierFilter = 'all'.obs; // 'all', 'verified', 'needs_source', 'high_concern', 'disputed'
-  final RxBool _isPublished = true.obs;
   final RxString _searchQuery = ''.obs;
 
   /// Determines whether a video document has AI Fact-Checking enabled, in-progress, or verified.
@@ -429,8 +428,6 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                     videoItems.where((v) => v.isFactCheckInProgress).toList();
                 final pendingVideos =
                     videoItems.where((v) => v.isPendingApproval).toList();
-                final videosWithConcernsCount =
-                    videoItems.where((v) => v.hasConcerns).length;
                 final hasProvisionalVideo =
                     videoItems.any((v) => v.isProvisional);
 
@@ -480,12 +477,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                             _buildSearchBar(2, query),
                             const SizedBox(height: 16),
 
-                            // 5. Video Reports Content (Sub-filter pills + List of Videos)
+                            // 5. Video Reports Content (List of Videos)
                             _buildVideoReportsTab(
                               filteredVideos,
-                              videoItems,
-                              videosWithConcernsCount,
-                              pendingVideos.length,
                             ),
                           ],
                         ),
@@ -502,62 +496,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
   }
 
   Widget _buildTopHeader(bool isDesktop) {
-    if (!isDesktop) {
-      return Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-        decoration: const BoxDecoration(
-          color: AppColors.bgPage,
-          border: Border(
-            bottom: BorderSide(color: AppColors.bgSurface),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(
-                  Icons.verified_rounded,
-                  color: AppColors.success,
-                  size: 20,
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Factcheck',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Channel Truth Intelligence console: claim verification, authoritative grounding & creator review.',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildStatusBadge(),
-          ],
-        ),
-      );
-    }
-
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 32,
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 32 : 16,
         vertical: 16,
       ),
       decoration: const BoxDecoration(
@@ -567,101 +508,29 @@ class TruthVerificationDashboardPage extends StatelessWidget {
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.verified_rounded,
-                      color: AppColors.success,
-                      size: 22,
-                    ),
-                    SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Factcheck',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: -0.5,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Channel Truth Intelligence console: claim verification, authoritative grounding & creator review.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
+          Icon(
+            Icons.verified_rounded,
+            color: AppColors.success,
+            size: isDesktop ? 22 : 20,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              'Factcheck',
+              style: TextStyle(
+                fontSize: isDesktop ? 22 : 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 16),
-          _buildStatusBadge(),
         ],
       ),
     );
-  }
-
-  Widget _buildStatusBadge() {
-    return Obx(() {
-      final published = _isPublished.value;
-      return InkWell(
-        onTap: () {
-          _isPublished.toggle();
-          if (_isPublished.value) {
-            AppSnackbar.success('Credibility badges active on viewer player overlays.');
-          } else {
-            AppSnackbar.info('Credibility overlays muted for viewers.');
-          }
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: AppColors.appBarSurface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: published ? AppColors.success : AppColors.bgSurface,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: published ? AppColors.success : AppColors.textTertiary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                published ? 'Credibility Active' : 'Overlays Muted',
-                style: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: published ? Colors.white : AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    });
   }
 
   Widget _buildInProgressBanner(List<VideoFactCheckItem> inProgressVideos) {
@@ -1020,87 +889,23 @@ class TruthVerificationDashboardPage extends StatelessWidget {
 
   Widget _buildVideoReportsTab(
     List<VideoFactCheckItem> filteredVideos,
-    List<VideoFactCheckItem> videoItems,
-    int videosWithConcernsCount,
-    int pendingApprovalCount,
   ) {
-    final videoFilter = _videoFilter.value;
-    final inProgressCount =
-        videoItems.where((v) => v.isFactCheckInProgress).length;
-    final needsFactCheckCount = videoItems
-        .where((v) => !v.isFactCheckReady && !v.isFactCheckInProgress)
-        .length;
+    if (filteredVideos.isEmpty) {
+      return _buildEmptyState(
+        title: 'No Video Fact-Checks Found',
+        description:
+            'No videos matched the current filter or search criteria. Videos with AI Truth Verification will appear here.',
+      );
+    }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Sub-filter pills for videos
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _buildFilterPill(
-              label: 'All Videos (${videoItems.length})',
-              isSelected: videoFilter == 'all',
-              onTap: () => _videoFilter.value = 'all',
-            ),
-            if (needsFactCheckCount > 0)
-              _buildFilterPill(
-                label: '⚠️ Needs Fact-Check ($needsFactCheckCount)',
-                isSelected: videoFilter == 'needs_fact_check',
-                isWarningHighlight: true,
-                onTap: () => _videoFilter.value = 'needs_fact_check',
-              ),
-            if (inProgressCount > 0)
-              _buildFilterPill(
-                label: '⚡ In Progress ($inProgressCount)',
-                isSelected: videoFilter == 'in_progress',
-                isWarningHighlight: true,
-                onTap: () => _videoFilter.value = 'in_progress',
-              ),
-            if (videosWithConcernsCount > 0)
-              _buildFilterPill(
-                label: '🔴 Concern Alerts ($videosWithConcernsCount)',
-                isSelected: videoFilter == 'concerns',
-                isAlertHighlight: true,
-                onTap: () => _videoFilter.value = 'concerns',
-              ),
-            _buildFilterPill(
-              label: 'Pending Approval ($pendingApprovalCount)',
-              isSelected: videoFilter == 'pending',
-              isWarningHighlight: pendingApprovalCount > 0,
-              onTap: () => _videoFilter.value = 'pending',
-            ),
-            _buildFilterPill(
-              label: 'Approved (${videoItems.where((v) => v.isFactCheckApproved).length})',
-              isSelected: videoFilter == 'approved',
-              onTap: () => _videoFilter.value = 'approved',
-            ),
-            _buildFilterPill(
-              label:
-                  'Disputed (${videoItems.where((v) => v.isDisputed || v.reverificationRequested).length})',
-              isSelected: videoFilter == 'disputed',
-              onTap: () => _videoFilter.value = 'disputed',
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        if (filteredVideos.isEmpty)
-          _buildEmptyState(
-            title: 'No Video Fact-Checks Found',
-            description:
-                'No videos matched the current filter or search criteria. Videos with AI Truth Verification will appear here.',
-          )
-        else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: filteredVideos.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 14),
-            itemBuilder: (context, index) {
-              final video = filteredVideos[index];
-              return TruthVerificationVideoCard(
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: filteredVideos.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 14),
+      itemBuilder: (context, index) {
+        final video = filteredVideos[index];
+        return TruthVerificationVideoCard(
                 video: video,
                 channelId: channelId,
                 isDarkMode: isDarkMode,
@@ -1138,9 +943,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                 },
               );
             },
-          ),
-      ],
-    );
+          );
   }
 
   Widget _buildFilterPill({

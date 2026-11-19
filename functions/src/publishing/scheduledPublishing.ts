@@ -427,14 +427,16 @@ async function sweepExpiredFactCheckEmbargoes(executionId: string): Promise<numb
 
   for (const doc of snapshot.docs) {
     const data = doc.data();
-    const createdAt = data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : null;
-    if (!createdAt) continue;
+    const completedAt = data.factCheckCompletedAt
+      ? (data.factCheckCompletedAt.toDate ? data.factCheckCompletedAt.toDate() : new Date(data.factCheckCompletedAt))
+      : (data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : null);
+    if (!completedAt) continue;
 
     const hasDisputes = data.hasDisputedClaims === true || (Array.isArray(data.disputedClaims) && data.disputedClaims.length > 0) || data.hasHighConcernClaims === true;
     const isContested = hasDisputes;
     const effectiveCutoff = isContested ? cutoff24h : cutoff48h;
 
-    if (createdAt <= effectiveCutoff) {
+    if (completedAt <= effectiveCutoff) {
       batch.update(doc.ref, {
         isFactCheckApproved: true,
         factCheckAutoPublished: true,

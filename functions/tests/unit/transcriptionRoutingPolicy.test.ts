@@ -137,12 +137,12 @@ describe('⚡ Transcription & Cognitive Routing Policy (AssemblyAI vs Gemini Fla
     );
   });
 
-  it('strictly rejects dubbing or studio subtitles when source language is not one of the 18 AssemblyAI languages', async () => {
+  it('strictly rejects dubbing or studio subtitles when source language is not one of the AssemblyAI Universal 3.7 languages', async () => {
     jest.spyOn(transcriptionLayer as any, 'extractAudio').mockResolvedValue('gs://bucket/test.mp3');
     jest.spyOn(transcriptionLayer as any, 'getAccessibleUrl').mockResolvedValue('https://storage.googleapis.com/test.mp3');
     jest.spyOn(transcriptionLayer as any, 'probeAudioSpokenLanguage').mockResolvedValue({
-      primaryLanguage: 'te', // Telugu is outside the 18 languages
-      spokenLanguages: ['te'],
+      primaryLanguage: 'la', // Latin is outside the supported languages
+      spokenLanguages: ['la'],
       confidence: 0.95,
       isMultilingual: false,
       isCodeMixed: false,
@@ -151,7 +151,9 @@ describe('⚡ Transcription & Cognitive Routing Policy (AssemblyAI vs Gemini Fla
 
     const dubbingPlan: ExecutionPlan = {
       jobId: 'job_dub_indic',
-      primaryLanguage: 'te',
+      primaryLanguage: 'la',
+      dubbingLanguages: ['es'],
+      subtitleLanguages: ['es'],
       enableCredibility: false,
       factCheckEnabled: false,
       enableDubbing: true,
@@ -175,7 +177,7 @@ describe('⚡ Transcription & Cognitive Routing Policy (AssemblyAI vs Gemini Fla
         dubbingPlan,
         'evt_dub_indic'
       )
-    ).rejects.toThrow(/Source language 'te' is unsupported for Dubbing and Subtitles/);
+    ).rejects.toThrow(/Source language 'la' is unsupported for Dubbing/);
   });
 
   it('gracefully isolates dubbing failure and publishes video via Gemini when video has no audio track', async () => {
@@ -242,6 +244,8 @@ describe('⚡ Transcription & Cognitive Routing Policy (AssemblyAI vs Gemini Fla
       videoId: 'vid_silent_1',
       title: 'Silent Artwork Animation',
       primaryLanguage: 'en',
+      dubbingLanguages: ['es'],
+      subtitleLanguages: ['es'],
       enableCredibility: true,
       factCheckEnabled: true,
       enableDubbing: true,
@@ -268,15 +272,10 @@ describe('⚡ Transcription & Cognitive Routing Policy (AssemblyAI vs Gemini Fla
     expect(result.submitted).toBe(true);
     // Verified that Gemini fallback was invoked for video ingestion
     expect(mockGemini).toHaveBeenCalled();
-    // Verified dubbing and subtitles were isolated without crashing the video
+    // Verified dubbing failure was safely isolated without crashing the video
     expect(failStageSpy).toHaveBeenCalledWith(
       'job_silent_video',
       'dubbing',
-      expect.stringContaining('does not contain an audio track')
-    );
-    expect(failStageSpy).toHaveBeenCalledWith(
-      'job_silent_video',
-      'subtitles',
       expect.stringContaining('does not contain an audio track')
     );
   });
@@ -387,9 +386,9 @@ describe('⚡ Transcription & Cognitive Routing Policy (AssemblyAI vs Gemini Fla
     expect(result.detectedLanguage).toBe('te');
     expect(result.segments.length).toBe(2);
     expect(result.words.length).toBeGreaterThan(0);
-    // Verify chapters were successfully parsed from parts[1]
+    // Verify chapters were successfully parsed from parts[1] (with Telugu localization)
     expect(result.chapters?.length).toBe(2);
-    expect(result.chapters?.[0]?.title).toBe('Introduction');
+    expect(result.chapters?.[0]?.title).toBe('పరిచయం');
     expect(result.chapters?.[1]?.title).toBe('Key Insights');
     expect(result.model).toBe('gemini-3.5-flash-lite');
     expect(result.provider).toBe('gemini');

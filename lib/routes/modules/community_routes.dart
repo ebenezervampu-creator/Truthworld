@@ -1,5 +1,4 @@
 import 'package:get/get.dart';
-import 'package:truthworld/core/bindings/app_bindings.dart';
 import 'package:truthworld/core/utils/route_guards.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
@@ -9,7 +8,6 @@ import 'package:truthworld/features/community/presentation/bindings/saved_commun
 import 'package:truthworld/features/community/presentation/views/community_post_screen.dart';
 import 'package:truthworld/features/community/presentation/views/saved_comments_screen.dart';
 import 'package:truthworld/features/community/presentation/views/saved_community_posts_screen.dart';
-import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/features/topics/presentation/bindings/topics_binding.dart';
 import 'package:truthworld/features/topics/presentation/pages/explore_topics_page.dart'
     deferred as explore_topics;
