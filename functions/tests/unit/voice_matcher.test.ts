@@ -1,5 +1,7 @@
 import {
   voiceMatcher,
+  ElevenLabsVoiceMatcher,
+  ElevenLabsVoiceCandidate,
   AGE_BUCKET_ANCHORS,
   normalizeElevenLabsAgeLabel,
   DiarizedSpeakerProfile,
@@ -81,6 +83,30 @@ describe("Speaker-to-Voice Matching Layer (Expanded Studio Catalog)", () => {
       expect(voiceIds.has("z9fAnlkpzviPz146aGWa")).toBe(true); // Glinda
       expect(voiceIds.has("oWAxZDx7w5VEj9dCyTzz")).toBe(true); // Grace
     });
+
+    it("excludes cloned and professional-clone categories from the automatic voice catalog", async () => {
+      const matcher = new ElevenLabsVoiceMatcher();
+      const fetchSpy = jest.spyOn(globalThis, "fetch").mockImplementation(async () => ({
+        ok: true,
+        json: async () => ({
+          voices: [
+            { voice_id: "preset_voice", name: "Preset", category: "premade", labels: { gender: "male" } },
+            { voice_id: "cloned_voice", name: "Clone", category: "cloned", labels: { gender: "male" } },
+            { voice_id: "professional_voice", name: "Professional", category: "professional", labels: { gender: "male" } },
+          ],
+        }),
+      } as Response));
+
+      try {
+        const voices = await matcher.getVoiceCatalog("test-api-key");
+        const voiceIds = new Set(voices.map((voice) => voice.voiceId));
+        expect(voiceIds.has("preset_voice")).toBe(true);
+        expect(voiceIds.has("cloned_voice")).toBe(false);
+        expect(voiceIds.has("professional_voice")).toBe(false);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
   });
 
   describe("WhatsApp Debate Resolution (Order-Independent Matching)", () => {
@@ -110,7 +136,7 @@ describe("Speaker-to-Voice Matching Layer (Expanded Studio Catalog)", () => {
 
       expect(matchA.voiceId).toBe("TX3LPaxmHKxFdv7VOQHJ"); // Liam
       expect(matchA.name).toBe("Liam");
-      expect(score).toBeLessThan(0.05);
+      expect(score).toBeLessThan(0.1);
     });
 
     it("matches bearded mature debater (Speaker B) to Adam with lowest distance", () => {
@@ -120,6 +146,42 @@ describe("Speaker-to-Voice Matching Layer (Expanded Studio Catalog)", () => {
       expect(matchB.voiceId).toBe("pNInz6obpgDQGcFmaJgB"); // Adam
       expect(matchB.name).toBe("Adam");
       expect(score).toBeLessThan(0.05);
+    });
+
+    it("prioritizes acoustic pitch and timbre over visual age alone", () => {
+      const speaker: DiarizedSpeakerProfile = {
+        speakerId: "speaker_acoustic",
+        estimatedAge: 24,
+        ageBucket: "young",
+        gender: "male",
+        medianPitchHz: 130,
+        timbreTags: ["warm", "conversational"],
+        confidence: 0.95,
+      };
+      const ageMatched: ElevenLabsVoiceCandidate = {
+        voiceId: "age-match",
+        name: "Age match",
+        gender: "male",
+        ageBucket: "young",
+        representativeAge: 24,
+        typicalPitchHz: 220,
+        timbreTags: ["whisper", "theatrical"],
+        indicVerified: false,
+      };
+      const acousticMatched: ElevenLabsVoiceCandidate = {
+        voiceId: "acoustic-match",
+        name: "Acoustic match",
+        gender: "male",
+        ageBucket: "old",
+        representativeAge: 60,
+        typicalPitchHz: 132,
+        timbreTags: ["warm", "conversational"],
+        indicVerified: false,
+      };
+
+      const selected = voiceMatcher.selectNearestVoice(speaker, [ageMatched, acousticMatched]);
+
+      expect(selected.voiceId).toBe("acoustic-match");
     });
 
     it("guarantees correct voice assignment regardless of who speaks first", () => {

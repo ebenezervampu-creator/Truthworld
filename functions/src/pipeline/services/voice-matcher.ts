@@ -175,32 +175,35 @@ export class ElevenLabsVoiceMatcher {
         voices: Array<{
           voice_id: string;
           name: string;
+          category?: string;
           labels?: Record<string, string>;
         }>;
       };
 
-      const candidates: ElevenLabsVoiceCandidate[] = payload.voices.map((v) => {
-        const override = this.VERIFIED_PRESET_CALIBRATIONS[v.voice_id];
-        const bucket = override?.ageBucket ?? normalizeElevenLabsAgeLabel(v.labels?.age);
-        const rawGender = (v.labels?.gender || "neutral").toLowerCase();
-        const gender: SpeakerGender =
-          rawGender === "male" || rawGender === "female" ? rawGender : "neutral";
+      const candidates: ElevenLabsVoiceCandidate[] = payload.voices
+        .filter((voice) => !["cloned", "professional"].includes((voice.category || "").toLowerCase()))
+        .map((v) => {
+          const override = this.VERIFIED_PRESET_CALIBRATIONS[v.voice_id];
+          const bucket = override?.ageBucket ?? normalizeElevenLabsAgeLabel(v.labels?.age);
+          const rawGender = (v.labels?.gender || "neutral").toLowerCase();
+          const gender: SpeakerGender =
+            rawGender === "male" || rawGender === "female" ? rawGender : "neutral";
 
-        const apiTags = [v.labels?.description, v.labels?.use_case, v.labels?.accent]
-          .filter(Boolean)
-          .map((t) => t!.toLowerCase());
+          const apiTags = [v.labels?.description, v.labels?.use_case, v.labels?.accent]
+            .filter(Boolean)
+            .map((t) => t!.toLowerCase());
 
-        return {
-          voiceId: v.voice_id,
-          name: override?.name ?? v.name,
-          gender: override?.gender ?? gender,
-          ageBucket: bucket,
-          representativeAge: override?.representativeAge ?? AGE_BUCKET_ANCHORS[bucket],
-          typicalPitchHz: override?.typicalPitchHz ?? (gender === "female" ? 205 : 118),
-          timbreTags: override?.timbreTags ?? apiTags,
-          indicVerified: override?.indicVerified ?? false,
-        };
-      });
+          return {
+            voiceId: v.voice_id,
+            name: override?.name ?? v.name,
+            gender: override?.gender ?? gender,
+            ageBucket: bucket,
+            representativeAge: override?.representativeAge ?? AGE_BUCKET_ANCHORS[bucket],
+            typicalPitchHz: override?.typicalPitchHz ?? (gender === "female" ? 205 : 118),
+            timbreTags: override?.timbreTags ?? apiTags,
+            indicVerified: override?.indicVerified ?? false,
+          };
+        });
 
       // Ensure all calibrated studio presets are present in candidate catalog
       const existingIds = new Set(candidates.map((c) => c.voiceId));
@@ -233,23 +236,21 @@ export class ElevenLabsVoiceMatcher {
   }
 
   /**
-   * Computes the 4-term weighted distance score between a speaker and a voice candidate:
-   * D = 0.55 * Continuous Age Distance (60yr span)
-   *   + 0.20 * Discrete Age Bucket Penalty (0 exact, 0.6 different)
-   *   + 0.15 * Fundamental Pitch (F0) Register Distance (120Hz span)
-   *   + 0.10 * Timbre Jaccard Distance
+   * Weighs acoustic similarity more heavily than estimated age:
+   * D = 0.35 * Fundamental Pitch Distance + 0.30 * Timbre Distance
+   *   + 0.20 * Continuous Age Distance + 0.15 * Age Bucket Penalty.
    */
   scoreCandidate(speaker: DiarizedSpeakerProfile, candidate: ElevenLabsVoiceCandidate): number {
-    // A. Continuous Age Distance (normalized over a 60-year span, weight: 0.55)
+    // A. Continuous Age Distance (normalized over a 60-year span, weight: 0.20)
     const ageDiffNormalized = Math.min(1, Math.abs(speaker.estimatedAge - candidate.representativeAge) / 60);
 
-    // B. Discrete Age Bucket Penalty (0 if exact match, 0.6 if different, weight: 0.20)
+    // B. Discrete Age Bucket Penalty (0 if exact match, 0.6 if different, weight: 0.15)
     const bucketPenalty = speaker.ageBucket === candidate.ageBucket ? 0 : 0.6;
 
-    // C. Fundamental Pitch (F0) Register Distance (normalized over 120 Hz, weight: 0.15)
+    // C. Fundamental Pitch (F0) Register Distance (normalized over 120 Hz, weight: 0.35)
     const pitchDiffNormalized = Math.min(1, Math.abs(speaker.medianPitchHz - candidate.typicalPitchHz) / 120);
 
-    // D. Timbre / Style Tag Jaccard Distance (weight: 0.10)
+    // D. Timbre / Style Tag Distance (weight: 0.30)
     const speakerTags = (speaker.timbreTags || []).map((t) => t.toLowerCase());
     const candidateTags = (candidate.timbreTags || []).map((t) => t.toLowerCase());
     const overlap = speakerTags.filter((t) =>
@@ -266,10 +267,10 @@ export class ElevenLabsVoiceMatcher {
     const nicheQuarantinePenalty = candidateHasNiche && !speakerWantsNiche ? 0.40 : 0;
 
     return (
-      0.55 * ageDiffNormalized +
-      0.20 * bucketPenalty +
-      0.15 * pitchDiffNormalized +
-      0.10 * timbreDistance +
+      0.20 * ageDiffNormalized +
+      0.15 * bucketPenalty +
+      0.35 * pitchDiffNormalized +
+      0.30 * timbreDistance +
       nicheQuarantinePenalty
     );
   }
@@ -406,7 +407,7 @@ CRITICAL INSTRUCTIONS:
 - Provide an estimated continuous age in years (e.g. 24, 46).
 - Assign an ageBucket: "child" (<=16), "young" (17-35), "middle_aged" (36-55), or "old" (56+).
 - Assign gender: "male" or "female".
-- Provide 2 to 4 timbre tags describing vocal/physical presence (e.g., ["energetic", "young", "conversational"] or ["authoritative", "deep", "mature"]).
+- Provide 2 to 4 tags describing audible timbre, speaking style, and accent/region when reliably identifiable (e.g., ["energetic", "conversational", "Indian accent"] or ["authoritative", "deep", "British accent"]). Avoid inferring vocal traits from appearance.
 
 Return a valid JSON object matching this schema:
 {
