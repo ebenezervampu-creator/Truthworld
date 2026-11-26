@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/channel/presentation/widgets/channel_trust_badge.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/discover/presentation/views/channels/widgets/discover_channels_constants.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';

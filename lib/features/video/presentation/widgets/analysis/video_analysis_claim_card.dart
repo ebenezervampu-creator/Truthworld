@@ -149,88 +149,92 @@ class VideoAnalysisClaimCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Meta Row: Verdict Pill & Timestamp & Share button
-                  Row(
-                    children: [
-                      _buildVerdictPill(verdict),
-                      const SizedBox(width: 10),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      children: [
+                        _buildVerdictPill(verdict),
+                        const SizedBox(width: 8),
 
-                      // Timestamp Text (Tappable to seek)
-                      InkWell(
-                        onTap: () {
-                          if (claimStartMs > 0 &&
-                              videoCtrl.videoPlayerController != null &&
-                              videoCtrl.videoPlayerController!.value.isInitialized) {
-                            videoCtrl.videoPlayerController!.seekTo(
-                              Duration(milliseconds: claimStartMs),
-                            );
-                            videoCtrl.videoPlayerController!.play();
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(4),
-                        child: Text(
-                          timestampText,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textSecondary,
+                        // Timestamp Text (Tappable to seek)
+                        InkWell(
+                          onTap: () {
+                            if (claimStartMs > 0 &&
+                                videoCtrl.videoPlayerController != null &&
+                                videoCtrl.videoPlayerController!.value.isInitialized) {
+                              videoCtrl.videoPlayerController!.seekTo(
+                                Duration(milliseconds: claimStartMs),
+                              );
+                              videoCtrl.videoPlayerController!.play();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          child: Text(
+                            timestampText,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
-                      ),
-                      const Spacer(),
+                        const SizedBox(width: 14),
 
-                      // Quick Community Note Button
-                      IconButton(
-                        icon: const Icon(
-                          Icons.rate_review_outlined,
-                          size: 16.5,
-                          color: AppColors.textLink,
+                        // Quick Community Note Button
+                        IconButton(
+                          icon: const Icon(
+                            Icons.rate_review_outlined,
+                            size: 16.5,
+                            color: AppColors.textLink,
+                          ),
+                          tooltip: 'Add Community Note',
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
+                          onPressed: () {
+                            final vid = videoCtrl.video.id;
+                            final tag = 'claim_${vid}_$index';
+                            final c = Get.isRegistered<ClaimCommentsController>(tag: tag)
+                                ? Get.find<ClaimCommentsController>(tag: tag)
+                                : Get.put(ClaimCommentsController(), tag: tag);
+                            c.initForClaim(videoId: vid, claimIndex: index);
+                            AddClaimCommentSheet.show(
+                              context: context,
+                              videoId: vid,
+                              claimIndex: index,
+                              claimText: cleanClaimText,
+                              controller: c,
+                            );
+                          },
                         ),
-                        tooltip: 'Add Community Note',
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(),
-                        onPressed: () {
-                          final vid = videoCtrl.video.id;
-                          final tag = 'claim_${vid}_$index';
-                          final c = Get.isRegistered<ClaimCommentsController>(tag: tag)
-                              ? Get.find<ClaimCommentsController>(tag: tag)
-                              : Get.put(ClaimCommentsController(), tag: tag);
-                          c.initForClaim(videoId: vid, claimIndex: index);
-                          AddClaimCommentSheet.show(
-                            context: context,
-                            videoId: vid,
-                            claimIndex: index,
-                            claimText: cleanClaimText,
-                            controller: c,
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 4),
+                        const SizedBox(width: 4),
 
-                      // Share Button for this specific claim
-                      IconButton(
-                        icon: const Icon(
-                          Icons.share_outlined,
-                          size: 16.5,
-                          color: AppColors.textSecondary,
+                        // Share Button for this specific claim
+                        IconButton(
+                          icon: const Icon(
+                            Icons.share_outlined,
+                            size: 16.5,
+                            color: AppColors.textSecondary,
+                          ),
+                          tooltip: 'Share Claim',
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
+                          onPressed: () {
+                            final domain = resolved.sources.isNotEmpty
+                                ? resolved.sources.first['domain']?.toString()
+                                : null;
+                            ClaimShareService.shareClaim(
+                              context: context,
+                              video: video,
+                              claimText: cleanClaimText,
+                              verdict: verdict,
+                              primarySourceDomain: domain,
+                              claimIndex: index,
+                            );
+                          },
                         ),
-                        tooltip: 'Share Claim',
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(),
-                        onPressed: () {
-                          final domain = resolved.sources.isNotEmpty
-                              ? resolved.sources.first['domain']?.toString()
-                              : null;
-                          ClaimShareService.shareClaim(
-                            context: context,
-                            video: video,
-                            claimText: cleanClaimText,
-                            verdict: verdict,
-                            primarySourceDomain: domain,
-                            claimIndex: index,
-                          );
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 7),
 
@@ -453,13 +457,16 @@ class VideoAnalysisClaimCard extends StatelessWidget {
         children: [
           Icon(iconData, size: 12.5, color: textColor),
           const SizedBox(width: 4),
-          Text(
-            ClaimVerdictLocalization.localizeCategory(label),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: textColor,
-              letterSpacing: 0.2,
+          Flexible(
+            child: Text(
+              ClaimVerdictLocalization.localizeCategory(label),
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
         ],

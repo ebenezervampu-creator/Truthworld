@@ -185,10 +185,13 @@ class AdvertiserPortalController extends BaseController
         );
       }
     } catch (e) {
-      if (e is GoogleSignInException && e.code == 'redirecting') {
+      if (e is GoogleSignInException && e.isCancelled) {
         return;
       }
-      ErrorHandler.log(e);
+      ErrorHandler.log(
+        e,
+        tag: 'AdvertiserPortalController.handleGoogleSignIn',
+      );
       AppSnackbar.error(
         'Unable to complete Google sign-in. Please try again.',
       );

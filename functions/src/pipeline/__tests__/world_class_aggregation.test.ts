@@ -68,13 +68,13 @@ async function testTransactionContentionRetry() {
   assert(attempts === 3, "Executed exactly 3 attempts to recover from 2 transient contentions");
 
   // Verify side effects don't duplicate on transaction retry
-  let reputationUpdateCount = 0;
+  let sideEffectCount = 0;
   const postTransactionSideEffect = () => {
-    reputationUpdateCount++;
+    sideEffectCount++;
   };
   // Post-transaction runs ONCE after the transaction successfully commits
   postTransactionSideEffect();
-  assert(reputationUpdateCount === 1, "Post-transaction side-effect executes exactly once despite transaction retries");
+  assert(sideEffectCount === 1, "Post-transaction side-effect executes exactly once despite transaction retries");
 }
 
 // ----------------------------------------------------------------------

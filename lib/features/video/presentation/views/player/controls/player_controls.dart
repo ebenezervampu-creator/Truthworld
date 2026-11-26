@@ -74,6 +74,49 @@ class MainControls extends StatelessWidget {
               child: AudioThemeSwitcherPill(ctrl: ctrl),
             ),
 
+          // Top AI-dubbed audio chip (visible only when AI dub is playing)
+          Positioned(
+            top: ctrl.isFullScreen.value ? 56 : 14,
+            left: 14,
+            child: Obx(() {
+              if (!ctrl.isAiDubPlaying.value) return const SizedBox.shrink();
+              return Semantics(
+                label: '${ctrl.activeAudioLang.value}, AI-dubbed audio',
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 13,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'AI-dubbed audio',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+
           // Centre controls — play / prev / next
           Align(
             child: RepaintBoundary(

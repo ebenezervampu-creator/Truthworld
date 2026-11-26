@@ -14,7 +14,9 @@
  */
 
 import { WordTimestamp, TimedSegment } from "../types";
-import { translationService } from "./translation";
+import type { CastMember, CharacterRelationship } from "./cast-list";
+import { translationService, isContextualDubbingEditEnabled } from "./translation";
+import { subtitlesFromDubPassEnabled } from "./translation-flags";
 import { logger } from "../utils/logger";
 import {
   SubtitleLanguageProfile,
@@ -28,6 +30,8 @@ import {
   SubtitleValidationReport,
 } from "./subtitle_readability_validator";
 import { SubtitleGuardrails } from "./subtitleGuardrails";
+import { conformCues, breakLines, ConformReport, anchorCuesToSpeech } from "./netflixSubtitleConformer";
+import type { OnScreenTextEvent } from "./screenContentAnalyzer";
 
 export interface SourceSentence {
   sentenceIndex: number;
@@ -49,6 +53,8 @@ export interface LocalizedSubtitleTrackResult {
   vttContent: string;
   jsonContent: string;
   validationReport: SubtitleValidationReport;
+  /** What the Netflix conformer fixed automatically, and what is still out of spec. */
+  conformReport?: ConformReport;
 }
 
 export class MultilingualSubtitleLocalizer {
@@ -73,8 +79,9 @@ export class MultilingualSubtitleLocalizer {
             endMs: seg.end,
             durationMs: seg.end - seg.start,
             words: seg.words || [],
-            startIndex: 0,
-            endIndex: 0,
+            // Unique per sentence so subtitles can be anchored to their own speech window.
+            startIndex: i,
+            endIndex: i,
             speaker: seg.speaker || "speaker_0",
             followingPauseMs: followingPause,
           };
@@ -151,17 +158,64 @@ export class MultilingualSubtitleLocalizer {
     fallbackSegments?: Array<Partial<TimedSegment> & { start: number; end: number; text: string }>;
     fps?: number;
     sceneCutTimestampsMs?: number[];
+    shotChangesMs?: number[];
     deliveryProfile?: "netflix" | "broadcast_ebu" | "standard_web";
+    /** Time ranges where someone is singing; those subtitles are styled as lyrics. */
+    songIntervalsMs?: Array<{ startMs: number; endMs: number }>;
+    /** Plot-relevant text in the picture, added as forced-narrative subtitles at the top. */
+    onScreenText?: OnScreenTextEvent[];
+    localeStyle?: string;
+    tone?: "casual" | "formal";
+    userId?: string;
+    castList?: CastMember[];
+    relationships?: CharacterRelationship[];
+    speakerNames?: Record<string, string>;
+    castGenderByLabel?: Record<string, "male" | "female">;
+    /** Pre-translated faithful sentences from the dub's dual-track pass (Fix 1.1). */
+    preTranslatedSentences?: Array<{
+      startMs: number;
+      endMs: number;
+      speaker?: string;
+      sourceText: string;
+      text: string;
+    }>;
   }): Promise<LocalizedSubtitleTrackResult> {
     const { jobId, sourceWords, sourceLanguage, targetLanguage, fallbackSegments, fps, sceneCutTimestampsMs, deliveryProfile } = params;
     const profile = getSubtitleProfile(targetLanguage);
-    const sentences = this.extractSourceSentences(sourceWords, fallbackSegments);
+    const usePreTranslated = Boolean(
+      subtitlesFromDubPassEnabled() &&
+      params.preTranslatedSentences &&
+      params.preTranslatedSentences.length > 0
+    );
+
+    const sentences: SourceSentence[] = usePreTranslated
+      ? params.preTranslatedSentences!.map((item, i, arr) => {
+          const next = i < arr.length - 1 ? arr[i + 1] : null;
+          const followingPauseMs = next ? Math.max(0, next.startMs - item.endMs) : 1000;
+          const words = (sourceWords || []).filter(
+            (w) => w.start >= item.startMs - 50 && w.end <= item.endMs + 50
+          );
+          return {
+            sentenceIndex: i + 1,
+            text: item.sourceText,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            durationMs: Math.max(0, item.endMs - item.startMs),
+            words,
+            startIndex: i,
+            endIndex: i,
+            speaker: item.speaker || "speaker_0",
+            followingPauseMs,
+          };
+        })
+      : this.extractSourceSentences(sourceWords, fallbackSegments);
 
     logger.info("[MultilingualLocalizer] Extracted source sentences", {
       jobId,
       sentenceCount: sentences.length,
       sourceLanguage,
       targetLanguage,
+      reusedDubPass: usePreTranslated,
     });
 
     if (sentences.length === 0) {
@@ -175,10 +229,38 @@ export class MultilingualSubtitleLocalizer {
       };
     }
 
-    // Translate complete contextual sentences
+    // Translate complete contextual sentences (skipped when reusing dual-track subtitleText)
     let translatedSentenceTexts: string[] = [];
-    if (targetLanguage.toLowerCase() === sourceLanguage.toLowerCase()) {
+    if (usePreTranslated) {
+      translatedSentenceTexts = params.preTranslatedSentences!.map((item) => item.text.trim());
+    } else if (targetLanguage.toLowerCase() === sourceLanguage.toLowerCase()) {
       translatedSentenceTexts = sentences.map((s) => s.text);
+    } else if (isContextualDubbingEditEnabled()) {
+      // Netflix-style: subtitles get their own FAITHFUL translation of complete sentences
+      // (Translation LLM draft + Gemini context edit), never the dub text that was shortened
+      // to fit speech. Text is condensed only where it is too long to read in its time.
+      translatedSentenceTexts = await translationService.translateSubtitleSentences(
+        jobId,
+        sentences.map((s) => ({
+          text: s.text,
+          speaker: s.speaker,
+          maxCharacters: Math.max(
+            8,
+            Math.floor(profile.maxReadingSpeedCps * (s.durationMs + Math.min(s.followingPauseMs, 1400)) / 1000)
+          ),
+        })),
+        sourceLanguage,
+        targetLanguage,
+        {
+          localeStyle: params.localeStyle,
+          tone: params.tone,
+          userId: params.userId,
+          castList: params.castList,
+          relationships: params.relationships,
+          speakerNames: params.speakerNames,
+          castGenderByLabel: params.castGenderByLabel,
+        }
+      );
     } else {
       // ⚡ Low-Latency Optimization: Reuse pre-translated segments if available to avoid duplicate AI translation calls
       const hasTranslatedFallback = Boolean(
@@ -251,6 +333,70 @@ export class MultilingualSubtitleLocalizer {
       }
     }
 
+    // Keep each sentence's subtitles on its own speech (no cumulative drift), then
+    // Netflix conformance: FIX timing, merging, splitting, line breaks, dual speakers and lyrics.
+    const anchored = anchorCuesToSpeech(
+      allCues,
+      sentences.map((s) => ({ key: s.startIndex, startMs: s.startMs, endMs: s.endMs })),
+      calculateMinInterCueGapMs(fps ?? 30, profile)
+    );
+    const effectiveShotChanges = params.shotChangesMs || sceneCutTimestampsMs || [];
+    let { cues: dialogueCues, report: conformReport } = conformCues(anchored, {
+      profile,
+      fps,
+      songIntervalsMs: params.songIntervalsMs,
+      shotChangesMs: effectiveShotChanges,
+    });
+
+    // Still too fast to read after every timing fix: condense those lines with Gemini, then
+    // run the conformer again so line breaks and timing are recomputed.
+    const tooFast = dialogueCues.filter(
+      (c) => !c.isDualSpeaker && !c.isLyric && c.charactersPerSecond > profile.maxReadingSpeedCps
+    );
+    if (tooFast.length > 0) {
+      const condensed = await translationService.condenseSubtitleLines(
+        jobId,
+        tooFast.map((c) => ({
+          text: c.text.replace(/\s*\n\s*/g, " "),
+          speaker: c.speaker,
+          maxCharacters: Math.max(4, Math.floor(profile.maxReadingSpeedCps * (c.durationMs / 1000))),
+        })),
+        targetLanguage
+      );
+      const byId = new Map(tooFast.map((c, i) => [c.id, condensed[i]]));
+      const updated = dialogueCues.map((c) => (byId.has(c.id) ? { ...c, text: byId.get(c.id)! } : c));
+      const second = conformCues(updated, {
+        profile,
+        fps,
+        songIntervalsMs: params.songIntervalsMs,
+        shotChangesMs: effectiveShotChanges,
+      });
+      dialogueCues = second.cues;
+      conformReport = {
+        ...second.report,
+        merged: conformReport.merged + second.report.merged,
+        dualSpeaker: conformReport.dualSpeaker + second.report.dualSpeaker,
+        split: conformReport.split + second.report.split,
+        extended: conformReport.extended + second.report.extended,
+        trimmed: conformReport.trimmed + second.report.trimmed,
+        shotSnaps: conformReport.shotSnaps + second.report.shotSnaps,
+      };
+    }
+
+    // Forced narratives: translated on-screen text, shown at the top of the frame.
+    const narrativeCues = await this.buildForcedNarrativeCues({
+      jobId,
+      events: params.onScreenText || [],
+      targetLanguage,
+      profile,
+    });
+
+    const finalCues = [...dialogueCues, ...narrativeCues]
+      .sort((a, b) => a.startMs - b.startMs)
+      .map((c, i) => ({ ...c, id: i + 1 }));
+    allCues.length = 0;
+    allCues.push(...finalCues);
+
     // Run automated readability validation
     const validationReport = SubtitleReadabilityValidator.validateTrack(allCues, targetLanguage, profile);
 
@@ -261,6 +407,15 @@ export class MultilingualSubtitleLocalizer {
       avgCps: validationReport.avgCps,
       maxCps: validationReport.maxCps,
       status: validationReport.status,
+      conform: {
+        merged: conformReport.merged,
+        dualSpeaker: conformReport.dualSpeaker,
+        split: conformReport.split,
+        extended: conformReport.extended,
+        lyrics: conformReport.lyrics,
+        forcedNarratives: narrativeCues.length,
+        unresolved: conformReport.unresolved.length,
+      },
     });
 
     // Step 5: Format serialization (SRT / WebVTT / JSON)
@@ -273,7 +428,62 @@ export class MultilingualSubtitleLocalizer {
       vttContent,
       jsonContent,
       validationReport,
+      conformReport,
     };
+  }
+
+  /**
+   * Turns on-screen text into forced-narrative subtitles: translated with Translation LLM,
+   * skipped when the text is already in the target language, timed to the text's visibility
+   * within the language's minimum and maximum duration.
+   */
+  public static async buildForcedNarrativeCues(params: {
+    jobId: string;
+    events: OnScreenTextEvent[];
+    targetLanguage: string;
+    profile: SubtitleLanguageProfile;
+  }): Promise<LocalizedSubtitleCue[]> {
+    const tgt = params.targetLanguage.toLowerCase().split(/[-_]/)[0];
+    const events = params.events.filter((e) => e.text && e.language && e.language !== tgt);
+    if (events.length === 0) return [];
+
+    const translations: string[] = [];
+    for (const lang of Array.from(new Set(events.map((e) => e.language)))) {
+      const group = events.filter((e) => e.language === lang);
+      try {
+        const out = await translationService.batchTranslateV3(group.map((e) => e.text), lang, tgt);
+        group.forEach((e, i) => { translations[events.indexOf(e)] = out[i]; });
+      } catch (err) {
+        logger.warn("[MultilingualLocalizer] On-screen text translation failed", { jobId: params.jobId, lang, err: String(err) });
+      }
+    }
+
+    const p = params.profile;
+    const cues: LocalizedSubtitleCue[] = [];
+    events.forEach((e, i) => {
+      const text = (translations[i] || "").trim();
+      if (!text) return;
+      const lines = breakLines(text, p) || [text];
+      const durationMs = Math.max(p.minimumCueDurationMs, Math.min(p.maximumCueDurationMs, e.endMs - e.startMs));
+      const joined = lines.join("\n");
+      cues.push({
+        id: 0,
+        languageCode: params.targetLanguage,
+        text: joined,
+        startMs: e.startMs,
+        endMs: e.startMs + durationMs,
+        durationMs,
+        sourceWordStartIndex: -1,
+        sourceWordEndIndex: -1,
+        charactersPerSecond: Number((getGraphemeCount(joined.replace(/\n/g, " ")) / (durationMs / 1000)).toFixed(2)),
+        charactersPerLine: Math.max(...lines.map((l) => getGraphemeCount(l))),
+        alignmentConfidence: 0.9,
+        validationStatus: "pass",
+        isForcedNarrative: true,
+        lines,
+      });
+    });
+    return cues;
   }
 
   /**
@@ -621,8 +831,9 @@ export class MultilingualSubtitleLocalizer {
 
       const safeText = this.applyBidirectionalIsolation(cue.text, cue.languageCode || "");
 
-      // SRT standard formatting
-      srt += `${cue.id}\n${startSrt} --> ${endSrt}\n${safeText}\n\n`;
+      // SRT standard formatting ({\an8} = top of frame, for on-screen text translations)
+      const srtText = cue.isForcedNarrative ? `{\\an8}${safeText}` : safeText;
+      srt += `${cue.id}\n${startSrt} --> ${endSrt}\n${srtText}\n\n`;
 
       // WebVTT with voice tags and collision avoidance
       let vttCueHeader = `${startVtt} --> ${endVtt}`;
@@ -630,12 +841,14 @@ export class MultilingualSubtitleLocalizer {
 
       const prevCue = index > 0 ? cues[index - 1] : null;
       const isOverlappingPrev = prevCue && prevCue.endMs > cue.startMs;
-      if (isOverlappingPrev) {
+      if (cue.isForcedNarrative) {
+        vttCueHeader += " line:10% align:center";
+      } else if (isOverlappingPrev && !prevCue?.isForcedNarrative) {
         // Position overlapping cues in upper third (15%) vs lower third (85%)
         vttCueHeader += " line:15% align:center";
       }
 
-      if (cue.speaker && cue.speaker !== "speaker_0" && cue.speaker !== "unknown") {
+      if (!cue.isForcedNarrative && !cue.isDualSpeaker && cue.speaker && cue.speaker !== "speaker_0" && cue.speaker !== "unknown") {
         vttBody = `<v ${cue.speaker}>${safeText}</v>`;
       }
 

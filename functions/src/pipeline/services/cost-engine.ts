@@ -16,11 +16,8 @@ export const RATE_CARDS = {
   assemblyai: { perMinute: 0.00383 }, // Universal 3.7 Pro ($0.21/hr) + Speaker Diarization ($0.02/hr) = $0.23/hr ($0.00383/min)
   "google-translate-v3": { perCharacter: 0.000020 },
   "google-translation-llm": { perInputCharacter: 0.000010, perOutputCharacter: 0.000010 }, // $10/M input + $10/M output chars
-  elevenlabs: { perCharacter: 0.000200 }, // ElevenLabs Creator/Pro tier ($0.20 / 1K chars)
+  elevenlabs: { perCharacter: 0.000080 }, // ElevenLabs v4 API list rate ($0.08 / 1K chars = $80 / 1M)
   "elevenlabs-turbo": { perCharacter: 0.000040 }, // ElevenLabs v4 Turbo ($0.04 / 1K chars = $40 / 1M)
-  "google-tts-chirp3-hd": { perCharacter: 0.000030 },
-  "google-tts-neural2": { perCharacter: 0.000016 },
-  "google-tts-standard": { perCharacter: 0.000004 },
   storage: { perGBMonth: 0.020 },
   ffmpeg: { perSecond: 0.0001 },
   // ─── Gemini AI (Vertex AI pricing, USD per token) ───────────────────────
@@ -584,7 +581,7 @@ export class CostEngine {
       const event: CostEvent = {
         jobId,
         userId: resolvedUserId,
-        channelId,
+        channelId: channelId || null as any,
         stage,
         provider,
         amount: Math.round(amount * 1000000) / 1000000,
@@ -596,6 +593,16 @@ export class CostEngine {
 
       // 1. Append to cost_events (audit trail)
       await db().collection("cost_events").add(event);
+
+      // 1b. Running total per job, so a job's full cost (and margin) is one read, however many
+      // events it has — a 10-minute dub records hundreds of per-line TTS events.
+      await db().collection("job_costs").doc(jobId).set({
+        jobId,
+        totalUsd: admin.firestore.FieldValue.increment(event.amount),
+        [`byStage.${stage}`]: admin.firestore.FieldValue.increment(event.amount),
+        events: admin.firestore.FieldValue.increment(1),
+        updatedAt: Date.now(),
+      }, { merge: true });
 
       // 2. Update rollup
       await this.updateRollup(resolvedUserId, channelId, channelType, stage, amount);
@@ -736,9 +743,9 @@ export class CostEngine {
     jobId: string,
     userId: string,
     chars: number,
-    provider: "elevenlabs" | "elevenlabs-turbo" | "google-tts-chirp3-hd" | "google-tts-neural2" | "google-tts-standard" = "elevenlabs"
+    provider: "elevenlabs" | "elevenlabs-turbo" = "elevenlabs"
   ): Promise<void> {
-    const rateCard = (RATE_CARDS as any)[provider] ?? RATE_CARDS["google-tts-neural2"];
+    const rateCard = (RATE_CARDS as any)[provider] ?? RATE_CARDS["elevenlabs"];
     const cost = chars * rateCard.perCharacter;
     await this.recordCost(jobId, userId, "tts", provider, cost, "characters", chars);
   }
@@ -895,9 +902,23 @@ export class CostEngine {
     if (snap.empty) return null;
 
     const items = snap.docs.map(doc => doc.data());
-    const total = items.reduce((sum, item) => sum + (item.amount || 0), 0);
-    
-    return { jobId, totalCostUsd: total, lineItems: items };
+    // The full total comes from job_costs (every event); lineItems is a sample of up to 100.
+    // Jobs recorded before job_costs existed fall back to the sampled sum.
+    const fullTotal = await this.getJobCostTotal(jobId);
+    const total = fullTotal ?? items.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+    return { jobId, totalCostUsd: total, lineItems: items, lineItemsTruncated: snap.size >= 100 };
+  }
+
+  /** Full recorded cost of a job (USD), or null if the job has no running total yet. */
+  async getJobCostTotal(jobId: string): Promise<number | null> {
+    try {
+      const doc = await db().collection("job_costs").doc(jobId).get();
+      const total = doc.exists ? Number(doc.data()?.totalUsd) : NaN;
+      return Number.isFinite(total) ? total : null;
+    } catch {
+      return null;
+    }
   }
 
   private async updateRollup(

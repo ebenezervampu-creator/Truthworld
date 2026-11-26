@@ -1,10 +1,7 @@
 import * as admin from "firebase-admin";
 
 if (!admin.apps.length) {
-  admin.initializeApp({
-    databaseURL: "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app",
-    storageBucket: "truthworld-1.firebasestorage.app"
-  });
+  admin.initializeApp();
 }
 
 import { onRequest } from "firebase-functions/v2/https";
@@ -382,6 +379,19 @@ export const seoServer = onRequest(
                 "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
               ]
             }
+          },
+          {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "com.truthworld.dubbing",
+              "sha256_cert_fingerprints": [
+                "0A:BB:3D:F0:30:E7:CD:77:FD:72:CF:01:9D:26:BA:A5:9E:FD:6A:19:5A:C1:C6:00:9C:B9:33:19:F3:C2:B9:2E",
+                "E4:A1:36:64:70:A4:34:A6:7A:49:19:A4:5E:2E:F8:C0:4D:0B:3C:2D:E3:F4:4F:FC:65:A2:3F:7E:00:FF:C4:E1",
+                "10:ED:17:F1:C9:46:1A:11:80:C1:F6:41:09:59:E4:FA:21:40:9D:6F:02:4B:92:4B:FA:05:8B:71:0D:37:A1:AC",
+                "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
+              ]
+            }
           }
         ]));
         return;
@@ -395,7 +405,7 @@ export const seoServer = onRequest(
             "details": [
               {
                 "appIDs": ["*.com.truthworld.app", "TEAMID.com.truthworld.app"],
-                "paths": ["/watch/*", "/channel/*", "/@*", "/c/*", "/user/*", "/playlist/*", "/topic/*", "/topics/*", "/T/*", "/t/*", "/studio/*", "/advertiser/*", "/ads/*", "/post/*", "/community/*", "/claim-detail*", "/claim/*"]
+                "paths": ["/watch/*", "/channel/*", "/@*", "/c/*", "/user/*", "/playlist/*", "/topic/*", "/topics/*", "/T/*", "/t/*", "/studio/*", "/dubbing*", "/advertiser/*", "/ads/*", "/post/*", "/community/*", "/claim-detail*", "/claim/*"]
               }
             ]
           },
@@ -2191,6 +2201,140 @@ export const seoServer = onRequest(
         res.set("X-Robots-Tag", "noindex, nofollow");
         const baseHtml = await fetchIndexHtml();
         res.status(200).send(baseHtml.replace("</head>", '<meta name="robots" content="noindex, nofollow" /></head>'));
+        return;
+      }
+
+      // ─── 2a. TRUTHWORD DUBBING STUDIO ROUTES (/dubbing, /dubbing-studio) ────
+      // Private Dubbing Studio workspace sub-routes (job editor / wallet) - direct app load without indexing
+      if (
+        lowerPath.startsWith("/dubbing/editor") ||
+        lowerPath === "/dubbing/wallet" ||
+        lowerPath.startsWith("/dubbing/wallet/")
+      ) {
+        res.set("X-Robots-Tag", "noindex, nofollow");
+        const baseHtml = await fetchIndexHtml();
+        res.status(200).send(baseHtml.replace("</head>", '<meta name="robots" content="noindex, nofollow" /></head>'));
+        return;
+      }
+
+      // 301 Redirect alternative dubbing studio paths to canonical /dubbing URL
+      if (
+        lowerPath === "/dubbing-studio" ||
+        lowerPath.startsWith("/dubbing-studio/")
+      ) {
+        res.redirect(301, `${DOMAIN}/dubbing`);
+        return;
+      }
+
+      // CANONICAL TRUTHWORD DUBBING STUDIO ROUTE (/dubbing, /dubbing/, /dubbing/subtitles)
+      if (
+        lowerPath === "/dubbing" ||
+        lowerPath === "/dubbing/" ||
+        lowerPath === "/dubbing/subtitles" ||
+        lowerPath.startsWith("/dubbing/")
+      ) {
+        const canonicalDubbingUrl = `${DOMAIN}/dubbing`;
+        const cacheKey = `dubbing_studio_canonical_page_v1`;
+        const cached = await getCachedSnapshot(cacheKey);
+        if (cached) {
+          logSeoEvent({ eventType: "cache_hit", path: canonicalDubbingUrl, durationMs: Date.now() - startTime });
+          sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
+          return;
+        }
+
+        const dubbingBreadcrumbs = generateBreadcrumbData([
+          { name: "Truthworld Dubbing Studio", url: canonicalDubbingUrl }
+        ]);
+
+        const dubbingAppSchema = {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "Truthworld Dubbing Studio",
+          "alternateName": ["Truthworld Dubbing", "TruthWorld Dubbing Studio"],
+          "applicationCategory": "MultimediaApplication",
+          "operatingSystem": "Web, Android",
+          "url": canonicalDubbingUrl,
+          "sameAs": "https://dubbing.truthworld.in/",
+          "provider": {
+            "@type": "Organization",
+            "name": "Truthworld",
+            "url": DOMAIN
+          },
+          "description": "Standalone AI voice dubbing and multilingual localization studio featuring speaker-matched voice cloning, synchronized subtitles, and an interactive waveform segment editor."
+        };
+
+        const dubbingFaqSchema = {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is Truthworld Dubbing Studio?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Truthworld Dubbing Studio is Truthworld's standalone AI dubbing and localization workspace for producing natural-sounding dubbed audio tracks, speaker-matched voice clones, and synchronized subtitles."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Which modes are available in Truthworld Dubbing Studio?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "You can switch between Voice Dubbing mode for full multi-speaker AI voice localization with music and background preservation, and Subtitles Only mode for generating translated caption tracks."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I edit individual dubbed segments and timelines?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Truthworld Dubbing Studio includes an interactive multi-track waveform timeline and segment editor so creators can inspect, adjust, and re-synthesize individual lines."
+              }
+            }
+          ]
+        };
+
+        const richDubbingHtml = `
+  <section style="margin-top: 32px; border-top: 1px solid #27272a; padding-top: 24px;">
+    <h2 style="font-size: 20px; font-weight: bold; color: #f4f4f5; margin-bottom: 12px;">AI Voice Dubbing, Voice Cloning &amp; Multilingual Subtitles</h2>
+    <p style="line-height: 1.6; color: #d4d4d8; font-size: 15px; margin-bottom: 16px;">
+      Truthworld Dubbing Studio gives creators and localization teams a dedicated workspace to translate and dub video and audio content while preserving speaker identity, emotional delivery, and background music and effects.
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      <div style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;">
+        <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">Voice Dubbing &amp; Speaker Cloning</h3>
+        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Preserve original speaker timbre and tone across languages while separating vocals from background music and ambient sound.</p>
+      </div>
+      <div style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;">
+        <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">Interactive Waveform Segment Editor</h3>
+        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Review transcripts, refine translations, adjust segment timing, and regenerate individual lines directly in the studio timeline.</p>
+      </div>
+      <div style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;">
+        <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">Multilingual Subtitles Workspace</h3>
+        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Switch seamlessly to Subtitles Only mode to generate synchronized translated captions across global and Indian regional languages.</p>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin: 32px 0 16px;">
+      <a href="https://dubbing.truthworld.in/" style="display: inline-block; background: #9B30FF; color: #ffffff; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 16px; text-decoration: none; box-shadow: 0 4px 14px rgba(155, 48, 255, 0.4);">Open Truthworld Dubbing Studio</a>
+    </div>
+  </section>`;
+
+        const finalHtml = buildSemanticSsrHtml({
+          title: "Truthworld Dubbing Studio - AI Voice Dubbing & Multilingual Localization",
+          description: "Dub videos with AI voice cloning, multilingual subtitles, music and effects preservation, and an interactive waveform segment editor in Truthworld Dubbing Studio.",
+          url: canonicalDubbingUrl,
+          type: "website",
+          robots: "index, follow",
+          jsonLd: [dubbingAppSchema, dubbingFaqSchema, dubbingBreadcrumbs.jsonLd, ...orgSchemas],
+          breadcrumbHtml: dubbingBreadcrumbs.html,
+          contentHeading: "Truthworld Dubbing Studio",
+          customBodyHtml: richDubbingHtml
+        });
+
+        const saved = await saveSnapshot(cacheKey, finalHtml);
+        sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
         return;
       }
 

@@ -28,6 +28,7 @@ import { getBigQueryAnalyticsService } from "../../analytics/bigqueryService";
 import { v4 as uuidv4 } from "uuid";
 import { PIPELINE_CONFIG } from "../config";
 import { extractCandidateText } from "../utils/ai-utils";
+import { videoDocExists } from "../../utils/videosCollectionGuard";
 
 const db = () => admin.firestore();
 
@@ -569,15 +570,17 @@ Return JSON:
       batch.set(db().collection("copyright_owner_notifications").doc(notificationId), notification);
 
       // Pause Video and Job at Step 4 (copyright_hold) with Truthworld Escrow holding
-      batch.set(db().collection("videos").doc(videoId), {
-        copyrightStatus: "copyright_hold",
-        escrowStatus: "holding",
-        gatewayStatus: "MANUAL_REVIEW",
-        status: "copyright_hold",
-        isPublished: false,
-        copyrightNotificationId: notificationId,
-        updatedAt: Date.now()
-      }, { merge: true });
+      if (await videoDocExists(videoId, "[CopyrightClaims:Hold]")) {
+        batch.set(db().collection("videos").doc(videoId), {
+          copyrightStatus: "copyright_hold",
+          escrowStatus: "holding",
+          gatewayStatus: "MANUAL_REVIEW",
+          status: "copyright_hold",
+          isPublished: false,
+          copyrightNotificationId: notificationId,
+          updatedAt: Date.now()
+        }, { merge: true });
+      }
 
       batch.set(db().collection("video_jobs").doc(jobId), {
         status: "copyright_hold",
@@ -672,16 +675,18 @@ Return JSON:
           escrowPaidOutAt: Date.now()
         });
 
-        batch.set(db().collection("videos").doc(videoId), {
-          copyrightStatus: isRedirect ? "claimed" : "clear",
-          copyrightLicensed: !isRedirect,
-          monetizationRedirectedTo: isRedirect ? notif.originalOwnerId : null,
-          escrowStatus: isRedirect ? "payout_to_owner" : "payout_to_creator",
-          gatewayStatus: "APPROVED",
-          status: "published",
-          isPublished: true,
-          updatedAt: Date.now()
-        }, { merge: true });
+        if (await videoDocExists(videoId, "[CopyrightClaims:Resolve]")) {
+          batch.set(db().collection("videos").doc(videoId), {
+            copyrightStatus: isRedirect ? "claimed" : "clear",
+            copyrightLicensed: !isRedirect,
+            monetizationRedirectedTo: isRedirect ? notif.originalOwnerId : null,
+            escrowStatus: isRedirect ? "payout_to_owner" : "payout_to_creator",
+            gatewayStatus: "APPROVED",
+            status: "published",
+            isPublished: true,
+            updatedAt: Date.now()
+          }, { merge: true });
+        }
 
         batch.set(db().collection("video_jobs").doc(jobId), {
           status: "published",

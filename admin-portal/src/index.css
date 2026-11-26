@@ -1,4 +1,50 @@
 :root {
+  /* Surfaces */
+  --bg-page: #F7F5F0;
+  --bg-surface: #FFFFFF;
+  --bg-surface-alt: #FAF8F4;
+  --bg-nav: #FCFBF8;
+
+  /* Borders */
+  --border-subtle: #E5DFD5;
+  --border-dashed: #D8B49E;
+
+  /* Typography (Inter) */
+  --text-primary: #1A1614;
+  --text-secondary: #574E47;
+  --text-muted: #7D7269;
+
+  /* Brand & Interactive Accents */
+  --accent: #B83B0A;
+  --accent-hover: #962F07;
+  --accent-soft: #F8EBE4;
+  --accent-contrast: #FFFFFF;
+  --accent-secondary: #D97757;
+
+  /* Active Navigation Pills */
+  --bg-pill-active: #F6E7DF;
+  --text-pill-active: #9A3412;
+
+  /* Hero Banner (Whisper-Light Editorial Cream) */
+  --hero-from: #FDFCFA;
+  --hero-via: #FAF5EE;
+  --hero-to: #F4EADF;
+  --hero-pill-bg: #FFFFFF;
+  --hero-pill-text: #29221E;
+  --hero-pill-border: #E5DFD5;
+
+  /* Bottom Feature Cards */
+  --card-1-bg: #FCFAF7; --card-1-icon-bg: #F6E7DF; --card-1-icon: #B83B0A;
+  --card-2-bg: #F8FAF8; --card-2-icon-bg: #E2F1E7; --card-2-icon: #166534;
+  --card-3-bg: #FCFAF5; --card-3-icon-bg: #F7EBD2; --card-3-icon: #A16207;
+  --card-4-bg: #F8F9FA; --card-4-icon-bg: #E7E5E4; --card-4-icon: #44403C;
+
+  /* Radii & Shadows */
+  --radius-card: 12px;
+  --radius-btn: 8px;
+  --shadow-card: 0 4px 20px rgba(26, 22, 20, 0.05);
+  --shadow-float: 0 8px 24px rgba(26, 22, 20, 0.08);
+
   --bg-primary: #0f0f0f;
   --bg-secondary: #181818;
   --bg-tertiary: #212121;

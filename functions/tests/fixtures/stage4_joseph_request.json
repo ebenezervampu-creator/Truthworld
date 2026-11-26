@@ -1,0 +1,20 @@
+{
+  "videoId": "REPLACE_WITH_YOUR_JOSEPH_CLIP_VIDEO_ID",
+  "features": ["dubbing", "subtitles"],
+  "targetLanguages": ["te", "hi"],
+  "sourceLanguage": "en",
+  "expectedSpeakers": 4,
+  "castList": [
+    { "name": "Wise Men", "gender": "male", "description": "robed royal advisers" },
+    { "name": "Pharaoh", "gender": "male", "description": "king, gold headdress, deep voice", "appearsAtSec": 4.8 },
+    { "name": "Cupbearer", "gender": "male", "description": "young royal servant, kind" },
+    { "name": "Guard", "gender": "male", "description": "armoured soldier, harsh voice" },
+    { "name": "Joseph", "gender": "male", "description": "young prisoner (spoken to, does not speak in this clip)" }
+  ],
+  "relationships": [
+    { "from": "Wise Men", "to": "Pharaoh", "formality": "deferential" },
+    { "from": "Pharaoh", "to": "GROUP", "formality": "formal" },
+    { "from": "Cupbearer", "to": "Joseph", "formality": "peer", "relationship": "friend" },
+    { "from": "Guard", "to": "Joseph", "formality": "informal", "relationship": "stranger" }
+  ]
+}

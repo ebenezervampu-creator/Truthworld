@@ -17,7 +17,10 @@ enum AppFlavor {
   admin,
 
   /// Advertiser self-serve portal (Truthworld Advertiser).
-  advertiser;
+  advertiser,
+
+  /// Standalone AI Dubbing & Voice Localization Studio (Truthworld Dubbing).
+  dubbing;
 
   /// Holds the current flavor set explicitly during bootstrap.
   static AppFlavor current = AppFlavor.app;
@@ -34,6 +37,7 @@ enum AppFlavor {
       if (flavorLower == 'studio') return AppFlavor.studio;
       if (flavorLower == 'admin') return AppFlavor.admin;
       if (flavorLower == 'advertiser') return AppFlavor.advertiser;
+      if (flavorLower == 'dubbing') return AppFlavor.dubbing;
       if (flavorLower == 'app') return AppFlavor.app;
     }
     if (kIsWeb) {
@@ -58,6 +62,13 @@ enum AppFlavor {
           host.startsWith('ads.')) {
         return AppFlavor.advertiser;
       }
+      if (host == 'dubbing.truthworld.in' ||
+          host == 'dubbing.truthworld.app' ||
+          host.startsWith('dubbing.') ||
+          path == '/dubbing' ||
+          path.startsWith('/dubbing/')) {
+        return AppFlavor.dubbing;
+      }
     }
     return current;
   }
@@ -70,6 +81,9 @@ enum AppFlavor {
 
   /// Whether the app is currently running in Advertiser mode.
   static bool get isAdvertiser => active == AppFlavor.advertiser;
+
+  /// Whether the app is currently running in standalone Dubbing Studio mode.
+  static bool get isDubbing => active == AppFlavor.dubbing;
 
   /// Whether the app is currently running in standard Consumer mode.
   static bool get isConsumer => active == AppFlavor.app;
@@ -84,6 +98,8 @@ enum AppFlavor {
         return '/admin/login';
       case AppFlavor.advertiser:
         return '/advertiser';
+      case AppFlavor.dubbing:
+        return '/dubbing';
       case AppFlavor.app:
         return '/';
     }
@@ -98,6 +114,8 @@ enum AppFlavor {
         return 'Truthworld Admin';
       case AppFlavor.advertiser:
         return 'Truthworld Advertiser';
+      case AppFlavor.dubbing:
+        return 'Truthworld Dubbing';
       case AppFlavor.app:
         return 'Truthworld';
     }

@@ -1,9 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// A widget that automatically parses text for URLs and channel handles (@handle)
 /// and renders them as clickable links.

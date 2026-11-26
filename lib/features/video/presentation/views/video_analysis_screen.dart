@@ -211,6 +211,17 @@ class VideoAnalysisScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(
+              Icons.info_outline_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            tooltip: 'AI Disclaimer',
+            onPressed: () {
+              VideoAnalysisDisclaimerCard.showDisclaimerSheet(context);
+            },
+          ),
+          IconButton(
+            icon: const Icon(
               Icons.chat_bubble_outline_rounded,
               color: Colors.white,
               size: 20,

@@ -96,7 +96,8 @@ class ErrorHandler {
     final isActionableError = isFatal ||
         appException.severity == ErrorSeverity.fatal ||
         (appException.severity == ErrorSeverity.error &&
-            appException is! NetworkException);
+            appException is! NetworkException &&
+            !(appException is GoogleSignInException && appException.isCancelled));
 
     if (isCrashlyticsSupported &&
         isActionableError &&

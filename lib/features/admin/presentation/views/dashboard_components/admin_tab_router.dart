@@ -8,6 +8,7 @@ import 'package:truthworld/features/admin/presentation/views/appeals_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/audit_logs_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/broadcast_push_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/channel_queue_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/dubbing_management_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/feedbacks_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/help_support_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/image_queue_tab.dart';
@@ -42,6 +43,8 @@ class AdminTabRouter {
         return AuditLogsTab(controller: controller);
       case 'users':
         return UserManagementTab(controller: controller);
+      case 'dubbing':
+        return DubbingManagementTab(controller: controller);
       case 'ads':
         return AdsTab(controller: controller);
       case 'ad_reports':

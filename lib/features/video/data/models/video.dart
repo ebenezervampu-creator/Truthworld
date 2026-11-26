@@ -76,6 +76,8 @@ class Video {
     Map<String, String>? mediaSubtitles,
     Map<String, String>? dubbedVideos,
     Map<String, String>? audioTracks,
+    Map<String, String>? audioTrackSources,
+    Map<String, String>? aiDubbedAudio,
     List<VideoChapter>? chapters,
     String? factCheckUrl,
     String? transcriptionUrl,
@@ -113,6 +115,11 @@ class Video {
     this.provisionalViewerNote,
     this.provisionalClaims = const [],
     this.credibilityStatus,
+    this.playbackReady = false,
+    this.transcodeFailed = false,
+    this.transcodeError,
+    this.abrHlsUrl = '',
+    this.abrHlsHdUrl = '',
     dynamic factCheckCompletedAt,
   })  : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
             ? title.toLowerCase()
@@ -153,7 +160,9 @@ class Video {
         _directTranscriptionUrl = transcriptionUrl ?? '',
         _directMediaSubtitles = mediaSubtitles ?? const {},
         _directDubbedVideos = dubbedVideos ?? const {},
-        _directAudioTracks = audioTracks ?? const {} {
+        _directAudioTracks = audioTracks ?? const {},
+        _directAudioTrackSources = audioTrackSources ?? const {},
+        aiDubbedAudio = aiDubbedAudio ?? const {} {
     // Populate the VideoMediaService static caches for instant synchronous retrieval
     VideoMediaCacheManager.populateCaches(
       id: id,
@@ -167,6 +176,7 @@ class Video {
       mediaSubtitles: mediaSubtitles,
       dubbedVideos: dubbedVideos,
       audioTracks: audioTracks,
+      audioTrackSources: audioTrackSources,
       chapters: chapters,
       factCheckUrl: factCheckUrl,
       transcriptionUrl: transcriptionUrl,
@@ -322,12 +332,26 @@ class Video {
   final String? credibilityStatus;
   String? get factCheckStatus => credibilityStatus;
 
+  // Playback & Transcoding Status
+  final bool playbackReady;
+  final bool transcodeFailed;
+  final String? transcodeError;
+
+  /// Adaptive HLS master with every quality (premium playback). Written by the
+  /// resolution service as `media.abrHlsUrl`; separate from [hlsUrl], which the
+  /// dubbing packager also writes.
+  final String abrHlsUrl;
+
+  /// Adaptive HLS master limited to 1080p (everyone without premium playback).
+  final String abrHlsHdUrl;
+
   // Direct fields (immediate availability without cache delay)
   final String _directFactCheckUrl;
   final String _directTranscriptionUrl;
   final Map<String, String> _directMediaSubtitles;
   final Map<String, String> _directDubbedVideos;
   final Map<String, String> _directAudioTracks;
+  final Map<String, String> _directAudioTrackSources;
 
   // Summary getter with priority: moderation.summary -> credibility.summary -> description
   String get summary {
@@ -362,6 +386,10 @@ class Video {
   Map<String, String> get audioTracks => _directAudioTracks.isNotEmpty
       ? _directAudioTracks
       : (VideoMediaService.localizationCache[id]?.audioTracks ?? const {});
+  Map<String, String> get audioTrackSources => _directAudioTrackSources.isNotEmpty
+      ? _directAudioTrackSources
+      : (VideoMediaService.localizationCache[id]?.audioTrackSources ?? const {});
+  final Map<String, String> aiDubbedAudio;
   List<VideoChapter> get chapters =>
       VideoMediaService.streamingCache[id]?.chapters ?? const [];
 
@@ -617,6 +645,8 @@ class Video {
     String? jobId,
     int? resubmitCount,
     Map<String, String>? audioTracks,
+    Map<String, String>? audioTrackSources,
+    Map<String, String>? aiDubbedAudio,
     Map<String, String>? dubbedVideos,
     Map<String, String>? mediaSubtitles,
     String? transcriptionUrl,
@@ -628,6 +658,11 @@ class Video {
     String? provisionalViewerNote,
     List<Map<String, dynamic>>? provisionalClaims,
     String? credibilityStatus,
+    bool? playbackReady,
+    bool? transcodeFailed,
+    String? transcodeError,
+    String? abrHlsUrl,
+    String? abrHlsHdUrl,
     dynamic factCheckCompletedAt,
   }) {
     return Video(
@@ -696,6 +731,8 @@ class Video {
       jobId: jobId ?? this.jobId,
       resubmitCount: resubmitCount ?? this.resubmitCount,
       audioTracks: audioTracks ?? this.audioTracks,
+      audioTrackSources: audioTrackSources ?? this.audioTrackSources,
+      aiDubbedAudio: aiDubbedAudio ?? this.aiDubbedAudio,
       dubbedVideos: dubbedVideos ?? this.dubbedVideos,
       mediaSubtitles: mediaSubtitles ?? this.mediaSubtitles,
       transcriptionUrl: transcriptionUrl ?? this.transcriptionUrl,
@@ -706,6 +743,11 @@ class Video {
       provisionalViewerNote: provisionalViewerNote ?? this.provisionalViewerNote,
       provisionalClaims: provisionalClaims ?? this.provisionalClaims,
       credibilityStatus: credibilityStatus ?? this.credibilityStatus,
+      playbackReady: playbackReady ?? this.playbackReady,
+      transcodeFailed: transcodeFailed ?? this.transcodeFailed,
+      transcodeError: transcodeError ?? this.transcodeError,
+      abrHlsUrl: abrHlsUrl ?? this.abrHlsUrl,
+      abrHlsHdUrl: abrHlsHdUrl ?? this.abrHlsHdUrl,
       factCheckCompletedAt: factCheckCompletedAt ?? this.factCheckCompletedAt,
     );
   }
@@ -745,6 +787,9 @@ class Video {
       enableComments: enableComments,
       isMonetized: isMonetized,
       resubmitCount: resubmitCount,
+      playbackReady: playbackReady,
+      transcodeFailed: transcodeFailed,
+      transcodeError: transcodeError,
     );
   }
 
@@ -762,6 +807,9 @@ class Video {
       category: entity.category,
       tags: entity.tags,
       resubmitCount: entity.resubmitCount,
+      playbackReady: entity.playbackReady,
+      transcodeFailed: entity.transcodeFailed,
+      transcodeError: entity.transcodeError,
       originalUrl: entity.originalUrl,
       hlsUrl: entity.hlsUrl,
       dashUrl: entity.dashUrl,

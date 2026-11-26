@@ -371,9 +371,18 @@ class AlgorithmRemoteConfig extends GetxService {
     }
   }
 
+  static const bool _isStaging =
+      String.fromEnvironment('FIREBASE_ENV') == 'staging';
+  static const String _stagingProjectId = String.fromEnvironment(
+    'STAGING_PROJECT_ID',
+    defaultValue: 'truthworld-staging',
+  );
+
   String _homeFeedEndpoint = const String.fromEnvironment(
     'TRUTHWORLD_HOME_FEED_ENDPOINT',
-    defaultValue: 'https://asia-south1-truthworld-1.cloudfunctions.net/getHomeFeed',
+    defaultValue: _isStaging
+        ? 'https://asia-south1-$_stagingProjectId.cloudfunctions.net/getHomeFeed'
+        : 'https://asia-south1-truthworld-1.cloudfunctions.net/getHomeFeed',
   );
   String get homeFeedEndpoint => _homeFeedEndpoint;
 

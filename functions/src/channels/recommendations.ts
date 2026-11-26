@@ -112,7 +112,6 @@ function calculateDiscoveryScore(params: {
   createdAt: number;       // epoch ms
   engagementRate: number;  // 0.0 - 1.0 (likes/views)
   isSubscribed: boolean;
-  momentum: number;        // 0.0 - 1.0 (trend)
   tier: "basic" | "creator" | "advanced" | "elite";
   inactiveDays: number;    // Days since last upload
   topicAffinityScore: number; // 0.0 - 10.0 (from user interests)
@@ -142,7 +141,6 @@ function calculateDiscoveryScore(params: {
   const engagementScore = Math.min(10, params.engagementRate * 100);
   const recencyScore = 10 * Math.exp(-ageHours / 72); // 72h half-life
   const followScore = params.isSubscribed ? 10 : 0;
-  const momentumScore = Math.min(10, params.momentum * 10);
   const topicScore = Math.min(10, params.topicAffinityScore);
   const completionScore = Math.min(10, (params.watchCompletion ?? 0.5) * 10);
   const twoTowerScore = Math.min(10, (params.twoTowerAffinity ?? 0.5) * 10);
@@ -156,7 +154,6 @@ function calculateDiscoveryScore(params: {
     (followScore * w.channelAffinity) +
     (topicScore * w.topicAffinity) +
     (twoTowerScore * w.twoTowerAffinity) +
-    (momentumScore * w.trending) +
     (credibilityBonus * w.credibility) +
     (completionScore * w.watchCompletion);
 
@@ -205,7 +202,6 @@ function calculateDiscoveryScore(params: {
  * Enhanced with:
  * - Pool E: Topic Pool (videos matching user's followed topics)
  * - Pool F: Long-tail creators (< 500 views, verified)
- * - Pool G: Exploding creators (high momentum channels)
  * - User interest scoring via interests map + savedTopics
  * - Credibility eligibility gate (low trust + flagged = excluded)
  * - Creator exposure budget (max 18% per creator)
@@ -586,7 +582,6 @@ export const getHomeFeed = onRequest(
           createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.createdAt || Date.now()),
           engagementRate,
           isSubscribed,
-          momentum: channel.reputation?.trend30d || 0,
           tier: channel.tier || "basic",
           inactiveDays: channel.updatedAt ? (now - channel.updatedAt) / 86400000 : 0,
           topicAffinityScore,
@@ -627,9 +622,6 @@ export const getHomeFeed = onRequest(
         } else if (twoTowerAffinity >= 0.8) {
           recommendationReason = "Deep Interest Match";
           recommendationExplanation = "High neural semantic resonance with your profile";
-        } else if ((channel.reputation?.trend30d || 0) > 0.5) {
-          recommendationReason = "Rising Fast";
-          recommendationExplanation = "Trending in your interests";
         } else if ((data.viewCount || 0) <= 1000 && data.credibilityVerified) {
           recommendationReason = "New Creator";
           recommendationExplanation = "Discover fresh perspectives";
@@ -795,7 +787,6 @@ export const getHomeFeed = onRequest(
  * Modules:
  * - Elite Spotlight (Elite tier creators)
  * - Verified Today (Fact-checked within 24h)
- * - Rising Fast (Channels with positive momentum)
  * - Long-tail Gems (Hidden quality content with < 500 views) — NEW
  */
 export const getDiscoveryModules = onRequest(
@@ -829,26 +820,6 @@ export const getDiscoveryModules = onRequest(
         return createdAt >= oneDayAgo;
       }).slice(0, 10);
 
-      // 3. Rising Fast (Channels with positive momentum)
-      const channelsSnap = await db().collection("channels")
-        .where("tier", "in", ["creator", "advanced", "elite"])
-        .limit(50)
-        .get();
-
-      const risingSnap = channelsSnap.docs
-        .filter(isPublicActive)
-        .filter(d => {
-          const trend = d.data().reputation?.trend30d || 0;
-          return trend > 0;
-        })
-        .sort((a, b) => {
-          const trendA = a.data().reputation?.trend30d || 0;
-          const trendB = b.data().reputation?.trend30d || 0;
-          return trendB - trendA;
-        })
-        .slice(0, 10)
-        .map((d, idx) => sanitizePublicChannel(d, idx + 1));
-
       // 4. Long-tail Gems (High engagement, low view videos) — NEW
       const longTailSnap = await db().collection("videos")
         .where("credibilityVerified", "==", true)
@@ -873,7 +844,6 @@ export const getDiscoveryModules = onRequest(
         modules: {
           "Elite Spotlight": activeElite,
           "Verified Today": trustedTodaySnap.map(d => ({ id: d.id, ...d.data() })),
-          "Rising Fast": risingSnap,
           "Long-tail Gems": longTailGems.map(d => ({ id: d.id, ...d.data() })),
         }
       });

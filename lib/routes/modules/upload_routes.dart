@@ -9,9 +9,7 @@ import 'package:truthworld/features/topics/presentation/pages/create_topic_scree
 import 'package:truthworld/features/video/presentation/bindings/video_feature_binding.dart';
 import 'package:truthworld/features/video/presentation/views/upload/create_content_screen.dart';
 import 'package:truthworld/features/video/presentation/views/upload/models/upload_type.dart';
-import 'package:truthworld/features/video/presentation/views/upload/pages/upload_dubbing_page.dart';
-import 'package:truthworld/features/video/presentation/views/upload/pages/upload_subtitles_and_dubbing_page.dart';
-import 'package:truthworld/features/video/presentation/views/upload/pages/upload_subtitles_page.dart';
+import 'package:truthworld/features/video/presentation/views/upload/pages/upload_audio_track_dubbing_page.dart';
 import 'package:truthworld/features/video/presentation/views/upload/upload_selection_screen.dart';
 import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/routes/app_transitions.dart';
@@ -42,26 +40,8 @@ class UploadRoutes {
       middlewares: [AuthGuard()],
     ),
     GetPage(
-      name: AppRoutes.uploadSubtitles,
-      page: () => const UploadSubtitlesPage(),
-      transition: AppTransitions.modal,
-      transitionDuration: AppTransitions.modalDuration,
-      curve: AppTransitions.modalCurve,
-      binding: VideoFeatureBinding(),
-      middlewares: [AuthGuard()],
-    ),
-    GetPage(
       name: AppRoutes.uploadDubbing,
-      page: () => const UploadDubbingPage(),
-      transition: AppTransitions.modal,
-      transitionDuration: AppTransitions.modalDuration,
-      curve: AppTransitions.modalCurve,
-      binding: VideoFeatureBinding(),
-      middlewares: [AuthGuard()],
-    ),
-    GetPage(
-      name: AppRoutes.uploadSubtitlesAndDubbing,
-      page: () => const UploadSubtitlesAndDubbingPage(),
+      page: () => const UploadAudioTrackDubbingPage(),
       transition: AppTransitions.modal,
       transitionDuration: AppTransitions.modalDuration,
       curve: AppTransitions.modalCurve,

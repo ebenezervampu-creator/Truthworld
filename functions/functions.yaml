@@ -44,15 +44,39 @@
         "eventFilters": {
           "topic": "resolution.requested"
         },
-        "retry": true
+        "retry": false
       },
       "entryPoint": "handleResolution"
+    },
+    "onTranscoderJobCompleted": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 300,
+      "minInstances": 0,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
+        "eventFilters": {
+          "topic": "transcoder.completed"
+        },
+        "retry": false
+      },
+      "entryPoint": "onTranscoderJobCompleted"
     },
     "getVideoResolutionStatus": {
       "availableMemoryMb": 256,
       "timeoutSeconds": 30,
       "minInstances": 0,
-      "maxInstances": 2,
+      "maxInstances": 20,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -280,7 +304,7 @@
       "eventTrigger": {
         "eventType": "google.cloud.storage.object.v1.finalized",
         "eventFilters": {
-          "bucket": "truthworld-1.firebasestorage.app"
+          "bucket": "{{ params.STORAGE_BUCKET }}"
         },
         "retry": true
       },
@@ -1032,42 +1056,6 @@
       "labels": {},
       "httpsTrigger": {},
       "entryPoint": "getLeaderboard"
-    },
-    "getRisingCreators": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 10,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getRisingCreators"
-    },
-    "getTrustBadge": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 10,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getTrustBadge"
     },
     "onTopicWritten": {
       "availableMemoryMb": null,
@@ -3414,6 +3402,24 @@
       "callableTrigger": {},
       "entryPoint": "verifyGovernanceAuditChain"
     },
+    "reviewCommunityEvidence": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 120,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "reviewCommunityEvidence"
+    },
     "sweepPendingAppealsSla": {
       "availableMemoryMb": 256,
       "timeoutSeconds": 120,
@@ -3482,6 +3488,227 @@
       "labels": {},
       "httpsTrigger": {},
       "entryPoint": "streamCredibilityAiChat"
+    },
+    "claimFreeDubbingCredits": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "claimFreeDubbingCredits"
+    },
+    "getDubbingWallet": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getDubbingWallet"
+    },
+    "createDubbingJob": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "us-central1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        }
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "createDubbingJob"
+    },
+    "updateDubbingTranscription": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "updateDubbingTranscription"
+    },
+    "regenerateDubbingSegment": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "regenerateDubbingSegment"
+    },
+    "exportDubbingAssets": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 300,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "exportDubbingAssets"
+    },
+    "purchaseDubbingCreditsWithStudioWallet": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "purchaseDubbingCreditsWithStudioWallet"
+    },
+    "adminGrantDubbingCredits": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "adminGrantDubbingCredits"
+    },
+    "adminSetDubbingDiscount": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "adminSetDubbingDiscount"
+    },
+    "adminGetDubbingUserDetails": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "adminGetDubbingUserDetails"
+    },
+    "adminListDubbingAccounts": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "adminListDubbingAccounts"
+    },
+    "adminGrantChannelDubbingCredits": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "adminGrantChannelDubbingCredits"
     },
     "triggerVideoAIFeatures": {
       "availableMemoryMb": 1024,
@@ -3591,6 +3818,9 @@
         },
         {
           "key": "GOOGLE_TRANSLATION_API_KEY"
+        },
+        {
+          "key": "DEMUX_WORKER_TOKEN"
         }
       ],
       "labels": {},
@@ -3685,16 +3915,16 @@
       "entryPoint": "handleCredibilitySynthesis"
     },
     "handleDubbing": {
-      "availableMemoryMb": 2048,
+      "availableMemoryMb": 4096,
       "timeoutSeconds": 540,
       "minInstances": 0,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": "gcf_gen1",
+      "cpu": 2,
       "region": [
         "asia-south1"
       ],
@@ -3704,6 +3934,9 @@
         },
         {
           "key": "GOOGLE_TRANSLATION_API_KEY"
+        },
+        {
+          "key": "DEMUX_WORKER_TOKEN"
         }
       ],
       "labels": {},
@@ -3903,6 +4136,30 @@
       "callableTrigger": {},
       "entryPoint": "reportBrokenSourceUrl"
     },
+    "evidenceFreshnessSweep": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 540,
+      "minInstances": 0,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "17 3 * * *",
+        "retryConfig": {
+          "retryCount": 0
+        },
+        "timeZone": "Asia/Kolkata"
+      },
+      "entryPoint": "evidenceFreshnessSweep"
+    },
     "auditAndHealBrokenSources": {
       "availableMemoryMb": 1024,
       "timeoutSeconds": 300,
@@ -3925,7 +4182,7 @@
       "availableMemoryMb": 2048,
       "timeoutSeconds": 540,
       "minInstances": 0,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -3941,6 +4198,9 @@
         },
         {
           "key": "GOOGLE_TRANSLATION_API_KEY"
+        },
+        {
+          "key": "DEMUX_WORKER_TOKEN"
         }
       ],
       "labels": {},
@@ -3970,6 +4230,9 @@
       "secretEnvironmentVariables": [
         {
           "key": "ELEVENLABS_API_KEY"
+        },
+        {
+          "key": "DEMUX_WORKER_TOKEN"
         }
       ],
       "labels": {},
@@ -3981,6 +4244,35 @@
         "retry": true
       },
       "entryPoint": "handleAssembleDubbingReels"
+    },
+    "handleDubbingPrewarm": {
+      "availableMemoryMb": 2048,
+      "timeoutSeconds": 540,
+      "minInstances": 0,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "DEMUX_WORKER_TOKEN"
+        }
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
+        "eventFilters": {
+          "topic": "dubbing.prewarm.requested"
+        },
+        "retry": false
+      },
+      "entryPoint": "handleDubbingPrewarm"
     },
     "getDubbingEditorManifest": {
       "availableMemoryMb": 512,
@@ -4059,6 +4351,24 @@
       "callableTrigger": {},
       "entryPoint": "updateDubbingSegmentTimings"
     },
+    "retranslateDubbingSegment": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 120,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "retranslateDubbingSegment"
+    },
     "remasterDubbedAudioTrack": {
       "availableMemoryMb": 2048,
       "timeoutSeconds": 540,
@@ -4076,6 +4386,9 @@
       "secretEnvironmentVariables": [
         {
           "key": "ELEVENLABS_API_KEY"
+        },
+        {
+          "key": "DEMUX_WORKER_TOKEN"
         }
       ],
       "labels": {},
@@ -4156,6 +4469,52 @@
         "retryConfig": {}
       },
       "entryPoint": "recoverWebhookOutboxLeases"
+    },
+    "getDubbingQuote": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 30,
+      "minInstances": 0,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getDubbingQuote"
+    },
+    "onVideoJobWrittenSyncDubbingStudio": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": 0,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.written",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "video_jobs/{jobId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onVideoJobWrittenSyncDubbingStudio"
     },
     "onVideoPublished": {
       "availableMemoryMb": 256,
@@ -4450,5 +4809,12 @@
       "reason": "Needed for task queue functions"
     }
   ],
-  "extensions": {}
+  "extensions": {},
+  "params": [
+    {
+      "name": "STORAGE_BUCKET",
+      "type": "string",
+      "default": "truthworld-1.firebasestorage.app"
+    }
+  ]
 }

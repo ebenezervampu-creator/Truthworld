@@ -245,8 +245,12 @@ class Channel {
     this.dubbingDiscountPercent,
     this.subtitlesDiscountType,
     this.subtitlesDiscountPercent,
+    int? freeDubbingCredits = 0,
+    int? dubbingCreditsGrantedTotal = 0,
     this.aiDiscounts,
-  }) : metrics = metrics ?? ChannelMetricsV2();
+  })  : _freeDubbingCredits = freeDubbingCredits ?? 0,
+        _dubbingCreditsGrantedTotal = dubbingCreditsGrantedTotal ?? 0,
+        metrics = metrics ?? ChannelMetricsV2();
 
   factory Channel.fromMap(Map<String, dynamic> data, String docId) {
     var nameVal = (data['name'] as String?)?.trim() ?? (data['channelName'] as String?)?.trim() ?? '';
@@ -586,6 +590,8 @@ class Channel {
                   ? (data['aiDiscounts']['subtitles']['percent'] as num?)?.toDouble()
                   : null)
               : null),
+      freeDubbingCredits: (data['freeDubbingCredits'] as num?)?.toInt() ?? 0,
+      dubbingCreditsGrantedTotal: (data['dubbingCreditsGrantedTotal'] as num?)?.toInt() ?? 0,
       aiDiscounts: data['aiDiscounts'] is Map
           ? Map<String, dynamic>.from(data['aiDiscounts'] as Map)
           : null,
@@ -715,6 +721,8 @@ class Channel {
     double? dubbingDiscountPercent,
     String? subtitlesDiscountType,
     double? subtitlesDiscountPercent,
+    int? freeDubbingCredits,
+    int? dubbingCreditsGrantedTotal,
     Map<String, dynamic>? aiDiscounts,
     bool clearDiscounts = false,
   }) {
@@ -823,6 +831,8 @@ class Channel {
       subtitlesDiscountPercent: clearDiscounts
           ? null
           : (subtitlesDiscountPercent ?? this.subtitlesDiscountPercent),
+      freeDubbingCredits: freeDubbingCredits ?? this.freeDubbingCredits,
+      dubbingCreditsGrantedTotal: dubbingCreditsGrantedTotal ?? this.dubbingCreditsGrantedTotal,
       aiDiscounts: clearDiscounts ? null : (aiDiscounts ?? this.aiDiscounts),
     );
   }
@@ -960,25 +970,71 @@ class Channel {
   final double? dubbingDiscountPercent; // 0.0 to 100.0
   final String? subtitlesDiscountType; // 'none', '50%', 'free', 'custom'
   final double? subtitlesDiscountPercent; // 0.0 to 100.0
+  final int? _freeDubbingCredits;
+  final int? _dubbingCreditsGrantedTotal;
   final Map<String, dynamic>? aiDiscounts;
 
+  /// Free dubbing character credits granted by Super Admin
+  int get freeDubbingCredits {
+    try {
+      final v = _freeDubbingCredits;
+      return v ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Historical cumulative character credits granted
+  int get dubbingCreditsGrantedTotal {
+    try {
+      final v = _dubbingCreditsGrantedTotal;
+      return v ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   /// Whether dubbing is 100% free for this channel (Super Admin grant)
-  bool get isDubbingFree =>
-      dubbingDiscountType == 'free' ||
-      (dubbingDiscountPercent != null && dubbingDiscountPercent! >= 100.0);
+  bool get isDubbingFree {
+    try {
+      return dubbingDiscountType == 'free' ||
+          (dubbingDiscountPercent != null && dubbingDiscountPercent! >= 100.0);
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Whether subtitles are 100% free for this channel (Super Admin grant)
-  bool get isSubtitlesFree =>
-      subtitlesDiscountType == 'free' ||
-      (subtitlesDiscountPercent != null && subtitlesDiscountPercent! >= 100.0);
+  bool get isSubtitlesFree {
+    try {
+      return subtitlesDiscountType == 'free' ||
+          (subtitlesDiscountPercent != null && subtitlesDiscountPercent! >= 100.0);
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Effective dubbing discount percentage clamped between 0% and 100%
-  double get effectiveDubbingDiscountPercent =>
-      isDubbingFree ? 100.0 : ((dubbingDiscountPercent ?? 0.0).clamp(0.0, 100.0));
+  double get effectiveDubbingDiscountPercent {
+    try {
+      if (isDubbingFree) return 100.0;
+      final p = dubbingDiscountPercent;
+      return (p ?? 0.0).clamp(0.0, 100.0);
+    } catch (_) {
+      return 0.0;
+    }
+  }
 
   /// Effective subtitles discount percentage clamped between 0% and 100%
-  double get effectiveSubtitlesDiscountPercent =>
-      isSubtitlesFree ? 100.0 : ((subtitlesDiscountPercent ?? 0.0).clamp(0.0, 100.0));
+  double get effectiveSubtitlesDiscountPercent {
+    try {
+      if (isSubtitlesFree) return 100.0;
+      final p = subtitlesDiscountPercent;
+      return (p ?? 0.0).clamp(0.0, 100.0);
+    } catch (_) {
+      return 0.0;
+    }
+  }
 
   /// Whether this channel has any active discount on dubbing
   bool get hasDubbingDiscount => effectiveDubbingDiscountPercent > 0.0;
@@ -1166,6 +1222,8 @@ class Channel {
       if (dubbingDiscountPercent != null) 'dubbingDiscountPercent': dubbingDiscountPercent,
       if (subtitlesDiscountType != null) 'subtitlesDiscountType': subtitlesDiscountType,
       if (subtitlesDiscountPercent != null) 'subtitlesDiscountPercent': subtitlesDiscountPercent,
+      if (freeDubbingCredits > 0) 'freeDubbingCredits': freeDubbingCredits,
+      if (dubbingCreditsGrantedTotal > 0) 'dubbingCreditsGrantedTotal': dubbingCreditsGrantedTotal,
       if (aiDiscounts != null) 'aiDiscounts': aiDiscounts,
     };
   }

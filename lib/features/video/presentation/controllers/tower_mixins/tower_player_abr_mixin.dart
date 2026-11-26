@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
@@ -145,6 +147,9 @@ mixin TowerPlayerAbrMixin on GetxController {
           if (vc == null || vc.isClosed) return;
           if (vc.isSwitchingResolution.value) return;
           if (vc.rxIsOffline.value || isAudioOnly.value) return;
+          // Adaptive HLS: the native player (ExoPlayer / AVPlayer) already switches
+          // qualities between segments. Rebuilding the player here would undo that.
+          if (!isManual && vc.isOnHlsAuto) return;
           if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
             final tier = abr.resolutionLadder[tierIndex];
             final match = vc.availableResolutions.firstWhereOrNull(
@@ -319,6 +324,12 @@ mixin TowerPlayerAbrMixin on GetxController {
     if (isAudioOnly.value) {
       setAudioOnly(false);
     }
+    // Prefer adaptive HLS for Auto. Started before enableAutoMode() so the app's
+    // own ABR sees the HLS entry and doesn't switch to an MP4 at the same time.
+    final vc = videoController;
+    if (vc != null && !vc.isClosed && !vc.isOnHlsAuto && vc.hlsAutoResolution != null) {
+      unawaited(vc.switchToHlsAuto());
+    }
     abr.enableAutoMode();
     TowerPlayerController.globalQualityPreference = 'Auto';
     showToast('Quality: Auto');
@@ -331,6 +342,8 @@ mixin TowerPlayerAbrMixin on GetxController {
   /// or synthetic ladder tier, applying blur simulates authentic lower resolution playback.
   double get resolutionBlurSigma {
     if (isAudioOnly.value) return 0.0;
+    // Adaptive HLS plays real lower qualities; never blur it.
+    if (videoController?.isOnHlsAuto ?? false) return 0.0;
 
     final res = videoController?.currentResolution.value;
     final targetHeight = (res != null && res.height > 0)

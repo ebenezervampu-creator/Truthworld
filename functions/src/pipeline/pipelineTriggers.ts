@@ -1,12 +1,17 @@
+import { buildOrderPrices, recordDubbingOrder, refundDubbingFeeOnFailure } from "./services/refundService";
 import * as admin from "firebase-admin";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { requireAuth } from "../utils/auth";
+import { requireAuth, isCallableAdmin } from "../utils/auth";
 import { applySecurityHeaders } from "../utils/securityHeaders";
-import { filterVideoIds } from "../utils/videosCollectionGuard";
+import {
+  filterVideoIds,
+  safeMergeExistingVideo,
+  safeMergeExistingVideoSubdoc,
+} from "../utils/videosCollectionGuard";
 import {
   ExecutionPlan,
   FactCompleteData,
@@ -16,9 +21,14 @@ import {
   isSubtitlesEnabled,
 } from "./types";
 import { logger } from "./utils/logger";
+import { emitDubbingTiming } from "./utils/dubbing-timing";
 import { PIPELINE_CONFIG } from "./config";
 import { normalizeLanguageCode, LANGUAGE_NAME_TO_CODE, getLanguageDisplayName, isSummaryLanguageMismatch } from "../shared/language-normalizer";
-import { calculateDubbingCost, calculateSubtitleCost, getFlatDubbingPriceForTier } from "./services/cost-engine";
+import { calculateSubtitleCost, getFlatDubbingPriceForTier } from "./services/cost-engine";
+import { parseCastList, parseCastRelationships, parseExpectedSpeakers } from "./services/cast-list";
+import { channelDubbingDiscountPercent, dubbingCharge, minutePriceUsd, type DubbingQuote } from "./services/dubbing-pricing";
+import { characterPricingEnabled, quoteFromTranscript } from "./services/dubbing-quote-service";
+import { checkDubbingRequest, dubbingLanguageMessage, dubbingLanguagesForClient } from "./services/dubbing-launch-languages";
 
 export function getFlatDubbingRatePerLanguage(durationSeconds: number): number {
   if (durationSeconds <= 60) return 0.10;
@@ -48,6 +58,24 @@ export function getFlatSubtitleRatePerLanguage(durationSeconds: number): number 
  * fact-checking report, AI summary, timestamped chapters, and advanced AI settings
  * anytime from Content Screen or Edit Video screen.
  */
+// 🛡️ Resource Protection: allowed target languages, used by both the dubbing request and the quote,
+// so a quote never lists a language the request would drop.
+const ALLOWED_TARGET_LANGUAGES = new Set([
+  ...Object.values(LANGUAGE_NAME_TO_CODE),
+  "te", "hi", "ta", "kn", "ml", "mr", "bn", "gu", "pa", "es", "fr", "de", "it", "pt", "en",
+  "ar", "zh", "ja", "ru", "ko", "tr", "vi", "th", "id", "nl", "pl", "sv", "da", "no", "fi",
+  "el", "cs", "hu", "ro", "uk", "he", "fa", "fil", "tl", "ms", "ur"
+]);
+
+/** Normalized, allowed target languages; at most 5 per request (default te, hi). */
+function validateTargetLanguages(targetLanguages: unknown): string[] {
+  const rawTargetLangs: unknown[] = Array.isArray(targetLanguages) ? targetLanguages : ["te", "hi"];
+  return rawTargetLangs
+    .map(l => normalizeLanguageCode(String(l || "").toLowerCase().trim()))
+    .filter(l => ALLOWED_TARGET_LANGUAGES.has(l))
+    .slice(0, 5); // Bound to maximum 5 target languages per on-demand trigger
+}
+
 export const triggerVideoAIFeatures = onRequest(
   {
     cors: true,
@@ -201,7 +229,9 @@ export const triggerVideoAIFeatures = onRequest(
         }
       }
 
-      const channelId = req.body?.channelId || videoData.channelId || userId;
+      // The wallet charged is the video's own channel (the same one refunds go to). A channelId in the
+      // request body is honoured only for admins: it let a video owner charge another channel's wallet.
+      const channelId = (isAdmin && req.body?.channelId) ? String(req.body.channelId) : (videoData.channelId || userId);
 
       // 🛡️ Denial of Service Prevention: Bound concurrent active AI jobs per channel (ignoring dead zombies > 15m)
       const activeJobsSnap = await admin.firestore().collection("video_jobs")
@@ -251,18 +281,8 @@ export const triggerVideoAIFeatures = onRequest(
         resolvedPrimaryLang = "en";
       }
 
-      // 🛡️ Resource Protection: Bound and validate targetLanguages to prevent denial-of-service / quota exhaustion
-      const ALLOWED_TARGET_LANGUAGES = new Set([
-        ...Object.values(LANGUAGE_NAME_TO_CODE),
-        "te", "hi", "ta", "kn", "ml", "mr", "bn", "gu", "pa", "es", "fr", "de", "it", "pt", "en",
-        "ar", "zh", "ja", "ru", "ko", "tr", "vi", "th", "id", "nl", "pl", "sv", "da", "no", "fi",
-        "el", "cs", "hu", "ro", "uk", "he", "fa", "fil", "tl", "ms", "ur"
-      ]);
-      const rawTargetLangs = Array.isArray(targetLanguages) ? targetLanguages : ["te", "hi"];
-      const validatedTargetLanguages = rawTargetLangs
-        .map(l => normalizeLanguageCode(String(l || "").toLowerCase().trim()))
-        .filter(l => ALLOWED_TARGET_LANGUAGES.has(l))
-        .slice(0, 5); // Bound to maximum 5 target languages per on-demand trigger
+      // 🛡️ Resource Protection: Bound and validate targetLanguages (shared with getDubbingQuote)
+      const validatedTargetLanguages = validateTargetLanguages(targetLanguages);
 
       const existingLanguages: string[] = jobData?.executionPlan?.languages || [resolvedPrimaryLang];
       const languagesSet = new Set([...existingLanguages, ...validatedTargetLanguages]);
@@ -271,7 +291,6 @@ export const triggerVideoAIFeatures = onRequest(
       const wantDiarization = reqFeatures.includes("diarization") || reqFeatures.includes("speaker_diarization") || (jobData?.executionPlan?.enableDiarization ?? false);
 
       const existingDubLangs: string[] = jobData?.executionPlan?.dubbingLanguages || [];
-      const mergedDubLangs = Array.from(new Set([...existingDubLangs, ...validatedTargetLanguages]));
 
       // 💳 WALLET PAYMENT ENFORCEMENT (Subtitles & Audio Dubbing are paid services)
       // 🛡️ Duration Anti-Spoofing: Strictly prefer authoritative video document duration
@@ -289,14 +308,49 @@ export const triggerVideoAIFeatures = onRequest(
         (l) => l !== resolvedPrimaryLang
       );
 
+      // 🛡️ Launch languages (dubbing-launch-languages.ts), decided before anything is priced or charged.
+      // The app sends one language list for subtitles and dubbing: with subtitles also ordered, the
+      // languages that can't be dubbed get subtitles only (billed at the subtitle price). A dub asked
+      // for in a language that can't be dubbed, with no subtitles, is refused.
+      let dubbingTargetLanguages: string[] = nonPrimaryTargetLanguages;
+      let subtitleOnlyTargetLanguages: string[] = [];
+      if (wantDubbing && nonPrimaryTargetLanguages.length > 0) {
+        const langCheck = checkDubbingRequest(resolvedPrimaryLang, nonPrimaryTargetLanguages);
+        const splitForSubtitles = wantSubtitles && langCheck.dubbableTargets.length > 0;
+        if (langCheck.ok || splitForSubtitles) {
+          dubbingTargetLanguages = langCheck.dubbableTargets;
+          subtitleOnlyTargetLanguages = langCheck.unsupportedTargets;
+        } else {
+          logger.info("[triggerVideoAIFeatures] Dubbing language outside the launch list", {
+            videoId,
+            sourceLanguage: resolvedPrimaryLang,
+            unsupportedTargets: langCheck.unsupportedTargets,
+          });
+          res.status(400).json({
+            error: dubbingLanguageMessage(langCheck),
+            code: "dubbing_language_unavailable",
+            ...dubbingLanguagesForClient(),
+          });
+          return;
+        }
+      }
+      const dubbingLanguageSet = new Set(dubbingTargetLanguages);
+      const mergedDubLangs = Array.from(new Set([
+        ...existingDubLangs,
+        ...validatedTargetLanguages.filter((l) => l === resolvedPrimaryLang || dubbingLanguageSet.has(l)),
+      ]));
+
       // Resolve channel type and Super Admin discounts / free waivers
       let dubbingDiscountPercent = 0;
       let subtitlesDiscountPercent = 0;
       let channelType: "standard" | "custom" = "standard";
 
-      if (channelId) {
+      // Discounts come from the VIDEO's channel. A channelId in the request body is not used for
+      // pricing: it let anyone apply another channel's free/discounted rate to their own video.
+      const pricingChannelId = videoData.channelId || userId;
+      if (pricingChannelId) {
         try {
-          let chSnap = await admin.firestore().collection("channels").doc(channelId).get();
+          let chSnap = await admin.firestore().collection("channels").doc(pricingChannelId).get();
           if (!chSnap.exists && (userId || videoData.ownerId)) {
             const searchOwnerId = userId || videoData.ownerId;
             const ownerQuery = await admin.firestore().collection("channels")
@@ -320,26 +374,15 @@ export const triggerVideoAIFeatures = onRequest(
             const chData = chSnap.data() || {};
             channelType = chData.channelType === "custom" ? "custom" : "standard";
 
-            const isDubFree = chData.isDubbingFree === true ||
-              chData.dubbingDiscountType === "free" ||
-              Number(chData.dubbingDiscountPercent) >= 100 ||
-              chData.aiDiscounts?.dubbing?.type === "free" ||
-              Number(chData.aiDiscounts?.dubbing?.percent) >= 100 ||
-              req.body?.isDubbingFree === true;
-
-            if (isDubFree || isAdmin) {
-              dubbingDiscountPercent = 100;
-            } else {
-              const pct = Number(chData.dubbingDiscountPercent ?? chData.aiDiscounts?.dubbing?.percent ?? 0);
-              dubbingDiscountPercent = Math.max(0, Math.min(100, pct));
-            }
+            // Discounts come only from admin-set channel fields (never from the request body:
+            // a client-sent isDubbingFree / isSubtitlesFree flag used to make any dub free).
+            dubbingDiscountPercent = channelDubbingDiscountPercent(chData, isAdmin);
 
             const isSubFree = chData.isSubtitlesFree === true ||
               chData.subtitlesDiscountType === "free" ||
               Number(chData.subtitlesDiscountPercent) >= 100 ||
               chData.aiDiscounts?.subtitles?.type === "free" ||
-              Number(chData.aiDiscounts?.subtitles?.percent) >= 100 ||
-              req.body?.isSubtitlesFree === true;
+              Number(chData.aiDiscounts?.subtitles?.percent) >= 100;
 
             if (isSubFree || isAdmin) {
               subtitlesDiscountPercent = 100;
@@ -348,13 +391,41 @@ export const triggerVideoAIFeatures = onRequest(
               subtitlesDiscountPercent = Math.max(0, Math.min(100, pct));
             }
           }
+
+          // Check user account-level special dubbing discount or free waiver
+          if (userId && !isAdmin && dubbingDiscountPercent < 100) {
+            try {
+              const uSnap = await admin.firestore().collection("users").doc(userId).get();
+              if (uSnap.exists) {
+                const uData = uSnap.data() || {};
+                const uFree = uData.isDubbingFree === true || uData.dubbingDiscountType === "free" || Number(uData.dubbingDiscountPercent) >= 100;
+                if (uFree) {
+                  dubbingDiscountPercent = 100;
+                } else {
+                  const uPct = Number(uData.dubbingDiscountPercent || 0);
+                  if (uPct > dubbingDiscountPercent) {
+                    dubbingDiscountPercent = Math.min(100, uPct);
+                  }
+                }
+              }
+            } catch (err) {
+              logger.warn("[triggerVideoAIFeatures] Error resolving user discounts:", err);
+            }
+          }
         } catch (e) {
           logger.warn("[triggerVideoAIFeatures] Error resolving channel discounts:", e);
         }
       }
 
       const dubbingTier = "audio_track";
-      const dubbingMode = String(req.body?.dubbingMode || "voice_clone");
+      // 🛡️ A5 Policy: Standard curated voices by default.
+      // Voice cloning requires explicit creator opt-in AND verified consent (voiceCloneConsent: true).
+      // Prevents unauthorized likeness extraction of 3rd-party interviewees, guests, or film clips.
+      const hasVoiceCloneConsent = req.body?.voiceCloneConsent === true;
+      const requestedDubbingMode = String(req.body?.dubbingMode || "standard");
+      const dubbingMode = (requestedDubbingMode === "voice_clone" && hasVoiceCloneConsent)
+        ? "voice_clone"
+        : "standard";
       const voiceType = (dubbingMode === "standard") ? "standard" : "cloned";
 
       const isCinemaGradeRequested = false;
@@ -362,33 +433,64 @@ export const triggerVideoAIFeatures = onRequest(
       const isStemIsolationRequested = Boolean(wantDubbing || req.body?.stemIsolation);
 
       let dubbingCost = 0;
-      if (wantDubbing && nonPrimaryTargetLanguages.length > 0) {
-        if (dubbingTier) {
-          const flatPerLang = getFlatDubbingPriceForTier(durationSeconds, dubbingTier);
-          const baseCost = Math.round(nonPrimaryTargetLanguages.length * flatPerLang * 100) / 100;
-          if (dubbingDiscountPercent > 0) {
-            const factor = (100.0 - Math.min(100.0, dubbingDiscountPercent)) / 100.0;
-            dubbingCost = Math.round(baseCost * factor * 100) / 100;
-          } else {
-            dubbingCost = baseCost;
-          }
-        } else {
-          dubbingCost = calculateDubbingCost(
-            nonPrimaryTargetLanguages.length,
-            durationSeconds,
-            channelType,
-            voiceType,
-            dubbingDiscountPercent
-          );
+      // Per-language price actually charged (after discount), for the margin budget in 07-dubbing.ts.
+      let dubbingPriceByLanguage: Record<string, number> = {};
+      let dubbingPricingBasis: "minutes" | "characters" = "minutes";
+      let dubbingQuoteForCapacity: DubbingQuote | null = null;
+      if (wantDubbing && dubbingTargetLanguages.length > 0) {
+        // Character-based quote from the stored transcript (dubbing-pricing.ts). Charged only when
+        // DUBBING_CHARACTER_PRICING=true; otherwise logged next to the minute price ("shadow" mode).
+        let dubbingQuote: DubbingQuote | null = null;
+        try {
+          dubbingQuote = await quoteFromTranscript({
+            transcriptIds: [videoData.jobId, videoId],
+            durationSec: durationSeconds,
+            fallbackSourceLanguage: resolvedPrimaryLang,
+            targetLanguages: dubbingTargetLanguages,
+            discountPercent: dubbingDiscountPercent,
+            normalizeLanguage: normalizeLanguageCode,
+          });
+          dubbingQuoteForCapacity = dubbingQuote;
+        } catch (quoteErr) {
+          logger.warn("[Pricing] Dubbing quote unavailable — minute price applies", { videoId, error: String(quoteErr) });
         }
+        // Same function as getDubbingQuote, so the price shown is the price charged.
+        const charge = dubbingCharge({
+          targetLanguages: dubbingTargetLanguages,
+          minutePricePerLanguageUsd: getFlatDubbingPriceForTier(durationSeconds, dubbingTier),
+          discountPercent: dubbingDiscountPercent,
+          quote: dubbingQuote,
+          characterPricing: characterPricingEnabled(),
+        });
+        dubbingCost = charge.chargedUsd;
+        dubbingPriceByLanguage = charge.priceByLanguage;
+        dubbingPricingBasis = charge.basis;
+        logger.info("[Pricing] Dubbing price", {
+          videoId,
+          durationSeconds,
+          languages: dubbingTargetLanguages,
+          discountPercent: dubbingDiscountPercent,
+          chargedUsd: dubbingCost,
+          basis: dubbingPricingBasis,
+          minutePriceUsd: dubbingCharge({
+            targetLanguages: dubbingTargetLanguages,
+            minutePricePerLanguageUsd: getFlatDubbingPriceForTier(durationSeconds, dubbingTier),
+            discountPercent: dubbingDiscountPercent,
+            quote: null,
+            characterPricing: false,
+          }).chargedUsd,
+          characterPriceUsd: dubbingQuote ? dubbingQuote.totalUsd : null,
+          transcriptChars: dubbingQuote ? dubbingQuote.sourceChars : null,
+          characterPricingEnabled: characterPricingEnabled(),
+        });
       }
 
       const subtitleTier = "ultra" as const;
 
       let subtitleCost = 0;
       if (wantSubtitles && nonPrimaryTargetLanguages.length > 0) {
-        // If dubbing is also requested for all languages, subtitles are included with dubbing
-        const subLangsToBill = wantDubbing ? [] : nonPrimaryTargetLanguages;
+        // Subtitles are included with dubbing; languages that are only subtitled are billed as subtitles.
+        const subLangsToBill = wantDubbing ? subtitleOnlyTargetLanguages : nonPrimaryTargetLanguages;
         if (subLangsToBill.length > 0) {
           subtitleCost = calculateSubtitleCost(
             subLangsToBill.length,
@@ -401,7 +503,32 @@ export const triggerVideoAIFeatures = onRequest(
       }
 
       const totalRequiredCost = Number((dubbingCost + subtitleCost).toFixed(2));
+      // Languages this order pays for (subtitles are included with dubbing when both are ordered).
+      const billedSubtitleLanguages = (wantSubtitles && subtitleCost > 0)
+        ? (wantDubbing ? subtitleOnlyTargetLanguages : nonPrimaryTargetLanguages)
+        : [];
+      const billedDubbingLanguages = (wantDubbing && dubbingCost > 0) ? dubbingTargetLanguages : [];
       let effectiveTxId = walletTransactionId;
+
+      if (wantDubbing && dubbingTargetLanguages.length > 0) {
+        const { checkOrderCapacityAndAlert } = require("./services/elevenlabs-capacity-guard");
+        const capCheck = await checkOrderCapacityAndAlert({
+          videoId,
+          userId,
+          durationSec: durationSeconds,
+          sourceChars: dubbingQuoteForCapacity?.sourceChars,
+          sourceLang: resolvedPrimaryLang,
+          targetLanguages: dubbingTargetLanguages,
+          clonesNeeded: dubbingMode === "voice_clone" ? 1 : 0,
+        });
+        if (!capCheck.allowed) {
+          res.status(503).json({
+            error: capCheck.message,
+            code: "dubbing_capacity_unavailable",
+          });
+          return;
+        }
+      }
 
       if (totalRequiredCost > 0) {
         let alreadyPaid = false;
@@ -574,6 +701,32 @@ export const triggerVideoAIFeatures = onRequest(
         }
       }
 
+      // 💳 Per-order record with the price of each language, so a failed language is refunded at what
+      // was paid for it, once (refundService.ts). Keyed by the wallet transaction that paid the order.
+      const paidOrderId = totalRequiredCost > 0 && effectiveTxId ? String(effectiveTxId) : null;
+      if (paidOrderId) {
+        await recordDubbingOrder({
+          orderId: paidOrderId,
+          jobId: videoId,
+          videoId,
+          userId,
+          channelId,
+          paidUSD: totalRequiredCost,
+          dubbingUSD: dubbingCost,
+          subtitleUSD: subtitleCost,
+          languages: [...billedDubbingLanguages, ...billedSubtitleLanguages].map((l) => normalizeLanguageCode(l)),
+          priceByLanguage: buildOrderPrices({
+            dubbingLanguages: billedDubbingLanguages,
+            dubbingUSD: dubbingCost,
+            dubbingPriceByLanguage,
+            subtitleLanguages: billedSubtitleLanguages,
+            subtitleUSD: subtitleCost,
+          }),
+          createdAt: Date.now(),
+          source: "triggerVideoAIFeatures",
+        }).catch((orderErr) => logger.error("[triggerVideoAIFeatures] Order record write failed — refunds fall back to job proration", { videoId, err: String(orderErr) }));
+      }
+
       const existingCredEnabled = isCredibilityEnabled(credJobData?.executionPlan) || isCredibilityEnabled(jobData?.executionPlan);
       const existingDubEnabled = isDubbingEnabled(dubJobData?.executionPlan) || isDubbingEnabled(jobData?.executionPlan);
       const existingSubEnabled = isSubtitlesEnabled(dubJobData?.executionPlan) || isSubtitlesEnabled(jobData?.executionPlan);
@@ -594,6 +747,8 @@ export const triggerVideoAIFeatures = onRequest(
         subtitleLanguages: wantSubtitles ? targetLanguages : (jobData?.executionPlan?.subtitleLanguages || []),
         dubbingLanguages: wantDubbing ? mergedDubLangs : (jobData?.executionPlan?.dubbingLanguages || []),
         dubbingMode: voiceType === "cloned" ? "voice_clone" : "standard",
+        voiceCloneConsent: hasVoiceCloneConsent,
+        saveAsCreatorProfile: req.body?.saveAsCreatorProfile === true,
         dubbingTier: dubbingTier || "audio_track",
         uncannyMitigation: (req.body?.uncannyMitigation as any) || "cadence_lock",
         isometryMode: req.body?.isometryMode || "strict_syllable",
@@ -601,6 +756,20 @@ export const triggerVideoAIFeatures = onRequest(
         stemIsolation: isStemIsolationRequested,
         generateDubbing: Boolean(wantDubbing || existingDubEnabled),
         voiceGender: (req.body?.voiceGender as any) || "auto",
+        deliverDubbedVideo: req.body?.deliverDubbedVideo !== false && Boolean(wantDubbing || existingDubEnabled),
+        ...(Object.keys(dubbingPriceByLanguage).length > 0 ? { dubbingPriceByLanguage, dubbingPricingBasis } : {}),
+        // Optional, validated: speaking-character count and cast list (cast-list.ts).
+        ...(() => {
+          const expectedSpeakers = parseExpectedSpeakers(req.body?.expectedSpeakers);
+          const castList = parseCastList(req.body?.castList);
+          // Who addresses whom (by cast name): formal vs familiar address in the dub.
+          const relationships = parseCastRelationships(req.body?.relationships);
+          return {
+            ...(expectedSpeakers ? { expectedSpeakers } : {}),
+            ...(castList.length > 0 ? { castList } : {}),
+            ...(relationships.length > 0 ? { relationships } : {}),
+          };
+        })(),
         duration: durationSeconds,
         durationSeconds: durationSeconds,
         genLangSubs: Boolean(wantSubtitles || existingSubEnabled),
@@ -670,6 +839,13 @@ export const triggerVideoAIFeatures = onRequest(
         paidFromWallet: totalRequiredCost > 0,
         walletTransactionId: effectiveTxId || null,
         fundedAmountUSD: totalRequiredCost,
+        // Refund fields describe the current order; a new paid order starts clean.
+        ...(paidOrderId ? {
+          currentDubbingOrderId: paidOrderId,
+          refundProcessed: false,
+          refundAmountUSD: 0,
+          refundedLanguages: [],
+        } : {}),
         dubbingTier: dubbingTier || null,
         cinemaGrade: isCinemaGradeRequested,
         stemIsolation: isStemIsolationRequested,
@@ -882,6 +1058,17 @@ export const triggerVideoAIFeatures = onRequest(
         if (requestLocalization) {
           await EdgeLayer.failStage(videoId, "dubbing", dispatchErr).catch(() => {});
           await EdgeLayer.upsertDubbingJob(videoId, { status: "failed", error: dispatchErr, completedAt: Date.now() });
+          // The wallet was already debited: nothing will run, so the whole order is refunded.
+          if (paidOrderId) {
+            await refundDubbingFeeOnFailure({
+              jobId: videoId,
+              userId,
+              orderId: paidOrderId,
+              failedLanguages: [...billedDubbingLanguages, ...billedSubtitleLanguages],
+              totalLanguages: [...billedDubbingLanguages, ...billedSubtitleLanguages],
+              reason: "The request could not be queued",
+            }).catch((refErr) => logger.error("[triggerVideoAIFeatures] Dispatch-failure refund error", { videoId, err: String(refErr) }));
+          }
         }
         res.status(503).json({
           error: "Unable to schedule background AI pipeline. Please try again.",
@@ -913,6 +1100,7 @@ export const triggerVideoAIFeatures = onRequest(
  *
  * CONFIG: minInstances=0, maxInstances=1
  */
+
 export const onVideoUpload = onObjectFinalized(
   {
     bucket: "truthworld-1.firebasestorage.app",
@@ -1007,7 +1195,7 @@ export const handleTranscriptionComplete = onMessagePublished(
     minInstances: 0, // Scale-to-zero when idle for cost efficiency
     maxInstances: 2,
     retry: true,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "DEMUX_WORKER_TOKEN"],
   },
   async (event) => {
     try {
@@ -1195,24 +1383,66 @@ export const handleCredibilitySynthesis = onMessagePublished(
 /**
  * 🌍 Handle dubbing processing (Independent Localization System)
  *
- * CONFIG: minInstances=1 (always-warm, eliminates cold-start), maxInstances=20, 4GiB, 540s timeout, 2 vCPU
+ * CONFIG: minInstances=0, maxInstances=1, 2GiB, 540s timeout
+ *
+ * maxInstances is 1 while on the ElevenLabs Starter plan: its account-wide limit is 3 parallel
+ * eleven_v4 requests, and the TTS limiter (ELEVENLABS_MAX_CONCURRENCY) counts per instance, so
+ * two instances would double the load. Raise together with the plan (Creator 5, Pro 10).
  */
 export const handleDubbing = onMessagePublished(
   {
     topic: "dubbing.requested",
     region: "asia-south1",
     timeoutSeconds: 540,
-    memory: "2GiB",
+    memory: "4GiB",
+    cpu: 2,
     minInstances: 0,
-    maxInstances: 2,
+    maxInstances: 1,
     retry: true,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "DEMUX_WORKER_TOKEN"],
   },
   async (event) => {
     try {
       const { DistributionLayer } = require("./layers/04-distribution");
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+
+      // 🛡️ A7 retry cap. Pub/Sub reports delivery attempts only with a dead-letter policy, so each
+      // delivery of THIS event is counted in dubbing_attempts/{eventId} (per event, so a later order
+      // on the same video starts at zero). Past the limit, undelivered languages are refunded, dubbing
+      // is marked failed, and the message is acknowledged.
+      const maxAttempts = Math.max(1, Number(process.env.DUBBING_MAX_ATTEMPTS || 3));
+      let attempts = 0;
+      if (parsedEvent.eventId) {
+        try {
+          const attemptRef = admin.firestore().collection("dubbing_attempts").doc(String(parsedEvent.eventId));
+          attempts = await admin.firestore().runTransaction(async (t) => {
+            const snap = await t.get(attemptRef);
+            const next = Number(snap.data()?.count || 0) + 1;
+            t.set(attemptRef, { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId, count: next, lastAttemptAt: Date.now() }, { merge: true });
+            return next;
+          });
+        } catch (attemptErr) {
+          logger.warn("[handleDubbing] Attempt counter unavailable — continuing without the cap for this delivery", { err: String(attemptErr) });
+        }
+      }
+      if (attempts > maxAttempts) {
+        const { DubbingEngine: CapEngine } = require("./layers/07-dubbing");
+        const plan = ((parsedEvent.data as any)?.executionPlan || {}) as ExecutionPlan;
+        await new CapEngine().failAfterRetryLimit(parsedEvent.jobId, parsedEvent.userId, plan, parsedEvent.eventId, attempts)
+          .catch((capErr: unknown) => logger.error("[handleDubbing] Retry-limit handling error", { err: String(capErr) }));
+        return;
+      }
+
       logger.info("[handleDubbing] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
+      if (typeof parsedEvent.timestamp === "number" && parsedEvent.timestamp > 0) {
+        emitDubbingTiming(
+          "transcription.pubsub_hop",
+          parsedEvent.timestamp,
+          { jobId: parsedEvent.jobId, attempts },
+          undefined,
+          Date.now() - parsedEvent.timestamp
+        );
+      }
 
       const { videoUrl, executionPlan } = parsedEvent.data as { videoUrl?: string; executionPlan: ExecutionPlan };
 
@@ -1434,19 +1664,26 @@ export const onDubbingResultWritten = onDocumentWritten(
         if (directAudioUrl) {
           vDocUpdate.audioTracks = audioUpdates;
           vDocUpdate["media.audioTracks"] = audioUpdates;
+          vDocUpdate.aiDubbedAudio = audioUpdates;
         }
         if (directVideoUrl) {
           vDocUpdate.dubbedVideos = dubbedUpdates;
           vDocUpdate["media.dubbedVideos"] = dubbedUpdates;
         }
 
-        await admin.firestore().collection("videos").doc(vid).set(vDocUpdate, { merge: true });
+        await safeMergeExistingVideo(vid, vDocUpdate, "[onDubbingResultWritten]");
 
-        await admin.firestore().collection("videos").doc(vid).collection("media").doc("localization").set({
-          ...(directAudioUrl ? { audioTracks: audioUpdates } : {}),
-          ...(directVideoUrl ? { dubbedVideos: dubbedUpdates } : {}),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+        await safeMergeExistingVideoSubdoc(
+          vid,
+          "media",
+          "localization",
+          {
+            ...(directAudioUrl ? { audioTracks: audioUpdates } : {}),
+            ...(directVideoUrl ? { dubbedVideos: dubbedUpdates } : {}),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          "[onDubbingResultWritten]"
+        );
       }
 
       logger.info("[onDubbingResultWritten] Successfully synced audio/video to videos", {
@@ -1836,6 +2073,32 @@ export const reportBrokenSourceUrl = onCall(
 );
 
 /**
+ * Evidence Freshness Sweep (daily)
+ *
+ * Verdicts must follow their evidence after publication too. Every day this re-checks
+ * the published reports whose evidence was checked longest ago: dead or retracted sources
+ * are removed, replacement sources are searched for, and any claim whose evidence changed
+ * is re-evaluated (model re-judgment when new evidence appears; the evidence rule alone
+ * when sources only disappeared). Bounded per run so cost stays predictable.
+ */
+export const evidenceFreshnessSweep = onSchedule(
+  {
+    schedule: "17 3 * * *",
+    timeZone: "Asia/Kolkata",
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "1GiB",
+    minInstances: 0,
+    maxInstances: 1,
+    retryCount: 0,
+  },
+  async () => {
+    const { runEvidenceFreshnessSweep } = await import("./services/evidenceFreshnessSweep.js");
+    await runEvidenceFreshnessSweep();
+  }
+);
+
+/**
  * 🩺 Audit & Heal Broken Claim Sources / Claim Cache (Admin onCall)
  *
  * Retroactively audits stored video fact-check reports and `claim_cache` entries
@@ -1913,9 +2176,10 @@ export const handleDubbingReel = onMessagePublished(
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
-    maxInstances: 2,
+    // 1 while on ElevenLabs Starter (3 parallel requests account-wide); see handleDubbing.
+    maxInstances: 1,
     retry: true,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "DEMUX_WORKER_TOKEN"],
   },
   async (event) => {
     try {
@@ -1944,7 +2208,7 @@ export const handleAssembleDubbingReels = onMessagePublished(
     minInstances: 0,
     maxInstances: 2,
     retry: true,
-    secrets: ["ELEVENLABS_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "DEMUX_WORKER_TOKEN"],
   },
   async (event) => {
     try {
@@ -1960,6 +2224,39 @@ export const handleAssembleDubbingReels = onMessagePublished(
     } catch (error) {
       logger.error("[handleAssembleDubbingReels] Reel assembly failed", { error: String(error) });
       throw error;
+    }
+  }
+);
+
+/**
+ * ⚡ Upload-time dubbing preparation (speed). Prepares the language-independent dubbing analysis
+ * for a video that has no dubbing order yet, so a later order starts at voice matching and
+ * translation (DubbingEngine.prepareDubbingAnalysis; gated by dubbing-prewarm-policy.ts).
+ * Best-effort: no retries, never touches the video, its stages or the creator's wallet.
+ */
+export const handleDubbingPrewarm = onMessagePublished(
+  {
+    topic: "dubbing.prewarm.requested",
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "2GiB",
+    minInstances: 0,
+    maxInstances: 2,
+    retry: false,
+    secrets: ["DEMUX_WORKER_TOKEN"],
+  },
+  async (event) => {
+    try {
+      const { DistributionLayer } = require("./layers/04-distribution");
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      const { jobId, userId } = parsedEvent;
+      const { videoUrl, executionPlan } = (parsedEvent.data || {}) as any;
+      if (!jobId || !videoUrl) return;
+      const { DubbingEngine } = require("./layers/07-dubbing");
+      const result = await new DubbingEngine().prepareDubbingAnalysis(jobId, userId, videoUrl, executionPlan || {});
+      logger.info("[handleDubbingPrewarm] Done", { jobId, ...result });
+    } catch (error) {
+      logger.warn("[handleDubbingPrewarm] Preparation skipped", { error: String(error) });
     }
   }
 );
@@ -2132,6 +2429,51 @@ export const updateDubbingSegmentTimings = onCall(
   }
 );
 
+export const retranslateDubbingSegment = onCall(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 120,
+    memory: "512MiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Please sign in to auto-fit dubbing translations.");
+    }
+    const payload = (request.data && typeof request.data === "object"
+      ? request.data
+      : {}) as Record<string, any>;
+    const jobId = typeof payload.jobId === "string" ? payload.jobId.trim() : "";
+    const videoId = typeof payload.videoId === "string" ? payload.videoId.trim() : "";
+    const language = typeof payload.language === "string" ? payload.language.trim() : "";
+    const segmentIndex = typeof payload.segmentIndex === "number" ? payload.segmentIndex : -1;
+    const mode = payload.mode === "fresh" ? "fresh" : "fit";
+    const draftText = typeof payload.draftText === "string" ? payload.draftText : undefined;
+
+    if ((!jobId && !videoId) || !language || segmentIndex < 0) {
+      throw new HttpsError("invalid-argument", "Job or video reference, language, and segment index are required.");
+    }
+
+    const { dubbingEditorService } = require("./services/dubbingEditorService");
+    try {
+      const result = await dubbingEditorService.retranslateSegment({
+        jobId: jobId || undefined,
+        videoId: videoId || undefined,
+        language,
+        segmentIndex,
+        uid: request.auth.uid,
+        isAdmin: getCallerIsAdmin(request.auth),
+        mode,
+        draftText,
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[retranslateDubbingSegment] Error:", { error: err?.message || String(err) });
+      throw new HttpsError("internal", "Unable to auto-fit this translation right now.");
+    }
+  }
+);
+
 export const remasterDubbedAudioTrack = onCall(
   {
     region: "asia-south1",
@@ -2139,7 +2481,7 @@ export const remasterDubbedAudioTrack = onCall(
     memory: "2GiB",
     minInstances: 0,
     maxInstances: 2,
-    secrets: ["ELEVENLABS_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "DEMUX_WORKER_TOKEN"],
   },
   async (request) => {
     if (!request.auth?.uid) {
@@ -2357,8 +2699,7 @@ export const generateDubbedVideo = onCall(
         const targetBucket = storageInfo.bucketName ? admin.storage().bucket(storageInfo.bucketName) : bucket;
         const file = targetBucket.file(storageInfo.filePath);
         const token = require("uuid").v4();
-        const rawTitle = (videoData.title || "video").replace(/[^\w\s\-]/g, "").trim().replace(/\s+/g, "_");
-        const fileName = `${rawTitle}_${language}_dubbed_video.mp4`;
+        const fileName = `video_with_${language}_dub.mp4`;
 
         await file.setMetadata({
           contentType: "video/mp4",
@@ -2371,12 +2712,16 @@ export const generateDubbedVideo = onCall(
         directVideoUrl = `https://firebasestorage.googleapis.com/v0/b/${targetBucket.name}/o/${encodeURIComponent(storageInfo.filePath)}?alt=media&token=${token}`;
       }
 
-      // 5. Persist to Firestore videos collection & video_localizations for instant cache hits
-      await admin.firestore().collection("videos").doc(videoId).set({
-        dubbedVideos: { [language]: directVideoUrl },
-        media: { dubbedVideos: { [language]: directVideoUrl } },
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+      // 5. Persist to Firestore videos collection (existing docs only) & video_localizations for instant cache hits
+      await safeMergeExistingVideo(
+        videoId,
+        {
+          dubbedVideos: { [language]: directVideoUrl },
+          media: { dubbedVideos: { [language]: directVideoUrl } },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        "[generateDubbedVideo]"
+      );
 
       await admin.firestore().collection("video_localizations").doc(videoId).set({
         dubbedVideos: { [language]: directVideoUrl },
@@ -2406,3 +2751,165 @@ export const generateDubbedVideo = onCall(
 export { assemblyAiWebhook, recoverWebhookOutboxLeases } from "./webhooks/assemblyai-webhook";
 
 
+
+/**
+ * 💰 Dubbing price quote (onCall)
+ *
+ * What the creator sees before paying: per language, the higher of $0.30 per minute and $0.30 per
+ * 1,000 dubbed characters, from the video's transcript (dubbing-pricing.ts). Uses the same
+ * transcript, duration, language list and channel discount as triggerVideoAIFeatures, so the price
+ * shown is the price charged once DUBBING_CHARACTER_PRICING=true.
+ *
+ * Returns status "transcript_pending" while the video is still being transcribed.
+ */
+export const getDubbingQuote = onCall(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 5,
+    memory: "256MiB",
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Please sign in to see dubbing prices.");
+    const data = request.data || {};
+    const videoId = typeof data.videoId === "string" ? data.videoId.trim() : "";
+    if (!videoId) throw new HttpsError("invalid-argument", "Please choose a video.");
+
+    const db = admin.firestore();
+    const videoSnap = await db.collection("videos").doc(videoId).get();
+    if (!videoSnap.exists) throw new HttpsError("not-found", "We couldn't find this video.");
+    const videoData = videoSnap.data() || {};
+
+    const isAdmin = isCallableAdmin(request.auth);
+    const videoOwnerId = videoData.ownerId || videoData.userId || videoData.uploaderId;
+    let channelData: Record<string, any> | undefined;
+    const pricingChannelId = videoData.channelId || uid;
+    try {
+      let chSnap = await db.collection("channels").doc(pricingChannelId).get();
+      if (!chSnap.exists) {
+        const byOwner = await db.collection("channels").where("ownerId", "==", uid).limit(1).get();
+        if (!byOwner.empty) chSnap = byOwner.docs[0];
+        else {
+          const byUser = await db.collection("channels").where("userId", "==", uid).limit(1).get();
+          if (!byUser.empty) chSnap = byUser.docs[0];
+        }
+      }
+      if (chSnap.exists) channelData = chSnap.data() || {};
+    } catch (e) {
+      logger.warn("[getDubbingQuote] Channel lookup failed — quoting without discount", { videoId, error: String(e) });
+    }
+    const isOwner = videoOwnerId === uid || channelData?.ownerId === uid || channelData?.userId === uid;
+    if (!isOwner && !isAdmin) throw new HttpsError("permission-denied", "Only the video's owner can see its dubbing price.");
+
+    // Same duration rule as triggerVideoAIFeatures (authoritative video duration first).
+    const authoritativeDuration = Number(
+      videoData.durationSeconds ||
+      videoData.duration ||
+      (videoData.durationMs ? Math.round(Number(videoData.durationMs) / 1000) : 0) ||
+      0
+    );
+    const durationSeconds = authoritativeDuration > 0
+      ? authoritativeDuration
+      : Math.max(120, Number(data.durationSeconds || 120));
+
+    const fallbackSourceLanguage = normalizeLanguageCode(
+      videoData.sourceLanguage || videoData.originalLanguage || videoData.language || videoData.primaryLanguage || "en"
+    ) || "en";
+    const targetLanguages = validateTargetLanguages(data.targetLanguages).filter((l) => l !== fallbackSourceLanguage);
+    // Same launch-language rule as triggerVideoAIFeatures: never quote a dub the order would refuse.
+    const langCheck = checkDubbingRequest(fallbackSourceLanguage, targetLanguages);
+    if (targetLanguages.length > 0 && !langCheck.ok) {
+      return {
+        status: "language_unavailable",
+        message: dubbingLanguageMessage(langCheck),
+        unsupportedLanguages: langCheck.unsupportedTargets,
+        ...dubbingLanguagesForClient(),
+      };
+    }
+    // Same rule as triggerVideoAIFeatures: discounts from channel and user account
+    let discountPercent = channelData ? channelDubbingDiscountPercent(channelData, isAdmin) : 0;
+    if (uid && !isAdmin && discountPercent < 100) {
+      try {
+        const uSnap = await admin.firestore().collection("users").doc(uid).get();
+        if (uSnap.exists) {
+          const uData = uSnap.data() || {};
+          if (uData.isDubbingFree === true || uData.dubbingDiscountType === "free" || Number(uData.dubbingDiscountPercent) >= 100) {
+            discountPercent = 100;
+          } else {
+            const uPct = Number(uData.dubbingDiscountPercent || 0);
+            if (uPct > discountPercent) discountPercent = Math.min(100, uPct);
+          }
+        }
+      } catch (_) {}
+    }
+
+    const quote = await quoteFromTranscript({
+      transcriptIds: [videoData.jobId, videoId],
+      durationSec: durationSeconds,
+      fallbackSourceLanguage,
+      targetLanguages,
+      discountPercent,
+      normalizeLanguage: normalizeLanguageCode,
+    });
+    const characterPricing = characterPricingEnabled();
+
+    // With character pricing on, the price needs the transcript.
+    if (characterPricing && !quote) {
+      return {
+        status: "transcript_pending",
+        message: "We're still listening to your video. Your exact dubbing price will be ready in a few minutes.",
+        minimumPricePerLanguageUsd: minutePriceUsd(durationSeconds),
+        characterPricingEnabled: characterPricing,
+      };
+    }
+
+    // Exactly what triggerVideoAIFeatures will charge (same function, same inputs).
+    const charge = dubbingCharge({
+      targetLanguages,
+      minutePricePerLanguageUsd: getFlatDubbingPriceForTier(durationSeconds, "audio_track"),
+      discountPercent,
+      quote,
+      characterPricing,
+    });
+    return {
+      status: "ready",
+      characterPricingEnabled: characterPricing,
+      dubbingChargeUsd: charge.chargedUsd,
+      priceByLanguage: charge.priceByLanguage,
+      basis: charge.basis,
+      durationSec: durationSeconds,
+      discountPercent,
+      ...(quote ? { quote } : {}),
+    };
+  }
+);
+
+/**
+ * 🔄 Syncs `video_jobs/{jobId}` progress, outputs, and failures into linked `studio_dubbing_jobs`
+ * so TruthWorld Dubbing Studio clients always receive real-time progress (10% -> 100%) and exports.
+ */
+export const onVideoJobWrittenSyncDubbingStudio = onDocumentWritten(
+  {
+    document: "video_jobs/{jobId}",
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 10,
+  },
+  async (event) => {
+    const afterSnap = event.data?.after;
+    if (!afterSnap || !afterSnap.exists) return;
+    const jobId = event.params.jobId;
+    const data = afterSnap.data() || {};
+    const isStudioLinked =
+      typeof data.studioJobId === "string" ||
+      jobId.startsWith("dubjob_") ||
+      typeof data.currentDubbingOrderId === "string";
+    if (!isStudioLinked) return;
+
+    const { syncStudioDubbingJobsForPipelineJob } = require("../dubbing/studio-job-sync");
+    await syncStudioDubbingJobsForPipelineJob(jobId, data);
+  }
+);

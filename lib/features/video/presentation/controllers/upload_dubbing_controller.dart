@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -10,12 +11,14 @@ class DubbingLanguageInfo {
   final String nativeName;
   final String code;
   final String region;
+  final bool isAvailable;
 
   const DubbingLanguageInfo({
     required this.name,
     required this.nativeName,
     required this.code,
     required this.region,
+    this.isAvailable = false,
   });
 }
 
@@ -282,12 +285,26 @@ class UploadDubbingController extends GetxController {
     }).toList();
   }
 
+  /// Active production dubbing output codes (single source of truth: ai_languages.dart)
+  static Set<String> get activeDubbingCodes => kDubbingLaunchTargetCodes;
+
   void toggleLanguage(dynamic langOrInfo) {
     DubbingLanguageInfo? info;
     if (langOrInfo is DubbingLanguageInfo) {
       info = langOrInfo;
     } else {
       info = findLanguage(langOrInfo.toString());
+    }
+
+    if (info != null && !activeDubbingCodes.contains(info.code.toLowerCase())) {
+      if (kDubbingNotPlannedTargetCodes.contains(info.code.toLowerCase())) {
+        AppSnackbar.info("${info.name} isn't supported yet.");
+      } else {
+        AppSnackbar.info(
+          '${info.name} is available soon! Active production dubbing languages: Telugu, Hindi, Marathi, Tamil, and Malayalam.',
+        );
+      }
+      return;
     }
 
     if (info != null && isSourceLanguage(info)) {
@@ -348,7 +365,7 @@ class UploadDubbingController extends GetxController {
     ];
     for (final l in topGlobal) {
       final info = allDubbingLanguages.firstWhereOrNull((i) => i.name == l);
-      if (info != null && !isSourceLanguage(info)) {
+      if (info != null && !isSourceLanguage(info) && kDubbingLaunchTargetCodes.contains(info.code)) {
         selectedLanguages.add(l);
       }
     }
@@ -360,7 +377,7 @@ class UploadDubbingController extends GetxController {
     ];
     for (final l in topIndic) {
       final info = allDubbingLanguages.firstWhereOrNull((i) => i.name == l);
-      if (info != null && !isSourceLanguage(info)) {
+      if (info != null && !isSourceLanguage(info) && kDubbingLaunchTargetCodes.contains(info.code)) {
         selectedLanguages.add(l);
       }
     }
@@ -370,7 +387,7 @@ class UploadDubbingController extends GetxController {
     const topEuro = ['Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch'];
     for (final l in topEuro) {
       final info = allDubbingLanguages.firstWhereOrNull((i) => i.name == l);
-      if (info != null && !isSourceLanguage(info)) {
+      if (info != null && !isSourceLanguage(info) && kDubbingLaunchTargetCodes.contains(info.code)) {
         selectedLanguages.add(l);
       }
     }

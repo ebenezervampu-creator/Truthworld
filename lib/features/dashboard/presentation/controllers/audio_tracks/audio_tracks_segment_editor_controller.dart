@@ -195,6 +195,7 @@ class DubbingSegmentEditorController extends GetxController {
   final RxBool hasPendingRemaster = false.obs;
   final RxBool hasPendingTimingSave = false.obs;
   final RxnInt regeneratingSegmentIndex = RxnInt();
+  final RxnInt retranslatingSegmentIndex = RxnInt();
   final RxnInt playingSegmentIndex = RxnInt();
   final RxnInt selectedSegmentIndex = RxnInt();
   final RxInt manifestVersion = 1.obs;
@@ -395,6 +396,64 @@ class DubbingSegmentEditorController extends GetxController {
       );
     } finally {
       regeneratingSegmentIndex.value = null;
+    }
+  }
+
+  /// Auto-translates or fits a segment's translation to its exact speech timeline window.
+  Future<void> autoFitSegmentTranslation(
+    int segmentIndex, {
+    String mode = 'fit',
+  }) async {
+    if (resolvedJobId.value.isEmpty) return;
+    final idx = segments.indexWhere((s) => s.index == segmentIndex);
+    if (idx == -1) return;
+
+    final draftText = _segmentControllers[segmentIndex]?.text.trim() ?? '';
+    retranslatingSegmentIndex.value = segmentIndex;
+    try {
+      final callable = _functions.httpsCallable('retranslateDubbingSegment');
+      final response = await callable.call(<String, dynamic>{
+        'jobId': resolvedJobId.value,
+        'language': languageCode,
+        'segmentIndex': segmentIndex,
+        'mode': mode,
+        if (draftText.isNotEmpty) 'draftText': draftText,
+      });
+
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final fittedText = (data['translatedText'] as String?)?.trim() ?? '';
+      final compliance =
+          (data['syllableBudgetCompliance'] as num?)?.toDouble();
+      final warning = data['terminologyWarning'] as String?;
+
+      if (fittedText.isNotEmpty) {
+        _segmentControllers[segmentIndex]?.text = fittedText;
+        segments[idx] = segments[idx].copyWith(
+          editedText: fittedText,
+          syllableBudgetCompliance:
+              compliance ?? segments[idx].syllableBudgetCompliance,
+        );
+      }
+
+      if (warning != null && warning.isNotEmpty) {
+        AppSnackbar.warning(warning);
+      } else {
+        AppSnackbar.success(
+          'Line ${segmentIndex + 1} fitted to timeline. Click Regenerate to synthesize.',
+        );
+      }
+    } catch (e, st) {
+      LoggerService().error(
+        'Failed auto-fitting segment $segmentIndex',
+        tag: _tag,
+        error: e,
+        stackTrace: st,
+      );
+      AppSnackbar.warning(
+        'Unable to auto-fit line ${segmentIndex + 1} right now. Please try again.',
+      );
+    } finally {
+      retranslatingSegmentIndex.value = null;
     }
   }
 
@@ -665,6 +724,11 @@ class DubbingSegmentEditorController extends GetxController {
 
       final videoUrl = pkg['videoUrl'] as String?;
       final audioUrl = pkg['audioUrl'] as String?;
+      final dialogueAudioUrl = pkg['dialogueAudioUrl'] as String?;
+      final vocalsStemUrl = pkg['vocalsStemUrl'] as String?;
+      final backgroundStemUrl = pkg['backgroundStemUrl'] as String?;
+      final translationJsonUrl = pkg['translationJsonUrl'] as String?;
+      final reportJsonUrl = pkg['reportJsonUrl'] as String?;
       final srtContent = pkg['srtContent'] as String?;
       final vttContent = pkg['vttContent'] as String?;
 
@@ -674,13 +738,13 @@ class DubbingSegmentEditorController extends GetxController {
         if (videoUrl != null && videoUrl.isNotEmpty) {
           await DownloadHelper.downloadFromUrl(
             videoUrl,
-            '${cleanTitle}_${languageCode}_dubbed.mp4',
+            'video_with_${languageCode}_dub.mp4',
           );
           downloadCount++;
         } else if (audioUrl != null && audioUrl.isNotEmpty && format == 'all') {
           await DownloadHelper.downloadFromUrl(
             audioUrl,
-            '${cleanTitle}_${languageCode}_master.mp3',
+            'dub_$languageCode.mp3',
           );
           downloadCount++;
         }
@@ -708,12 +772,62 @@ class DubbingSegmentEditorController extends GetxController {
         }
       }
 
-      if (format == 'audio') {
+      if (format == 'all' || format == 'audio') {
         final url = audioUrl ?? masterAudioUrl.value;
         if (url.isNotEmpty) {
           await DownloadHelper.downloadFromUrl(
             url,
-            '${cleanTitle}_${languageCode}_master.mp3',
+            'dub_$languageCode.mp3',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (format == 'all' || format == 'dialogue') {
+        if (dialogueAudioUrl != null && dialogueAudioUrl.isNotEmpty) {
+          await DownloadHelper.downloadFromUrl(
+            dialogueAudioUrl,
+            'dialogue_$languageCode.mp3',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (format == 'all' || format == 'vocals') {
+        if (vocalsStemUrl != null && vocalsStemUrl.isNotEmpty) {
+          await DownloadHelper.downloadFromUrl(
+            vocalsStemUrl,
+            'vocals_stem.mp3',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (format == 'all' || format == 'background') {
+        if (backgroundStemUrl != null && backgroundStemUrl.isNotEmpty) {
+          await DownloadHelper.downloadFromUrl(
+            backgroundStemUrl,
+            'background_stem.mp3',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (format == 'all' || format == 'translation') {
+        if (translationJsonUrl != null && translationJsonUrl.isNotEmpty) {
+          await DownloadHelper.downloadFromUrl(
+            translationJsonUrl,
+            'translation_$languageCode.json',
+          );
+          downloadCount++;
+        }
+      }
+
+      if (format == 'all' || format == 'report') {
+        if (reportJsonUrl != null && reportJsonUrl.isNotEmpty) {
+          await DownloadHelper.downloadFromUrl(
+            reportJsonUrl,
+            'report.json',
           );
           downloadCount++;
         }
@@ -900,7 +1014,7 @@ class DubbingSegmentEditorController extends GetxController {
                       const SizedBox(height: 10),
                       _buildExportOptionTile(
                         context: modalCtx,
-                        title: 'Studio Master Audio Track (.mp3)',
+                        title: 'Studio Master Audio Track (dub_$languageCode.mp3)',
                         subtitle:
                             'Isolated audio track with vocal balance, EQ, and background ambiance',
                         icon: Icons.audiotrack_outlined,
@@ -912,6 +1026,91 @@ class DubbingSegmentEditorController extends GetxController {
                         onTap: () async {
                           Navigator.of(modalCtx).pop();
                           await exportPackage(format: 'audio');
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'Dialogue-only TTS Track (dialogue_$languageCode.mp3)',
+                        subtitle:
+                            'Clean synthesized speech track without background music or effects',
+                        icon: Icons.record_voice_over_outlined,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'dialogue');
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'Vocals Stem (vocals_stem.mp3)',
+                        subtitle:
+                            'Original isolated vocal stem extracted from the source audio',
+                        icon: Icons.mic_none_rounded,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'vocals');
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'Background Stem (background_stem.mp3)',
+                        subtitle:
+                            'Music & Effects (M&E) background stem preserved from the source',
+                        icon: Icons.music_note_outlined,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'background');
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'Translation JSON (translation_$languageCode.json)',
+                        subtitle:
+                            'Structured segment-by-segment original & translated script JSON',
+                        icon: Icons.translate_rounded,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'translation');
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _buildExportOptionTile(
+                        context: modalCtx,
+                        title: 'Dubbing Report (report.json)',
+                        subtitle:
+                            'Complete dubbing job telemetry, stems, and artifact report',
+                        icon: Icons.analytics_outlined,
+                        isLoading: exporting,
+                        textColor: textColor,
+                        subTextColor: subTextColor,
+                        borderColor: borderColor,
+                        isDark: isDark,
+                        onTap: () async {
+                          Navigator.of(modalCtx).pop();
+                          await exportPackage(format: 'report');
                         },
                       ),
                     ],

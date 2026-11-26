@@ -5,8 +5,8 @@
  *  - Default (`--dry-run`): Zero paid API credits. Exercises local FFmpeg audio fixture
  *    generation, real duration/loudness/bleed probes, Levenshtein WER & diarization math,
  *    ElevenLabs v4 tag + subtitle sanitization, and Gemini syllable-budget scoring.
- *  - Opt-in (`--execute-live`): Metered execution against real AssemblyAI Universal 3.7 Pro, Demucs /
- *    ElevenLabs Audio Isolation, Gemini 3.5 Flash Lite, and ElevenLabs eleven_v4 APIs.
+ *  - Opt-in (`--execute-live`): Metered execution against real AssemblyAI Universal 3.7 Pro, Demucs,
+ *    Gemini 3.5 Flash Lite, and ElevenLabs eleven_v4 APIs.
  *
  * Usage:
  *   npm run benchmark:dubbing -- --dry-run
@@ -268,7 +268,8 @@ async function runDryRunLocalProbe(
   const wer = computeWordErrorRate(sampleRef, sampleHyp);
   const diarization = computeDiarizationAccuracy(["speaker_0", "speaker_1"], ["speaker_0", "speaker_1"]);
 
-  const cue = mapEmotionToElevenLabsCue("whispers", -34);
+  // Measured as unvoiced (no pitch, voiced share 0.08): a whisper needs that evidence (delivery-tag-guard.ts).
+  const cue = mapEmotionToElevenLabsCue("whispers", -34, undefined, undefined, { f0Hz: null, voicedShare: 0.08 });
   const glossed = applyPronunciationGlossary("[whispers] Welcome to TruthWorld!", [
     { id: "g1", term: "TruthWorld", replacement: "Trooth-Wurld" },
   ]);
@@ -372,9 +373,7 @@ export async function runDubbingBenchmark(argv: string[] = process.argv.slice(2)
   const jobId = `bench_live_${Date.now()}`;
 
   // Probe live M&E isolation + Run TTS/translation check cleanly on actual audio URL
-  const extracted = await mediaService.extractMneStemDetailed(jobId, audioUrl, {
-    enableAutoVocalIsolation: true,
-  });
+  const extracted = await mediaService.extractMneStemDetailed(jobId, audioUrl);
   const mneValidation = await mediaService.validateMneStem(
     jobId,
     extracted.mneUrl,

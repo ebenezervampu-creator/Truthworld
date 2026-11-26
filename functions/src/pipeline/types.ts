@@ -34,7 +34,7 @@ export interface JobData {
   executionPlan: ExecutionPlan;
   config: UserConfig;
   videoId?: string;           // Canonical video ID
-  channelId?: string;         // Linked creator channel for reputation tracking
+  channelId?: string;         // Linked creator channel
   linkedVideoIds?: string[];  // De-duplication links
   linkedVideoCount?: number;  // Performance counter
   estimatedCostUsd: number;
@@ -190,11 +190,14 @@ export interface TranslationResult {
   sourceLanguage: string;
   targetLanguage: string;
   segments: TranslatedSegment[];
+  localizationBible?: any;
 }
 
 export interface TranslatedSegment {
   original: string;
   translated: string;
+  subtitleText?: string;
+  appliedRegister?: string;
   start: number;
   end: number;
   confidence?: number;
@@ -235,6 +238,11 @@ export interface TranslatedSegment {
   semanticParityScore?: number;
   reviewRecommended?: boolean;
   polarityFlipped?: boolean;
+  repairAttempted?: boolean;
+  repairOutcome?: "repaired" | "failed";
+  translationBlockReason?: "number_mismatch" | "polarity_flip" | "meaning_unresolved";
+  /** True if this segment is a song/lyric performance. */
+  isSong?: boolean;
 }
 
 export interface TTSRequest {
@@ -261,6 +269,7 @@ export interface TTSRequest {
   pronunciationGlossary?: PronunciationRule[];
   previousText?: string;
   nextText?: string;
+  segmentIndex?: number;
 }
 
 export interface TTSResult {
@@ -472,6 +481,11 @@ export interface UrlVerificationRecord {
   contentType?: string;
   contentTitle?: string;
   excerpt?: string;
+  /**
+   * Up to ~3,000 characters of the page's own visible text, kept so the stance step can
+   * judge whether the page supports or refutes a claim (never shown to users).
+   */
+  evidenceText?: string;
   verifiedAtUtc: string;
   verifierMethod: 'http_get' | 'api_record' | 'grounding_resolved' | 'snapshot';
   fetchStatus: DeterministicVerification['fetchStatus'];
@@ -552,7 +566,13 @@ export interface VerifiedSource {
 
 export interface AdjudicatedClaim {
   claimId: string;
-  verdict: "VERIFIED" | "FALSE" | "MISLEADING" | "DISPUTED" | "UNVERIFIABLE";
+  verdict: "VERIFIED" | "FALSE" | "MISLEADING" | "DISPUTED" | "UNVERIFIABLE" | "OPINION_BELIEF";
+  /** Set when the model returned CAUTION: which kind of caution the evidence shows. */
+  cautionType?: "MISLEADING" | "MISSING_CONTEXT" | "EXAGGERATED" | "DISPUTED" | "HALF_TRUE";
+  /** Set when the model returned OPINION_BELIEF: verbatim subjective quote + timestamp. */
+  opinionEvidence?: { quote: string; timestampSec: number };
+  /** Whether the statement could be proven true/false with evidence (adjudicator's judgment). */
+  falsifiable?: boolean;
   confidence: number;
   rationale: string;
   citedEvidenceIds: string[];
@@ -563,7 +583,21 @@ export interface AdjudicatedClaim {
   usedPreRetrievedEvidence: boolean;
 }
 
+/** What a source says about the claim, judged from the source's own text. */
+export type SourceStance = "SUPPORTS" | "CONTRADICTS" | "MIXED" | "OFF_TOPIC" | "UNREADABLE";
+/** What kind of source it is — official statements are disputable, primary records less so. */
+export type SourceRole = "PRIMARY_RECORD" | "OFFICIAL_STATEMENT" | "INDEPENDENT_REPORTING" | "REFERENCE" | "OTHER";
+
 export interface RichSource {
+  /**
+   * What this source says about THIS claim, judged from the source's own text by the
+   * stance step (stanceClassifier.ts). Sources without an explicit stance carry no
+   * directional weight toward a verdict.
+   */
+  claimStance?: SourceStance;
+  /** Kind of source, also set by the stance step. */
+  sourceKind?: SourceRole;
+  claimStanceReason?: string;
   evidenceId?: string;
   title: string;
   url: string;
@@ -1309,7 +1343,8 @@ export type ClaimStatus =
   | "contested_interpretation"
   | "not_historically_verifiable"
   | "novel_hypothesis"
-  | "developing_story";
+  | "developing_story"
+  | "rhetorical_exaggeration"; // Figurative speech / hyperbole — contextual, never "false"
 
 export interface EvidenceAssessment {
   scripturalSupport?: 'DOCUMENTED' | 'STRONG' | 'PARTIAL' | 'NOT_ESTABLISHED' | 'NOT_APPLICABLE';
@@ -1338,7 +1373,7 @@ export interface RecoveredClaimContext {
   recoveredSources: RichSource[];
   previousReasoning?: string;
   previousConfidence: number;
-  retrievalStage: 'citation_retry';
+  retrievalStage: 'citation_retry' | 'community_evidence';
 }
 
 export interface VerifiedClaim extends FilteredClaim {
@@ -2032,7 +2067,6 @@ export interface SynthesisResult {
   consensusFactor?: number;
   filteringReasons?: string[];
   contentIntent?: any;
-  speakerPriors?: Record<string, any>;
   isLaunchNews?: boolean;
   launchGrounded?: boolean;
 }
@@ -2043,22 +2077,17 @@ export interface FactCheckResult {
   scoringVersion: string;
   transcript: TranscriptData;
   analysisState: VerificationState | ErrorState;      // v10.0 Migration
-  scoreAvailable: boolean;           // v8.2: UI guard
   analysisFailureReason?: AnalysisFailureReason; // v8.2: Structured failure
   viewerNote?: string;               // v8.2: Dynamic message
   uiReport?: UIReport;               // v8.3: Human-friendly UI format
-  structuralReliabilityScore?: number | null; // v10.0: Structural-only composite
-  compositeRating?: number | null;   // v8.5 Normalized public rating (0-10)
   
   verificationState?: VerificationState; // v10.0
   
-  trustLabel: TrustLabel;            // Highly Reliable | Reliable | Mixed | Low | Misleading
   confidence: number;                // 0.0-1.0 confidence score
   confidenceTier: 'high' | 'medium' | 'low';
   confidenceNotes?: string[];
   diagnostics?: string[];
   vertical?: TrustVertical;
-  verticalScores?: Record<TrustVertical, number>;
   reviewTriggered?: boolean;
   reviewReason?: string;
   sourceLedger?: Record<string, string>;
@@ -2073,7 +2102,6 @@ export interface FactCheckResult {
     genre?: string; // v5.0
   };
   
-  factors: InstitutionalTrustFactors | null; // v8.2: Null if state != COMPLETE/PARTIAL
   chapters: TrustChapter[];
   speakers: SpeakerBreakdown[];
   speakerIdentities?: Record<string, { id: string, name: string, confidence: number }>; // v7
@@ -2134,24 +2162,13 @@ export interface FactCheckResult {
   riskDomain: string;
   domainRiskMultiplier: number;
   
-  reputationModifier?: number; // expertise/history impact
   recalculateAt?: number;
   
-  // v5.1: Transparency & Creator Feedback
-  deductions: TrustDeduction[];
   
   // v8.0: Category-Aware Epistemic Scoring
   videoCategory?: string;                         // from upload metadata
-  categoryWeightProfile?: Record<string, number>;  // which weights were used
   contextualFlags?: ContextualFlag[];              // multi-perspective debated topics
-  harmCapApplied?: boolean;                        // whether safety cap was enforced
-  harmCapReason?: string;                          // explanation for the cap
-  rawScoreBeforeCap?: number;                      // pre-cap score for transparency
-  penaltyApplied?: number;                         // total points deducted from penalties
   
-  // v8.1 Hardened Trust (Stable)
-  hardeningMetadata?: HardeningMetadata;           // Structured logs for regulators
-  intentToMisleadScore?: number;                   // Strategic manipulation (0-100)
   effectiveCategory?: string;                      // Risk-hierarchy resolved category
   
   // v10.6: Verification Quality Signals
@@ -2218,83 +2235,6 @@ export interface ConsistencyIssue {
   severity: 'low' | 'medium' | 'high';
 }
 
-export interface TrustDeduction {
-  factor: keyof InstitutionalTrustFactors | 'intent' | 'reputation' | 'harm_cap';
-  points: number; // Amount lost on 10.0 scale (e.g., 1.5)
-  reason: string;
-}
-
-export type TrustLabel = 
-  | "Highly Reliable"
-  | "Reliable"
-  | "Mixed"
-  | "Low"
-  | "Misleading"
-  | "Opinion/Belief Content"
-  | "Misleading Framing"
-  | "Safety Capped – Significant Concerns"
-  | "Confidence Evolving"
-  | "Analysis Unavailable"
-  | "Limited Analysis"
-  | "No Verifiable Claims"
-  | "Not Applicable"
-  | "Casual Educational Media"
-  | "Reliable Promotion"
-  | "Promotional – Verify Independently"
-  | "Misleading Promotion"
-  | "Well-Supported Opinion"
-  | "Editorial – Mixed Support"
-  | "Poorly Supported Opinion"
-  | "Trusted Testimonial"
-  | "Testimonial – Unverified"
-  // v5.1 Political/Legal Commentary Labels
-  | "In-Depth Legal/Political Inquiry"
-  | "Commentary – Mixed Detail"
-  | "Poorly Supported Commentary"
-  // v5.0 Honesty Labels
-  | "Unverified – Insufficient Data"
-  | "No Factual Claims"
-  // v8.2 Epistemic State Labels
-  | "Analysis Unavailable"
-  | "Limited Analysis"
-  | "Not Applicable"
-  | "Analysis in Progress"
-  // v8.0 Category-Aware Labels
-  | "Faithfully Presented"           // Religion with high honesty
-  | "Misleading Framing"             // Low honesty (belief as fact)
-  | "Safety Capped – Verify Claims" // Harm cap applied
-  | "Manipulative Opinion";
-
-export interface HardeningMetadata {
-  truthFloorApplied: boolean;
-  truthFloorReason?: string;
-  domainOverride: {
-    triggered: boolean;
-    from?: string;
-    to?: string;
-    penalty: number;
-    riskDelta: number;
-  };
-  consensusGateTriggered: boolean;
-  intentToMisleadScore: number; // 0-100
-  penalties: { type: string; value: number }[];
-  auditTimestamp: string;
-}
-
-
-export interface InstitutionalTrustFactors {
-  accuracy: number | null;     // Factual correctness of verifiable claims
-  evidence: number | null;     // Source quality and citation strength
-  consensus: number;    // Alignment with expert/institutional consensus
-  consistency: number;  // Internal logical consistency
-  integrity: number;    // Absence of manipulation / deceptive framing
-  expertise: number;    // Creator credentials for the domain
-  freshness: number;    // Information recency
-  safety: number;       // Harm potential (inverted — 100 = safe)
-  reputation?: number;   // v8.8: Historical reliability score
-  intentToMislead?: number; // v8.1: System exploitation/manipulation detection (0-100)
-}
-
 export type TrustVertical = 'general' | 'finance' | 'health' | 'religion' | 'history' | 'politics';
 
 // ============================================
@@ -2331,26 +2271,9 @@ export interface ContextualFlag {
 }
 
 
-export interface HarmCapResult {
-  applied: boolean;
-  reason?: string;
-  originalScore?: number;
-  cappedScore?: number;
-}
-
-export interface CategoryWeightProfile {
-  category: VideoCategory;
-  weights: InstitutionalTrustFactors;
-  falsehood_penalty: number;           // per verified-false claim (negative)
-  misleading_penalty: number;          // per misleading/needs_context claim (negative)
-  harm_cap: number | null;             // null = no cap; number = max final score
-  harm_cap_severity: ClaimSeverity[];  // which severities trigger the cap
-}
-
 export interface FactCheckDocument {
   videoId: string;
   userId: string;
-  honestRating: number | null; // v12.0: Nullable after scoring removal
   factCheck: {
     totalClaims: number;
     evaluatedClaims: number;
@@ -2425,7 +2348,7 @@ export const GeminiIntelligenceSchema = z.object({
     title: z.string(),
     start: z.number(),
     end: z.number(),
-    videoRating: z.number().optional(), // Replaces trustIndex
+    videoRating: z.number().optional(),
     primaryTopics: z.array(z.string())
   })).optional()
 });
@@ -2709,6 +2632,10 @@ export interface ExecutionPlan {
   enableAuxiliary: boolean;
   languages: string[];
   dubbingMode: 'none' | 'standard' | 'voice_clone';
+  /** 🛡️ A5 Policy: Explicit creator consent for voice likeness cloning */
+  voiceCloneConsent?: boolean;
+  /** Whether to persist the generated clone into creator_voice_profiles (only valid for single-speaker creator videos) */
+  saveAsCreatorProfile?: boolean;
   translationModel?: 'standard' | 'premium' | 'dynamic';
   toneMode?: 'casual' | 'formal';
   localeStyle?: 'neutral' | 'hinglish' | 'hinglish_urban' | 'hinglish_professional' | 'slang';
@@ -2732,7 +2659,6 @@ export interface ExecutionPlan {
   scoringProfile?: string;     // Override for custom scoring profiles
   
   creatorDNA?: CreatorDNA; // persistent style memory
-  enableABHooks?: boolean; // generate 3 variants for first 10s
   generateDubbing: boolean;
   genLangSubs: boolean;
   generateSubtitles?: boolean;
@@ -2742,6 +2668,11 @@ export interface ExecutionPlan {
   diarization?: boolean;
   dubbingLanguages?: string[];
   dubbingTier?: 'audio_track';
+  /**
+   * Also build a downloadable MP4 per language (original picture + dubbed audio, no burned-in
+   * subtitles) for the audio-track tier. Set by Dubbing Studio orders, whose export offers it.
+   */
+  deliverDubbedVideo?: boolean;
   uncannyMitigation?: 'none' | 'cadence_lock' | 'smart_cutaway';
   isometryMode?: 'natural' | 'strict_syllable';
   cinemaGrade?: boolean;
@@ -2754,6 +2685,25 @@ export interface ExecutionPlan {
   subtitleLanguages?: string[];
   subtitleTier?: 'ultra';
   voiceGender?: 'auto' | 'male' | 'female';
+  /** Creator's speaking-character count (number or {min,max}); AssemblyAI floor/cap. See cast-list.ts. */
+  expectedSpeakers?: { min?: number; max?: number };
+  /** Price charged per dubbed language (USD, after discount); the margin budget in 07-dubbing.ts uses it. */
+  dubbingPriceByLanguage?: Record<string, number>;
+  /** How dubbing was priced: per minute, or per dubbed character (dubbing-pricing.ts). */
+  dubbingPricingBasis?: 'minutes' | 'characters';
+  /** Creator's cast list of speaking characters; seeds the diarization check. See cast-list.ts. */
+  castList?: Array<{ name: string; gender?: 'male' | 'female'; description?: string; appearsAtSec?: number }>;
+  /**
+   * How characters address each other, by cast name (or AUDIENCE / GROUP): decides formal vs
+   * familiar address (మీరు/నువ్వు, आप/तुम). Bound to speaker labels after diarization. See cast-list.ts.
+   */
+  relationships?: Array<{
+    fromSpeaker: string;
+    toSpeaker: string;
+    formality: 'deferential' | 'formal' | 'peer' | 'informal';
+    relationship?: string;
+    registerOverride?: Record<string, string>;
+  }>;
   durationSeconds?: number;
 
   duration?: number;
@@ -2838,7 +2788,6 @@ export interface Channel {
   };
   stats: {
     videoCount: number;
-    avgTrustIndex: number;
     subscriberCount: number;
     viewCount: number;
   };
@@ -2863,6 +2812,7 @@ export type EventType =
   | 'transcription-complete'
   | 'fact-processing'
   | 'dubbing-processing'
+  | 'dubbing-prewarm'
   | 'dubbing-reel-requested'
   | 'dubbing-reel-assemble'
   | 'fact-complete'
@@ -2952,7 +2902,6 @@ export interface TranscriptionCompleteData {
 }
 
 export interface FactCompleteData {
-  honestRating: number | null;
   claimsEvaluated: number;
   correct: number;
   incorrect: number;
@@ -3100,24 +3049,25 @@ export interface SourceReference {
   urlVerification?: UrlVerificationRecord;
 }
 
-export interface TrustIndexFactors {
-  accuracy: number;     
-  evidence: number;     
-  consensus: number;
-  consistency: number;  
-  integrity: number;    
-  expertise: number;    
-  freshness: number;    
-  safety: number;       
-}
-
 export interface SpeakerBreakdown {
   speakerId: string;
   label: string;
   role?: string; // v5.3: Host, Guest, Expert, etc.
-  trustIndex: number;
   wordCount: number;
   claimCount: number;
+  trustIndex?: number;
+}
+
+export interface CreatorReputation {
+  userId: string;
+  channelId?: string;
+  trustIndex: number;
+  totalVideosAnalyzed: number;
+  verifiedClaimsCount: number;
+  falseClaimsCount: number;
+  unprovenClaimsCount: number;
+  reputationTier?: string;
+  updatedAt: number;
 }
 
 export interface TrustChapter {
@@ -3131,15 +3081,12 @@ export interface TrustChapter {
 
 export interface CredibilityResult {
   analysisState: VerificationState | ErrorState;      // v8.2: Epistemic state layer
-  scoreAvailable: boolean;           // v8.2: UI guard
   analysisFailureReason?: AnalysisFailureReason; // v8.2: Structured failure
   viewerNote?: string;               // v8.2: Dynamic message
   uiReport?: UIReport;               // v8.3: Human-friendly UI format
-  trustLabel: TrustLabel;
   confidence: number;
   confidenceTier: 'high' | 'medium' | 'low';
   
-  factors: InstitutionalTrustFactors | null;
   chapters: TrustChapter[];
   speakers: SpeakerBreakdown[];
   claims: ExplainabilityResult[];
@@ -3178,22 +3125,11 @@ export interface CredibilityResult {
   };
   filteringReasons: string[];
   
-  // v5.1: Transparency & Creator Feedback
-  deductions?: TrustDeduction[];
   
   // v8.0: Category-Aware Epistemic Scoring
   videoCategory?: string;
-  categoryWeightProfile?: Record<string, number>;
   contextualFlags?: ContextualFlag[];
-  harmCapApplied?: boolean;
-  harmCapReason?: string;
-  rawScoreBeforeCap?: number;
-  honestyBreakdown?: any;
-  penaltyApplied?: number;
   
-  // v8.1 Hardened Trust (Stable)
-  hardeningMetadata?: HardeningMetadata;           // Structured logs for regulators
-  intentToMisleadScore?: number;                   // Strategic manipulation (0-100)
   effectiveCategory?: string;                      // Risk-hierarchy resolved category
   
   scoringMethod: 'strict' | 'balanced';
@@ -3221,7 +3157,6 @@ export interface CredibilityResult {
   speakerCount?: number;    // v5.3
   detectedLanguage?: string; // v7.2
   manipulationScore?: number;
-  trustIndexFormatted?: string; // For UI confidence bands
   isAppealed?: boolean;
   appealStatus?: 'none' | 'pending' | 'reviewed' | 'resolved';
   diagnostics?: string[]; // v4.0 - Actionable repair tips
@@ -3230,7 +3165,6 @@ export interface CredibilityResult {
   verifiedAt: number;
   processingTime: number;
   vertical?: TrustVertical;
-  verticalScores?: Record<TrustVertical, number>; // v4.1.1 Multi-label
   confidenceNotes?: string[]; // 3-bullet summary
   reviewTriggered?: boolean;
   reviewReason?: string;
@@ -3293,6 +3227,8 @@ export interface DubbingSegment {
   index: number;
   originalText: string;
   translatedText: string;
+  subtitleText?: string;
+  appliedRegister?: string;
   language: string;
   start: number;
   end: number;
@@ -3337,6 +3273,11 @@ export interface DubbingSegment {
   semanticParityScore?: number;
   reviewRecommended?: boolean;
   polarityFlipped?: boolean;
+  repairAttempted?: boolean;
+  repairOutcome?: "repaired" | "failed";
+  translationBlockReason?: "number_mismatch" | "polarity_flip" | "meaning_unresolved";
+  /** True if this segment is a song/lyric performance. */
+  isSong?: boolean;
 }
 
 export interface SyncInstruction {
@@ -3358,6 +3299,12 @@ export interface DubbingResult {
   translationUrl?: string;
   segments: number;
   processingTime: number;
+  /**
+   * Dub result for this language: delivered (audio published), failed (ordered, not delivered),
+   * not_dubbable (no ElevenLabs v4 support or no native voice; subtitles only), not_requested.
+   * Failed and not_dubbable languages are refunded.
+   */
+  dubOutcome?: "delivered" | "failed" | "not_dubbable" | "not_requested";
   stems?: {
     mne?: string | null;
     dialogue?: string;
@@ -3468,7 +3415,6 @@ export interface AggregatedOutput {
   jobId: string;
   userId: string;
   videoUrl: string;
-  trustLabel: TrustLabel;   // Highly Reliable | Reliable | etc.
   confidence: number;       // 0-1
   confidenceTier: 'high' | 'medium' | 'low';
   speakerConfidence?: number; // v5.3
@@ -3486,7 +3432,6 @@ export interface AggregatedOutput {
   isLaunchNews?: boolean;   // v5.0
   launchGrounded?: boolean; // v5.0
   vertical?: TrustVertical;
-  verticalScores?: Record<TrustVertical, number>; // Added
   reviewTriggered?: boolean;
   reviewReason?: string;
   confidenceNotes?: string[];
@@ -3542,44 +3487,6 @@ export interface AggregationState {
   };
 }
 
-export interface CreatorReputation {
-  userId:           string;
-  channelId:        string;
-  channelRating:    number;             // v4.2 Public score
-  trustLevel:       'elite' | 'high' | 'developing' | 'risk' | 'critical';
-  
-  // Aggregate Stats
-  lifetimeClaims:   number;
-  accurateCount:    number;
-  nuanceCount:      number;             // mostly_correct + needs_context
-  incorrectCount:   number;
-  
-  // Nuance Metrics
-  accuracyRate:     number;             // accurateCount / lifetimeClaims
-  nuanceRate:       number;             // nuanceCount / lifetimeClaims
-  correctionRate:   number;             // How often they fix their own mistakes in follow-up videos
-  drift:            number;             // v3.5 - Trajectory: change in score over last 3 videos
-  trend:            'improving' | 'stable' | 'deteriorating';
-  
-  // Domain Specificity (Where are they most/least credible?)
-  domainScores:     Record<string, number>;
-  
-  // Time-series (Monthly snapshots)
-  history: Array<{
-    month:          string;             // YYYY-MM
-    avgScore:       number;
-    videoCount:     number;
-  }>;
-  
-  lastScores:       number[];           // last 5 video scores
-  metadataReliability?: {               // v7.3: Field-specific trust breakdown
-    speakerAccuracy: number;            // 0-1
-    languageAccuracy: number;           // 0-1
-    formatAccuracy: number;             // 0-1
-    overall: number;                    // Composite score
-  };
-  updatedAt:        number;
-}
 
 export interface TrustAppeal {
   appealId:         string;
@@ -3722,6 +3629,7 @@ export interface EpistemicTelemetry {
 
 export type ElevenLabsEmotionTag =
   | 'whispers'
+  | 'soft'
   | 'shouts'
   | 'laughs'
   | 'sighs'
@@ -3733,7 +3641,14 @@ export type ElevenLabsEmotionTag =
   | 'said angrily'
   | 'sarcastic'
   | 'calm'
-  | 'serious';
+  | 'serious'
+  // Intense deliveries decided by emotion-transfer.ts (each relaxes the stability floor for its line)
+  | 'shouting'
+  | 'screaming'
+  | 'crying'
+  | 'distressed'
+  | 'menacing'
+  | 'intense';
 
 export interface EmotionalIntensityProfile {
   anger: number;
@@ -3746,6 +3661,12 @@ export interface EmotionalIntensityProfile {
 
 export interface SegmentProsodyCue {
   segmentIndex: number;
+  /** Median F0 of the line's voiced speech (Hz), measured for every line. */
+  f0Hz?: number | null;
+  /** Loudness of the line's voiced part (dBFS). */
+  voicedRmsDb?: number | null;
+  /** Share of active frames that are voiced (0..1), measured for every line. */
+  voicedShare?: number | null;
   emotionTag?: ElevenLabsEmotionTag;
   energyDb?: number;
   speakingRateRatio?: number;
@@ -3806,6 +3727,11 @@ export interface DubbingEditableSegment {
   semanticParityScore?: number;
   reviewRecommended?: boolean;
   polarityFlipped?: boolean;
+  repairAttempted?: boolean;
+  repairOutcome?: "repaired" | "failed";
+  translationBlockReason?: "number_mismatch" | "polarity_flip" | "meaning_unresolved";
+  /** True if this segment is a song/lyric performance. */
+  isSong?: boolean;
 }
 
 export interface DubbingEditableManifest {

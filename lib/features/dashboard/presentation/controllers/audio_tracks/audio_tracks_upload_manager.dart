@@ -118,6 +118,8 @@ class AudioTracksUploadManager with ContentValidationMixin {
       if (type == 'Audio') {
         final updatedAudioMap = Map<String, String>.from(video.audioTracks);
         updatedAudioMap[langCode] = downloadUrl;
+        final updatedAudioSources = Map<String, String>.from(video.audioTrackSources);
+        updatedAudioSources[langCode] = 'creator';
 
         await _firestore
             .collection(FirestoreCollections.videos)
@@ -128,6 +130,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
               'subtitles': video.mediaSubtitles,
               'dubbedVideos': video.dubbedVideos,
               'audioTracks': updatedAudioMap,
+              'audioTrackSources': updatedAudioSources,
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
 
@@ -135,6 +138,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
           subtitles: video.mediaSubtitles,
           dubbedVideos: video.dubbedVideos,
           audioTracks: updatedAudioMap,
+          audioTrackSources: updatedAudioSources,
         );
       } else {
         final updatedDubbedMap = Map<String, String>.from(video.dubbedVideos);
@@ -250,6 +254,10 @@ class AudioTracksUploadManager with ContentValidationMixin {
         cachedLoc?.audioTracks ?? video.audioTracks,
       );
       updatedAudioMap[langCode] = downloadUrl;
+      final updatedAudioSources = Map<String, String>.from(
+        cachedLoc?.audioTrackSources ?? video.audioTrackSources,
+      );
+      updatedAudioSources[langCode] = 'creator';
 
       await _firestore
           .collection(FirestoreCollections.videos)
@@ -258,6 +266,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
           .doc('localization')
           .set({
             'audioTracks': updatedAudioMap,
+            'audioTrackSources': updatedAudioSources,
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
@@ -267,6 +276,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
           dubbedVideos:
               VideoMediaService.localizationCache[video.id]!.dubbedVideos,
           audioTracks: updatedAudioMap,
+          audioTrackSources: updatedAudioSources,
           commentaryVideos:
               VideoMediaService.localizationCache[video.id]!.commentaryVideos,
         );
@@ -312,12 +322,18 @@ class AudioTracksUploadManager with ContentValidationMixin {
     final updatedAudioMap = Map<String, String>.from(
       cachedLoc?.audioTracks ?? video.audioTracks,
     );
+    final updatedAudioSources = Map<String, String>.from(
+      cachedLoc?.audioTrackSources ?? video.audioTrackSources,
+    );
     final isDeleting = url.trim().isEmpty;
     if (isDeleting) {
       updatedAudioMap.remove(cleanCode);
       updatedAudioMap.remove(langCode);
+      updatedAudioSources.remove(cleanCode);
+      updatedAudioSources.remove(langCode);
     } else {
       updatedAudioMap[cleanCode] = url.trim();
+      updatedAudioSources[cleanCode] = 'creator';
     }
 
     final locRef = _firestore
@@ -330,11 +346,13 @@ class AudioTracksUploadManager with ContentValidationMixin {
     if (locSnap.exists) {
       await locRef.update({
         'audioTracks': updatedAudioMap,
+        'audioTrackSources': updatedAudioSources,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } else {
       await locRef.set({
         'audioTracks': updatedAudioMap,
+        'audioTrackSources': updatedAudioSources,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
@@ -348,17 +366,21 @@ class AudioTracksUploadManager with ContentValidationMixin {
       final vData = videoSnap.data() ?? {};
       final videoUpdates = <String, dynamic>{
         'audioTracks': updatedAudioMap,
+        'audioTrackSources': updatedAudioSources,
         'updatedAt': FieldValue.serverTimestamp(),
       };
       if (vData['media'] is Map) {
         videoUpdates['media.audioTracks'] = updatedAudioMap;
+        videoUpdates['media.audioTrackSources'] = updatedAudioSources;
       }
       await videoRef.update(videoUpdates);
     } else {
       await videoRef.set({
         'audioTracks': updatedAudioMap,
+        'audioTrackSources': updatedAudioSources,
         'media': {
           'audioTracks': updatedAudioMap,
+          'audioTrackSources': updatedAudioSources,
         },
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -368,8 +390,12 @@ class AudioTracksUploadManager with ContentValidationMixin {
       final flatDeletes = <String, dynamic>{
         'audioTracks.$cleanCode': FieldValue.delete(),
         'audioTracks.$langCode': FieldValue.delete(),
+        'audioTrackSources.$cleanCode': FieldValue.delete(),
+        'audioTrackSources.$langCode': FieldValue.delete(),
         'media.audioTracks.$cleanCode': FieldValue.delete(),
         'media.audioTracks.$langCode': FieldValue.delete(),
+        'media.audioTrackSources.$cleanCode': FieldValue.delete(),
+        'media.audioTrackSources.$langCode': FieldValue.delete(),
       };
       await videoRef.set(flatDeletes, SetOptions(merge: true)).catchError((_) {});
       await locRef.set(flatDeletes, SetOptions(merge: true)).catchError((_) {});

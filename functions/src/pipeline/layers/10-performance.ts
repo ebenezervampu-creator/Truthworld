@@ -34,7 +34,7 @@ import {
 import { getCache, setCache } from "../utils/memory-cache";
 import { logger } from "../utils/logger";
 
-const TRANSLATION_CACHE_VERSION = "google-v3-adaptive-mt-v1";
+const TRANSLATION_CACHE_VERSION = "stage4_v2";
 import { alerting } from "../utils/alerting";
 import { getClaimCacheProvider, ClaimCacheProvider } from "../services/claimCacheProvider";
 
@@ -107,7 +107,7 @@ export class PerformanceLayer {
         throw new Error("Failed to retrieve access token");
       }
 
-      const project = "truthworld-1";
+      const project = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || process.env.GCP_PROJECT || "truthworld-1";
       const location = "asia-south1";
       const model = "text-embedding-004";
       const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:predict`;
@@ -203,13 +203,15 @@ export class PerformanceLayer {
   async getTranslation(
     text: string,
     sourceLanguage: string,
-    targetLanguage: string
+    targetLanguage: string,
+    contextHash?: string
   ): Promise<string | null> {
     const src = (sourceLanguage || "en").toLowerCase().trim();
     const tgt = (targetLanguage || "en").toLowerCase().trim();
+    const versionKey = contextHash ? `${TRANSLATION_CACHE_VERSION}:${contextHash}` : TRANSLATION_CACHE_VERSION;
     const textHash = crypto.createHash("md5").update(text).digest("hex");
-    const docId = crypto.createHash("md5").update(`${TRANSLATION_CACHE_VERSION}:${src}:${tgt}:${text}`).digest("hex");
-    const cacheKey = `translation:${TRANSLATION_CACHE_VERSION}:${src}:${tgt}:${textHash}`;
+    const docId = crypto.createHash("md5").update(`${versionKey}:${src}:${tgt}:${text}`).digest("hex");
+    const cacheKey = `translation:${versionKey}:${src}:${tgt}:${textHash}`;
 
     // ── L1: In-memory ────────────────────────────────────────────────────────
     const memCached = getCache(cacheKey);
@@ -229,7 +231,7 @@ export class PerformanceLayer {
       }
 
       const data = doc.data()!;
-      if (data.translationEngine !== TRANSLATION_CACHE_VERSION) {
+      if (data.translationEngine !== versionKey) {
         return null;
       }
       // Strict language guard: verify that cached document matches exact source and target language
@@ -261,13 +263,15 @@ export class PerformanceLayer {
     text: string,
     sourceLanguage: string,
     targetLanguage: string,
-    translation: string
+    translation: string,
+    contextHash?: string
   ): Promise<void> {
     const src = (sourceLanguage || "en").toLowerCase().trim();
     const tgt = (targetLanguage || "en").toLowerCase().trim();
+    const versionKey = contextHash ? `${TRANSLATION_CACHE_VERSION}:${contextHash}` : TRANSLATION_CACHE_VERSION;
     const textHash = crypto.createHash("md5").update(text).digest("hex");
-    const docId = crypto.createHash("md5").update(`${TRANSLATION_CACHE_VERSION}:${src}:${tgt}:${text}`).digest("hex");
-    const cacheKey = `translation:${TRANSLATION_CACHE_VERSION}:${src}:${tgt}:${textHash}`;
+    const docId = crypto.createHash("md5").update(`${versionKey}:${src}:${tgt}:${text}`).digest("hex");
+    const cacheKey = `translation:${versionKey}:${src}:${tgt}:${textHash}`;
     const ttlSeconds = this.config.cacheTTL.translation;
 
     try {
@@ -283,7 +287,7 @@ export class PerformanceLayer {
           sourceLanguage: src,
           targetLanguage: tgt,
           translation,
-          translationEngine: TRANSLATION_CACHE_VERSION,
+          translationEngine: versionKey,
           expiresAt: Date.now() + ttlSeconds * 1000,
           cachedAt: admin.firestore.FieldValue.serverTimestamp(),
           ttl: Date.now() + ttlSeconds * 1000,
@@ -490,11 +494,12 @@ export class PerformanceLayer {
   async checkTranslationCache(
     texts: string[],
     sourceLanguage: string,
-    targetLanguage: string
+    targetLanguage: string,
+    contextHash?: string
   ): Promise<(string | null)[]> {
     const results: (string | null)[] = [];
     for (const text of texts) {
-      const cached = await this.getTranslation(text, sourceLanguage, targetLanguage);
+      const cached = await this.getTranslation(text, sourceLanguage, targetLanguage, contextHash);
       results.push(cached);
     }
     return results;
@@ -507,11 +512,12 @@ export class PerformanceLayer {
     texts: string[],
     translations: string[],
     sourceLanguage: string,
-    targetLanguage: string
+    targetLanguage: string,
+    contextHash?: string
   ): Promise<void> {
     for (let i = 0; i < texts.length; i++) {
       if (translations[i]) {
-        await this.cacheTranslation(texts[i], sourceLanguage, targetLanguage, translations[i]);
+        await this.cacheTranslation(texts[i], sourceLanguage, targetLanguage, translations[i], contextHash);
       }
     }
   }

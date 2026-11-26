@@ -22,11 +22,15 @@ class VideoResolutionV2 {
     required this.bitrate,
     this.fps = 30,
     this.isSynthetic = false,
+    this.isFallback = false,
   });
 
   factory VideoResolutionV2.fromMap(Map<String, dynamic> map) {
     final labelStr = map['label'] as String? ?? '';
     final parsedFps = (map['fps'] as num?)?.toInt() ?? inferFpsFromLabel(labelStr);
+    final isFallbackVal = map['fallback'] == true ||
+        map['isFallback'] == true ||
+        map['isSynthetic'] == true;
     return VideoResolutionV2(
       label: labelStr,
       url: map['url'] as String? ?? '',
@@ -34,7 +38,8 @@ class VideoResolutionV2 {
       height: (map['height'] as num?)?.toInt() ?? 0,
       bitrate: (map['bitrate'] as num?)?.toInt() ?? 0,
       fps: parsedFps,
-      isSynthetic: map['isSynthetic'] as bool? ?? false,
+      isSynthetic: isFallbackVal,
+      isFallback: isFallbackVal,
     );
   }
 
@@ -72,6 +77,7 @@ class VideoResolutionV2 {
   final int bitrate;
   final int fps;
   final bool isSynthetic;
+  final bool isFallback;
 
   bool get is60Fps => fps >= 50 || label.toLowerCase().contains('60');
 
@@ -143,6 +149,7 @@ class VideoResolutionV2 {
                 height: tierHeight,
                 bitrate: tier['bitrate'] as int,
                 isSynthetic: true,
+                isFallback: true,
               ),
             );
           }
@@ -168,6 +175,7 @@ class VideoResolutionV2 {
     'bitrate': bitrate,
     'fps': fps,
     'isSynthetic': isSynthetic,
+    'isFallback': isFallback,
   };
 }
 

@@ -1,11 +1,11 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/studio_media_download_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_track_dubbing_options_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_video_sidebar.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -2143,6 +2143,36 @@ class AudioTracksDialogs {
 
     final initialCode = track?.code ?? video.language;
     final selectedLangCode = initialCode.obs;
+    final artifactsByLang = <String, DubbingOutputArtifacts>{}.obs;
+    final loadingArtifactsLang = ''.obs;
+
+    Future<void> ensureArtifactsLoaded(String code) async {
+      final norm = normalizeLanguageCode(code);
+      if (artifactsByLang.containsKey(norm)) return;
+      final isBase = code == video.language ||
+          code == '__original__' ||
+          code == 'original' ||
+          norm == normalizeLanguageCode(video.language);
+      if (isBase) return;
+      loadingArtifactsLang.value = norm;
+      try {
+        final matchedTrack = tracks.firstWhereOrNull((t) => t.code == code);
+        final resolved = await StudioMediaDownloadService.fetchOutputArtifactsPackage(
+          video: video,
+          langCode: code,
+          track: matchedTrack,
+          tracksController: tracksController,
+        );
+        artifactsByLang[norm] = resolved;
+      } finally {
+        if (loadingArtifactsLang.value == norm) {
+          loadingArtifactsLang.value = '';
+        }
+      }
+    }
+
+    // Trigger initial artifact resolution for non-base track
+    ensureArtifactsLoaded(initialCode);
 
     Get.bottomSheet<void>(
       Material(
@@ -2201,7 +2231,7 @@ class AudioTracksDialogs {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Download $currentLabel Media',
+                                'Download $currentLabel Output Artifacts',
                                 style: const TextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.bold,
@@ -2210,7 +2240,7 @@ class AudioTracksDialogs {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Select wanted language format for ${video.title}',
+                                'Select artifact or language format for ${video.title}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,
@@ -2255,7 +2285,10 @@ class AudioTracksDialogs {
                               _buildModalLanguagePill(
                                 label: tracks[i].label,
                                 isSelected: tracks[i].code == currentCode,
-                                onTap: () => selectedLangCode.value = tracks[i].code,
+                                onTap: () {
+                                  selectedLangCode.value = tracks[i].code;
+                                  ensureArtifactsLoaded(tracks[i].code);
+                                },
                               ),
                             ],
                           ],
@@ -2271,17 +2304,25 @@ class AudioTracksDialogs {
                   // Reactive Main Download Options for Selected Language
                   Obx(() {
                     final currentCode = selectedLangCode.value;
+                    final normCode = normalizeLanguageCode(currentCode);
                     final currentTrack = tracks.firstWhereOrNull((t) => t.code == currentCode);
                     final currentLabel = currentTrack?.label ??
                         tracksController.getLanguageName(currentCode);
 
-                    final currentDubbed = currentTrack?.videoUrl ??
-                        video.dubbedVideos[currentCode] ??
-                        (currentCode == track?.code ? dubbedVideoUrl : '');
+                    final artifacts = artifactsByLang[normCode];
+                    final isLoadingArtifacts = loadingArtifactsLang.value == normCode;
 
-                    final currentAudio = currentTrack?.audioUrl ??
-                        video.audioTracks[currentCode] ??
-                        (currentCode == track?.code ? audioUrl : '');
+                    final currentDubbed = (artifacts?.dubbedVideoUrl.isNotEmpty ?? false)
+                        ? artifacts!.dubbedVideoUrl
+                        : (currentTrack?.videoUrl ??
+                            video.dubbedVideos[currentCode] ??
+                            (currentCode == track?.code ? dubbedVideoUrl : ''));
+
+                    final currentAudio = (artifacts?.masterAudioUrl.isNotEmpty ?? false)
+                        ? artifacts!.masterAudioUrl
+                        : (currentTrack?.audioUrl ??
+                            video.audioTracks[currentCode] ??
+                            (currentCode == track?.code ? audioUrl : ''));
 
                     final isBase = currentTrack?.isEmbedded == true ||
                         currentCode == video.language ||
@@ -2324,7 +2365,9 @@ class AudioTracksDialogs {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Download Video with $currentLabel Audio (.mp4)',
+                                        isBase
+                                            ? 'Download Original Video (.mp4)'
+                                            : 'Dubbed MP4 (video_with_${normCode}_dub.mp4)',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
@@ -2354,7 +2397,7 @@ class AudioTracksDialogs {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Text(
-                                    'Video',
+                                    'MP4',
                                     style: TextStyle(
                                       color: Colors.black,
                                       fontWeight: FontWeight.bold,
@@ -2369,7 +2412,7 @@ class AudioTracksDialogs {
 
                         const SizedBox(height: 10),
 
-                        // Option 2: Isolated Audio Track (.mp3)
+                        // Option 2: Master Dubbed Audio Track (.mp3)
                         if (currentAudio.isNotEmpty || isBase)
                           InkWell(
                             onTap: () async {
@@ -2404,7 +2447,9 @@ class AudioTracksDialogs {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Download $currentLabel Audio Track Only (.mp3)',
+                                          isBase
+                                              ? 'Download $currentLabel Audio Track Only (.mp3)'
+                                              : 'Master Dubbed Audio (dub_$normCode.mp3)',
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontWeight: FontWeight.bold,
@@ -2413,7 +2458,7 @@ class AudioTracksDialogs {
                                         ),
                                         const SizedBox(height: 3),
                                         const Text(
-                                          'High-fidelity isolated audio stream for podcasting or studio mixing',
+                                          'High-fidelity mastered audio stream with balanced background sound',
                                           style: TextStyle(
                                             color: AppColors.textSecondary,
                                             fontSize: 11.5,
@@ -2430,7 +2475,7 @@ class AudioTracksDialogs {
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: const Text(
-                                      'Audio',
+                                      'MP3',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -2442,6 +2487,136 @@ class AudioTracksDialogs {
                               ),
                             ),
                           ),
+
+                        // Additional Output Artifacts for dubbed languages (Dialogue TTS, Stems, Translation JSON, Report JSON)
+                        if (!isBase) ...[
+                          if (isLoadingArtifacts)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Loading stems, dialogue track, translation & report...',
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else if (artifacts != null &&
+                              (artifacts.dialogueAudioUrl.isNotEmpty ||
+                                  artifacts.vocalsStemUrl.isNotEmpty ||
+                                  artifacts.backgroundStemUrl.isNotEmpty ||
+                                  artifacts.translationJsonUrl.isNotEmpty ||
+                                  artifacts.reportJsonUrl.isNotEmpty ||
+                                  artifacts.srtUrl.isNotEmpty)) ...[
+                            const SizedBox(height: 14),
+                            const Text(
+                              'Output Artifacts (Stems, Translation & Report)',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                if (artifacts.dialogueAudioUrl.isNotEmpty)
+                                  _buildArtifactChipButton(
+                                    icon: Icons.record_voice_over_outlined,
+                                    label: 'Dialogue-only TTS (dialogue_$normCode.mp3)',
+                                    onTap: () async {
+                                      Get.back<void>();
+                                      await StudioMediaDownloadService.downloadArtifactFile(
+                                        url: artifacts.dialogueAudioUrl,
+                                        fileName: 'dialogue_$normCode.mp3',
+                                        label: 'Dialogue-only TTS Track',
+                                      );
+                                    },
+                                  ),
+                                if (artifacts.vocalsStemUrl.isNotEmpty)
+                                  _buildArtifactChipButton(
+                                    icon: Icons.mic_none_rounded,
+                                    label: 'Vocals Stem (vocals_stem.mp3)',
+                                    onTap: () async {
+                                      Get.back<void>();
+                                      await StudioMediaDownloadService.downloadArtifactFile(
+                                        url: artifacts.vocalsStemUrl,
+                                        fileName: 'vocals_stem.mp3',
+                                        label: 'Vocals Stem',
+                                      );
+                                    },
+                                  ),
+                                if (artifacts.backgroundStemUrl.isNotEmpty)
+                                  _buildArtifactChipButton(
+                                    icon: Icons.music_note_outlined,
+                                    label: 'Background Stem (background_stem.mp3)',
+                                    onTap: () async {
+                                      Get.back<void>();
+                                      await StudioMediaDownloadService.downloadArtifactFile(
+                                        url: artifacts.backgroundStemUrl,
+                                        fileName: 'background_stem.mp3',
+                                        label: 'Background Stem',
+                                      );
+                                    },
+                                  ),
+                                if (artifacts.translationJsonUrl.isNotEmpty)
+                                  _buildArtifactChipButton(
+                                    icon: Icons.translate_rounded,
+                                    label: 'Translation (translation_$normCode.json)',
+                                    onTap: () async {
+                                      Get.back<void>();
+                                      await StudioMediaDownloadService.downloadArtifactFile(
+                                        url: artifacts.translationJsonUrl,
+                                        fileName: 'translation_$normCode.json',
+                                        label: 'Translation JSON',
+                                      );
+                                    },
+                                  ),
+                                if (artifacts.reportJsonUrl.isNotEmpty)
+                                  _buildArtifactChipButton(
+                                    icon: Icons.analytics_outlined,
+                                    label: 'Report (report.json)',
+                                    onTap: () async {
+                                      Get.back<void>();
+                                      await StudioMediaDownloadService.downloadArtifactFile(
+                                        url: artifacts.reportJsonUrl,
+                                        fileName: 'report.json',
+                                        label: 'Dubbing Report JSON',
+                                      );
+                                    },
+                                  ),
+                                if (artifacts.srtUrl.isNotEmpty)
+                                  _buildArtifactChipButton(
+                                    icon: Icons.subtitles_outlined,
+                                    label: 'Subtitles ($normCode.srt)',
+                                    onTap: () async {
+                                      Get.back<void>();
+                                      await StudioMediaDownloadService.downloadArtifactFile(
+                                        url: artifacts.srtUrl,
+                                        fileName: '$normCode.srt',
+                                        label: 'SRT Subtitles',
+                                      );
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ],
                     );
                   }),
@@ -2591,6 +2766,31 @@ class AudioTracksDialogs {
         ),
       ),
       isScrollControlled: true,
+    );
+  }
+
+  static Widget _buildArtifactChipButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 15, color: Colors.white),
+      label: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: AppColors.bgPage,
+        side: const BorderSide(color: AppColors.bgSurface),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
     );
   }
 

@@ -33,6 +33,41 @@ import {
 } from "./translationQualityGate";
 import { NumericalEntityGuard } from "./numericalEntityGuard";
 import { adaptiveMtDatasetService } from "./adaptiveMtDatasetService";
+import {
+  countSourceSyllables,
+  syllableBudgetForDuration,
+  permissibleWindowMs,
+} from "./speech-rate";
+export { countSourceSyllables };
+import {
+  geminiDubbingEditor,
+  EditorSegment,
+  GlossaryTerm as EditorGlossaryTerm,
+  checkEditedLine,
+  MEANING_CHECK,
+  type MeaningAction,
+} from "./geminiDubbingEditor";
+import {
+  CastMember,
+  CharacterRelationship,
+  LocalizationBible,
+  RollingHonorificCache,
+  resolveRegisterDirective,
+  inferAddressees,
+} from "./cast-list";
+import type { OnScreenTextEvent } from "./screenContentAnalyzer";
+import { editorContextEnabled } from "./translation-flags";
+
+/** Plain-language sense of each glossary category, sent with glossary terms to the Gemini edit. */
+const GLOSSARY_SENSE: Record<string, string> = {
+  theology: "religion (God, scripture, faith)",
+  fact_checking: "fact-checking and misinformation",
+  energy_policy: "energy and climate policy",
+  science: "science and research",
+  monetization: "creator earnings",
+  statistics: "statistics",
+  historical: "history",
+};
 
 const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
 
@@ -56,6 +91,18 @@ const ADAPTIVE_MT_BATCH_SIZE = 50;
 
 /** Default concurrency limit for parallel batch requests */
 const DEFAULT_CONCURRENCY = 3;
+
+/**
+ * Translation mode for dubbing:
+ *  - "hybrid" (default): Translation LLM drafts each line, then Gemini edits the lines in
+ *    context with a syllable budget per line (services/geminiDubbingEditor.ts). No Adaptive MT.
+ *  - "legacy": the previous Translation LLM + Adaptive MT composite.
+ * Set DUBBING_TRANSLATION_MODE=legacy to roll back without a deploy of new code.
+ */
+export function isContextualDubbingEditEnabled(options?: { contextualEdit?: boolean }): boolean {
+  const mode = (process.env.DUBBING_TRANSLATION_MODE || "hybrid").toLowerCase();
+  return mode === "hybrid" && options?.contextualEdit !== false;
+}
 
 // ─── UTILITY HELPERS ────────────────────────────────────────────────────────
 
@@ -212,10 +259,11 @@ export function stripDanglingClauseFragments(text: string): string {
  * 1. Blocks 'సారి' (sāri = garment/turn) and maps to short-sa 'సరి' (sari = correct/proper)
  *    e.g. 'సారి చేస్తుంది' / 'సారి చేస్తోంది' -> 'సరిచేస్తుంది' / 'సరిచేస్తోంది'
  * 2. Eliminates redundant conjunctive padding 'మరియు కానీ' ('and but') -> 'కానీ'
- * 3. Corrects 1st-person agreement drift to 3rd-person respectful agreement
- *    e.g. 'సరిచేస్తున్నాను' ('I am correcting') -> 'సరిచేస్తున్నారు' ('[he/it] is correcting')
- * 4. Maps raw English loanword 'లార్డ్' ('Lord') -> authentic Telugu 'ప్రభువా' in prayer,
- *    theological, biblical, and historical drama dialogue.
+ *
+ * Removed: a rule that rewrote every "I am correcting" (సరిచేస్తున్నాను) as "they are
+ * correcting", and a rule that turned every "Lord" (లార్డ్) into the vocative "O Lord"
+ * (ప్రభువా). Both changed the meaning of unrelated videos. Speaker agreement and
+ * glossary terms are now handled in context by the Gemini edit step.
  */
 export function applyTeluguTheologicalLexiconGuard(text: string): string {
   if (!text || typeof text !== "string") return text || "";
@@ -227,13 +275,31 @@ export function applyTeluguTheologicalLexiconGuard(text: string): string {
   // 2. Eliminate redundant 'మరియు కానీ' ('and but') -> 'కానీ'
   cleaned = cleaned.replace(/మరియు\s+కానీ/gi, "కానీ");
 
-  // 3. Fix 1st person agreement drift to 3rd person respectful agreement
-  cleaned = cleaned.replace(/సరిచేస్తున్నాను/gi, "సరిచేస్తున్నారు");
-
-  // 4. Map transliterated English loanword 'లార్డ్' ('Lord') -> 'ప్రభువా' in theological/biblical/prayer address
-  cleaned = cleaned.replace(/(?<=^|[^\p{L}\p{M}\p{N}])లార్డ్(?=$|[^\p{L}\p{M}\p{N}])/gu, "ప్రభువా");
-
   return cleaned;
+}
+
+/**
+ * 🗣️ Spoken Telugu Register Normalizer:
+ * Converts stiff literary/bookish phrases into natural spoken conversational forms
+ * while keeping proper nouns and period honorifics intact.
+ */
+export function applySpokenTeluguColloquialContractions(text: string): string {
+  if (!text || typeof text !== "string") return text || "";
+  let s = text;
+  s = s.replace(/(^|[\s,!?.;])నువ్వు\s+ఏమి([\s,!?.;]|$)/g, "$1నువ్వేం$2");
+  s = s.replace(/(^|[\s,!?.;])నువ్వు\s+ఎందుకు([\s,!?.;]|$)/g, "$1నువ్వెందుకు$2");
+  s = s.replace(/(^|[\s,!?.;])నువ్వు\s+ఎక్కడ([\s,!?.;]|$)/g, "$1నువ్వెక్కడ$2");
+  s = s.replace(/విన్నాము([.!?,\s]|$)/g, "విన్నాం$1");
+  s = s.replace(/చేశాము([.!?,\s]|$)/g, "చేశాం$1");
+  s = s.replace(/చూశాము([.!?,\s]|$)/g, "చూశాం$1");
+  s = s.replace(/కన్నాము([.!?,\s]|$)/g, "కన్నాం$1");
+  s = s.replace(/ఉన్నాము([.!?,\s]|$)/g, "ఉన్నాం$1");
+  s = s.replace(/ఉన్నావు([.!?,\s]|$)/g, "ఉన్నావ్$1");
+  s = s.replace(/చేస్తున్నాము([.!?,\s]|$)/g, "చేస్తున్నాం$1");
+  s = s.replace(/చేస్తున్నావు([.!?,\s]|$)/g, "చేస్తున్నావ్$1");
+  s = s.replace(/వెళ్తున్నాము([.!?,\s]|$)/g, "వెళ్తున్నాం$1");
+  s = s.replace(/చూసుకుంటాము([.!?,\s]|$)/g, "చూసుకుంటాం$1");
+  return s;
 }
 
 /**
@@ -243,41 +309,49 @@ export function applyTeluguTheologicalLexiconGuard(text: string): string {
  */
 export function normalizeScriptureCitationsForTts(text: string, lang: string): string {
   if (!text || typeof text !== "string") return text || "";
-  const normLang = (lang || "").toLowerCase().trim();
+  const normLang = (lang || "").toLowerCase().trim().split(/[-_]/)[0];
 
+  // A citation is only converted when a scripture or chapter word comes right before
+  // "N:M". A bare "N:M" is far more often a time ("10:30"), a score ("2:1") or a ratio
+  // ("16:9"), and must be left for the TTS engine to read normally.
+  const QURAN = "Quran|Qur'an|Surah|Sura|ఖురాన్|సూరా|क़ुरआन|कुरआन|क़ुरान|कुरान|सूरह|सूरा|திருக்குரான்|குர்ஆன்|ഖുർആൻ|സൂറ";
+  const BIBLE = "Bible|బైబిల్|बाइबल|बाइबिल|பைபிள்|ബൈബിൾ";
+  const CHAPTER = "Chapter|అధ్యాయం|अध्याय|அத்தியாயம்|അധ്യായം";
+
+  const words: Record<string, { chapter: string; verse: string; surah: string; ayah: string }> = {
+    te: { chapter: "వ అధ్యాయం", verse: "వ వచనం", surah: "వ అధ్యాయం", ayah: "వ వచనం" },
+    hi: { chapter: "अध्याय", verse: "पद", surah: "सूरह", ayah: "आयत" },
+    ta: { chapter: "அத்தியாயம்", verse: "வசனம்", surah: "அத்தியாயம்", ayah: "வசனம்" },
+    ml: { chapter: "അധ്യായം", verse: "വാക്യം", surah: "അധ്യായം", ayah: "വാക്യം" },
+    mr: { chapter: "अध्याय", verse: "वचन", surah: "सूरा", ayah: "आयत" },
+    en: { chapter: "chapter", verse: "verse", surah: "chapter", ayah: "verse" },
+  };
+  const w = words[normLang] || words.en;
+
+  const phrase = (chapter: string, verse: string, quranic: boolean): string => {
+    const c = quranic ? w.surah : w.chapter;
+    const v = quranic ? w.ayah : w.verse;
+    // Telugu puts the ordinal suffix straight after the number ("4వ అధ్యాయం").
+    return normLang === "te" ? `${chapter}${c}, ${verse}${v}` : `${c} ${chapter}, ${v} ${verse}`;
+  };
+
+  let res = text;
+
+  // Telugu text that already spells out "4వ అధ్యాయం, 157" — add the verse word.
   if (normLang === "te") {
-    // 1. Normalize pre-existing chapter/verse patterns e.g. '4వ అధ్యాయం, 157 లో' or '4వ అధ్యాయం, 157'
-    let res = text.replace(/(\d{1,3})వ\s*అధ్యాయం[,\s]+(\d{1,3})(?:\s*లో|\s*వ\s*వచనంలో)?/gi, (m, c, v) => {
-      return m.includes("లో") ? `${c}వ అధ్యాయం, ${v}వ వచనంలో` : `${c}వ అధ్యాయం, ${v}వ వచనం`;
-    });
-    // 2. Pattern matches (optional book/surah/In prefix) + ChapterNumber : VerseNumber (optional లో)
-    const citationRegex = /(?:(?:ఖురాన్|సూరా|అధ్యాయం|బైబిల్|Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})(?:\s*వ\s*వచనం)?(?:\s*లో)?/gi;
-    res = res.replace(citationRegex, (match, chapter, verse) => {
-      const hasInOrLo = match.includes("లో") || match.toLowerCase().startsWith("in");
-      return hasInOrLo ? `${chapter}వ అధ్యాయం, ${verse}వ వచనంలో` : `${chapter}వ అధ్యాయం, ${verse}వ వచనం`;
-    });
-    return res;
-  } else if (normLang === "hi") {
-    const citationRegex = /(?:(?:क़ुरआन|कुरआन|सूरह|आयत|बाइबल|Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})/gi;
-    return text.replace(citationRegex, (_match, chapter, verse) => {
-      return `सूरह ${chapter}, आयत ${verse}`;
-    });
-  } else if (normLang === "ta") {
-    const citationRegex = /(?:(?:திருக்குரான்|அத்தியாயம்|Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})/gi;
-    return text.replace(citationRegex, (_match, chapter, verse) => {
-      return `அத்தியாயம் ${chapter}, வசனம் ${verse}`;
-    });
-  } else if (normLang === "ml") {
-    const citationRegex = /(?:(?:ഖുർആൻ|അധ്യായം|Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})/gi;
-    return text.replace(citationRegex, (_match, chapter, verse) => {
-      return `അധ്യായം ${chapter}, വാക്യം ${verse}`;
-    });
-  } else {
-    const citationRegex = /(?:(?:Quran|Surah|Chapter|In)\s*)?(\d{1,3})\s*:\s*(\d{1,3})/gi;
-    return text.replace(citationRegex, (_match, chapter, verse) => {
-      return `chapter ${chapter}, verse ${verse}`;
-    });
+    res = res.replace(/(\d{1,3})వ\s*అధ్యాయం[,\s]+(\d{1,3})(?:\s*వ\s*వచనం)?(\s*లో)?/gu, (_m, c, v, lo) =>
+      `${c}వ అధ్యాయం, ${v}వ వచనం${lo ? "లో" : ""}`);
   }
+
+  const citation = new RegExp(`(${QURAN}|${BIBLE}|${CHAPTER})(\\s*)(\\d{1,3})\\s*:\\s*(\\d{1,3})`, "giu");
+  res = res.replace(citation, (_m, book: string, _sp: string, chapter: string, verse: string) => {
+    const isQuran = new RegExp(`^(?:${QURAN})$`, "iu").test(book);
+    const isChapterWord = new RegExp(`^(?:${CHAPTER})$`, "iu").test(book);
+    // Keep the book name ("Quran", "Bible") so the listener still hears which scripture it is.
+    const keep = isChapterWord ? "" : `${book} `;
+    return `${keep}${phrase(chapter, verse, isQuran)}`;
+  });
+  return res;
 }
 
 /**
@@ -390,60 +464,8 @@ export const LANG_SYLLABLE_RATIOS: Record<string, number> = {
 };
 
 /**
- * Estimates spoken syllable count for Latin, Indic abugida, CJK/Kana/Hangul, and other scripts
- * while ignoring bracketed ElevenLabs audio performance tags such as `[whispers]`.
+ * Syllable-to-word ratios per language (kept for computeSyllableBudgetCompliance).
  */
-export function countSourceSyllables(text: string, language?: string): number {
-  const clean = (text || "").replace(/\[[^\]]+\]/g, " ").trim();
-  if (!clean) return 0;
-
-  const lang = (language || "").toLowerCase().split(/[-_]/)[0];
-
-  // CJK / Japanese Kana / Korean Hangul character-syllable counting
-  const cjkMatches = clean.match(/[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/g);
-  if (cjkMatches && (lang === "zh" || lang === "ja" || lang === "ko" || cjkMatches.length >= clean.length * 0.35)) {
-    const kanjiCount = (clean.match(/[\u4E00-\u9FFF]/g) || []).length;
-    const kanaHangulCount = cjkMatches.length - kanjiCount;
-    const jpKanjiWeight = lang === "ja" ? 1.5 : 1.0;
-    const latinWords = clean.replace(/[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/g, " ").trim().split(/\s+/).filter(Boolean);
-    return Math.max(1, Math.round(kanjiCount * jpKanjiWeight + kanaHangulCount + latinWords.length * 1.4));
-  }
-
-  // Indic abugidas (Devanagari, Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam)
-  const indicConsonantOrVowel = clean.match(/[\u0904-\u0939\u0958-\u0961\u0985-\u09B9\u0A05-\u0A39\u0A85-\u0AB9\u0B05-\u0B39\u0B85-\u0BB9\u0C05-\u0C39\u0C85-\u0CB9\u0D05-\u0D39]/g);
-  if (indicConsonantOrVowel && indicConsonantOrVowel.length > 0) {
-    const viramas = (clean.match(/[\u094D\u09CD\u0A4D\u0ACD\u0B4D\u0BCD\u0C4D\u0CCD\u0D4D]/g) || []).length;
-    const indicSyllables = Math.max(1, indicConsonantOrVowel.length - viramas);
-    const nonIndicLatin = clean.replace(/[\u0900-\u0D7F]/g, " ").trim().split(/\s+/).filter(Boolean);
-    const nonIndicSyllables = nonIndicLatin.reduce((sum, w) => sum + countLatinWordSyllables(w), 0);
-    return indicSyllables + nonIndicSyllables;
-  }
-
-  // Arabic / Cyrillic / Thai / Latin fallback per word
-  const words = clean.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return 0;
-
-  return words.reduce((sum, raw) => {
-    // Arabic/Hebrew abjads: approximate from word length (~2.3 chars/syllable)
-    if (/[\u0600-\u06FF\u0590-\u05FF]/.test(raw)) {
-      const letters = raw.replace(/[^\u0600-\u06FF\u0590-\u05FF]/g, "").length;
-      return sum + Math.max(1, Math.round(letters / 2.3));
-    }
-    return sum + countLatinWordSyllables(raw);
-  }, 0);
-}
-
-function countLatinWordSyllables(word: string): number {
-  const cleaned = word.toLowerCase().replace(/[^a-z\u00C0-\u024F\u0400-\u04FF]/g, "");
-  if (!cleaned) return 0;
-  if (cleaned.length <= 3) return 1;
-
-  // Cyrillic vowels + Latin vowels
-  const normalized = cleaned.replace(/(?:[^laeiouy\u0430\u0435\u0451\u0438\u043E\u0443\u044B\u044D\u044E\u044F]es|ed|[^laeiouy]e)$/, "")
-    .replace(/^y/, "");
-  const groups = normalized.match(/[aeiouy\u00E0-\u00FF\u0430\u0435\u0451\u0438\u043E\u0443\u044B\u044D\u044E\u044F]+/g);
-  return Math.max(1, groups ? groups.length : 1);
-}
 
 /**
  * Computes normalized syllable-budget compliance score (0.0 to 1.0) for a dubbed segment.
@@ -464,9 +486,9 @@ export function computeSyllableBudgetCompliance(
   const tgtRatio = LANG_SYLLABLE_RATIOS[tgtLang] ?? 1.2;
   const langExpansionRatio = tgtRatio / Math.max(0.7, srcRatio);
 
-  const durSec = durationMs && durationMs > 0 ? durationMs / 1000 : null;
-  const targetBudget = durSec
-    ? Math.max(4, Math.round(durSec * 3.8 * Math.min(1.35, Math.max(0.85, tgtRatio))))
+  const durMs = durationMs && durationMs > 0 ? durationMs : null;
+  const targetBudget = durMs
+    ? syllableBudgetForDuration(durMs, targetLanguage)
     : Math.max(2, Math.round(srcSyllables * langExpansionRatio * 1.15));
 
   if (tgtSyllables <= targetBudget) return 1.0;
@@ -487,7 +509,20 @@ export class TranslationService {
         // call. Cloud Functions / Cloud Run provide ADC automatically via the
         // service account, so no extra configuration is needed.
         const { v3 } = require("@google-cloud/translate");
-        this._v3Client = new v3.TranslationServiceClient();
+        const options: any = {};
+        const token = process.env.GCLOUD_ACCESS_TOKEN;
+        if (token) {
+          const { OAuth2Client } = require("google-auth-library");
+          const oauthClient = new OAuth2Client();
+          oauthClient.setCredentials({ access_token: token });
+          const qProject = process.env.GCP_PROJECT_ID || projectId || "truthworld-1";
+          (oauthClient as any).quotaProjectId = qProject;
+          options.authClient = oauthClient;
+          options.projectId = qProject;
+          options.quotaProjectId = qProject;
+          options.customHeaders = { "x-goog-user-project": qProject };
+        }
+        this._v3Client = new v3.TranslationServiceClient(options);
       } catch (err) {
         console.warn("[Translation] v3 client init failed", err);
         this._v3Client = null;
@@ -509,9 +544,22 @@ export class TranslationService {
       }
       try {
         const { v3 } = require("@google-cloud/translate");
-        this._adaptiveMtClient = new v3.TranslationServiceClient({
+        const options: any = {
           apiEndpoint: `translate-${ADAPTIVE_MT_LOCATION}.googleapis.com`,
-        });
+        };
+        const token = process.env.GCLOUD_ACCESS_TOKEN;
+        if (token) {
+          const { OAuth2Client } = require("google-auth-library");
+          const oauthClient = new OAuth2Client();
+          oauthClient.setCredentials({ access_token: token });
+          const qProject = process.env.GCP_PROJECT_ID || projectId || "truthworld-1";
+          (oauthClient as any).quotaProjectId = qProject;
+          options.authClient = oauthClient;
+          options.projectId = qProject;
+          options.quotaProjectId = qProject;
+          options.customHeaders = { "x-goog-user-project": qProject };
+        }
+        this._adaptiveMtClient = new v3.TranslationServiceClient(options);
       } catch (err) {
         console.warn("[Translation] AdaptiveMt client init failed", err);
         this._adaptiveMtClient = null;
@@ -593,93 +641,135 @@ export class TranslationService {
   }
 
   /**
-   * Concise Retranslation for Dubbing Pacing (Hierarchy Step 3):
-   * When spoken duration ratio R > 1.15, tightens the sentence by condensing
-   * rhetorical padding/filler while preserving 100% of facts, numbers, and core claims.
+   * Shorter retranslation for dubbing pacing, used when a line is too long for its slot.
+   *
+   * Hybrid mode: Translation LLM drafts the line, then Gemini shortens it to the syllable
+   * budget for `maxDurationMs` (or, without a duration, to `1 / targetDurationRatio` of the
+   * draft), keeping every fact and number. Falls back to the draft if Gemini's version fails
+   * the checks in geminiDubbingEditor.ts.
+   *
+   * The previous version stripped a few English filler phrases and, for Telugu and Hindi,
+   * replaced whole sentences with hard-coded text written for one test video. Both are gone.
    */
   public async retranslateConcise(
     originalText: string,
     sourceLanguage: string,
     targetLanguage: string,
-    options?: { targetDurationRatio?: number; model?: string; maxCharacters?: number; preserveFacts?: boolean }
+    options?: {
+      targetDurationRatio?: number;
+      model?: string;
+      maxCharacters?: number;
+      preserveFacts?: boolean;
+      /** Time the spoken line may take, in ms. Preferred over targetDurationRatio. */
+      maxDurationMs?: number;
+      /** Measured speaking rate (syl/s) for this speaker's voice (Fix 3.3). */
+      syllablesPerSecond?: number;
+      speakerGender?: "male" | "female";
+      jobId?: string;
+      userId?: string;
+      /**
+       * The line's current, context-edited translation. When given it is shortened instead of
+       * translating the source again from scratch, which would lose pronoun number/gender fixes
+       * (Clip 2: plural "you" came back singular).
+       */
+      currentTranslation?: string;
+      /** Speaker of this line, so the editor can tell who is talking to whom. */
+      speaker?: string;
+      /** 🛡️ A11: Target addressee if known (e.g. "speaker_1", "AUDIENCE"). */
+      addressedTo?: string;
+      /** 🛡️ A11: Formality register directive to preserve when shortening. */
+      registerDirective?: string;
+      appliedRegister?: string;
+      castList?: any[];
+      relationships?: any[];
+      speakerNames?: Record<string, string>;
+      castGenderByLabel?: Record<string, "male" | "female">;
+      bible?: any;
+      honorificCache?: RollingHonorificCache;
+      creatorDNA?: CreatorDNA;
+      targetPlatform?: string;
+      /** Delivery/emotion style (e.g. "playful", "sheepish", "whispers"). */
+      delivery?: string;
+      /** Neighbouring source lines (context only, never edited). */
+      contextBefore?: Array<{ source: string; speaker?: string }>;
+      contextAfter?: Array<{ source: string; speaker?: string }>;
+    }
   ): Promise<string> {
     const src = normalizeLanguageCode(sourceLanguage);
     const tgt = normalizeLanguageCode(targetLanguage);
 
-    // 1. Condense English rhetorical / filler preambles if source is English
-    let condensedSource = originalText;
-    if (src === "en") {
-      condensedSource = condensedSource
-        .replace(/\b(?:as a matter of fact|it is important to note that|it should be noted that|at the end of the day|needless to say|in order to|as you know|basically)\b,?\s*/gi, "")
-        .replace(/\b(?:clearly and simply|without a doubt|it goes without saying that|so first of all|first of all)\b,?\s*/gi, "")
-        .replace(/\b(?:it is|it's)\s+a\s+(?:speed\s+train|fast\s+train|high-speed\s+train)\s+that\s+connects\s+different\s+cities\s+in\s+China\.?\b/gi, "This speed train connects China's cities.")
-        .trim();
-      if (!condensedSource) condensedSource = originalText;
+    const current = options?.currentTranslation?.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
+    // Shortening the current line needs the Gemini edit step; without it, translate afresh as before.
+    const draft = current && isContextualDubbingEditEnabled()
+      ? current
+      : isContextualDubbingEditEnabled()
+        ? (await this.batchTranslateV3([originalText], src, tgt))[0]
+        : await this.translateText(originalText, src, tgt);
+    let result = decodeHtmlEntities(draft);
+
+    if (isContextualDubbingEditEnabled()) {
+      const draftSyllables = countSourceSyllables(result, tgt);
+      const ratio = options?.targetDurationRatio && options.targetDurationRatio > 1 ? options.targetDurationRatio : 1.2;
+      const maxSyllables = options?.maxDurationMs && options.maxDurationMs > 0
+        ? syllableBudgetForDuration(options.maxDurationMs, tgt, options.syllablesPerSecond)
+        : Math.max(2, Math.floor(draftSyllables / ratio));
+
+      if (draftSyllables > maxSyllables) {
+        try {
+          let honorificCache = options?.honorificCache;
+          if (!honorificCache && options?.bible) {
+            honorificCache = new RollingHonorificCache(tgt);
+            honorificCache.seedFromBible(options.bible, tgt);
+          }
+          const [edited] = await geminiDubbingEditor.editSegments(
+            [{
+              id: "L1",
+              source: originalText,
+              draft: result,
+              speaker: options?.speaker,
+              speakerGender: options?.speakerGender ?? (options?.speaker ? options?.castGenderByLabel?.[options.speaker] : undefined),
+              addressedTo: options?.addressedTo,
+              registerDirective: options?.registerDirective || options?.appliedRegister,
+              delivery: options?.delivery,
+              maxSyllables,
+            }],
+            {
+              outsideContext: {
+                before: (options?.contextBefore || []).map((c, i) => ({ id: `B${i}`, source: c.source, draft: "", speaker: c.speaker })),
+                after: (options?.contextAfter || []).map((c, i) => ({ id: `A${i}`, source: c.source, draft: "", speaker: c.speaker })),
+              },
+              jobId: options?.jobId || "retranslate",
+              userId: options?.userId,
+              sourceLanguage: src,
+              targetLanguage: tgt,
+              creatorDNA: options?.creatorDNA,
+              targetPlatform: options?.targetPlatform,
+              glossary: this.buildGlossaryTermsForEditor([originalText], src, tgt),
+              castList: options?.castList,
+              relationships: options?.relationships,
+              speakerNames: options?.speakerNames,
+              bible: options?.bible,
+              inferBible: false,
+              honorificCache,
+              countSyllables: countSourceSyllables,
+              countGlossaryViolations: (source, translated, lang) =>
+                TerminologyService.checkTerminologyCompliance(source, translated, lang).violations.length,
+            }
+          );
+          if (edited && !edited.usedDraft) result = edited.text;
+        } catch (err) {
+          console.warn("[Translation] Concise edit failed — keeping the Translation LLM draft", err);
+        }
+      }
     }
 
-    // 2. Translate condensed text strictly via general/translation-llm or v3
-    const conciseTranslation = await this.translateText(condensedSource, src, tgt);
-
-    // 3. Post-clean target language if Telugu/Hindi/Tamil/Malayalam has redundant conjunctive padding
-    let cleaned = decodeHtmlEntities(conciseTranslation);
-    if (tgt === "te") {
-      cleaned = cleaned.replace(/^(?:కాబట్టి|అయితే|మరియు|వాస్తవానికి|ముందుగా)\s*,?\s*/i, "");
-      if (options?.maxCharacters && cleaned.length > options.maxCharacters) {
-        cleaned = cleaned
-          .replace(/చాలా\s+కాలం\s+పాటు\.?/gi, "చాలా కాలం.")
-          .replace(/మేము\s+వేరే\s+ఏ\s+నగరంలోని\s+డిస్నీల్యాండ్‌కూ\s+ఎప్పుడూ\s+వెళ్లలేదు\.?/gi, "మేము వేరే నగర డిస్నీల్యాండ్‌కు వెళ్లలేదు.")
-          .replace(/డిస్నీల్యాండ్‌కూ\s+ఎప్పుడూ\s+వెళ్లలేదు/gi, "డిస్నీల్యాండ్‌కు వెళ్లలేదు")
-          .replace(/చైనాలోని\s+వివిధ\s+నగరాలను\s+అనుసంధానించే\s+ఒక\s+వేగవంతమైన\s+రైలు/gi, "ఇది చైనా నగరాలను కలిపే వేగవంతమైన రైలు.")
-          .replace(/వివిధ\s+నగరాలను\s+అనుసంధానించే\s+ఒక\s+వేగవంతమైన/gi, "నగరాలను కలిపే వేగవంతమైన")
-          .replace(/అనుసంధానించే\s+ఒక\s+వేగవంతమైన/gi, "కలిపే వేగవంతమైన")
-          .replace(/చైనాలోని\s+నగరాలను\s+కలుపుతుంది/gi, "ఇది చైనా నగరాలను కలిపే వేగవంతమైన రైలు.")
-          .replace(/అక్కడ[\s\S]*?బైబిల్‌[\s\S]*$/gi, "అక్కడ ఆయన బైబిల్‌ను సరిచేస్తున్నారని ఎక్కడ చెప్పారు?")
-          .replace(/(?:తాను\s+)?బైబిల్‌[\s\S]*?అల్లా[\s\S]*?ఎక్కడ[\s\S]*$/gi, "అల్లాహ్ బైబిల్‌ను సరిచేస్తున్నారని ఎక్కడ చెప్పారు?")
-          .replace(/(?:ఉదాహరణకు|ఉదాహరణ)[\s\S]*?యేసు[\s\S]*$/gi, "ఉదాహరణకు, యేసు చంపబడలేదని, సిలువ వేయబడలేదని, అలా అనిపించేలా చేయబడ్డారని అన్నప్పుడు.")
-          .replace(/4:?157[\s\S]*$/gi, "4వ అధ్యాయం, 157వ వచనంలో ఏముంది?")
-          .replace(/యేసు[\s\S]*?సిలువ[\s\S]*?వచనం[\s\S]*$/gi, "యేసు సిలువ వేయబడటం గురించిన వచనమా?")
-          .replace(/ఖురాన్[\s\S]*?బైబిల్‌[\s\S]*?అల్లా[\s\S]*?$/gi, "ఖురాన్ బైబిల్‌కు విరుద్ధమని మీరంటారు, కానీ అది బైబిల్‌ను సరిచేస్తోందని దేవుడు మాకు చెప్పారు. అల్లాహ్ ఇలా పేర్కొంటున్నారు—")
-          .replace(/.*మాటల[\s\S]*?లేఖనం[\s\S]*$/gi, "ఆ మాటల్లో కాకపోయినా, లేఖనంలో చెప్పినదాన్ని ప్రస్తావిస్తూ, లేఖనాన్ని సరిచేస్తున్నారని అర్థం.")
-          .replace(/బ్రదర్[\s\S]*?(?:అర్థమవు|చెప్తే|సరిచేస్తు)[\s\S]*$/gi, "బ్రదర్, అది స్పష్టంగా అర్థమవుతోంది—ఒక గ్రంథం ఒకటి చెప్పి, మరో గ్రంథం దానికి విరుద్ధంగా చెప్తే, ఇది దాన్ని సరిచేస్తున్నట్టే.")
-          .replace(/సోదరా[\s\S]*?పుస్తకం[\s\S]*$/gi, "బ్రదర్, అది స్పష్టంగా అర్థమవుతోంది—ఒక గ్రంథం ఒకటి చెప్పి, మరో గ్రంథం దానికి విరుద్ధంగా చెప్తే, ఇది దాన్ని సరిచేస్తున్నట్టే.")
-          .replace(/అవును[\s\S]*?(?:చెప్తుంది|కోట్|చెబుతా)[\s\S]*$/gi, "అవును, నేను కోట్ చేస్తాను, అది చెప్తుంది—");
-      }
-    } else if (tgt === "hi") {
-      cleaned = cleaned.replace(/^(?:इसलिए|हालांकि|और तो और|दरअसल|तो सबसे पहले|सबसे पहले)\s*,?\s*/i, "");
-      if (options?.maxCharacters && cleaned.length > options.maxCharacters) {
-        cleaned = cleaned
-          .replace(/काफी\s+समय\s+से\.?/gi, "काफ़ी समय से।")
-          .replace(/हम\s+कभी\s+किसी\s+दूसरे\s+शहर\s+के\s+डिज़्नीलैंड\s+नहीं\s+गए\s+हैं।?/gi, "हम कभी दूसरे शहरों में डिज़्नीलैंड नहीं गए।")
-          .replace(/किसी\s+दूसरे\s+शहर\s+में\s+कभी\s+डिज़्नीलैंड\s+नहीं\s+गए\s+हैं।?/gi, "हम कभी दूसरे शहरों में डिज़्नीलैंड नहीं गए।")
-          .replace(/यह\s+एक\s+तेज़\s+रफ़्तार\s+ट्रेन\s+है\s+जो\s+चीन\s+के\s+अलग-अलग\s+शहरों\s+को\s+जोड़ती\s+है।?/gi, "यह तेज़ रफ़्तार ट्रेन चीन के शहरों को जोड़ती है।")
-          .replace(/एक\s+तेज़\s+रफ़्तार\s+ट्रेन\s+है\s+जो\s+/gi, "तेज़ रफ़्तार ट्रेन ")
-          .replace(/अलग-अलग\s+शहरों/gi, "शहरों")
-          .replace(/अल्लाह[\s\S]*?बाइबि?ल[\s\S]*$/gi, "अल्लाह ने ऐसा कहाँ कहा है?")
-          .replace(/(?:वहाँ|वहा|उन्होंने|वह)[\s\S]*?बाइबि?ल[\s\S]*?(?:सुधार|सही|लिखा)[\s\S]*$/gi, "वहाँ ऐसा कहाँ लिखा है?")
-          .replace(/(?:मिसाल|उदाहरण)[\s\S]*?(?:ईसा|यीशु)[\s\S]*$/gi, "मिसाल के तौर पर, ईसा न मारे गए न सूली चढ़े, बस ऐसा लगा।")
-          .replace(/.*शब्द[\s\S]*?धर्मग्रंथ[\s\S]*$/gi, "सीधे ये शब्द न सही, पर धर्मग्रंथ का हवाला देकर उसे सही किया जा रहा है।")
-          .replace(/भाई[\s\S]*?(?:किताब|पुस्तक)[\s\S]*$/gi, "भाई, यह साफ़ है। अगर एक किताब दूसरी की उल्टी बात कहे, तो वह उसे सही कर रही है।")
-          .replace(/4:?157[\s\S]*$/gi, "सूरह 4, आयत 157 में क्या है?")
-          .replace(/(?:यीशु|ईसा)[\s\S]*?सूली[\s\S]*?आयत[\s\S]*$/gi, "ईसा की सूली वाली आयत?")
-          .replace(/^हाँ[\s\S]*?(?:सुनाता|लिखा|उद्धृत)[\s\S]*$/gi, "हाँ, मैं पढ़कर सुनाता हूँ। उसमें लिखा है—")
-          .replace(/(?:कुरान|क़ुरान|आप\s+कहते)[\s\S]*?बाइबि?ल[\s\S]*?अल्लाह[\s\S]*?$/gi, "आप कहते हैं क़ुरआन बाइबिल के ख़िलाफ़ है, पर अल्लाह ने फ़रमाया कि यह उसे सही करता है। अल्लाह फ़रमाते हैं—")
-          .replace(/।{2,}/g, "।")
-          .replace(/\?+[\u0902\u0901]?\?*/g, "?")
-          .trim();
-      }
-    } else if (tgt === "ta") {
-      cleaned = cleaned.replace(/^(?:எனவே|ஆனால்|மேலும்|உண்மையில்)\s*,?\s*/i, "");
-    } else if (tgt === "ml") {
-      cleaned = cleaned.replace(/^(?:അതുകൊണ്ട്|എന്നാൽ|കൂടാതെ|യഥാർത്ഥത്തിൽ)\s*,?\s*/i, "");
-    }
-
-    // 4. Post-condensation punctuation check: strip dangling clause fragments after terminal ?, ., or !
-    cleaned = stripDanglingClauseFragments(cleaned);
-
+    let cleaned = stripDanglingClauseFragments(result);
     if (tgt === "te") {
       cleaned = applyTeluguTheologicalLexiconGuard(cleaned);
+      // With the Gemini edit on, spoken style is chosen in context (prompt rule 4); a blind rewrite
+      // afterwards would override it, including in formal speech. Only the legacy path needs it.
+      if (!isContextualDubbingEditEnabled()) cleaned = applySpokenTeluguColloquialContractions(cleaned);
     }
-
     return normalizeScriptureCitationsForTts(sanitizeSpokenTranslationForTts(cleaned.trim() || decodeHtmlEntities(originalText)), tgt);
   }
 
@@ -693,6 +783,7 @@ export class TranslationService {
       text: string;
       speaker?: string;
       isHook?: boolean;
+      isSong?: boolean;
       duration?: number;
       emotionTag?: string;
       energyDb?: number;
@@ -700,6 +791,8 @@ export class TranslationService {
       similarityBoostOverride?: number;
       pitchRangeSemitones?: number;
       voiceQuality?: "breathy" | "modal" | "creaky" | "pressed";
+      deliveryStyle?: string;
+      delivery?: string;
     }>,
     sourceLanguage: string,
     targetLanguage: string,
@@ -712,10 +805,22 @@ export class TranslationService {
       localeStyle?: "neutral" | "hinglish" | "hinglish_urban" | "hinglish_professional" | "slang";
       targetPlatform?: "youtube" | "reels" | "shorts" | "linkedin" | "tiktok";
       creatorDNA?: CreatorDNA;
-      enableABHooks?: boolean;
       speakerProfiles?: SpeakerProfile[];
+      onScreenText?: OnScreenTextEvent[];
       targetDurations?: number[];
       userId?: string;
+      /** false = skip the Gemini edit step even in hybrid mode. */
+      contextualEdit?: boolean;
+      /** Full media length in ms, so the last line's time budget can be computed. */
+      totalDurationMs?: number;
+      /** Scene cut timestamps in ms, used to cap trailing buffer in permissibleWindowMs (Fix 3.6). */
+      shotChangesMs?: number[];
+      castList?: CastMember[];
+      relationships?: CharacterRelationship[];
+      /** Diarization label → cast name / gender (cast-list.ts binding in 07-dubbing.ts). */
+      speakerNames?: Record<string, string>;
+      castGenderByLabel?: Record<string, "male" | "female">;
+      enableDualTrack?: boolean;
     }
   ): Promise<TranslationResult> {
     const normSourceLang = normalizeLanguageCode(sourceLanguage);
@@ -730,24 +835,57 @@ export class TranslationService {
       });
 
       const translatedTexts: string[] = new Array(texts.length);
+      const subtitleTexts: string[] = new Array(texts.length);
+      const appliedRegisters: (string | undefined)[] = new Array(texts.length);
       const confidenceScores: number[] = new Array(texts.length).fill(0.95);
       const segmentVariants: any[] = new Array(texts.length).fill(undefined);
 
       const profileKey = resolveTerminologyProfile(options);
 
-      // The composite primary requires both v3 translation and Adaptive MT translation.
-      const standardTranslated = await this.batchTranslateStandard(
-        texts,
-        normSourceLang,
-        normTargetLang,
-        profileKey
-      );
+      const hybrid = isContextualDubbingEditEnabled(options);
+      let standardTranslated: string[];
+      let standardSubtitles: string[];
+      let standardRegisters: (string | undefined)[];
+      let editOutputs: Array<{
+        text: string;
+        subtitleText?: string;
+        appliedRegister?: string;
+        meaningAction?: MeaningAction;
+        meaningPolarityFlipped?: boolean;
+        meaningNumbersChanged?: boolean;
+        maxSyllables?: number;
+      }> = [];
+
+      let resolvedBible: LocalizationBible | undefined;
+      if (hybrid) {
+        // Step 1: Translation LLM drafts every line. Step 2: Gemini edits in context.
+        const drafts = await this.batchTranslateV3(texts, normSourceLang, normTargetLang);
+        editOutputs = await this.applyContextualDubbingEdit(
+          jobId, segments, drafts, normSourceLang, normTargetLang, profileKey, options
+        );
+        resolvedBible = geminiDubbingEditor.lastBible;
+        standardTranslated = editOutputs.map((o) => o.text);
+        standardSubtitles = editOutputs.map((o) => o.subtitleText || o.text);
+        standardRegisters = editOutputs.map((o) => o.appliedRegister);
+      } else {
+        // Legacy composite: Translation LLM followed by Adaptive MT.
+        standardTranslated = await this.batchTranslateStandard(
+          texts,
+          normSourceLang,
+          normTargetLang,
+          profileKey
+        );
+        standardSubtitles = [...standardTranslated];
+        standardRegisters = standardTranslated.map(() => undefined);
+      }
       if (standardTranslated.length !== texts.length || standardTranslated.some((text) => !text?.trim())) {
         throw new Error("[Translation] Composite primary returned incomplete segment translations.");
       }
 
       texts.forEach((_, idx) => {
         translatedTexts[idx] = decodeHtmlEntities(standardTranslated[idx]);
+        subtitleTexts[idx] = decodeHtmlEntities(standardSubtitles[idx] || standardTranslated[idx]);
+        appliedRegisters[idx] = standardRegisters[idx];
         confidenceScores[idx] = 0.95;
       });
 
@@ -770,7 +908,9 @@ export class TranslationService {
           { localeStyle: profileKey }
         );
 
-        if (!comp.isFullyCompliant && comp.violations.length > 0) {
+        // In hybrid mode Gemini already applied the glossary and the editor kept the draft for
+        // any line where it made terminology worse, so the Adaptive MT remedy pass is skipped.
+        if (!hybrid && !comp.isFullyCompliant && comp.violations.length > 0) {
           // 🛡️ Fix 3: Targeted re-inflection remedy pass (NEVER blind string replace)
           const remediedText = await this.remedyTerminologyViolations(
             texts[i],
@@ -823,30 +963,162 @@ export class TranslationService {
           semanticThreshold: 0.85,
           enableSelfHealing: true,
           repairCallback: async (source, drifted, tgtLang, details) => {
-            return await this.repairNumericalDrift(source, drifted, normSourceLang, tgtLang, details, profileKey);
+            return await this.repairNumericalDrift(source, drifted, normSourceLang, tgtLang, details, profileKey, {
+              jobId,
+              userId: options?.userId,
+              bible: resolvedBible,
+              castList: options?.castList,
+              relationships: options?.relationships,
+              speakerNames: options?.speakerNames,
+            });
           },
           backTranslateCallback: async (targetText, tgtLang) => {
-            return await this.translateText(targetText, tgtLang, "en", { tone: "formal" });
+            if (hybrid) {
+              // Plain Translation LLM is enough for a back-translation spot check.
+              return (await this.batchTranslateV3([targetText], tgtLang, normSourceLang))[0];
+            }
+            return await this.translateText(targetText, tgtLang, normSourceLang, { tone: "formal" });
           },
         }
       );
 
-      // Update translatedTexts with any self-healed translations
+      // Track per-line repair & blocking status across spoken and subtitle tracks (Fix 2.2 & 2.3)
+      const repairAttempted = new Array<boolean>(segments.length).fill(false);
+      const repairOutcome = new Array<"repaired" | "failed" | undefined>(segments.length).fill(undefined);
+      const translationBlockReason = new Array<"number_mismatch" | "polarity_flip" | "meaning_unresolved" | undefined>(segments.length).fill(undefined);
+
       for (let i = 0; i < qualityGateResults.length; i++) {
-        if (qualityGateResults[i].translated !== translatedTexts[i]) {
-          translatedTexts[i] = qualityGateResults[i].translated;
+        const qg = qualityGateResults[i];
+        const origSpoken = translatedTexts[i];
+        const initialParity = NumericalEntityGuard.verifyNumericalParity(texts[i], origSpoken, normTargetLang);
+        if (!initialParity.isParity) {
+          repairAttempted[i] = true;
+          if (qg.numericalParityVerified) {
+            repairOutcome[i] = "repaired";
+            translatedTexts[i] = qg.translated;
+          } else {
+            repairOutcome[i] = "failed";
+            translationBlockReason[i] = "number_mismatch";
+          }
+        } else if (qg.translated !== origSpoken) {
+          translatedTexts[i] = qg.translated;
+        }
+
+        // Also verify and repair subtitleText if it differs from spoken text
+        if (subtitleTexts[i] === origSpoken && translatedTexts[i] !== origSpoken) {
+          subtitleTexts[i] = translatedTexts[i];
+        } else if (subtitleTexts[i] && subtitleTexts[i] !== translatedTexts[i]) {
+          const subParity = NumericalEntityGuard.verifyNumericalParity(texts[i], subtitleTexts[i], normTargetLang);
+          if (!subParity.isParity) {
+            repairAttempted[i] = true;
+            const repairedSub = await this.repairNumericalDrift(
+              texts[i],
+              subtitleTexts[i],
+              normSourceLang,
+              normTargetLang,
+              subParity.details,
+              profileKey,
+              {
+                jobId,
+                userId: options?.userId,
+                bible: resolvedBible,
+                castList: options?.castList,
+                relationships: options?.relationships,
+                speakerNames: options?.speakerNames,
+              }
+            );
+            const subRecheck = NumericalEntityGuard.verifyNumericalParity(texts[i], repairedSub, normTargetLang);
+            if (subRecheck.isParity) {
+              subtitleTexts[i] = repairedSub;
+              if (!translationBlockReason[i]) repairOutcome[i] = "repaired";
+            } else if (!translationBlockReason[i] && qg.numericalParityVerified) {
+              // Spoken track passed parity, so fall back subtitle to spoken track rather than shipping a drifted subtitle
+              subtitleTexts[i] = translatedTexts[i];
+              repairOutcome[i] = "repaired";
+            } else {
+              repairOutcome[i] = "failed";
+              translationBlockReason[i] = "number_mismatch";
+            }
+          }
+        }
+
+        // Repair meaning / polarity failures detected by back-translation or Gemini meaning check
+        const editMeta = editOutputs[i];
+        const hasPolarityFlip = Boolean(qg.polarityFlipped || editMeta?.meaningPolarityFlipped);
+        const hasNumbersChanged = Boolean(editMeta?.meaningNumbersChanged);
+        const hasMeaningUnresolved = editMeta?.meaningAction === "unresolved";
+        if (!translationBlockReason[i] && (hasPolarityFlip || hasNumbersChanged || hasMeaningUnresolved)) {
+          repairAttempted[i] = true;
+          const problem = hasPolarityFlip
+            ? "Negation or affirmation polarity was inverted against SOURCE."
+            : hasNumbersChanged
+              ? "A number, date, amount, or unit was changed or dropped."
+              : "Meaning was altered or an object/condition was dropped.";
+          const repairedSpoken = await this.repairMeaning(
+            texts[i],
+            translatedTexts[i],
+            normSourceLang,
+            normTargetLang,
+            problem,
+            {
+              jobId,
+              userId: options?.userId,
+              maxSyllables: editMeta?.maxSyllables,
+              bible: resolvedBible,
+              castList: options?.castList,
+              relationships: options?.relationships,
+              speakerNames: options?.speakerNames,
+              profileKey,
+            }
+          );
+          if (repairedSpoken !== translatedTexts[i]) {
+            translatedTexts[i] = repairedSpoken;
+            if (subtitleTexts[i] && subtitleTexts[i] !== repairedSpoken) {
+              const repairedSub = await this.repairMeaning(
+                texts[i],
+                subtitleTexts[i],
+                normSourceLang,
+                normTargetLang,
+                problem,
+                {
+                  jobId,
+                  userId: options?.userId,
+                  bible: resolvedBible,
+                  castList: options?.castList,
+                  relationships: options?.relationships,
+                  speakerNames: options?.speakerNames,
+                  profileKey,
+                }
+              );
+              subtitleTexts[i] = repairedSub !== subtitleTexts[i] ? repairedSub : repairedSpoken;
+            }
+            repairOutcome[i] = "repaired";
+          } else {
+            repairOutcome[i] = "failed";
+            translationBlockReason[i] = hasPolarityFlip
+              ? "polarity_flip"
+              : hasNumbersChanged
+                ? "number_mismatch"
+                : "meaning_unresolved";
+          }
         }
       }
 
       const translatedSegments: TranslatedSegment[] = segments.map(
         (segment, index) => {
           let decodedText = decodeHtmlEntities(translatedTexts[index] || segment.text);
+          let cleanSubText = decodeHtmlEntities(subtitleTexts[index] || translatedTexts[index] || segment.text);
           if (normTargetLang === "te") {
             decodedText = applyTeluguTheologicalLexiconGuard(decodedText);
+            cleanSubText = applyTeluguTheologicalLexiconGuard(cleanSubText);
+            // Gemini edit on (hybrid): spoken style was chosen in context; don't override it.
+            if (!hybrid) decodedText = applySpokenTeluguColloquialContractions(decodedText);
           }
           decodedText = normalizeScriptureCitationsForTts(decodedText, normTargetLang);
           const segDurationMs = durations[index] > 0
-            ? (durations[index] > 1000 ? durations[index] : durations[index] * 1000)
+            ? (segment.end > segment.start && Math.abs((segment.end - segment.start) - durations[index]) < 5
+              ? durations[index]
+              : (durations[index] >= 60 ? durations[index] : durations[index] * 1000))
             : Math.max(0, segment.end - segment.start);
           const syllableBudgetCompliance = computeSyllableBudgetCompliance(
             segment.text,
@@ -859,6 +1131,8 @@ export class TranslationService {
           return {
             original: segment.text,
             translated: decodedText,
+            subtitleText: cleanSubText,
+            appliedRegister: appliedRegisters[index],
             start: segment.start,
             end: segment.end,
             confidence: confidenceScores?.[index],
@@ -883,6 +1157,9 @@ export class TranslationService {
             semanticParityScore: qg?.semanticParityScore,
             reviewRecommended: qg?.reviewRecommended ?? false,
             polarityFlipped: qg?.polarityFlipped,
+            ...(repairAttempted[index] ? { repairAttempted: true } : {}),
+            ...(repairOutcome[index] ? { repairOutcome: repairOutcome[index] } : {}),
+            ...(translationBlockReason[index] ? { translationBlockReason: translationBlockReason[index] } : {}),
           };
         }
       );
@@ -892,11 +1169,364 @@ export class TranslationService {
         sourceLanguage,
         targetLanguage,
         segments: translatedSegments,
+        ...(resolvedBible ? { localizationBible: resolvedBible } : {}),
       };
     } catch (error) {
       console.error(`[Translation] translateSegments error for job ${jobId}:`, error);
       throw error;
     }
+  }
+
+  // ─── Hybrid step 2: Gemini contextual edit ─────────────────────────────────
+
+  /**
+   * Sends the Translation LLM drafts to Gemini with context, speaker gender, glossary and a
+   * syllable budget per line. Returns one string per segment, in order. Never throws for a
+   * Gemini failure: lines Gemini cannot improve safely keep their draft.
+   */
+  private async applyContextualDubbingEdit(
+    jobId: string,
+    segments: Array<{
+      start: number;
+      end: number;
+      text: string;
+      speaker?: string;
+      addressedTo?: string;
+      registerDirective?: string;
+      isSong?: boolean;
+      duration?: number;
+      emotionTag?: string;
+      deliveryStyle?: string;
+      delivery?: string;
+    }>,
+    drafts: string[],
+    sourceLanguage: string,
+    targetLanguage: string,
+    profileKey: TerminologyProfile | undefined,
+    options?: {
+      tone?: "casual" | "formal";
+      localeStyle?: string;
+      speakerProfiles?: SpeakerProfile[];
+      userId?: string;
+      totalDurationMs?: number;
+      shotChangesMs?: number[];
+      creatorDNA?: CreatorDNA;
+      targetPlatform?: string;
+      onScreenText?: OnScreenTextEvent[];
+      castList?: CastMember[];
+      relationships?: CharacterRelationship[];
+      /** Diarization label → cast name / gender (cast-list.ts binding in 07-dubbing.ts). */
+      speakerNames?: Record<string, string>;
+      castGenderByLabel?: Record<string, "male" | "female">;
+      enableDualTrack?: boolean;
+    }
+  ): Promise<Array<{
+    text: string;
+    subtitleText?: string;
+    appliedRegister?: string;
+    meaningAction?: MeaningAction;
+    meaningPolarityFlipped?: boolean;
+    meaningNumbersChanged?: boolean;
+    maxSyllables?: number;
+  }>> {
+    const genderBySpeaker = new Map<string, "male" | "female">();
+    for (const p of options?.speakerProfiles || []) {
+      const g = (p as any)?.gender;
+      if ((p as any)?.speakerId && (g === "male" || g === "female")) genderBySpeaker.set((p as any).speakerId, g);
+    }
+    // Cast genders arrive keyed by diarization label (cast-list.ts bindCastGenders in 07-dubbing.ts);
+    // a creator's cast list wins over the acoustic estimate.
+    for (const [label, g] of Object.entries(options?.castGenderByLabel || {})) {
+      if (g === "male" || g === "female") genderBySpeaker.set(label, g);
+    }
+
+    const uniqueSpeakers = Array.from(new Set(segments.map((s) => s.speaker).filter(Boolean))) as string[];
+    const relMap = new Map<string, CharacterRelationship>();
+    for (const rel of options?.relationships || []) {
+      relMap.set(`${rel.fromSpeaker}->${rel.toSpeaker}`, rel);
+    }
+
+    const addressees = inferAddressees(segments, uniqueSpeakers, options?.relationships || []);
+
+    // The dubbing layer sends milliseconds; some callers and tests send seconds.
+    const lastEnd = Math.max(0, ...segments.map((s) => Number(s.end) || 0));
+    const toMs = lastEnd > 0 && lastEnd < 1000 ? 1000 : 1;
+
+    const editorSegments: EditorSegment[] = segments.map((seg, i) => {
+      const start = (Number(seg.start) || 0) * toMs;
+      let end = (Number(seg.end) || 0) * toMs;
+      if (end <= start && seg.duration && seg.duration > 0) {
+        end = start + (seg.duration > 1000 ? seg.duration : seg.duration * 1000);
+      }
+      const next = segments[i + 1];
+      const nextStartRaw = next ? (Number(next.start) || 0) * toMs : 0;
+      const nextStart = next && nextStartRaw > start ? nextStartRaw : null;
+      const windowMs = end > start
+        ? permissibleWindowMs(
+            start,
+            end,
+            nextStart,
+            options?.totalDurationMs,
+            options?.shotChangesMs
+          )
+        : 0;
+
+      const addressedTo = addressees[i];
+
+      // Only an explicit relationship pins a line's register here. Everything else is left to the
+      // editor's localization bible (Gemini-inferred registers + locks); a default directive here
+      // would override what the bible inferred.
+      let registerDirective = seg.registerDirective;
+      if (!registerDirective && seg.speaker && addressedTo) {
+        const rel = relMap.get(`${seg.speaker}->${addressedTo}`);
+        if (rel) registerDirective = resolveRegisterDirective(targetLanguage, rel, options?.tone);
+      }
+
+      return {
+        id: `L${i + 1}`,
+        source: seg.text,
+        draft: decodeHtmlEntities(drafts[i] || ""),
+        speaker: seg.speaker,
+        speakerGender: seg.speaker ? genderBySpeaker.get(seg.speaker) : undefined,
+        addressedTo,
+        registerDirective,
+        isSong: seg.isSong,
+        delivery: seg.delivery || seg.emotionTag || (seg.deliveryStyle && seg.deliveryStyle !== "natural" ? seg.deliveryStyle : undefined),
+        maxSyllables: windowMs > 0 ? syllableBudgetForDuration(windowMs, targetLanguage) : undefined,
+      };
+    });
+
+    let visualSceneNotes: string[] | undefined;
+    if (editorContextEnabled() && options?.onScreenText && options.onScreenText.length > 0) {
+      const notes: string[] = [];
+      let totalChars = 0;
+      for (const ev of options.onScreenText) {
+        if (notes.length >= 30) break;
+        const totalSec = Math.max(0, Math.floor(ev.startMs / 1000));
+        const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+        const ss = String(totalSec % 60).padStart(2, "0");
+        const note = `${mm}:${ss} on screen: "${ev.text}"`;
+        if (totalChars + note.length > 2000) break;
+        notes.push(note);
+        totalChars += note.length;
+      }
+      if (notes.length > 0) visualSceneNotes = notes;
+    }
+
+    try {
+      const results = await geminiDubbingEditor.editSegments(editorSegments, {
+        jobId,
+        userId: options?.userId,
+        sourceLanguage,
+        targetLanguage,
+        localeStyle: options?.localeStyle,
+        tone: options?.tone,
+        creatorDNA: options?.creatorDNA,
+        targetPlatform: options?.targetPlatform,
+        visualSceneNotes,
+        castList: options?.castList,
+        relationships: options?.relationships,
+        speakerNames: options?.speakerNames,
+        enableDualTrack: options?.enableDualTrack ?? true,
+        glossary: this.buildGlossaryTermsForEditor(segments.map((s) => s.text), sourceLanguage, targetLanguage, profileKey),
+        countSyllables: countSourceSyllables,
+        countGlossaryViolations: (source, translated, lang) =>
+          TerminologyService.checkTerminologyCompliance(source, translated, lang, { localeStyle: profileKey }).violations.length,
+      });
+      return results.map((r, i) => ({
+        text: r.text || editorSegments[i].draft,
+        subtitleText: r.subtitleText || r.text || editorSegments[i].draft,
+        appliedRegister: r.appliedRegister,
+        meaningAction: r.meaningAction,
+        meaningPolarityFlipped: r.meaningPolarityFlipped,
+        meaningNumbersChanged: r.meaningNumbersChanged,
+        maxSyllables: editorSegments[i].maxSyllables,
+      }));
+    } catch (err) {
+      console.warn("[Translation] Gemini contextual edit failed — using Translation LLM drafts", err);
+      return editorSegments.map((s) => ({
+        text: s.draft,
+        subtitleText: s.draft,
+        appliedRegister: undefined,
+      }));
+    }
+  }
+
+  // ─── Subtitles: faithful translation fitted to reading speed ───────────────
+
+  /**
+   * Translates complete source sentences for on-screen subtitles.
+   *
+   * Hybrid mode: Translation LLM drafts each sentence (the faithful version), then Gemini edits
+   * in context with a CHARACTER budget per sentence = Netflix reading speed x the time the
+   * sentence can stay on screen. Unlike the dubbing edit, nothing is shortened for spoken length;
+   * text is only condensed where it is too long to read. Lines Gemini cannot improve safely keep
+   * the Translation LLM draft.
+   */
+  public async translateSubtitleSentences(
+    jobId: string,
+    sentences: Array<{ text: string; speaker?: string; maxCharacters?: number }>,
+    sourceLanguage: string,
+    targetLanguage: string,
+    options?: {
+      localeStyle?: string;
+      tone?: "casual" | "formal";
+      creatorDNA?: CreatorDNA;
+      targetPlatform?: string;
+      userId?: string;
+      castList?: CastMember[];
+      relationships?: CharacterRelationship[];
+      /** Diarization label → cast name / gender (cast-list.ts binding in 07-dubbing.ts). */
+      speakerNames?: Record<string, string>;
+      castGenderByLabel?: Record<string, "male" | "female">;
+    }
+  ): Promise<string[]> {
+    const src = normalizeLanguageCode(sourceLanguage);
+    const tgt = normalizeLanguageCode(targetLanguage);
+    if (sentences.length === 0) return [];
+
+    const drafts = (await this.batchTranslateV3(sentences.map((s) => s.text), src, tgt)).map((d) => decodeHtmlEntities(d));
+    if (!isContextualDubbingEditEnabled()) return drafts;
+
+    const profileKey = resolveTerminologyProfile(options as any);
+    let editedTexts: string[];
+    try {
+      const results = await geminiDubbingEditor.editSegments(
+        sentences.map((s, i) => ({
+          id: `S${i + 1}`,
+          source: s.text,
+          draft: drafts[i],
+          speaker: s.speaker,
+          maxCharacters: s.maxCharacters,
+        })),
+        {
+          jobId,
+          userId: options?.userId,
+          sourceLanguage: src,
+          targetLanguage: tgt,
+          purpose: "subtitle",
+          localeStyle: options?.localeStyle,
+          tone: options?.tone,
+          creatorDNA: options?.creatorDNA,
+          targetPlatform: options?.targetPlatform,
+          castList: options?.castList,
+          relationships: options?.relationships,
+          speakerNames: options?.speakerNames,
+          glossary: this.buildGlossaryTermsForEditor(sentences.map((s) => s.text), src, tgt, profileKey),
+          countSyllables: countSourceSyllables,
+          countGlossaryViolations: (source, translated, lang) =>
+            TerminologyService.checkTerminologyCompliance(source, translated, lang, { localeStyle: profileKey }).violations.length,
+        }
+      );
+      editedTexts = results.map((r, i) => r.text || drafts[i]);
+    } catch (err) {
+      console.warn("[Translation] Subtitle edit failed — using Translation LLM drafts", err);
+      editedTexts = drafts;
+    }
+
+    // Run quality gate (numerical parity + semantic spot check) on fallback subtitle path (Fix 1.2)
+    try {
+      const qgInput: QualityGateSegmentInput[] = sentences.map((s, idx) => ({
+        index: idx,
+        original: s.text,
+        translated: editedTexts[idx],
+        terminologyComplianceRate: TerminologyService.checkTerminologyCompliance(
+          s.text,
+          editedTexts[idx],
+          tgt,
+          { localeStyle: profileKey }
+        ).complianceRate,
+      }));
+      const qgResults = await TranslationQualityGate.evaluateQualityGate(qgInput, src, tgt, {
+        sampleRate: 0.10,
+        semanticThreshold: 0.85,
+        enableSelfHealing: true,
+        repairCallback: async (source, drifted, tgtLang, details) => {
+          return await this.repairNumericalDrift(source, drifted, src, tgtLang, details, profileKey);
+        },
+        backTranslateCallback: async (targetText, tgtLang) => {
+          return (await this.batchTranslateV3([targetText], tgtLang, src))[0];
+        },
+      });
+      for (let i = 0; i < qgResults.length; i++) {
+        if (qgResults[i].translated && qgResults[i].translated !== editedTexts[i]) {
+          editedTexts[i] = qgResults[i].translated;
+        }
+      }
+    } catch (qgErr) {
+      console.warn("[Translation] Subtitle quality gate failed — keeping edited texts", qgErr);
+    }
+
+    if (tgt === "te") {
+      editedTexts = editedTexts.map((t) => applyTeluguTheologicalLexiconGuard(t));
+    }
+    return editedTexts;
+  }
+
+  /**
+   * Condenses subtitle lines that are still too fast to read after every timing fix.
+   * Works in the subtitle's own language. Returns one string per item (the original when
+   * Gemini cannot shorten it safely).
+   */
+  public async condenseSubtitleLines(
+    jobId: string,
+    items: Array<{ text: string; maxCharacters: number; speaker?: string }>,
+    language: string
+  ): Promise<string[]> {
+    if (items.length === 0 || !isContextualDubbingEditEnabled()) return items.map((i) => i.text);
+    const lang = normalizeLanguageCode(language);
+    try {
+      const results = await geminiDubbingEditor.editSegments(
+        items.map((it, i) => ({ id: `C${i + 1}`, source: it.text, draft: it.text, speaker: it.speaker, maxCharacters: it.maxCharacters })),
+        {
+          jobId,
+          sourceLanguage: lang,
+          targetLanguage: lang,
+          purpose: "subtitle",
+          countSyllables: countSourceSyllables,
+          // Condensing only shortens already-final lines: no new register inference (extra call,
+          // and it could change address forms that were already decided).
+          inferBible: false,
+        }
+      );
+      return results.map((r, i) => r.text || items[i].text);
+    } catch (err) {
+      console.warn("[Translation] Subtitle condensation failed — keeping lines", err);
+      return items.map((i) => i.text);
+    }
+  }
+
+  /** Glossary terms whose source-language term appears in these lines, for the Gemini prompt (Fix 2.4). */
+  private buildGlossaryTermsForEditor(
+    sourceTexts: string[],
+    sourceLanguage: string,
+    targetLanguage: string,
+    profileKey?: TerminologyProfile
+  ): EditorGlossaryTerm[] {
+    const srcBase = normalizeLanguageCode(sourceLanguage).toLowerCase().slice(0, 2);
+    const normTarget = normalizeLanguageCode(targetLanguage).toLowerCase().slice(0, 2);
+    const joined = sourceTexts.join(" ");
+    const terms: EditorGlossaryTerm[] = [];
+
+    for (const entry of DOMAIN_GLOSSARY) {
+      const langData = entry.translations[normTarget];
+      if (!langData) continue;
+      const targetTerm = (profileKey && langData.profiles?.[profileKey]) || langData.preferred;
+      const sense = GLOSSARY_SENSE[entry.category] || String(entry.category).replace(/_/g, " ");
+
+      if (srcBase === "en") {
+        if (!new RegExp(`\\b${escapeRegex(entry.sourceEn)}\\b`, "i").test(joined)) continue;
+        terms.push({ source: entry.sourceEn, target: targetTerm, sense });
+      } else {
+        const srcData = entry.translations[srcBase];
+        if (!srcData) continue;
+        const candidates = [srcData.preferred, ...(srcData.acceptableAlternatives || [])].filter(Boolean);
+        const matched = candidates.find((term) => joined.includes(term));
+        if (!matched) continue;
+        terms.push({ source: matched, target: targetTerm, sense });
+      }
+    }
+    return terms;
   }
 
   // ─── Language detection (utility only — NOT used in dubbing pipeline) ────────
@@ -1259,8 +1889,8 @@ export class TranslationService {
 
   /**
    * 🛡️ Targeted numerical self-healing repair.
-   * If numerical entities drifted or scales were improperly mapped during translation,
-   * performs a single repair pass constraining the model to preserve all numbers and units.
+   * Tries Adaptive MT first when available; if unavailable or its result fails parity,
+   * falls back to a single-line Gemini dubbing editor repair pass (Fix 2.2).
    */
   public async repairNumericalDrift(
     sourceText: string,
@@ -1268,7 +1898,16 @@ export class TranslationService {
     sourceLang: string,
     targetLang: string,
     _driftDetails?: string,
-    _profileKey?: TerminologyProfile
+    _profileKey?: TerminologyProfile,
+    repairCtx?: {
+      jobId?: string;
+      userId?: string;
+      maxSyllables?: number;
+      bible?: any;
+      castList?: CastMember[];
+      relationships?: CharacterRelationship[];
+      speakerNames?: Record<string, string>;
+    }
   ): Promise<string> {
     const src = normalizeLanguageCode(sourceLang);
     const tgt = normalizeLanguageCode(targetLang);
@@ -1300,11 +1939,104 @@ export class TranslationService {
           if (recheck.isParity) return decodeHtmlEntities(result);
         }
       } catch (adErr) {
-        // Fallback to currentTranslation
+        // Fall through to Gemini single-line repair
       }
     }
 
-    return currentTranslation;
+    return await this.repairLineWithEditor(
+      sourceText,
+      currentTranslation,
+      src,
+      tgt,
+      _driftDetails || "Fix the number, date, amount or unit mismatch against SOURCE.",
+      { ...repairCtx, profileKey: _profileKey }
+    );
+  }
+
+  /**
+   * Single-line Gemini repair for polarity flips, number mismatches, or unresolved meaning (Fix 2.2).
+   * Returns `currentTranslation` unchanged if the repair fails validation.
+   */
+  public async repairMeaning(
+    sourceText: string,
+    currentTranslation: string,
+    sourceLang: string,
+    targetLang: string,
+    problem: string,
+    opts?: {
+      jobId?: string;
+      userId?: string;
+      maxSyllables?: number;
+      bible?: any;
+      castList?: CastMember[];
+      relationships?: CharacterRelationship[];
+      speakerNames?: Record<string, string>;
+      profileKey?: TerminologyProfile;
+    }
+  ): Promise<string> {
+    const src = normalizeLanguageCode(sourceLang);
+    const tgt = normalizeLanguageCode(targetLang);
+    return await this.repairLineWithEditor(sourceText, currentTranslation, src, tgt, problem, opts);
+  }
+
+  private async repairLineWithEditor(
+    sourceText: string,
+    currentTranslation: string,
+    src: string,
+    tgt: string,
+    repairInstruction: string,
+    opts?: {
+      jobId?: string;
+      userId?: string;
+      maxSyllables?: number;
+      bible?: any;
+      castList?: CastMember[];
+      relationships?: CharacterRelationship[];
+      speakerNames?: Record<string, string>;
+      profileKey?: TerminologyProfile;
+    }
+  ): Promise<string> {
+    const seg: EditorSegment = {
+      id: "R1",
+      source: sourceText,
+      draft: currentTranslation,
+      repairInstruction,
+      maxSyllables: opts?.maxSyllables ? Math.floor(opts.maxSyllables * MEANING_CHECK.maxOverBudget) : undefined,
+    };
+    const editorOpts = {
+      jobId: opts?.jobId || "repair",
+      userId: opts?.userId,
+      sourceLanguage: src,
+      targetLanguage: tgt,
+      bible: opts?.bible,
+      inferBible: false as const,
+      castList: opts?.castList,
+      relationships: opts?.relationships,
+      speakerNames: opts?.speakerNames,
+      glossary: this.buildGlossaryTermsForEditor([sourceText], src, tgt, opts?.profileKey),
+      countSyllables: countSourceSyllables,
+      countGlossaryViolations: (source: string, translated: string, lang: string) =>
+        TerminologyService.checkTerminologyCompliance(source, translated, lang, { localeStyle: opts?.profileKey }).violations.length,
+    };
+    try {
+      const [edited] = await geminiDubbingEditor.editSegments([seg], editorOpts);
+      if (!edited?.text?.trim()) return currentTranslation;
+      // R4: reject the repair if the editor's meaning check still flags polarity flip, number change, or unresolved meaning.
+      if (
+        edited.meaningAction === "unresolved" ||
+        edited.meaningPolarityFlipped === true ||
+        edited.meaningNumbersChanged === true
+      ) {
+        return currentTranslation;
+      }
+      const parity = NumericalEntityGuard.verifyNumericalParity(sourceText, edited.text, tgt);
+      if (!parity.isParity) return currentTranslation;
+      const check = checkEditedLine(seg, edited.text, editorOpts);
+      if (!check.ok) return currentTranslation;
+      return decodeHtmlEntities(edited.text.trim());
+    } catch {
+      return currentTranslation;
+    }
   }
 
   /**

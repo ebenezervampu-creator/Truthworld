@@ -3,22 +3,66 @@
 ///   powered strictly by AssemblyAI Universal 3.7 Pro (Global, Indic, European, Asian, Middle Eastern & African languages).
 /// - AI Audio Dubbing Output ("To"): 78 Languages supported by ElevenLabs v4 model (eleven_v4).
 /// - Subtitles Output ("To"): 135+ Languages supported by Google Cloud Translation API v3.
+/// Dubbing v1.0 launch languages (decided 2026-11-23): English videos dubbed into Telugu, Hindi,
+/// Marathi, Tamil and Malayalam. Must match the server's `DUBBING_SOURCE_LANGUAGES` /
+/// `DUBBING_TARGET_LANGUAGES` (functions/src/pipeline/services/dubbing-launch-languages.ts); the
+/// server enforces them, this list only decides what the app offers. Add a language here only
+/// after it has passed the native-speaker check. Subtitles are not limited.
+const Set<String> kDubbingLaunchSourceCodes = {'en'};
+const Set<String> kDubbingLaunchTargetCodes = {'te', 'hi', 'mr', 'ta', 'ml'};
+
+/// Target languages that cannot be delivered soon and are not planned for near-term dubbing.
+/// - 15 targets with no native voice in ElevenLabs library catalog:
+///   sl (Slovenian), et (Estonian), lv (Latvian), sq (Albanian), eu (Basque), bs (Bosnian),
+///   gl (Galician), is (Icelandic), mk (Macedonian), cy (Welsh), km (Khmer), lo (Lao),
+///   hy (Armenian), si (Sinhala), ku (Kurdish).
+/// - 3 targets the voice engine (ElevenLabs v4) does not support:
+///   be (Belarusian), mt (Maltese), yi (Yiddish).
+const Set<String> kDubbingNotPlannedTargetCodes = {
+  // No native voice in ElevenLabs library voice catalog
+  'sl', 'et', 'lv', 'sq', 'eu', 'bs', 'gl', 'is', 'mk', 'cy', 'km', 'lo', 'hy', 'si', 'ku',
+  // Unsupported by voice engine (ElevenLabs v4)
+  'be', 'mt', 'yi',
+};
+
+/// Source audio languages that cannot be delivered soon because AssemblyAI-STT-3.7
+/// does not transcribe them:
+///   te (Telugu), ta (Tamil), ml (Malayalam), kn (Kannada), bn (Bengali), gu (Gujarati),
+///   pa (Punjabi), or (Odia), as (Assamese), sa (Sanskrit), id (Indonesian), th (Thai),
+///   pl (Polish), uk (Ukrainian).
+const Set<String> kDubbingNotPlannedSourceCodes = {
+  'te', 'ta', 'ml', 'kn', 'bn', 'gu', 'pa', 'or', 'as', 'sa', 'id', 'th', 'pl', 'uk',
+};
+
+/// Whether videos in [code] can be dubbed in this release.
+bool isDubbingSourceSupported(String code) =>
+    kDubbingLaunchSourceCodes.contains(code.toLowerCase().trim().split(RegExp('[-_]')).first);
+
 class AILanguage {
   const AILanguage({
     required this.code,
     required this.name,
     required this.native,
     required this.region, // 'Indian' or 'Global'
-    this.supportsDubbing = false,
+    bool supportsDubbing = false,
     this.supportsSubtitles = true,
-  });
+  }) : _voiceEngineSupportsDubbing = supportsDubbing;
 
   final String code;
   final String name;
   final String native;
   final String region;
-  final bool supportsDubbing;
   final bool supportsSubtitles;
+
+  /// ElevenLabs v4 can voice this language (kept for when more languages launch).
+  final bool _voiceEngineSupportsDubbing;
+
+  /// Whether the voice engine supports dubbing into this language.
+  bool get voiceEngineSupportsDubbing => _voiceEngineSupportsDubbing;
+
+  /// Whether creators can order a dub into this language in this release.
+  bool get supportsDubbing =>
+      _voiceEngineSupportsDubbing && kDubbingLaunchTargetCodes.contains(code);
 
   String get displayName => '$name ($native)';
 
@@ -989,9 +1033,13 @@ const List<AILanguage> kAllAILanguages = [
   ),
 ];
 
-/// The 78 languages supported by ElevenLabs for AI voice cloning & audio dubbing.
+/// The languages creators can dub into in this release (see [kDubbingLaunchTargetCodes]).
 final List<AILanguage> kElevenLabsDubbingLanguages =
     kAllAILanguages.where((l) => l.supportsDubbing).toList();
+
+/// All 80+ languages supported by the ElevenLabs v4 voice engine.
+final List<AILanguage> kAllElevenLabsDubbingLanguages =
+    kAllAILanguages.where((l) => l.voiceEngineSupportsDubbing).toList();
 
 /// The 135+ languages supported by Google Cloud Translation API for subtitles & captions.
 final List<AILanguage> kGoogleCloudTranslationLanguages =
@@ -1006,7 +1054,7 @@ AILanguage? getAILanguageByCode(String code) {
   return null;
 }
 
-/// Checks if a language code supports ElevenLabs Audio Dubbing.
+/// Whether creators can dub into [code] in this release.
 bool isDubbingSupported(String code) {
   final lang = getAILanguageByCode(code);
   return lang?.supportsDubbing ?? false;

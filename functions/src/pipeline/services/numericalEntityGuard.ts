@@ -65,6 +65,11 @@ export class NumericalEntityGuard {
     m: 1e6,
     million: 1e6,
     millions: 1e6,
+    మిలియన్: 1e6,
+    మిలియన్లు: 1e6,
+    మిలియన్ల: 1e6,
+    मिलियन: 1e6,
+    मिलियनों: 1e6,
     b: 1e9,
     billion: 1e9,
     billions: 1e9,
@@ -106,6 +111,21 @@ export class NumericalEntityGuard {
 
   // Percentage Words across English and Indic Languages (No \b on non-ASCII Indic scripts)
   private static readonly PERCENT_REGEX = /%|\bpercent\b|శాతం|ప్రతిశతం|प्रतिशत|சதவீதம்/i;
+
+  // Contexts where English "one" is a pronoun/determiner/idiom rather than a cardinal number
+  private static readonly NON_NUMERIC_ONE_BEFORE = /\b(?:no|any|every|some|this|that|which|each|another|other|the|such|either|neither)\s+$/i;
+  private static readonly NON_NUMERIC_ONE_AFTER = /^\s+(?:another|else)\b|^['’]s\b/i;
+  private static readonly NUMERIC_ONE_UNIT_AFTER = /^\s+(?:percent|hundred|thousand|million|billion|trillion|lakhs?|crores?)\b/i;
+
+  private static isNonNumericOne(text: string, index: number, length: number): boolean {
+    const before = text.slice(0, index);
+    const after = text.slice(index + length);
+    if (this.NON_NUMERIC_ONE_AFTER.test(after)) return true;
+    if (this.NON_NUMERIC_ONE_BEFORE.test(before) && !this.NUMERIC_ONE_UNIT_AFTER.test(after)) {
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Folds all Indic, Arabic-Indic, and Eastern Arabic-Indic digits to standard ASCII 0-9.
@@ -197,6 +217,9 @@ export class NumericalEntityGuard {
       const wordRegex = new RegExp(`\\b${word}\\b`, "gi");
       let wMatch: RegExpExecArray | null;
       while ((wMatch = wordRegex.exec(normalizedText)) !== null) {
+        if (word === "one" && this.isNonNumericOne(normalizedText, wMatch.index, wMatch[0].length)) {
+          continue;
+        }
         // Skip if already covered by numeric digits at same location
         const exists = entities.some(
           (e) => e.rawIndex !== undefined && Math.abs(e.rawIndex - wMatch!.index) < 5

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_preferences.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';

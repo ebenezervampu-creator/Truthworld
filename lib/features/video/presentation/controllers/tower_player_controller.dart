@@ -534,6 +534,11 @@ class TowerPlayerController extends BaseController
                 showTranscriptPopup.value,
       );
 
+      // Evaluate high-signal visual evidence in audio-only mode
+      if (isAudioOnly.value) {
+        evaluateVisualEvidenceSignals(val.position);
+      }
+
       if (val.hasError &&
           retryCount < TowerPlayerPlaybackControlMixin.maxRetries) {
         scheduleRetry();

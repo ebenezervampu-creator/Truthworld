@@ -649,8 +649,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       expect(tester.takeException(), isNull);
-      expect(find.text('MOST VALUABLE SOURCES & CITATIONS'), findsOneWidget);
-      expect(find.text('CLAIMS OVERVIEW & KEY FINDINGS'), findsOneWidget);
+      expect(find.text('MOST VALUABLE SOURCES & CITATIONS', skipOffstage: false), findsOneWidget);
+      expect(find.text('CLAIMS OVERVIEW & KEY FINDINGS', skipOffstage: false), findsOneWidget);
     });
   });
 }

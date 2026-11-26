@@ -89,6 +89,7 @@ class TowerPlayerTrackSyncHelper {
                     langCode: t.langCode,
                     type: t.type,
                     url: t.url,
+                    source: t.source,
                   ),
                 )
                 .toList(),

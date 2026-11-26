@@ -246,7 +246,7 @@ export async function computeUnitEconomics(monthInput?: string): Promise<UnitEco
   });
 
   const tierPricesINR: Record<string, { name: string; inr: number; estInfraUSD: number }> = {
-    audio_monthly: { name: "Audio Premium", inr: Math.round(0.50 * USD_INR_RATE), estInfraUSD: 0.10 },
+    audio_monthly: { name: "Audio Premium", inr: Math.round(0.50 * USD_INR_RATE), estInfraUSD: 0.02 }, // Recalibrated for 128 kbps pure audio stream
     individual_monthly: { name: "Individual Premium", inr: Math.round(2.0 * USD_INR_RATE), estInfraUSD: 0.65 },
     "4k_factchecked_monthly": { name: "4K + Fact-Checked", inr: Math.round(3.0 * USD_INR_RATE), estInfraUSD: 1.10 },
     family_monthly: { name: "Family Plan", inr: Math.round(5.0 * USD_INR_RATE), estInfraUSD: 1.80 },
@@ -256,8 +256,13 @@ export async function computeUnitEconomics(monthInput?: string): Promise<UnitEco
     const active = tierCounts[tierId] || 0;
     const priceUSD = meta.inr / USD_INR_RATE;
     const gross = active * priceUSD;
-    const creatorCut = gross * 0.70;
-    const platformCut = gross * 0.30;
+    // Industry-standard Net Receipts split: deduct direct payment processing / app store commissions before 70/30 split.
+    // Audio Premium is primarily routed through low-fee UPI AutoPay (~1.8-2%), higher tiers blended card/IAP (~8%).
+    const blendedCommissionRate = tierId === "audio_monthly" ? 0.02 : 0.08;
+    const storeAndGatewayCommissions = gross * blendedCommissionRate;
+    const netReceipts = Math.max(0, gross - storeAndGatewayCommissions);
+    const creatorCut = netReceipts * 0.70;
+    const platformCut = netReceipts * 0.30;
     const deliveryInfra = active * meta.estInfraUSD;
     const net = platformCut - deliveryInfra;
     const marginPct = platformCut > 0 ? (net / platformCut) * 100 : 0;

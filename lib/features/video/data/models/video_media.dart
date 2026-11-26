@@ -26,6 +26,7 @@ class VideoMediaLocalization {
     this.subtitles = const {},
     this.dubbedVideos = const {},
     this.audioTracks = const {},
+    this.audioTrackSources = const {},
     this.commentaryVideos = const {},
     this.updatedAt,
   });
@@ -34,6 +35,7 @@ class VideoMediaLocalization {
     final subs = _castStringMap(data['subtitles'] ?? (data['media'] is Map ? data['media']['subtitles'] : null));
     final dubbed = _castStringMap(data['dubbedVideos'] ?? (data['media'] is Map ? data['media']['dubbedVideos'] : null));
     final audio = _castStringMap(data['audioTracks'] ?? (data['media'] is Map ? data['media']['audioTracks'] : null));
+    final audioSources = _castStringMap(data['audioTrackSources'] ?? (data['media'] is Map ? data['media']['audioTrackSources'] : null));
 
     // Support flat dotted keys from previous writes (e.g. 'audioTracks.es', 'subtitles.es', 'media.audioTracks.es')
     data.forEach((key, val) {
@@ -44,6 +46,12 @@ class VideoMediaLocalization {
         } else if (key.startsWith('media.audioTracks.')) {
           final code = key.substring('media.audioTracks.'.length);
           if (code.isNotEmpty) audio[code] = val;
+        } else if (key.startsWith('audioTrackSources.')) {
+          final code = key.substring('audioTrackSources.'.length);
+          if (code.isNotEmpty) audioSources[code] = val;
+        } else if (key.startsWith('media.audioTrackSources.')) {
+          final code = key.substring('media.audioTrackSources.'.length);
+          if (code.isNotEmpty) audioSources[code] = val;
         } else if (key.startsWith('subtitles.')) {
           final code = key.substring('subtitles.'.length);
           if (code.isNotEmpty) subs[code] = val;
@@ -61,6 +69,7 @@ class VideoMediaLocalization {
       subtitles: subs,
       dubbedVideos: dubbed,
       audioTracks: audio,
+      audioTrackSources: audioSources,
       commentaryVideos: _castCommentaryMap(data['commentaryVideos']),
       updatedAt: data['updatedAt'] as Timestamp?,
     );
@@ -68,6 +77,7 @@ class VideoMediaLocalization {
   final Map<String, String> subtitles; // { langCode: downloadUrl }
   final Map<String, String> dubbedVideos; // { langCode: downloadUrl }
   final Map<String, String> audioTracks; // { langCode: downloadUrl }
+  final Map<String, String> audioTrackSources; // { langCode: 'ai_dub' | 'creator' }
   final Map<String, Map<String, String>>
   commentaryVideos; // { trackId: {title, role, videoUrl, audioUrl, langCode} }
   final Timestamp? updatedAt;
@@ -76,6 +86,7 @@ class VideoMediaLocalization {
     'subtitles': subtitles,
     'dubbedVideos': dubbedVideos,
     'audioTracks': audioTracks,
+    'audioTrackSources': audioTrackSources,
     'commentaryVideos': commentaryVideos,
     'updatedAt': updatedAt ?? FieldValue.serverTimestamp(),
   };

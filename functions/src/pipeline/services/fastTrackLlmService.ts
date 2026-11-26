@@ -61,16 +61,18 @@ export class FastTrackLlmService {
   ): Promise<FastTrackEvaluationResult> {
     const t0 = Date.now();
 
-    // Fast heuristic pre-check for obvious subjective indicators before LLM call
-    const lower = claimText.toLowerCase();
-    const isObviousOpinion = /\b(i feel|in my opinion|i believe|personally|i think|my favorite|best movie|worst movie|greatest|most beautiful|should be|ought to)\b/i.test(lower);
-    if (isObviousOpinion && !/\b(\d+(?:\.\d+)?%|killed|bribed|stole|fraud|gdp|billion|trillion)\b/i.test(lower)) {
+    // Fast heuristic pre-check ONLY for unambiguous pure aesthetic/artistic taste with zero empirical entities.
+    // Conversational hedges ("I think", "I believe", "In my opinion", "Personally") MUST NEVER bypass fact-checking!
+    const lower = claimText.trim().toLowerCase();
+    const isPureAestheticTaste = /^(my favorite (movie|song|film|color|food|flavor|band|artist|book|actor)|i prefer (chocolate|vanilla|tea|coffee)|(this|that) is (a masterpiece|my favorite movie|a boring movie))\b/i.test(lower);
+    const hasEmpiricalIndicators = /\b(\d|cancer|vaccin|cure|prevent|cause|speed|capital|founded|invented|landed|planet|earth|gdp|billion|trillion|percent|%|kill|bribe|stole|fraud|law|court|president|minister|election|war|treaty|doctor|study|research|faked|conspiracy|moon|mars|sun|water|boil|freeze|virus|bacteria|drug|medicine)\b/i.test(lower);
+    if (isPureAestheticTaste && !hasEmpiricalIndicators) {
       return {
         tier: 3,
         resolved: true,
         status: "opinion_claim",
         confidence: 0.95,
-        reasoning: "This statement reflects personal viewpoints, taste, or subjective value judgments rather than a testable empirical fact.",
+        reasoning: "This statement reflects personal aesthetic preference or subjective taste rather than a testable empirical fact.",
         requiresGrounding: false,
         richSources: [],
       };
@@ -94,24 +96,35 @@ STATEMENT: "${claimText}"
 DOMAIN: ${domainContext}
 
 CRITICAL RULES:
-1. If the statement is a personal opinion, preference, subjective feeling, or value judgment:
-   - claimType: "OPINION_OR_SUBJECTIVE"
-   - requiresGrounding: false
-   - status: "opinion_claim"
-   - confidence: 0.95
+1. CONVERSATIONAL HEDGES ARE NOT OPINIONS:
+   Conversational hedges or epistemic qualifiers such as "I think", "I believe", "In my opinion", "Personally", "I feel", "I guess", "Should be", "Ought to" do NOT transform an empirical, scientific, medical, historical, geographic, financial, legal, or political claim into a personal opinion or taste.
+   If the underlying proposition asserts an empirical fact, statistic, historical event, medical/scientific claim, or actions of people/institutions (e.g. "I think smoking prevents cancer", "In my opinion the capital of India is Kolkata", "I believe Apollo 11 was faked", "I think vaccines cause autism", "I believe the earth is flat"):
+   - You MUST classify it as claimType: "EMPIRICAL_FACTUAL_ASSERTION"
+   - requiresGrounding: true
+   - status: "needs_grounding"
+   - escalationReason: "Empirical assertion requires multi-source verification & citation firewall."
 
-2. If the statement is satirical, humorous, or obvious rhetorical hyperbole:
-   - claimType: "SATIRE_OR_HYPERBOLE"
-   - requiresGrounding: false
-   - status: "satire_claim"
-   - confidence: 0.90
-
-3. If the statement is an EMPIRICAL FACTUAL ASSERTION (e.g. statistics, breaking news, politics, scientific discoveries, historical claims, actions of individuals):
+2. EMPIRICAL FACTUAL ASSERTION:
+   If the statement asserts a testable fact, statistic, historical event, medical/scientific claim, news event, geographic fact, or actions of individuals (regardless of whether the speaker hedges):
    - MANDATORY EPISTEMIC GUARD: You CANNOT confirm empirical facts based solely on internal model weights.
    - claimType: "EMPIRICAL_FACTUAL_ASSERTION"
    - requiresGrounding: true
    - status: "needs_grounding"
    - escalationReason: "Empirical assertion requires multi-source verification & citation firewall."
+
+3. PURE OPINION OR SUBJECTIVE TASTE:
+   ONLY classify as OPINION_OR_SUBJECTIVE if the statement is purely a subjective aesthetic preference, personal taste, artistic critique, or emotional sentiment with NO empirical, factual, medical, historical, or scientific claims (e.g. "Vanilla is tastier than chocolate", "That painting is gorgeous", "Blue is my favorite color"):
+   - claimType: "OPINION_OR_SUBJECTIVE"
+   - requiresGrounding: false
+   - status: "opinion_claim"
+   - confidence: 0.95
+
+4. SATIRE OR HYPERBOLE:
+   If the statement is satirical, humorous, or obvious rhetorical hyperbole (e.g. "I'm so hungry I could eat a horse"):
+   - claimType: "SATIRE_OR_HYPERBOLE"
+   - requiresGrounding: false
+   - status: "satire_claim"
+   - confidence: 0.90
 
 Return ONLY valid JSON matching this schema:
 {

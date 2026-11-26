@@ -5,7 +5,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists/playlist_cards.dart';
 import '../../test_helpers/mock_firebase.dart';
 

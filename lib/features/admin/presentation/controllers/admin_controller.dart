@@ -13,6 +13,7 @@ import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_audit_log_mixin.dart';
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_auth_team_mixin.dart';
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_content_moderation_mixin.dart';
+import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_dubbing_mixin.dart';
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_feedback_language_mixin.dart';
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_security_alerts_mixin.dart';
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_user_management_mixin.dart';
@@ -21,13 +22,14 @@ export 'admin/admin_components.dart';
 
 /// Central Administration Controller for TruthWorld.
 /// Integrates domain-specific mixins for authentication, content moderation,
-/// user management, platform analytics, security escalation, and user feedback.
+/// user management, platform analytics, security escalation, user feedback, and dubbing administration.
 class AdminController extends BaseController
     with
         AdminAuditLogMixin,
         AdminAuthTeamMixin,
         AdminContentModerationMixin,
         AdminUserManagementMixin,
+        AdminDubbingMixin,
         AdminAnalyticsMixin,
         AdminSecurityAlertsMixin,
         AdminFeedbackLanguageMixin,
@@ -377,6 +379,88 @@ class AdminController extends BaseController
       dubbingDiscountPercent: dubbingDiscountPercent,
       subtitlesDiscountType: subtitlesDiscountType,
       subtitlesDiscountPercent: subtitlesDiscountPercent,
+      channels: channels,
+      selectedChannel: selectedChannel,
+      isActionSubmitting: isActionSubmitting,
+      logAdminAction: ({
+        required String action,
+        required String targetType,
+        required String targetId,
+        required String reason,
+        Map<String, dynamic>? metadata,
+      }) =>
+          logAdminAction(
+        action: action,
+        targetId: targetId,
+        reason: reason,
+        extra: {
+          'targetType': targetType,
+          if (metadata != null) ...metadata,
+        },
+      ),
+    );
+  }
+
+  /// Grants free Dubbing Studio credits directly to a particular channel and its owner wallet (Super Admin only).
+  Future<bool> grantChannelDubbingCredits({
+    required String channelId,
+    required int amountCredits,
+    required String reason,
+  }) async {
+    if (!isSuperAdmin) {
+      AppSnackbar.warning('Access Denied: Only Super Admins can grant channel dubbing credits.');
+      return false;
+    }
+    return AdminEntityModerationService.grantChannelDubbingCredits(
+      channelId: channelId,
+      amountCredits: amountCredits,
+      reason: reason,
+      channels: channels,
+      selectedChannel: selectedChannel,
+      isActionSubmitting: isActionSubmitting,
+      logAdminAction: ({
+        required String action,
+        required String targetType,
+        required String targetId,
+        required String reason,
+        Map<String, dynamic>? metadata,
+      }) =>
+          logAdminAction(
+        action: action,
+        targetId: targetId,
+        reason: reason,
+        extra: {
+          'targetType': targetType,
+          if (metadata != null) ...metadata,
+        },
+      ),
+    );
+  }
+
+  /// Comprehensive Super Admin Privileges: update discounts, free dubbing studio credits, and upload limit duration atomically.
+  Future<bool> updateChannelSuperAdminPrivileges({
+    required String channelId,
+    required String dubbingDiscountType,
+    required double dubbingDiscountPercent,
+    required String subtitlesDiscountType,
+    required double subtitlesDiscountPercent,
+    required int dailyUploadDurationMinutes,
+    required int freeCreditsToGrant,
+    required String reason,
+  }) async {
+    if (!isSuperAdmin) {
+      AppSnackbar.warning('Access Denied: Only Super Admins can configure channel privileges.');
+      return false;
+    }
+    return AdminEntityModerationService.updateChannelSuperAdminPrivileges(
+      channelId: channelId,
+      dubbingDiscountType: dubbingDiscountType,
+      dubbingDiscountPercent: dubbingDiscountPercent,
+      subtitlesDiscountType: subtitlesDiscountType,
+      subtitlesDiscountPercent: subtitlesDiscountPercent,
+      dailyUploadDurationMinutes: dailyUploadDurationMinutes,
+      freeCreditsToGrant: freeCreditsToGrant,
+      reason: reason,
       channels: channels,
       selectedChannel: selectedChannel,
       isActionSubmitting: isActionSubmitting,

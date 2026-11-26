@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -48,6 +49,15 @@ mixin UploadSubmissionMixin on
       }
     }
     return keywords.toList();
+  }
+
+  String _sanitizeFileName(String name, String fallbackExt) {
+    final lastDot = name.lastIndexOf('.');
+    final rawBase = lastDot > 0 ? name.substring(0, lastDot) : name;
+    final ext =
+        lastDot > 0 ? name.substring(lastDot + 1).toLowerCase() : fallbackExt;
+    final safeBase = rawBase.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '_');
+    return '${safeBase.isEmpty ? "track" : safeBase}.$ext';
   }
 
 
@@ -389,6 +399,120 @@ mixin UploadSubmissionMixin on
       final docRef = firestore.collection('videos').doc(videoId);
       final docSnapshot = await docRef.get();
 
+      // ── Upload Attached Device Subtitles & Audio Tracks to Storage ──
+      final resolvedSubtitles = <String, String>{};
+      final resolvedAudioTracks = <String, String>{};
+      final resolvedDubbedVideos = <String, String>{};
+
+      for (final entry in attachedSubtitleFiles.entries) {
+        final langCode = entry.key.trim().toLowerCase();
+        final file = entry.value;
+        final cleanName = _sanitizeFileName(file.name, 'srt');
+        final fileName =
+            '${langCode}_${DateTime.now().millisecondsSinceEpoch}_$cleanName';
+        final storagePath =
+            'channels/$channelId/videos/$videoId/subtitles/$fileName';
+
+        try {
+          final fileBytes = file.bytes ??
+              (file.path != null ? await file.xFile.readAsBytes() : null);
+          if (fileBytes != null) {
+            final metadata = SettableMetadata(
+              contentType: cleanName.endsWith('.vtt')
+                  ? 'text/vtt'
+                  : 'application/x-subrip',
+              customMetadata: {
+                'uploaderId': userId,
+                'langCode': langCode,
+                'type': 'Subtitle',
+              },
+            );
+            final snap = await firebaseStorage
+                .ref()
+                .child(storagePath)
+                .putData(fileBytes, metadata);
+            final downloadUrl = await snap.ref.getDownloadURL();
+            resolvedSubtitles[langCode] = downloadUrl;
+          }
+        } catch (e) {
+          ErrorHandler.log(e, context: 'UploadSubmissionMixin.uploadSubtitles');
+        }
+      }
+
+      for (final entry in attachedAudioFiles.entries) {
+        final langCode = entry.key.trim().toLowerCase();
+        final file = entry.value;
+        final role = attachedAudioRoles[langCode] ?? 'Dubbed Audio';
+        final ext = (file.extension ?? 'mp3').toLowerCase();
+        final isVideoFile = const {'mp4', 'mov', 'webm', 'mkv'}.contains(ext);
+        final cleanName =
+            _sanitizeFileName(file.name, isVideoFile ? 'mp4' : 'mp3');
+        final fileName =
+            '${langCode}_${DateTime.now().millisecondsSinceEpoch}_$cleanName';
+        final storagePath =
+            'channels/$channelId/videos/$videoId/audio_tracks/$fileName';
+
+        try {
+          final fileBytes = file.bytes ??
+              (file.path != null ? await file.xFile.readAsBytes() : null);
+          if (fileBytes != null) {
+            final metadata = SettableMetadata(
+              contentType: isVideoFile ? 'video/$ext' : 'audio/$ext',
+              customMetadata: {
+                'uploaderId': userId,
+                'role': role,
+                'langCode': langCode,
+                'type': isVideoFile ? 'Video' : 'Audio',
+              },
+            );
+            final snap = await firebaseStorage
+                .ref()
+                .child(storagePath)
+                .putData(fileBytes, metadata);
+            final downloadUrl = await snap.ref.getDownloadURL();
+            resolvedAudioTracks[langCode] = downloadUrl;
+            if (isVideoFile) {
+              resolvedDubbedVideos[langCode] = downloadUrl;
+            }
+          }
+        } catch (e) {
+          ErrorHandler.log(e, context: 'UploadSubmissionMixin.uploadAudioTracks');
+        }
+      }
+
+      final existingSubs = Map<String, String>.from(
+        (docSnapshot.data()?['mediaSubtitles'] as Map?)
+                ?.cast<String, String>() ??
+            {},
+      );
+      final existingAudio = Map<String, String>.from(
+        (docSnapshot.data()?['audioTracks'] as Map?)?.cast<String, String>() ??
+            {},
+      );
+      final existingDubbed = Map<String, String>.from(
+        (docSnapshot.data()?['dubbedVideos'] as Map?)?.cast<String, String>() ??
+            {},
+      );
+      final existingRoles = Map<String, String>.from(
+        (docSnapshot.data()?['audioTrackRoles'] as Map?)
+                ?.cast<String, String>() ??
+            {},
+      );
+
+      existingSubs.addAll(resolvedSubtitles);
+      existingAudio.addAll(resolvedAudioTracks);
+      existingDubbed.addAll(resolvedDubbedVideos);
+      existingRoles.addAll(attachedAudioRoles);
+
+      final combinedLanguages = <String>{
+        ...validLanguages,
+        effectiveVideoLanguage,
+        ...aiTranslationLanguages.map((l) => l.trim().toLowerCase()),
+        ...aiDubbingLanguages.map((l) => l.trim().toLowerCase()),
+        ...existingSubs.keys,
+        ...existingAudio.keys,
+      }.where((l) => l.isNotEmpty).toList();
+
       // Prepare update data
       final updateData = {
         'title': title.trim(),
@@ -408,17 +532,22 @@ mixin UploadSubmissionMixin on
             : selectedCategory.value,
         'tags': validTags,
         'language': effectiveVideoLanguage,
-        'sourceLanguage': hasExplicitSpokenLanguage ? effectiveVideoLanguage : 'auto',
-        'primaryLanguage': hasExplicitSpokenLanguage ? effectiveVideoLanguage : 'auto',
+        'sourceLanguage':
+            hasExplicitSpokenLanguage ? effectiveVideoLanguage : 'auto',
+        'primaryLanguage':
+            hasExplicitSpokenLanguage ? effectiveVideoLanguage : 'auto',
         'spokenLanguages': spokenLanguages.isNotEmpty
             ? spokenLanguages.toList()
             : [effectiveVideoLanguage],
-        'isMultilingual': isMultilingualSpoken.value || spokenLanguages.length > 1,
-        'languages': validLanguages.isEmpty
+        'isMultilingual':
+            isMultilingualSpoken.value || spokenLanguages.length > 1,
+        'languages': combinedLanguages.isEmpty
             ? [effectiveVideoLanguage]
-            : (validLanguages.contains(effectiveVideoLanguage)
-                ? validLanguages
-                : [effectiveVideoLanguage, ...validLanguages]),
+            : combinedLanguages,
+        'mediaSubtitles': existingSubs,
+        'audioTracks': existingAudio,
+        'dubbedVideos': existingDubbed,
+        'audioTrackRoles': existingRoles,
         'visibility': isDraft
             ? 'private'
             : (isScheduled.value ? 'private' : selectedVisibility.value),
@@ -558,6 +687,15 @@ mixin UploadSubmissionMixin on
         }
         await docRef.update(updateData);
       }
+
+      // Sync media/localization subcollection document matching AudioTracksStudio architecture
+      await docRef.collection('media').doc('localization').set({
+        'subtitles': existingSubs,
+        'audioTracks': existingAudio,
+        'dubbedVideos': existingDubbed,
+        'audioTrackRoles': existingRoles,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       // Initialize AI voice dubbing job and pipeline stages consistently across upload and studio
       if (aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty && !isDraft) {

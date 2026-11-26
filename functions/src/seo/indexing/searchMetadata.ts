@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { computeTextEmbedding } from "../../search/embeddingService";
+import { safeMergeExistingVideo } from "../../utils/videosCollectionGuard";
 
 export async function updateVideoSearchMetadata(db: admin.firestore.Firestore, videoId: string, data: any) {
   if (!videoId) return;
@@ -32,10 +33,14 @@ export async function updateVideoSearchMetadata(db: admin.firestore.Firestore, v
     const hasEmbedding = Boolean(data.embedding);
     const hasTitleLowercase = Boolean(data.titleLowercase);
     if (!hasEmbedding || !hasTitleLowercase) {
-      await db.collection("videos").doc(videoId).set({
-        embedding: admin.firestore.FieldValue.vector(embeddingVector),
-        titleLowercase: (data.title || "").toLowerCase(),
-      }, { merge: true });
+      await safeMergeExistingVideo(
+        videoId,
+        {
+          embedding: admin.firestore.FieldValue.vector(embeddingVector),
+          titleLowercase: (data.title || "").toLowerCase(),
+        },
+        "[SearchMetadata]"
+      );
     }
   }
 }

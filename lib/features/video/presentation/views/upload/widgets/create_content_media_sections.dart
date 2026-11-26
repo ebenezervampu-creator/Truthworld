@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
+import 'package:truthworld/features/video/presentation/views/upload/components/upload_video_player_language_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_ai_section.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Section 2: Video File Selection, Preview Player, and Upload Progress
@@ -125,9 +127,24 @@ class CreateContentVideoFileSection extends StatelessWidget {
                             top: Radius.circular(12)),
                         child: AspectRatio(
                           aspectRatio: 16 / 9,
-                          child: MobileFriendlyVideoPlayer(
-                            controller: playerCtrl,
-                            showControls: true,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              MobileFriendlyVideoPlayer(
+                                controller: playerCtrl,
+                                showControls: true,
+                              ),
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 44,
+                                child: UploadVideoPlayerLanguageOverlay(
+                                  controller: uploadController,
+                                  isDarkMode: Theme.of(context).brightness ==
+                                      Brightness.dark,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       )
@@ -135,18 +152,29 @@ class CreateContentVideoFileSection extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(24),
                         alignment: Alignment.center,
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.movie_creation_outlined,
-                                color: Colors.white, size: 28),
-                            SizedBox(width: 12),
-                            Text(
-                              'Video Uploaded & Ready',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14),
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.movie_creation_outlined,
+                                    color: Colors.white, size: 28),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Video Uploaded & Ready',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            UploadVideoPlayerLanguageOverlay(
+                              controller: uploadController,
+                              isDarkMode: Theme.of(context).brightness ==
+                                  Brightness.dark,
                             ),
                           ],
                         ),
@@ -210,6 +238,8 @@ class CreateContentVideoFileSection extends StatelessWidget {
                   ],
                 ),
               ),
+            const SizedBox(height: 16),
+            CreateContentVideoFeatureChips(uploadController: uploadController),
           ],
         ),
       );

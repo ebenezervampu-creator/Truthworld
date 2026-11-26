@@ -4,6 +4,7 @@ import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
 import { hashClaimText, hashSemanticClaimText } from "../utils/claim-normalization";
 import { sanitizeClaimResponse } from "../utils/claim-response-sanitizer";
+import { stripEvidenceText } from "./verdictReconciliation";
 import {
   enforceClosedWorldCitationFirewall,
   isClosedWorldCacheEntryValid,
@@ -293,7 +294,7 @@ export class ClaimCacheService {
     if (!ClaimCacheService.CACHE_ENABLED || !claim || !claim.text) return;
 
     const firewalled = enforceClosedWorldCitationFirewall(claim);
-    const verifiedSources = (firewalled.richSources || []).filter((s) => isVerifiedRichSource(s));
+    const verifiedSources = (stripEvidenceText(firewalled.richSources) || []).filter((s) => isVerifiedRichSource(s));
 
     // Strict Quality + Closed-World Guard: Do NOT cache ungrounded timeouts, unverified stubs, missing sources, or unverified URLs
     if (
@@ -353,6 +354,7 @@ export class ClaimCacheService {
       this.setToL1(exactHash, cachePayload, expiresAt);
 
       // 2. Persist to L2 Firestore in background
+      const cleanSources = JSON.parse(JSON.stringify(verifiedSources));
       await admin.firestore().collection(ClaimCacheService.COLLECTION).doc(exactHash).set({
         originalText: firewalled.text,
         normalizedText: firewalled.text.toLowerCase().trim(),
@@ -363,7 +365,7 @@ export class ClaimCacheService {
         citedDois: Array.from(new Set(verifiedSources.map((s: any) => s.doi || (s as any).verifiedAcademicMetadata?.doi).filter(Boolean))),
         status: firewalled.status,
         reasoning: sanitizedReasoning,
-        richSources: verifiedSources,
+        richSources: cleanSources,
         verifiedAcademicMetadata: firewalled.verifiedAcademicMetadata || null,
         confidence: firewalled.verificationConfidence || 0.85,
         nature: firewalled.nature || "VERIFIABLE_FACT",

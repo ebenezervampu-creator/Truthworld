@@ -16,9 +16,19 @@ class AppConfig {
   final bool enablePerformanceMonitoring;
   final int defaultPlayerPoolSize;
 
+  static const bool isFirebaseStaging =
+      String.fromEnvironment('FIREBASE_ENV') == 'staging';
+
+  static const String stagingFunctionsProjectId = String.fromEnvironment(
+    'STAGING_PROJECT_ID',
+    defaultValue: 'truthworld-staging',
+  );
+
   static const String cloudFunctionsBaseUrl = String.fromEnvironment(
     'FUNCTIONS_BASE_URL',
-    defaultValue: 'https://asia-south1-truthworld-1.cloudfunctions.net',
+    defaultValue: isFirebaseStaging
+        ? 'https://asia-south1-$stagingFunctionsProjectId.cloudfunctions.net'
+        : 'https://asia-south1-truthworld-1.cloudfunctions.net',
   );
 
   static const String cdnBaseUrl = String.fromEnvironment(

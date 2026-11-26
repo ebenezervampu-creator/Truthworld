@@ -7,6 +7,7 @@
 
 import * as admin from "firebase-admin";
 import { logger } from "firebase-functions/v2";
+import { HttpsError } from "firebase-functions/v2/https";
 import { Request, Response } from "express";
 import { applySecurityHeaders, isSessionRecent } from "./securityHeaders";
 
@@ -339,6 +340,48 @@ export async function isCallableSuperAdmin(auth: any): Promise<boolean> {
   }
 
   return false;
+}
+
+/**
+ * Asserts that the caller of a Callable function is an authenticated Director
+ * or holds administrative privileges with a verified email.
+ */
+export async function assertAdminCaller(authContext: any): Promise<AuthenticatedUser> {
+  if (!authContext || !authContext.uid) {
+    throw new HttpsError("unauthenticated", "Authentication required for administrative operations.");
+  }
+
+  const token = authContext.token || {};
+  const isEmailVerified = token.email_verified === true;
+  if (!isEmailVerified) {
+    throw new HttpsError("permission-denied", "Verified email address required for administrative operations.");
+  }
+
+  const email = (token.email || "").toLowerCase();
+  const isAdmin =
+    token.admin === true ||
+    token.role === "admin" ||
+    token.isDirector === true ||
+    token.isSuperAdmin === true;
+
+  if (!isAdmin) {
+    try {
+      const memberDoc = await admin.firestore().collection("admin_members").doc(email).get();
+      if (!memberDoc.exists || memberDoc.data()?.status === "suspended") {
+        throw new HttpsError("permission-denied", "Director or Super Admin access required.");
+      }
+    } catch {
+      throw new HttpsError("permission-denied", "Director or Super Admin access required.");
+    }
+  }
+
+  return {
+    uid: authContext.uid,
+    email: email || "admin",
+    isAdmin: true,
+    emailVerified: true,
+    authTime: token.auth_time,
+  };
 }
 
 

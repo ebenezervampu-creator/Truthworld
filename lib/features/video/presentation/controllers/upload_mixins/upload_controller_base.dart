@@ -216,6 +216,19 @@ abstract class UploadControllerBase extends BaseController
   @override
   RxMap<String, dynamic> get newTopicData;
 
+  // Staged Multi-Language & Device Tracks
+  RxMap<String, PlatformFile> get attachedSubtitleFiles;
+  RxMap<String, PlatformFile> get attachedAudioFiles;
+  RxMap<String, String> get attachedAudioRoles;
+  RxString get activePreviewLanguage;
+  List<String> get allConfiguredLanguages;
+  bool get hasConfiguredLanguageTracks;
+  String getLanguageName(String code);
+  void attachDeviceSubtitle(String langCode, PlatformFile file);
+  void attachDeviceAudioTrack(String langCode, PlatformFile file, String role);
+  void removeLanguageTrack(String langCode, {bool removeSubtitle, bool removeAudio});
+  void resetAllLanguageTracks();
+
   // Wizard Stage
   RxInt get uploadStage;
   RxString get uploadStageLabel;

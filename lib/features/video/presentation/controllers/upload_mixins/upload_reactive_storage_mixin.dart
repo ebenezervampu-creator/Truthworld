@@ -482,6 +482,16 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   @override
   final RxList<String> aiDubbingLanguages = <String>[].obs;
   @override
+  final RxMap<String, PlatformFile> attachedSubtitleFiles =
+      <String, PlatformFile>{}.obs;
+  @override
+  final RxMap<String, PlatformFile> attachedAudioFiles =
+      <String, PlatformFile>{}.obs;
+  @override
+  final RxMap<String, String> attachedAudioRoles = <String, String>{}.obs;
+  @override
+  final RxString activePreviewLanguage = ''.obs;
+  @override
   final RxString aiDubbingTier = 'audio_track'.obs;
   @override
   final RxBool aiCinemaGradeEnabled = false.obs;

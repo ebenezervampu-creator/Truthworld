@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart' as gsi;
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     show
+        ErrorSeverity,
         GoogleSignInException,
         GoogleSignInFailedException,
         GoogleSignInUserCancelledException;
@@ -39,6 +40,7 @@ final class GoogleSignInExceptionHandler {
             message: 'Sign-in was cancelled.',
             code: 'user-cancelled',
             isRetryable: true,
+            severity: ErrorSeverity.info,
           );
         case gsi.GoogleSignInExceptionCode.clientConfigurationError:
         case gsi.GoogleSignInExceptionCode.providerConfigurationError:
@@ -79,6 +81,7 @@ final class GoogleSignInExceptionHandler {
       return const GoogleSignInException(
         message: 'Redirecting to Google Sign-In...',
         code: 'redirecting',
+        severity: ErrorSeverity.info,
       );
     }
 
@@ -91,6 +94,7 @@ final class GoogleSignInExceptionHandler {
         message: 'Sign-in was cancelled.',
         code: 'user-cancelled',
         isRetryable: true,
+        severity: ErrorSeverity.info,
       );
     }
 
@@ -145,6 +149,7 @@ final class GoogleSignInExceptionHandler {
         message: 'Sign-in was cancelled.',
         code: 'user-cancelled',
         isRetryable: true,
+        severity: ErrorSeverity.info,
       ),
       'popup-blocked' => const GoogleSignInException(
         message: 'Popup was blocked by your browser. Please allow popups for this site.',
@@ -253,6 +258,7 @@ final class GoogleSignInExceptionHandler {
       message: 'Sign-in was cancelled.',
       code: 'user-cancelled',
       isRetryable: true,
+      severity: ErrorSeverity.info,
       originalException: e,
     );
   }
@@ -276,6 +282,7 @@ final class GoogleSignInExceptionHandler {
         message: 'Sign-in popup was closed before completion.',
         code: 'popup-closed',
         isRetryable: true,
+        severity: ErrorSeverity.info,
         originalException: e,
       );
     }
@@ -302,6 +309,7 @@ final class GoogleSignInExceptionHandler {
         userMessage: 'Sign-in was cancelled.',
         code: 'user-cancelled',
         isRetryable: true,
+        severity: ErrorSeverity.info,
         originalException: e,
       );
     }

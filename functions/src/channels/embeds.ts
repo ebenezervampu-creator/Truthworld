@@ -36,7 +36,7 @@ export const getTrustBadge = onRequest(
       }
 
       const data = channelSnap.data() as ChannelV2;
-      const ti = data.reputation.avgTrustIndex;
+      const ti = data.reputation?.avgTrustIndex ?? 5.0;
       const verified = data.verification !== "unverified";
 
       // 2. Determine Tier

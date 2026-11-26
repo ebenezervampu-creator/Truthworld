@@ -5,6 +5,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_components.dart';
+import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
 import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 
 void main() {
@@ -271,6 +272,27 @@ void main() {
       expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
       expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
       expect(find.byIcon(Icons.skip_previous_rounded), findsNothing);
+    });
+
+    testWidgets('MiniplayerOverlayManager provides internal Overlay ensuring Tooltips render cleanly without error', (tester) async {
+      controller.mode.value = MiniplayerMode.collapsed;
+
+      // Mount MiniplayerOverlayManager WITHOUT a MaterialApp, Navigator, or external Overlay
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: MediaQueryData(size: Size(390, 844)),
+            child: Material(
+              child: MiniplayerOverlayManager(),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(MiniplayerOverlayManager), findsOneWidget);
+      expect(find.byType(Overlay), findsOneWidget);
+      expect(find.byType(Tooltip), findsWidgets);
     });
   });
 }

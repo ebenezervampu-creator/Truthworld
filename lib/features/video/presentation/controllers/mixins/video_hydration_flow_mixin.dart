@@ -88,7 +88,7 @@ mixin VideoHydrationFlowMixin on GetxController {
   Future<void> attemptRecovery();
   Future<void> startPlaybackFlow({String? overrideUrl});
   void listenToLanguageRequests();
-  Future<void> fetchAvailableResolutions();
+  Future<void> fetchAvailableResolutions({bool fromServer = false});
   String detectTrafficSource();
   Future<void> resolveViewerIdentity();
   Future<void> fetchPlaylistVideos();

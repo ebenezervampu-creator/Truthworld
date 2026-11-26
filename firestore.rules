@@ -54,6 +54,74 @@ service cloud.firestore {
       );
     }
 
+    // Helper function to verify the parent video document exists (prevents phantom parent docs from subcollection writes)
+    function videoExists(videoId) {
+      return exists(/databases/$(database)/documents/videos/$(videoId));
+    }
+
+    // Helper function to enforce strict UUID v4 format for top-level videos/{videoId} document IDs
+    function isValidVideoUuid(videoId) {
+      return videoId.matches('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$');
+    }
+
+    // Domain validator for top-level videos/{videoId} creation (only real user video uploads)
+    function isValidVideoUploadCreate(videoId, data) {
+      return isValidVideoUuid(videoId) &&
+             'id' in data &&
+             data.id is string &&
+             data.id == videoId &&
+             'ownerId' in data &&
+             data.ownerId is string &&
+             data.ownerId == request.auth.uid &&
+             'userId' in data &&
+             data.userId is string &&
+             data.userId == request.auth.uid &&
+             (!('uploaderId' in data) || (data.uploaderId is string && data.uploaderId == request.auth.uid)) &&
+             'title' in data &&
+             data.title is string &&
+             data.title.size() > 0 &&
+             data.title.size() <= 500 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 10000)) &&
+             'status' in data &&
+             data.status is string &&
+             data.status in ['uploading', 'draft', 'scheduled', 'published'] &&
+             (!('storage' in data) ||
+              (data.storage is map &&
+               'videoPath' in data.storage &&
+               data.storage.videoPath == 'videos/' + videoId + '/original.mp4')) &&
+             !('credibilityScore' in data) &&
+             !('truthScore' in data) &&
+             !('gatewayDecision' in data) &&
+             !('aiDubbedAudio' in data) &&
+             (!('pipelineStatus' in data) || data.pipelineStatus == 'pending' || data.pipelineStatus == 'uploading') &&
+             (!('credibilityVerified' in data) || data.credibilityVerified == false) &&
+             (!('isVerified' in data) || data.isVerified == false) &&
+             (!('factCheck' in data) || data.factCheck == null) &&
+             (!('views' in data) || data.views == 0) &&
+             (!('viewCount' in data) || data.viewCount == 0) &&
+             (!('playCount' in data) || data.playCount == 0) &&
+             (!('likeCount' in data) || data.likeCount == 0) &&
+             (!('dislikeCount' in data) || data.dislikeCount == 0) &&
+             (!('shareCount' in data) || data.shareCount == 0) &&
+             (!('commentCount' in data) || data.commentCount == 0) &&
+             (!('commentsCount' in data) || data.commentsCount == 0) &&
+             (!('languageRequestsCount' in data) || data.languageRequestsCount == 0) &&
+             (!('totalWatchTimeSeconds' in data) || data.totalWatchTimeSeconds == 0) &&
+             (!('engagement' in data) || data.engagement == 0 || data.engagement == {}) &&
+             (!('likes' in data) || data.likes == 0 || data.likes == [] || data.likes == {}) &&
+             (!('dislikes' in data) || data.dislikes == 0 || data.dislikes == [] || data.dislikes == {});
+    }
+
+    // True when videos/{videoId} exists and is not private / draft (mirrors the
+    // visibility check in the videos/{videoId} get rule).
+    function isVideoPubliclyViewable(videoId) {
+      return exists(/databases/$(database)/documents/videos/$(videoId)) && (
+        !('visibility' in get(/databases/$(database)/documents/videos/$(videoId)).data) ||
+        get(/databases/$(database)/documents/videos/$(videoId)).data.visibility == null ||
+        !(get(/databases/$(database)/documents/videos/$(videoId)).data.visibility in ['Private', 'private', 'PRIVATE', 'draft', 'Draft', 'private_draft'])
+      );
+    }
+
     // Helper function to safely check community post document ownership from its data map
     function isCommunityPostDataOwner(data) {
       return ('ownerId' in data && data.ownerId == request.auth.uid) ||
@@ -441,35 +509,8 @@ service cloud.firestore {
                       isVideoDataOwner(resource.data)
                     ));
       
-      // Allow authenticated users to create videos — all identity fields must match creator and metrics initialized to 0/empty
-      allow create: if isAuthenticated() && 
-                       (!('uploaderId' in request.resource.data) || request.resource.data.uploaderId == request.auth.uid) &&
-                       (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
-                       (!('ownerId' in request.resource.data) || request.resource.data.ownerId == request.auth.uid) &&
-                       (request.resource.data.uploaderId == request.auth.uid ||
-                        request.resource.data.userId == request.auth.uid ||
-                        request.resource.data.ownerId == request.auth.uid ||
-                        isAdmin()) &&
-                       !('credibilityScore' in request.resource.data) &&
-                       !('truthScore' in request.resource.data) &&
-                       !('gatewayDecision' in request.resource.data) &&
-                       (!('pipelineStatus' in request.resource.data) || request.resource.data.pipelineStatus == 'pending' || request.resource.data.pipelineStatus == 'uploading') &&
-                       (!('credibilityVerified' in request.resource.data) || request.resource.data.credibilityVerified == false) &&
-                       (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false) &&
-                       (!('factCheck' in request.resource.data) || request.resource.data.factCheck == null) &&
-                       (!('views' in request.resource.data) || request.resource.data.views == 0) &&
-                       (!('viewCount' in request.resource.data) || request.resource.data.viewCount == 0) &&
-                       (!('playCount' in request.resource.data) || request.resource.data.playCount == 0) &&
-                       (!('likeCount' in request.resource.data) || request.resource.data.likeCount == 0) &&
-                       (!('dislikeCount' in request.resource.data) || request.resource.data.dislikeCount == 0) &&
-                       (!('shareCount' in request.resource.data) || request.resource.data.shareCount == 0) &&
-                       (!('commentCount' in request.resource.data) || request.resource.data.commentCount == 0) &&
-                       (!('commentsCount' in request.resource.data) || request.resource.data.commentsCount == 0) &&
-                       (!('languageRequestsCount' in request.resource.data) || request.resource.data.languageRequestsCount == 0) &&
-                       (!('totalWatchTimeSeconds' in request.resource.data) || request.resource.data.totalWatchTimeSeconds == 0) &&
-                       (!('engagement' in request.resource.data) || request.resource.data.engagement == 0 || request.resource.data.engagement == {}) &&
-                       (!('likes' in request.resource.data) || request.resource.data.likes == 0 || request.resource.data.likes == [] || request.resource.data.likes == {}) &&
-                       (!('dislikes' in request.resource.data) || request.resource.data.dislikes == 0 || request.resource.data.dislikes == [] || request.resource.data.dislikes == {});
+      // Allow authenticated users to create videos ONLY via real user upload flows (strict UUID v4, matching identity & non-empty title, zeroed initial metrics)
+      allow create: if isAuthenticated() && isValidVideoUploadCreate(videoId, request.resource.data);
       
       // Allow owners or admins to update their videos, or authenticated users to update engagement / interaction counts with bounded deltas
       allow update: if isAuthenticated() && (
@@ -479,7 +520,7 @@ service cloud.firestore {
            'ownerId', 'userId', 'channelId', 'uploaderId',
            'credibilityScore', 'factCheck', 'truthScore', 'pipelineStatus', 'moderation', 'moderationReason', 'gatewayDecision',
            'views', 'viewCount', 'playCount', 'credibilityVerified', 'isVerified',
-           'credibility', 'credibilityStatus', 'factCheckDispute', 'claimLedger', 'factCheckStats', 'uiReport', 'isFactChecked', 'scoringFactors'
+           'credibility', 'credibilityStatus', 'factCheckDispute', 'claimLedger', 'factCheckStats', 'uiReport', 'isFactChecked', 'scoringFactors', 'aiDubbedAudio'
          ])) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount', 'totalWatchTimeSeconds', 'updatedAt'
@@ -565,39 +606,39 @@ service cloud.firestore {
       // Media subcollection (localization, credibility, streaming)
       match /media/{docId} {
         allow read: if true;
-        allow write: if isVideoOwner(videoId);
+        allow write: if videoExists(videoId) && isVideoOwner(videoId) && docId != 'credibility';
       }
 
       // Subtitles, Chapters, Audio Tracks & Citations subcollections
       match /subtitles/{subtitleId} {
         allow read: if true;
-        allow write: if isVideoOwner(videoId);
+        allow write: if videoExists(videoId) && isVideoOwner(videoId);
       }
 
       match /chapters/{chapterId} {
         allow read: if true;
-        allow write: if isVideoOwner(videoId);
+        allow write: if videoExists(videoId) && isVideoOwner(videoId);
       }
 
       match /audio_tracks/{trackId} {
         allow read: if true;
-        allow write: if isVideoOwner(videoId);
+        allow write: if videoExists(videoId) && isVideoOwner(videoId);
       }
 
       match /citations/{citationId} {
         allow read: if true;
-        allow write: if isVideoOwner(videoId);
+        allow write: if videoExists(videoId) && isVideoOwner(videoId);
       }
 
       // Language requests subcollection (viewers request dubbed audio/subtitles)
       match /language_requests/{requestId} {
         allow read: if true;
-        allow create: if isAuthenticated() && (
+        allow create: if videoExists(videoId) && isAuthenticated() && (
           ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
           ('requesters' in request.resource.data && request.resource.data.requesters.hasAll([request.auth.uid])) ||
           isAdmin()
         );
-        allow update: if isAuthenticated() && (
+        allow update: if videoExists(videoId) && isAuthenticated() && (
           isAdmin() ||
           isVideoOwner(videoId) ||
           ('userId' in resource.data && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) ||
@@ -613,18 +654,18 @@ service cloud.firestore {
       // View tracking subcollection (one doc per user per video)
       match /views/{userId} {
         allow read: if isAuthenticated();
-        allow write: if isAuthenticated() && request.auth.uid == userId;
+        allow write: if videoExists(videoId) && isAuthenticated() && request.auth.uid == userId;
       }
 
       // Distributed Counter Shards (20 shards for viral video views & watch time)
       match /shards/{shardId} {
         allow read: if true;
-        allow create: if isAuthenticated() &&
+        allow create: if videoExists(videoId) && isAuthenticated() &&
                          request.resource.data.keys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']) &&
                          (!('count' in request.resource.data) || (request.resource.data.count is int && request.resource.data.count >= 0 && request.resource.data.count <= 1)) &&
                          (!('qualifiedCount' in request.resource.data) || (request.resource.data.qualifiedCount is int && request.resource.data.qualifiedCount >= 0 && request.resource.data.qualifiedCount <= 1)) &&
                          (!('watchTimeSeconds' in request.resource.data) || (request.resource.data.watchTimeSeconds is int && request.resource.data.watchTimeSeconds >= 0 && request.resource.data.watchTimeSeconds <= 60));
-        allow update: if isAuthenticated() &&
+        allow update: if videoExists(videoId) && isAuthenticated() &&
                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']) &&
                          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['count']) ||
                           (request.resource.data.count is int &&
@@ -640,27 +681,27 @@ service cloud.firestore {
       // Distributed Counter Shards (20 shards for viral video comments)
       match /comment_shards/{shardId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['commentCount', 'updatedAt']);
-        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']);
+        allow create: if videoExists(videoId) && isAuthenticated() && request.resource.data.keys().hasOnly(['commentCount', 'updatedAt']);
+        allow update: if videoExists(videoId) && isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']);
       }
 
       // Likes/Dislikes subcollections
       match /likes/{userId} {
         allow read: if true;
-        allow write: if isAuthenticated() && request.auth.uid == userId;
+        allow write: if videoExists(videoId) && isAuthenticated() && request.auth.uid == userId;
       }
 
       match /dislikes/{userId} {
         allow read: if true;
-        allow write: if isAuthenticated() && request.auth.uid == userId;
+        allow write: if videoExists(videoId) && isAuthenticated() && request.auth.uid == userId;
       }
 
       // Comments subcollection
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+        allow create: if videoExists(videoId) && isAuthenticated() && request.resource.data.userId == request.auth.uid &&
                          (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
-        allow update: if isAuthenticated() && (
+        allow update: if videoExists(videoId) && isAuthenticated() && (
           isVideoOwner(videoId) ||
           isAdmin() ||
           (resource.data.userId == request.auth.uid &&
@@ -677,9 +718,9 @@ service cloud.firestore {
         // Replies subcollection
         match /replies/{replyId} {
           allow read: if true;
-          allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+          allow create: if videoExists(videoId) && isAuthenticated() && request.resource.data.userId == request.auth.uid &&
                            (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
-          allow update: if isAuthenticated() && (
+          allow update: if videoExists(videoId) && isAuthenticated() && (
             isVideoOwner(videoId) ||
             isAdmin() ||
             (resource.data.userId == request.auth.uid &&
@@ -695,32 +736,32 @@ service cloud.firestore {
 
           match /likes/{userId} {
             allow read: if true;
-            allow write: if isAuthenticated() && request.auth.uid == userId;
+            allow write: if videoExists(videoId) && isAuthenticated() && request.auth.uid == userId;
           }
 
           match /dislikes/{userId} {
             allow read: if true;
-            allow write: if isAuthenticated() && request.auth.uid == userId;
+            allow write: if videoExists(videoId) && isAuthenticated() && request.auth.uid == userId;
           }
         }
 
         match /likes/{userId} {
           allow read: if true;
-          allow write: if isAuthenticated() && request.auth.uid == userId;
+          allow write: if videoExists(videoId) && isAuthenticated() && request.auth.uid == userId;
         }
 
         match /dislikes/{userId} {
           allow read: if true;
-          allow write: if isAuthenticated() && request.auth.uid == userId;
+          allow write: if videoExists(videoId) && isAuthenticated() && request.auth.uid == userId;
         }
       }
 
       // Claim Comments subcollection (Community Deliberation Notes)
       match /claim_comments/{commentId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+        allow create: if videoExists(videoId) && isAuthenticated() && request.resource.data.userId == request.auth.uid &&
                          (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
-        allow update: if isAuthenticated() && (
+        allow update: if videoExists(videoId) && isAuthenticated() && (
           resource.data.userId == request.auth.uid ||
           isVideoOwner(videoId) ||
           isAdmin() ||
@@ -1852,9 +1893,13 @@ service cloud.firestore {
       allow write: if false; // Cloud Function only
     }
 
-    // Resolution jobs (transcoding status)
+    // Resolution jobs (transcoding status + stream URLs). Job id == video id.
+    // Readable one at a time for public/unlisted videos; private and draft
+    // videos only by their owner or an admin. Listing is admin-only so the
+    // collection can't be enumerated for every video's stream URLs (audit C4).
     match /resolution_jobs/{jobId} {
-      allow read: if true;
+      allow get: if isVideoPubliclyViewable(jobId) || isVideoOwner(jobId);
+      allow list: if isAdmin();
       allow write: if false; // Backend only
     }
 
@@ -2077,12 +2122,31 @@ service cloud.firestore {
     }
 
     // Claim Sources (Crowdsourced Fact-Check Submissions)
+    // Community / creator evidence review queue. Written ONLY by Cloud Functions
+    // (submitFactualDispute → validation + daily limit; reviewCommunityEvidence → live link
+    // check + single-claim re-check). Direct client writes would bypass all of that.
     match /claim_sources/{sourceId} {
       allow read: if isAuthenticated() && (
         resource.data.submittedBy == request.auth.uid || isAdmin()
       );
-      allow create: if isAuthenticated() && request.resource.data.submittedBy == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow write: if false;
+    }
+
+    // Output quality grades for every fact-check report (reviewer dashboard).
+    match /credibility_quality_audits/{jobId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Audit trail of verdict changes caused by approved evidence.
+    match /credibility_verdict_changes/{changeId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Per-user daily submission counters (server-only).
+    match /community_evidence_limits/{limitId} {
+      allow read, write: if false;
     }
 
     // AI Fact-Check Verification Requests
@@ -2199,6 +2263,7 @@ service cloud.firestore {
                        !('credibilityScore' in request.resource.data) &&
                        !('truthScore' in request.resource.data) &&
                        !('gatewayDecision' in request.resource.data) &&
+                       !('aiDubbedAudio' in request.resource.data) &&
                        (!('pipelineStatus' in request.resource.data) || request.resource.data.pipelineStatus == 'pending' || request.resource.data.pipelineStatus == 'uploading') &&
                        (!('credibilityVerified' in request.resource.data) || request.resource.data.credibilityVerified == false) &&
                        (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false) &&
@@ -2361,6 +2426,91 @@ service cloud.firestore {
     match /channel_wallet_transactions/{txId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if false; // Immutable ledger authored exclusively by Cloud Functions
+    }
+
+    // Standalone Dubbing Studio Wallets (Immutable Ledger authored exclusively by Cloud Functions)
+    match /dubbing_wallets/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if false; // Authored and debited exclusively via Cloud Functions
+    }
+
+    // Dubbing Studio jobs (createDubbingJob writes studio_dubbing_jobs/{id}; the Studio screen streams it)
+    match /studio_dubbing_jobs/{jobId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false; // Written exclusively via Cloud Functions
+    }
+
+    // Persistent Dubbing Studio Projects (creator-owned workspace configs and accumulated job IDs)
+    match /dubbing_projects/{projectId} {
+      function isValidDubbingProject(data) {
+        return data.keys().hasOnly([
+                 'id', 'userId', 'title', 'sourceInputMode', 'videoId', 'channelId',
+                 'sourceMediaUrl', 'sourceMediaType', 'pickedFileName', 'durationSeconds',
+                 'characterCount', 'sourceLanguage', 'targetLanguages', 'mode',
+                 'voiceCloningEnabled', 'isolateVocals', 'preserveBgm', 'bgmDuckingPercent',
+                 'twoStageReviewEnabled', 'publishToTruthworld', 'jobIds',
+                 'dubbedLanguages', 'subtitledLanguages', 'latestJobId', 'latestStatus',
+                 'createdAt', 'updatedAt'
+               ]) &&
+               'id' in data &&
+               data.id is string &&
+               data.id == projectId &&
+               data.id.size() > 0 &&
+               data.id.size() <= 128 &&
+               'userId' in data &&
+               data.userId is string &&
+               data.userId.size() > 0 &&
+               data.userId.size() <= 128 &&
+               'title' in data &&
+               data.title is string &&
+               data.title.size() <= 200 &&
+               'createdAt' in data &&
+               data.createdAt is int &&
+               data.createdAt >= 0 &&
+               'updatedAt' in data &&
+               data.updatedAt is int &&
+               data.updatedAt >= 0 &&
+               (!('sourceInputMode' in data) || (data.sourceInputMode is string && data.sourceInputMode in ['channel_videos', 'file_upload'])) &&
+               (!('videoId' in data) || data.videoId == null || (data.videoId is string && data.videoId.size() <= 128)) &&
+               (!('channelId' in data) || data.channelId == null || (data.channelId is string && data.channelId.size() <= 128)) &&
+               (!('sourceMediaUrl' in data) || (data.sourceMediaUrl is string && data.sourceMediaUrl.size() <= 2048)) &&
+               (!('sourceMediaType' in data) || (data.sourceMediaType is string && data.sourceMediaType in ['video', 'audio'])) &&
+               (!('pickedFileName' in data) || (data.pickedFileName is string && data.pickedFileName.size() <= 300)) &&
+               (!('durationSeconds' in data) || (data.durationSeconds is int && data.durationSeconds >= 0 && data.durationSeconds <= 86400)) &&
+               (!('characterCount' in data) || (data.characterCount is int && data.characterCount >= 0 && data.characterCount <= 5000000)) &&
+               (!('sourceLanguage' in data) || (data.sourceLanguage is string && data.sourceLanguage.size() <= 20)) &&
+               (!('targetLanguages' in data) || (data.targetLanguages is list && data.targetLanguages.size() <= 50)) &&
+               (!('mode' in data) || (data.mode is string && data.mode in ['dubbing', 'subtitles_only'])) &&
+               (!('voiceCloningEnabled' in data) || data.voiceCloningEnabled is bool) &&
+               (!('isolateVocals' in data) || data.isolateVocals is bool) &&
+               (!('preserveBgm' in data) || data.preserveBgm is bool) &&
+               (!('bgmDuckingPercent' in data) || (data.bgmDuckingPercent is number && data.bgmDuckingPercent >= 0 && data.bgmDuckingPercent <= 100)) &&
+               (!('twoStageReviewEnabled' in data) || data.twoStageReviewEnabled is bool) &&
+               (!('publishToTruthworld' in data) || data.publishToTruthworld is bool) &&
+               (!('jobIds' in data) || (data.jobIds is list && data.jobIds.size() <= 50)) &&
+               (!('dubbedLanguages' in data) || (data.dubbedLanguages is list && data.dubbedLanguages.size() <= 50)) &&
+               (!('subtitledLanguages' in data) || (data.subtitledLanguages is list && data.subtitledLanguages.size() <= 50)) &&
+               (!('latestJobId' in data) || data.latestJobId == null || (data.latestJobId is string && data.latestJobId.size() <= 128)) &&
+               (!('latestStatus' in data) || (data.latestStatus is string && data.latestStatus in ['draft', 'processing', 'completed', 'failed']));
+      }
+
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       isValidDubbingProject(request.resource.data);
+      allow update: if isAuthenticated() &&
+                       (resource.data.userId == request.auth.uid || isAdmin()) &&
+                       request.resource.data.userId == resource.data.userId &&
+                       request.resource.data.id == resource.data.id &&
+                       request.resource.data.createdAt == resource.data.createdAt &&
+                       isValidDubbingProject(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Standalone Dubbing Studio Jobs
+    match /dubbing_jobs/{jobId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false; // Orchestrated exclusively via Cloud Functions
     }
 
     // Institutional Verification Requests

@@ -1,6 +1,6 @@
 import { sanitizeClaimResponse } from '../../src/pipeline/utils/claim-response-sanitizer';
 import { formatOpinionReasoning } from '../../src/pipeline/utils/opinion-formatting';
-import { registryService } from '../../src/pipeline/registry/RegistryService';
+import { DeterministicRegistryService } from '../../src/pipeline/services/deterministicRegistry';
 import { tier0KnowledgeService } from '../../src/pipeline/services/tier0Knowledge';
 
 describe('Unit: Claim Response Sanitizer (10-year-old clarity, zero AI/meta jargon)', () => {
@@ -95,12 +95,14 @@ describe('Unit: Claim Response Sanitizer (10-year-old clarity, zero AI/meta jarg
       "This is someone's personal opinion or feeling, not a fact you can test or prove right or wrong."
     );
 
-    const reg = registryService.resolveTruthCheck('The speed of light in a vacuum is constant.');
+    // Fast-tier explanations stay in plain language (the keyword-only registryService.resolveTruthCheck
+    // was removed in the credibility audit; settled facts are ruled on by DeterministicRegistryService).
+    const reg = DeterministicRegistryService.resolveDeterministicFact('The speed of light in a vacuum is 299,792,458 meters per second.');
     expect(reg).not.toBeNull();
-    expect(reg!.reasoning).toBe(
-      'Science textbooks and trusted physics agencies confirm this as a basic, proven science fact.'
-    );
+    expect(reg!.status).toBe('verified_true');
     expect(reg!.reasoning.toLowerCase()).not.toContain('deterministically');
     expect(reg!.reasoning.toLowerCase()).not.toContain('this claim');
+    // A topic mention with no checkable value is no longer ruled on.
+    expect(DeterministicRegistryService.resolveDeterministicFact('The speed of light in a vacuum is constant.')).toBeNull();
   });
 });

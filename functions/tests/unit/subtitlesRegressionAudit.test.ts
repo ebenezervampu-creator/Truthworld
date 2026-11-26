@@ -4,6 +4,15 @@ import { getSubtitleProfile, getGraphemeCount } from "../../src/pipeline/service
 import { WordTimestamp } from "../../src/pipeline/types";
 
 describe("🛡️ Subtitle Post-Translation Guardrails & Regression Audit", () => {
+  // These tests cover the legacy translation path (Translation LLM + Adaptive MT, reuse of
+  // pre-translated dub text). The hybrid path is covered in tests/pipeline/netflix_subtitles.test.ts.
+  const previousMode = process.env.DUBBING_TRANSLATION_MODE;
+  beforeAll(() => { process.env.DUBBING_TRANSLATION_MODE = "legacy"; });
+  afterAll(() => {
+    if (previousMode === undefined) delete process.env.DUBBING_TRANSLATION_MODE;
+    else process.env.DUBBING_TRANSLATION_MODE = previousMode;
+  });
+
   // ─── TEST 1: Cross-Script Unicode Bleed Defense ──────────────────────────
   describe("Unicode Script Isolation & Dravidian Leak Prevention", () => {
     it("detects and replaces stray Malayalam (U+0D00-U+0D7F) glyphs in Telugu output", () => {

@@ -26,6 +26,8 @@ class DeepLinkUrlParser {
     'feedback',
     'settings',
     'studio',
+    'dubbing',
+    'dubbing-studio',
     'admin',
     'advertiser',
     'advertisements',
@@ -126,6 +128,7 @@ class DeepLinkUrlParser {
         clean.startsWith('intent://') ||
         clean.startsWith('truthworld:') ||
         clean.startsWith('truthworldstudio:') ||
+        clean.startsWith('truthworlddubbing:') ||
         clean.startsWith('truthworldads:')) {
       return true;
     }
@@ -162,6 +165,11 @@ class DeepLinkUrlParser {
       uriStr = uriStr.replaceFirst(
         RegExp(r'^truthworldstudio:\/{1,3}'),
         'https://studio.truthworld.in/',
+      );
+    } else if (RegExp(r'^truthworlddubbing:\/{1,3}').hasMatch(uriStr)) {
+      uriStr = uriStr.replaceFirst(
+        RegExp(r'^truthworlddubbing:\/{1,3}'),
+        'https://dubbing.truthworld.in/',
       );
     } else if (RegExp(r'^truthworldadmin:\/{1,3}').hasMatch(uriStr)) {
       uriStr = uriStr.replaceFirst(
@@ -219,10 +227,19 @@ class DeepLinkUrlParser {
     final firstSegment =
         pathSegments.isNotEmpty ? pathSegments.first.toLowerCase() : '';
 
-    // Studio & Admin Subdomains
+    // Studio, Dubbing Studio & Admin Subdomains
     if (host.startsWith('studio') || firstSegment == 'studio') {
       return ParsedTruthworldUrl(
         type: TruthworldUrlType.studio,
+        rawUrl: rawUrl,
+        queryParameters: queryParams,
+      );
+    }
+    if (host.startsWith('dubbing') ||
+        firstSegment == 'dubbing' ||
+        firstSegment == 'dubbing-studio') {
+      return ParsedTruthworldUrl(
+        type: TruthworldUrlType.dubbing,
         rawUrl: rawUrl,
         queryParameters: queryParams,
       );

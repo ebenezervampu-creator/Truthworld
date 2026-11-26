@@ -4,12 +4,14 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/deep_link/deep_link_cache_manager.dart';
 import 'package:truthworld/core/services/deep_link/deep_link_url_parser.dart';
 import 'package:truthworld/core/services/deep_link/parsed_truthworld_url.dart';
+import 'package:truthworld/core/utils/cross_app_launcher.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
@@ -127,6 +129,17 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
             AppNavigator.offNamed('/studio');
           } else {
             AppNavigator.toStudio();
+          }
+        }
+
+      case TruthworldUrlType.dubbing:
+        if (!kIsWeb) {
+          CrossAppLauncher.launchFlavor(AppFlavor.dubbing, route: '/dubbing');
+        } else {
+          if (replace) {
+            AppNavigator.offNamed('/dubbing');
+          } else {
+            AppNavigator.toNamed('/dubbing');
           }
         }
 

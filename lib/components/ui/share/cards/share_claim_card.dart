@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 /// High-fidelity preview card displaying a fact-checked claim according to TruthWorld social preview architecture:
 /// - 16:9 widescreen video context thumbnail with [FACT CHECK] and verdict pill overlays

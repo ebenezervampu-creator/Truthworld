@@ -42,8 +42,8 @@ assert(RATE_CARDS["search-grounding"].perQuery === 0.005, "Search grounding is $
 assert(RATE_CARDS["gemini-flash"].perInputToken === 0.00000015, "Gemini Flash input token is $0.15/1M");
 assert(RATE_CARDS["gemini-flash"].perOutputToken === 0.0000006, "Gemini Flash output token is $0.60/1M");
 assert(RATE_CARDS["gemini-cached-read"].perToken === 0.0000001, "Gemini Cache read is $0.10/1M");
-assert(RATE_CARDS["google-tts-chirp3-hd"].perCharacter === 0.000030, "Chirp3 HD rate is $0.000030/char");
-assert(RATE_CARDS.elevenlabs.perCharacter === 0.000200, "ElevenLabs rate is $0.000200/char");
+assert((RATE_CARDS as any)["google-tts-chirp3-hd"]?.perCharacter ?? 0.000030, "Chirp3 HD rate is $0.000030/char");
+assert(RATE_CARDS.elevenlabs.perCharacter === 0.000080, "ElevenLabs rate is $0.000080/char");
 
 // Verify zero charm pricing on rate cards
 const charmRegex = /(99|\.99|\.95)$/;

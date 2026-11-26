@@ -137,6 +137,11 @@ android {
             applicationId = "com.truthworld.advertiser"
             resValue("string", "app_name", "Truthworld Advertiser")
         }
+        create("dubbing") {
+            dimension = "mode"
+            applicationId = "com.truthworld.dubbing"
+            resValue("string", "app_name", "Truthworld Dubbing")
+        }
     }
 
     bundle {

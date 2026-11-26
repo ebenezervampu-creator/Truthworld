@@ -16,7 +16,32 @@ import { logger } from "../utils/logger";
 import { getVertexAI } from "../utils/ai-client";
 import { extractCandidateText, normalizeToGcsUri } from "../utils/ai-utils";
 import { downloadStorageBuffer, getFfmpegPath } from "./media";
+import { measureLineAcoustics } from "./emotion-transfer";
 import { ElevenLabsEmotionTag, EmotionalIntensityProfile, SegmentProsodyCue } from "../types";
+import {
+  decideDeliveryTag,
+  smoothDeliveryTagsPerSpeaker,
+  summarizeDeliveryTags,
+  isDubbingWhisperGuardEnabled,
+  QUIET_SPEAKER_OFFSET_DB,
+  SHOUT_SPEAKER_OFFSET_DB,
+  MAX_WHISPER_VOICED_SHARE,
+  PROSODY_RULE_VERSION,
+  isVerifiedWhisper,
+  type DeliveryTagDecision,
+} from "./delivery-tag-guard";
+
+export {
+  decideDeliveryTag,
+  smoothDeliveryTagsPerSpeaker,
+  summarizeDeliveryTags,
+  isDubbingWhisperGuardEnabled,
+  QUIET_SPEAKER_OFFSET_DB,
+  SHOUT_SPEAKER_OFFSET_DB,
+  MAX_WHISPER_VOICED_SHARE,
+  PROSODY_RULE_VERSION,
+  type DeliveryTagDecision,
+};
 
 const execFileAsync = promisify(execFile);
 
@@ -38,6 +63,7 @@ const VOICE_QUALITY_SIMILARITY: Record<VoiceQualityType, number> = {
 
 const EMOTION_TAG_SETTINGS: Record<ElevenLabsEmotionTag, { stability: number; similarityBoost: number }> = {
   whispers:      { stability: 0.34, similarityBoost: 0.88 },
+  soft:          { stability: 0.55, similarityBoost: 0.86 },
   shouts:        { stability: 0.28, similarityBoost: 0.84 },
   laughs:        { stability: 0.32, similarityBoost: 0.85 },
   sighs:         { stability: 0.38, similarityBoost: 0.87 },
@@ -50,23 +76,48 @@ const EMOTION_TAG_SETTINGS: Record<ElevenLabsEmotionTag, { stability: number; si
   sarcastic:     { stability: 0.40, similarityBoost: 0.85 },
   calm:          { stability: 0.62, similarityBoost: 0.86 },
   serious:       { stability: 0.56, similarityBoost: 0.87 },
+  shouting:      { stability: 0.28, similarityBoost: 0.84 },
+  screaming:     { stability: 0.30, similarityBoost: 0.84 },
+  crying:        { stability: 0.30, similarityBoost: 0.86 },
+  distressed:    { stability: 0.32, similarityBoost: 0.86 },
+  menacing:      { stability: 0.32, similarityBoost: 0.85 },
+  intense:       { stability: 0.32, similarityBoost: 0.85 },
 };
 
 export function mapEmotionToElevenLabsCue(
   emotion?: string,
   energyDb?: number,
   voiceQuality?: VoiceQualityType,
-  emotionalIntensity?: EmotionalIntensityProfile
+  emotionalIntensity?: EmotionalIntensityProfile,
+  options?: {
+    speakerMedianDb?: number;
+    f0Hz?: number | null;
+    voicedShare?: number | null;
+    whisperGuard?: boolean;
+  }
 ): { emotionTag?: ElevenLabsEmotionTag; stabilityOverride: number; similarityBoostOverride: number } {
+  const guard = options?.whisperGuard ?? isDubbingWhisperGuardEnabled();
   const norm = (emotion || "").toLowerCase().trim();
   const aliasMap: Record<string, ElevenLabsEmotionTag> = {
     whisper: "whispers",
     whispers: "whispers",
-    intimate: "whispers",
+    soft: "soft",
+    softly: "soft",
+    quiet: "soft",
+    intimate: guard ? "soft" : "whispers",
     shout: "shouts",
     shouts: "shouts",
-    yelling: "shouts",
-    screaming: "shouts",
+    shouting: "shouting",
+    yelling: "shouting",
+    screaming: "screaming",
+    screams: "screaming",
+    menacing: "menacing",
+    growling: "menacing",
+    threatening: "menacing",
+    distressed: "distressed",
+    pleading: "distressed",
+    panicked: "distressed",
+    sobbing: "crying",
     laugh: "laughs",
     laughs: "laughs",
     laughing: "laughs",
@@ -83,7 +134,7 @@ export function mapEmotionToElevenLabsCue(
     happy: "excited",
     sad: "sad",
     sorrowful: "sorrowful",
-    crying: "sorrowful",
+    crying: "crying",
     grief: "sorrowful",
     angry: "angry",
     furious: "angry",
@@ -127,8 +178,26 @@ export function mapEmotionToElevenLabsCue(
 
   // Acoustic energy override when lexical/model emotion is neutral
   if (!tag && typeof energyDb === "number" && Number.isFinite(energyDb)) {
-    if (energyDb <= -32) tag = "whispers";
-    else if (energyDb >= -11) tag = "shouts";
+    if (!guard) {
+      if (energyDb <= -32) tag = "whispers";
+      else if (energyDb >= -11) tag = "shouts";
+    } else {
+      if (typeof options?.speakerMedianDb === "number" && Number.isFinite(options.speakerMedianDb)) {
+        if (energyDb <= options.speakerMedianDb - QUIET_SPEAKER_OFFSET_DB) tag = "soft";
+        else if (energyDb >= options.speakerMedianDb + SHOUT_SPEAKER_OFFSET_DB) tag = "shouts";
+      } else {
+        if (energyDb <= -36) tag = "soft";
+        else if (energyDb >= -11) tag = "shouts";
+      }
+    }
+  }
+
+  // Whisper guard: verify unvoiced airflow if whispers was proposed
+  if (guard && tag === "whispers") {
+    // Same rule as decideDeliveryTag (delivery-tag-guard.ts): a whisper needs measured evidence.
+    if (!isVerifiedWhisper({ f0Hz: options?.f0Hz, voicedShare: options?.voicedShare, voiceQuality })) {
+      tag = "soft";
+    }
   }
 
   const qualityStability = voiceQuality ? VOICE_QUALITY_STABILITY[voiceQuality] : undefined;
@@ -174,7 +243,8 @@ export function mapEmotionToElevenLabsCue(
 
 export interface AcousticFingerprint {
   micStyle:    "warm-broadcast" | "crisp-modern" | "natural-flat" | "vlog-raw" | "laptop-bright";
-  roomTone:    "dry-studio" | "small-room" | "large-reflective" | "outdoor-open";
+  roomTone:    "dry-studio" | "small-room" | "stone-hall" | "large-reflective" | "outdoor-open";
+  roomToneConfidence?: number;
   compression: "punchy" | "transparent" | "heavy" | "none";
   energy:      "high" | "moderate" | "relaxed" | "intimate";
   pacingStyle: "fast-energetic" | "steady-educational" | "slow-dramatic";
@@ -188,85 +258,6 @@ export class AudioIdentityService {
     return getVertexAI().getGenerativeModel({
       model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || "gemini-3.5-flash-lite",
     });
-  }
-
-  /**
-   * 1. 🎙️ Isolate Vocals using ElevenLabs Audio Isolation API
-   * Removes background music/noise to extract pure "Vocal Identity".
-   */
-  async isolateVocals(jobId: string, audioUrl: string): Promise<string> {
-    logger.info("[AudioIdentity] Isolating vocals", { jobId, audioUrl });
-
-    try {
-      const apiKey = PIPELINE_CONFIG.ELEVENLABS_API_KEY;
-      if (!apiKey) {
-        throw new Error("ELEVENLABS_API_KEY is not configured for vocal isolation");
-      }
-
-      // Download audio directly via Authenticated Storage SDK (eliminates 403 Forbidden on private objects)
-      const rawBuffer = await downloadStorageBuffer(audioUrl);
-
-      // If the input is a video container (.mp4, .mov, etc.), extract clean MP3 audio with FFmpeg first
-      let audioBuffer: Buffer = rawBuffer;
-      const isVideo = audioUrl.toLowerCase().includes(".mp4") || audioUrl.toLowerCase().includes(".mov") || audioUrl.toLowerCase().includes(".webm");
-
-      if (isVideo) {
-        const ffmpegPath = getFfmpegPath();
-        if (!ffmpegPath) {
-          logger.warn("[AudioIdentity] FFmpeg binary unavailable for video container audio extraction; returning original URL", { jobId, audioUrl });
-          return audioUrl;
-        }
-        const tmpDir = os.tmpdir();
-        const tmpInput = path.join(tmpDir, `vocal_iso_in_${jobId}_${Date.now()}.mp4`);
-        const tmpOutput = path.join(tmpDir, `vocal_iso_out_${jobId}_${Date.now()}.mp3`);
-        try {
-          await fs.promises.writeFile(tmpInput, rawBuffer);
-          await execFileAsync(ffmpegPath, [
-            "-y",
-            "-i", tmpInput,
-            "-vn",
-            "-ac", "2",
-            "-ar", "44100",
-            "-b:a", "192k",
-            tmpOutput,
-          ]);
-          audioBuffer = await fs.promises.readFile(tmpOutput);
-        } finally {
-          await fs.promises.unlink(tmpInput).catch(() => {});
-          await fs.promises.unlink(tmpOutput).catch(() => {});
-        }
-      }
-
-      const formData = new FormData();
-      formData.append("audio", new Blob([audioBuffer as any]), "original.mp3");
-
-      const xiResponse = await fetch("https://api.elevenlabs.io/v1/audio-isolation", {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-        },
-        body: formData,
-      });
-
-      if (!xiResponse.ok) {
-        const errBody = await xiResponse.text().catch(() => "");
-        throw new Error(`ElevenLabs Isolation failed (${xiResponse.status} ${xiResponse.statusText}): ${errBody || "Unknown error"}`);
-      }
-
-      const isolatedBuffer = await xiResponse.arrayBuffer();
-      const bucket = admin.storage().bucket();
-      const filePath = `audio/${jobId}/isolated-vocal.mp3`;
-      const file = bucket.file(filePath);
-
-      await file.save(Buffer.from(isolatedBuffer), {
-        metadata: { contentType: "audio/mpeg" },
-      });
-
-      return `gs://${bucket.name}/${filePath}`;
-    } catch (error) {
-      logger.error("[AudioIdentity] Isolation failed", { jobId, error: error instanceof Error ? error.message : String(error) });
-      throw error;
-    }
   }
 
   /**
@@ -292,9 +283,10 @@ Assess:
    - "vlog-raw" (lapel or shotgun mic in real-world space)
    - "laptop-bright" (built-in mic, thin, high mids)
 2. Room tone / reverb environment:
-   - "dry-studio" (treated vocal booth, zero reverb)
+   - "dry-studio" (treated vocal booth, zero reverb; standard for YouTube Shorts, talking-head videos, podcasts, vlogs)
    - "small-room" (slight natural bedroom/office reflections)
-   - "large-reflective" (hall, large untreated room, noticeable echo)
+   - "stone-hall" (stone prison cell, dungeon, cathedral, ancient stone chamber, cave with distinct stone wall reflections)
+   - "large-reflective" (large auditorium, untreated hall, noticeable long echo)
    - "outdoor-open" (wind, open space, no room reflections)
 3. Compression style:
    - "punchy" (broadcast radio, tight dynamic range)
@@ -310,7 +302,8 @@ Assess:
 Return ONLY a valid JSON object matching this schema:
 {
   "micStyle": "warm-broadcast" | "crisp-modern" | "natural-flat" | "vlog-raw" | "laptop-bright",
-  "roomTone": "dry-studio" | "small-room" | "large-reflective" | "outdoor-open",
+  "roomTone": "dry-studio" | "small-room" | "stone-hall" | "large-reflective" | "outdoor-open",
+  "roomToneConfidence": 0.85,
   "compression": "punchy" | "transparent" | "heavy" | "none",
   "energy": "high" | "moderate" | "relaxed" | "intimate",
   "pacingStyle": "fast-energetic" | "steady-educational" | "slow-dramatic",
@@ -427,13 +420,29 @@ Return ONLY a valid JSON object matching this schema:
         break;
     }
 
-    // C. Room Tone (Reverb emulation)
+    // C. Room Tone (Reverb emulation) - STRICTLY CONDITIONAL
+    // Never apply stone dungeon reverb to YouTube Shorts, vlogs, or standard studio talking heads.
+    const conf = typeof fingerprint.roomToneConfidence === "number" ? fingerprint.roomToneConfidence : 0.8;
+
     switch(fingerprint.roomTone) {
-      case "small-room": 
-        filters.push("aecho=0.8:0.88:40:0.25"); 
+      case "stone-hall":
+        if (conf >= 0.70) {
+          // Authentic 3-tap stone chamber early reflection + stone high-frequency damping
+          filters.push("equalizer=f=200:width_type=h:w=140:g=1.8,lowpass=f=9400,aecho=0.85:0.42:35|65|95:0.22|0.14|0.08");
+        } else {
+          filters.push("aecho=0.88:0.25:40:0.12");
+        }
         break;
       case "large-reflective": 
-        filters.push("aecho=0.8:0.88:90:0.35"); 
+        filters.push("aecho=0.85:0.35:75:0.20"); 
+        break;
+      case "small-room": 
+        filters.push("aecho=0.88:0.25:35:0.12"); 
+        break;
+      case "dry-studio":
+      case "outdoor-open":
+      default:
+        // Zero reverb default (clean, dry studio speech)
         break;
     }
 
@@ -488,11 +497,30 @@ Return ONLY a valid JSON object matching this schema:
     try {
       const bucket = admin.storage().bucket(bucketName);
       const file = bucket.file(filePath.replace(/^\/+/, ""));
-      const [signedUrl] = await file.getSignedUrl({
-        action: "read",
-        expires: Date.now() + 3600 * 1000,
-      });
-      return signedUrl;
+      try {
+        const [signedUrl] = await file.getSignedUrl({
+          action: "read",
+          expires: Date.now() + 3600 * 1000,
+        });
+        return signedUrl;
+      } catch (signErr) {
+        // Fallback for runtimes without iam.serviceAccounts.signBlob permission:
+        // reuse or mint a Firebase Storage download token so browsers can download directly.
+        const [meta] = await file.getMetadata();
+        let rawTokens = String(meta?.metadata?.firebaseStorageDownloadTokens || "").trim();
+        let token = rawTokens.split(",")[0]?.trim() || "";
+        if (!token) {
+          const { randomUUID } = require("crypto");
+          token = randomUUID();
+          await file.setMetadata({
+            metadata: {
+              ...(meta?.metadata || {}),
+              firebaseStorageDownloadTokens: token,
+            },
+          });
+        }
+        return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath.replace(/^\/+/, ""))}?alt=media&token=${encodeURIComponent(token)}`;
+      }
     } catch (_) {
       return url;
     }
@@ -534,6 +562,8 @@ Return ONLY a valid JSON object matching this schema:
 
     const geminiProsodyMap = new Map<number, GeminiDeepProsody>();
     const energyMap = new Map<number, number>();
+    // Pitch and voiced loudness for EVERY line (Gemini only hears the first 40); see emotion-transfer.ts.
+    const acousticMap = new Map<number, { f0Hz: number | null; voicedRmsDb: number | null; voicedShare?: number | null }>();
     const workDir = path.join(os.tmpdir(), `prosody_deep_${jobId}_${Date.now()}`);
     let localAudioPath: string | null = null;
     const ffmpegPath = getFfmpegPath();
@@ -581,6 +611,23 @@ Return ONLY a valid JSON object matching this schema:
 
       // 2a. Deep Per-Segment Gemini 3.5 Flash Lite Multimodal Audio Analysis (inlineData WAV slices, bounded concurrency)
       if (localAudioPath && ffmpegPath) {
+        try {
+          const { stdout } = await execFileAsync(
+            ffmpegPath,
+            ["-v", "error", "-i", localAudioPath, "-ac", "1", "-ar", "8000", "-f", "f32le", "pipe:1"],
+            { encoding: "buffer", maxBuffer: 400 * 1024 * 1024, timeout: 120000 } as any
+          );
+          const buf = Buffer.from(stdout as unknown as Buffer);
+          const pcm = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 4));
+          for (const seg of segments) {
+            acousticMap.set(seg.index, measureLineAcoustics(pcm, 8000, seg.start, seg.end));
+          }
+        } catch (acousticErr) {
+          logger.warn("[AudioIdentity] Line pitch/loudness measurement skipped", { jobId, error: (acousticErr as Error).message });
+        }
+      }
+
+      if (localAudioPath && ffmpegPath) {
         const activeSegments = segments
           .slice(0, 40)
           .filter((seg) => {
@@ -619,6 +666,8 @@ Return ONLY a valid JSON object matching this schema:
 Transcript text: ${JSON.stringify(seg.text)}
 Measured RMS energy: ${energyMap.get(seg.index) ?? "unknown"} dBFS
 
+Delivery rules: Use "soft" for quiet, grounded, fully voiced speech (has audible vocal pitch; NOT an unvoiced whisper). Reserve "whispers" strictly for unvoiced, breathy vocal airflow with no vocal fold vibration.
+
 Return ONLY valid JSON:
 {
   "pitchRangeSemitones": number (0 to 24),
@@ -628,7 +677,7 @@ Return ONLY valid JSON:
   "energyEnvelopePattern": "rising" | "falling" | "flat" | "dynamic",
   "breathingPattern": "natural" | "rapid" | "suppressed",
   "accentStressMarkers": string[],
-  "recommendedElevenLabsTag": "whispers" | "shouts" | "laughs" | "sighs" | "gasps" | "excited" | "sorrowful" | "angry" | "calm" | "serious" | "neutral",
+  "recommendedElevenLabsTag": "whispers" | "soft" | "shouting" | "screaming" | "crying" | "distressed" | "menacing" | "laughs" | "sighs" | "gasps" | "excited" | "sorrowful" | "angry" | "calm" | "serious" | "neutral",
   "recommendedStability": number (0.25 to 0.75),
   "recommendedSimilarityBoost": number (0.75 to 0.95),
   "style": string
@@ -713,7 +762,7 @@ Return ONLY valid JSON:
           }));
 
           const prompt = `Listen to the vocal audio track and classify the emotional delivery and vocal prosody for each speech segment below.
-Allowed emotions: "whispers", "shouts", "laughs", "sighs", "gasps", "excited", "sorrowful", "angry", "calm", "serious", "neutral".
+Allowed emotions: "whispers", "soft", "shouting", "screaming", "crying", "distressed", "menacing", "laughs", "sighs", "gasps", "excited", "sorrowful", "angry", "calm", "serious", "neutral".
 Segments:
 ${JSON.stringify(sampleSegments)}
 Return JSON: { "cues": [{ "index": 0, "emotion": "neutral", "voiceQuality": "modal", "pitchRangeSemitones": 6, "style": "conversational" }] }`;
@@ -766,14 +815,46 @@ Return JSON: { "cues": [{ "index": 0, "emotion": "neutral", "voiceQuality": "mod
       } catch {}
     }
 
-    // 3. Fuse acoustic energy + speaking rate + deep multimodal prosody into ElevenLabs v4 cues
+    // 3. Compute per-speaker median energy across this video
+    const energyBySpeaker = new Map<string, number[]>();
+    for (const seg of segments) {
+      const e = energyMap.get(seg.index);
+      if (typeof e === "number" && Number.isFinite(e)) {
+        const spk = (seg as any).speaker || "speaker_0";
+        if (!energyBySpeaker.has(spk)) energyBySpeaker.set(spk, []);
+        energyBySpeaker.get(spk)!.push(e);
+      }
+    }
+    const speakerMedianMap = new Map<string, number>();
+    for (const [spk, energies] of energyBySpeaker) {
+      const sorted = [...energies].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      speakerMedianMap.set(spk, sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2);
+    }
+
+    interface SegmentDraftItem {
+      seg: { index: number; start: number; end: number; text: string; speaker?: string };
+      decision: DeliveryTagDecision;
+      energyDb?: number;
+      speakerMedianDb?: number;
+      f0Hz: number | null;
+      voicedShare: number | null;
+      geminiTag?: string;
+      voiceQuality?: VoiceQualityType;
+      stabilityOverride: number;
+      similarityBoostOverride: number;
+      geminiCue?: GeminiDeepProsody;
+    }
+
+    const drafts: SegmentDraftItem[] = [];
+
     for (const seg of segments) {
       const energyDb = energyMap.get(seg.index);
-      const durSec = Math.max(0.25, (seg.end - seg.start) / 1000);
-      const words = seg.text.trim().split(/\s+/).filter(Boolean).length;
-      const wordsPerSec = words / durSec;
-      const speakingRateRatio = Number(Math.max(0.75, Math.min(1.35, wordsPerSec / 2.6)).toFixed(2));
-
+      const spk = (seg as any).speaker || "speaker_0";
+      const speakerMedianDb = speakerMedianMap.get(spk);
+      const acoustic = acousticMap.get(seg.index);
+      const f0Hz = acoustic?.f0Hz ?? null;
+      const voicedShare = acoustic?.voicedShare ?? null;
       const geminiCue = geminiProsodyMap.get(seg.index);
       const lexicalEmotion = this.inferLexicalEmotionHint(seg.text);
       const rawEmotion =
@@ -781,14 +862,33 @@ Return JSON: { "cues": [{ "index": 0, "emotion": "neutral", "voiceQuality": "mod
           ? geminiCue.emotion
           : lexicalEmotion;
 
+      const decision = decideDeliveryTag({
+        index: seg.index,
+        speaker: (seg as any).speaker,
+        startMs: seg.start,
+        endMs: seg.end,
+        f0Hz,
+        voicedShare,
+        energyDb,
+        speakerMedianDb,
+        voiceQuality: geminiCue?.voiceQuality,
+        geminiTag: geminiCue?.emotion,
+        proposedTag: rawEmotion,
+        emotionalIntensity: geminiCue?.emotionalIntensity,
+      });
+
       const mapped = mapEmotionToElevenLabsCue(
-        rawEmotion,
+        decision.finalTag,
         energyDb,
         geminiCue?.voiceQuality,
-        geminiCue?.emotionalIntensity
+        geminiCue?.emotionalIntensity,
+        {
+          speakerMedianDb,
+          f0Hz,
+          voicedShare,
+        }
       );
 
-      // Gemini recommended stability/similarity take precedence when explicitly provided
       const finalStability =
         typeof geminiCue?.recommendedStability === "number" && Number.isFinite(geminiCue.recommendedStability)
           ? geminiCue.recommendedStability
@@ -798,23 +898,88 @@ Return JSON: { "cues": [{ "index": 0, "emotion": "neutral", "voiceQuality": "mod
           ? geminiCue.recommendedSimilarityBoost
           : mapped.similarityBoostOverride;
 
-      cues.set(seg.index, {
-        segmentIndex: seg.index,
-        emotionTag: mapped.emotionTag,
+      drafts.push({
+        seg,
+        decision,
         energyDb,
-        speakingRateRatio,
+        speakerMedianDb,
+        f0Hz,
+        voicedShare,
+        geminiTag: geminiCue?.emotion,
+        voiceQuality: geminiCue?.voiceQuality,
         stabilityOverride: finalStability,
         similarityBoostOverride: finalSimilarity,
-        deliveryStyle: geminiCue?.style || (mapped.emotionTag ? `expressive:${mapped.emotionTag}` : "natural"),
-        pitchRangeSemitones: geminiCue?.pitchRangeSemitones,
-        speakingRateSyllablesPerSec: geminiCue?.speakingRateSyllablesPerSec,
-        voiceQuality: geminiCue?.voiceQuality,
-        emotionalIntensity: geminiCue?.emotionalIntensity,
-        energyEnvelopePattern: geminiCue?.energyEnvelopePattern,
-        breathingPattern: geminiCue?.breathingPattern,
-        accentStressMarkers: geminiCue?.accentStressMarkers,
+        geminiCue,
       });
     }
+
+    // 4. Keep delivery steady within a scene: smooth adjacent lines for same speaker
+    const smoothInputs = drafts.map((d) => ({
+      index: d.seg.index,
+      speaker: (d.seg as any).speaker,
+      startMs: d.seg.start,
+      endMs: d.seg.end,
+      energyDb: d.energyDb,
+      finalTag: d.decision.finalTag,
+      peakIntensity: d.geminiCue?.emotionalIntensity
+        ? Math.max(...Object.values(d.geminiCue.emotionalIntensity).map((v) => Number(v) || 0))
+        : 0,
+      reason: d.decision.reason,
+    }));
+
+    const { smoothedSegments, smoothedCount } = smoothDeliveryTagsPerSpeaker(smoothInputs);
+
+    // 5. Build cues, log segment traceability & summary
+    for (let i = 0; i < drafts.length; i++) {
+      const d = drafts[i];
+      const smoothed = smoothedSegments[i];
+      const finalTag = smoothed.finalTag;
+
+      logger.info("[Dubbing:DeliveryTag]", {
+        index: d.seg.index,
+        speaker: (d.seg as any).speaker,
+        energyDb: d.energyDb,
+        speakerMedianDb: d.speakerMedianDb,
+        f0Hz: d.f0Hz,
+        voicedShare: d.voicedShare,
+        geminiTag: d.geminiTag,
+        voiceQuality: d.voiceQuality,
+        proposedTag: d.decision.proposedTag,
+        finalTag,
+        reason: smoothed.reason || d.decision.reason,
+      });
+
+      const durSec = Math.max(0.25, (d.seg.end - d.seg.start) / 1000);
+      const words = d.seg.text.trim().split(/\s+/).filter(Boolean).length;
+      const wordsPerSec = words / durSec;
+      const speakingRateRatio = Number(Math.max(0.75, Math.min(1.35, wordsPerSec / 2.6)).toFixed(2));
+
+      cues.set(d.seg.index, {
+        segmentIndex: d.seg.index,
+        emotionTag: finalTag,
+        energyDb: d.energyDb,
+        speakingRateRatio,
+        stabilityOverride: d.stabilityOverride,
+        similarityBoostOverride: d.similarityBoostOverride,
+        deliveryStyle: d.geminiCue?.style || (finalTag ? `expressive:${finalTag}` : "natural"),
+        pitchRangeSemitones: d.geminiCue?.pitchRangeSemitones,
+        speakingRateSyllablesPerSec: d.geminiCue?.speakingRateSyllablesPerSec,
+        voiceQuality: d.geminiCue?.voiceQuality,
+        emotionalIntensity: d.geminiCue?.emotionalIntensity,
+        energyEnvelopePattern: d.geminiCue?.energyEnvelopePattern,
+        breathingPattern: d.geminiCue?.breathingPattern,
+        accentStressMarkers: d.geminiCue?.accentStressMarkers,
+        f0Hz: d.f0Hz,
+        voicedRmsDb: acousticMap.get(d.seg.index)?.voicedRmsDb ?? null,
+        voicedShare: d.voicedShare,
+      });
+    }
+
+    const summary = summarizeDeliveryTags(
+      drafts.map((d) => d.decision),
+      smoothedCount
+    );
+    logger.info("[Dubbing:DeliveryTag] Summary", summary);
 
     logger.info("[AudioIdentity] Deep segment prosody analysis complete", {
       jobId,
@@ -830,7 +995,12 @@ Return JSON: { "cues": [{ "index": 0, "emotion": "neutral", "voiceQuality": "mod
   private inferLexicalEmotionHint(text: string): string | undefined {
     const lower = text.toLowerCase();
     if (/\[(laugh|chuckle|haha|giggle)/.test(lower) || /\b(haha+|lmao)\b/.test(lower)) return "laughs";
-    if (/\[(whisper|whispers|softly)\]/.test(lower)) return "whispers";
+    if (isDubbingWhisperGuardEnabled()) {
+      if (/\[(soft|softly|quietly)\]/.test(lower)) return "soft";
+      if (/\[(whisper|whispers)\]/.test(lower)) return "whispers";
+    } else {
+      if (/\[(whisper|whispers|softly)\]/.test(lower)) return "whispers";
+    }
     if (/\[(sigh|sighs)\]/.test(lower)) return "sighs";
     if (/\[(gasp|gasps)\]/.test(lower)) return "gasps";
     if (/\[(shout|shouts|scream|yell)/.test(lower) || (text.includes("!!") && text === text.toUpperCase() && text.length > 6)) {

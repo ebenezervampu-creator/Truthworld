@@ -82,13 +82,13 @@ void main() {
         updatedAt: Timestamp.now(),
       );
 
-      // 1. Standard Channel (no discount, Tier 3 standard video 400s -> $0.50/lang, 2 languages => $1.00)
+      // 1. Standard Channel (no discount, 400s -> $2.00/lang at $0.30/min, 2 languages => $4.00)
       final standardCost = ChannelWalletService.calculateDubbingCost(
         languageCount: 2,
         durationSeconds: 400,
         channel: baseChannel,
       );
-      expect(standardCost, equals(1.00));
+      expect(standardCost, equals(4.00));
 
       // 2. Channel with 100% Free dubbing discount
       final freeChannel = baseChannel.copyWith(
@@ -102,7 +102,7 @@ void main() {
       );
       expect(freeCost, equals(0.00));
 
-      // 3. Channel with 50% dubbing discount ($1.00 -> $0.50)
+      // 3. Channel with 50% dubbing discount ($4.00 -> $2.00)
       final fiftyChannel = baseChannel.copyWith(
         dubbingDiscountType: '50%',
         dubbingDiscountPercent: 50.0,
@@ -112,9 +112,9 @@ void main() {
         durationSeconds: 400,
         channel: fiftyChannel,
       );
-      expect(fiftyCost, equals(0.50));
+      expect(fiftyCost, equals(2.00));
 
-      // 4. Channel with Custom 25% dubbing discount ($1.00 -> $0.75)
+      // 4. Channel with Custom 25% dubbing discount ($4.00 -> $3.00)
       final customChannel = baseChannel.copyWith(
         dubbingDiscountType: 'custom',
         dubbingDiscountPercent: 25.0,
@@ -124,7 +124,7 @@ void main() {
         durationSeconds: 400,
         channel: customChannel,
       );
-      expect(customCost, equals(0.75));
+      expect(customCost, equals(3.00));
 
       // 5. Passing explicit discountPercent overrides
       final explicitCost = ChannelWalletService.calculateDubbingCost(
@@ -132,7 +132,7 @@ void main() {
         durationSeconds: 400,
         discountPercent: 40.0,
       );
-      expect(explicitCost, equals(0.60));
+      expect(explicitCost, equals(2.40));
     });
 
     test('Subtitle cost calculation: Free, 50%, and Custom discounts applied accurately', () {

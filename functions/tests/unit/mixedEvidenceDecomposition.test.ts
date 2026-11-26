@@ -7,6 +7,10 @@ import {
   EvidenceLevel,
   EvidenceToClaimTraceability,
 } from '../../src/pipeline/types';
+import { useCiteByIdMode } from "../helpers/citeByIdMode";
+
+// The stance step is a model call; these suites use a fixed judgment (see helper).
+jest.mock("../../src/pipeline/services/stanceClassifier", () => jest.requireActual("../helpers/citeByIdMode").fixedStanceModule);
 
 function createClosedWorldService(
   claimText: string,
@@ -79,6 +83,7 @@ function createClosedWorldService(
 }
 
 describe('Unit: Evidence-to-Claim Traceability & Mixed-Evidence Decomposition Architecture', () => {
+  useCiteByIdMode();
   const verificationService = new ClaimVerificationService('test-key', 0.6);
 
   it('decomposes mixed-evidence claim, verifies observable premises, refutes invalid inference, and constructs full traceability manifest', async () => {

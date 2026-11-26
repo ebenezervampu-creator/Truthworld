@@ -583,7 +583,14 @@ class VideoAnalysisView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       physics: const BouncingScrollPhysics(),
+      cacheExtent: 1500,
       children: [
+        // AI Credibility & Fact-Check Disclaimer
+        VideoAnalysisDisclaimerCard(
+          analysisCtrl: analysisCtrl,
+          margin: const EdgeInsets.only(bottom: 14),
+        ),
+
         // 1. Verification Summary Card (Hidden on mobile sized devices & web mobiles)
         if (!isMobile) ...[
           VerificationSummaryCard(
@@ -722,9 +729,7 @@ class VideoAnalysisView extends StatelessWidget {
           const SizedBox(height: 16),
         ],
 
-        // Transparent Scoring Methodology (IFCN / World-Class Standard)
-        const VideoAnalysisMethodologySection(),
-        const SizedBox(height: 24),
+        const SizedBox(height: 8),
       ],
     );
   }
@@ -742,10 +747,17 @@ class VideoAnalysisView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       physics: const BouncingScrollPhysics(),
+      cacheExtent: 1500,
       children: [
         // 1. Executive Video & Verification Overview Card
         _buildExecutiveOverviewCard(parsed, summaryText),
         const SizedBox(height: 16),
+
+        // AI Fact-Check Disclaimer
+        VideoAnalysisDisclaimerCard(
+          analysisCtrl: analysisCtrl,
+          margin: const EdgeInsets.only(bottom: 16),
+        ),
 
         // 2. Claims Overview & Key Findings Card
         if (parsed.claims.isNotEmpty) ...[
@@ -777,10 +789,6 @@ class VideoAnalysisView extends StatelessWidget {
           ),
           const SizedBox(height: 16),
         ],
-
-        // 4. AI Verification Methodology
-        const VideoAnalysisMethodologySection(),
-        const SizedBox(height: 16),
 
         // 5. Scoring Factors / Multi-Dimensional Breakdown
         if (parsed.factors.isNotEmpty) ...[
@@ -839,16 +847,19 @@ class VideoAnalysisView extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                'EXECUTIVE OVERVIEW',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.8,
-                  color: Colors.white70,
+              Expanded(
+                child: Text(
+                  'EXECUTIVE OVERVIEW',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                    color: Colors.white70,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               if (parsed.claims.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
@@ -887,6 +898,7 @@ class VideoAnalysisView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       physics: const BouncingScrollPhysics(),
+      cacheExtent: 1500,
       children: [
         if (parsed.sources.isEmpty)
           Container(
@@ -930,6 +942,7 @@ class VideoAnalysisView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       physics: const BouncingScrollPhysics(),
+      cacheExtent: 1500,
       children: [
         // 1. Synthesized Conclusion (Single Paragraph Complete Answer)
         if (effectiveConclusion.isNotEmpty) ...[
@@ -1115,6 +1128,11 @@ class VideoAnalysisView extends StatelessWidget {
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 16),
+        VideoAnalysisDisclaimerCard(
+          analysisCtrl: analysisCtrl,
+          margin: EdgeInsets.zero,
         ),
         const SizedBox(height: 16),
       ],
@@ -1663,6 +1681,8 @@ class VideoAnalysisView extends StatelessWidget {
             ),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 10,
                 color: color,
@@ -1681,6 +1701,7 @@ class VideoAnalysisView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       physics: const BouncingScrollPhysics(),
+      cacheExtent: 1500,
       children: [
         // 1. Epistemic Context Banner
         Container(
@@ -1847,6 +1868,7 @@ class VideoAnalysisView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       physics: const BouncingScrollPhysics(),
+      cacheExtent: 1500,
       children: [
         // 1. Chapter Timeline Header
         Container(

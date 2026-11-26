@@ -561,10 +561,13 @@ class AdminAuthProtocolService {
         }
       }
     } catch (e) {
-      if (e is GoogleSignInException && e.code == 'redirecting') {
+      if (e is GoogleSignInException && e.isCancelled) {
         return;
       }
-      ErrorHandler.log(e);
+      ErrorHandler.log(
+        e,
+        tag: 'AdminAuthProtocolService.signInWithGoogle',
+      );
       AppSnackbar.error(
         'Unable to complete Google Sign In. Please try again.',
       );

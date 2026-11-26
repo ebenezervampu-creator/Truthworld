@@ -3,7 +3,6 @@ import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
-import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Strongly typed and normalized representation of fact-check data.
@@ -364,7 +363,9 @@ class FactCheckDataParser {
           verifiedCount++;
         } else if (verdict.isFalse) {
           falseCount++;
-        } else {
+        } else if (verdict.isCaution) {
+          // Opinions, satire, faith and rhetorical statements are contextual, not
+          // "Caution"; counting them here inflated the Caution total.
           cautionCount++;
         }
       }

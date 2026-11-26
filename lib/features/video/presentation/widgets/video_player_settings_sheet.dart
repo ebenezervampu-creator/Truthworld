@@ -5,7 +5,6 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -136,39 +135,77 @@ class VideoPlayerSettingsSheet {
                       final track = tracks[idx];
                       final isSelected =
                           activeLang == track.label || activeLang == track.langCode;
-                      return ListTile(
-                        leading: Icon(
-                          Icons.audiotrack_rounded,
-                          color: isSelected ? AppColors.brand : Colors.white,
-                        ),
-                        title: Text(
-                          track.label,
-                          style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? AppColors.brand : AppColors.textPrimary,
+                      final semanticsText =
+                          track.isAiDub ? '${track.label}, AI-dubbed audio' : track.label;
+
+                      return Semantics(
+                        label: semanticsText,
+                        selected: isSelected,
+                        button: true,
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.audiotrack_rounded,
+                            color: isSelected ? AppColors.brand : Colors.white,
                           ),
-                        ),
-                        subtitle: track.type.isNotEmpty && track.type != 'Original'
-                            ? Text(
-                                track.type,
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
+                          title: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  track.label,
+                                  style: TextStyle(
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                    color: isSelected ? AppColors.brand : AppColors.textPrimary,
+                                  ),
                                 ),
-                              )
-                            : null,
-                        trailing: isSelected
-                            ? const Icon(
-                                Icons.check_circle_rounded,
-                                color: AppColors.brand,
-                              )
-                            : null,
-                        onTap: () {
-                          if (playerCtrl != null) {
-                            playerCtrl.setAudioLanguage(track);
-                          }
-                          Get.back();
-                        },
+                              ),
+                              if (track.isAiDub) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.3),
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'AI dub',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: track.type.isNotEmpty && track.type != 'Original'
+                              ? Text(
+                                  track.isAiDub ? 'AI-dubbed audio' : track.type,
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                )
+                              : null,
+                          trailing: isSelected
+                              ? const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.brand,
+                                )
+                              : null,
+                          onTap: () {
+                            if (playerCtrl != null) {
+                              playerCtrl.setAudioLanguage(track);
+                            }
+                            Get.back();
+                          },
+                        ),
                       );
                     },
                   ),

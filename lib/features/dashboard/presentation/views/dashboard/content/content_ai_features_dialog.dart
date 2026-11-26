@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/services/dubbing_quote_service.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -80,11 +83,51 @@ import 'package:truthworld/theme/app_theme.dart';
     final isAccuracyMode = true.obs;
     final showAdvanced = false.obs;
 
+    // Dubbing price comes from the server (getDubbingQuote): the same function the
+    // server charges with, so the amount on the button is the amount debited.
+    final quoteService = DubbingQuoteService();
+    final dubbingQuote = Rxn<DubbingQuote>();
+    final isQuoteLoading = false.obs;
+    var quoteRequestId = 0;
+    Future<void> refreshDubbingQuote() async {
+      final langs = selectedLangs.where(isDubbingSupported).toList();
+      if (!selectedFeatures.contains('dubbing') || langs.isEmpty) {
+        quoteRequestId++;
+        dubbingQuote.value = null;
+        isQuoteLoading.value = false;
+        return;
+      }
+      final requestId = ++quoteRequestId;
+      isQuoteLoading.value = true;
+      final quote = await quoteService.fetch(
+        videoId: video.id,
+        targetLanguages: langs,
+        durationSeconds: video.durationValue.inSeconds,
+      );
+      if (requestId != quoteRequestId) return; // A newer selection is being priced.
+      dubbingQuote.value = quote;
+      isQuoteLoading.value = false;
+    }
+
+    final quoteWorkers = <Worker>[
+      debounce<Set<String>>(
+        selectedLangs,
+        (_) => refreshDubbingQuote(),
+        time: const Duration(milliseconds: 400),
+      ),
+      debounce<Set<String>>(
+        selectedFeatures,
+        (_) => refreshDubbingQuote(),
+        time: const Duration(milliseconds: 400),
+      ),
+    ];
+    unawaited(refreshDubbingQuote());
+
     final initialFilter = isDubbingPreselected ? 'dubbing' : 'all';
     final searchQuery = ''.obs;
     final regionFilter = initialFilter.obs; // 'all', 'dubbing', 'Indian', 'Global'
     final filteredLanguages = RxList<AILanguage>(
-      isDubbingPreselected ? kElevenLabsDubbingLanguages : kAllAILanguages,
+      isDubbingPreselected ? kAllElevenLabsDubbingLanguages : kAllAILanguages,
     );
 
     void applyFilter() {
@@ -92,7 +135,7 @@ import 'package:truthworld/theme/app_theme.dart';
       final r = regionFilter.value;
       filteredLanguages.value = kAllAILanguages.where((lang) {
         final matchesCategory = r == 'all' ||
-            (r == 'dubbing' && lang.supportsDubbing) ||
+            (r == 'dubbing' && lang.voiceEngineSupportsDubbing) ||
             lang.region == r;
         final matchesQuery = q.isEmpty ||
             lang.name.toLowerCase().contains(q) ||
@@ -102,7 +145,7 @@ import 'package:truthworld/theme/app_theme.dart';
       }).toList();
     }
 
-    Get.dialog<void>(
+    final dialogClosed = Get.dialog<void>(
       Dialog(
         backgroundColor: AppColors.bgSurface,
         shape: RoundedRectangleBorder(
@@ -126,9 +169,25 @@ import 'package:truthworld/theme/app_theme.dart';
                     durationSeconds: videoDurationSec,
                     channel: currentChannel,
                   );
-                  final dubbingSubtotal = isDubbingSelected
-                      ? (dubbingLangsSelected.length * currentTierPerLangRate)
-                      : 0.0;
+                  // Server quote when ready; the local figure only fills the gap while loading.
+                  final quote = dubbingQuote.value;
+                  final needsDubbingPrice = isDubbingSelected && dubbingLangsSelected.isNotEmpty;
+                  final isDubbingPriceFinal = !needsDubbingPrice || (quote?.isReady ?? false);
+                  final isAwaitingTranscript = needsDubbingPrice &&
+                      quote?.status == DubbingQuoteStatus.transcriptPending;
+                  final isQuoteUnavailable = needsDubbingPrice &&
+                      !isQuoteLoading.value &&
+                      quote?.status == DubbingQuoteStatus.unavailable;
+                  final isLanguageUnavailable = needsDubbingPrice &&
+                      quote?.status == DubbingQuoteStatus.languageUnavailable;
+                  final dubbingSubtotal = !isDubbingSelected
+                      ? 0.0
+                      : (quote != null && quote.isReady
+                          ? quote.dubbingChargeUsd
+                          : dubbingLangsSelected.length * currentTierPerLangRate);
+                  final canPay = selectedFeatures.isNotEmpty &&
+                      !isQuoteLoading.value &&
+                      isDubbingPriceFinal;
                   final nonDubbingFeatures = selectedFeatures.where((f) => f != 'dubbing').toSet();
                   final nonDubbingCost = nonDubbingFeatures.isEmpty
                       ? 0.0
@@ -304,7 +363,7 @@ import 'package:truthworld/theme/app_theme.dart';
                           children: [
                             _buildLanguageRegionChip('All Subtitles (${kGoogleCloudTranslationLanguages.length})', 'all', regionFilter, applyFilter),
                             const SizedBox(width: 6),
-                            _buildLanguageRegionChip('ElevenLabs Dubbing (${kElevenLabsDubbingLanguages.length})', 'dubbing', regionFilter, applyFilter),
+                            _buildLanguageRegionChip('ElevenLabs Dubbing (${kAllElevenLabsDubbingLanguages.length})', 'dubbing', regionFilter, applyFilter),
                             const SizedBox(width: 6),
                             _buildLanguageRegionChip('Indian (23)', 'Indian', regionFilter, applyFilter),
                             const SizedBox(width: 6),
@@ -326,28 +385,70 @@ import 'package:truthworld/theme/app_theme.dart';
                             children: filteredLanguages.map((lang) {
                               final isSelected = selectedLangs.contains(lang.code);
                               final isDubbingMode = selectedFeatures.contains('dubbing');
-                              final labelText = (isDubbingMode && !lang.supportsDubbing)
-                                  ? '${lang.name} (${lang.native} • Subs only)'
+                              final isDubbingFilter = regionFilter.value == 'dubbing';
+                              final isDubbingLaunch = lang.supportsDubbing;
+                              final isNotPlanned = kDubbingNotPlannedTargetCodes.contains(lang.code.toLowerCase());
+                              final isSubtitlesSelected = selectedFeatures.contains('subtitles');
+
+                              final String statusTag;
+                              if (isDubbingMode && !isDubbingLaunch) {
+                                if (isSubtitlesSelected) {
+                                  statusTag = 'Subs only';
+                                } else if (isNotPlanned) {
+                                  statusTag = 'Not yet supported';
+                                } else {
+                                  statusTag = 'Available soon';
+                                }
+                              } else if (isDubbingFilter && !isDubbingLaunch) {
+                                statusTag = isNotPlanned ? 'Not yet supported' : 'Available soon';
+                              } else {
+                                statusTag = '';
+                              }
+
+                              final labelText = statusTag.isNotEmpty
+                                  ? '${lang.name} (${lang.native} • $statusTag)'
                                   : '${lang.name} (${lang.native})';
-                              return FilterChip(
-                                label: Text(labelText),
-                                selected: isSelected,
-                                selectedColor: AppColors.brand.withValues(alpha: 0.2),
-                                checkmarkColor: Colors.white,
-                                labelStyle: AppTextStyles.labelMedium.copyWith(
-                                  fontSize: 11.5,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected ? Colors.white : AppColors.textPrimary,
-                                ),
-                                onSelected: (val) {
-                                  if (val) {
-                                    selectedLangs.add(lang.code);
-                                  } else {
-                                    if (selectedLangs.length > 1) {
-                                      selectedLangs.remove(lang.code);
+
+                              final canSelect = isSubtitlesSelected || isDubbingLaunch || !isDubbingMode;
+                              final semanticLabel = canSelect
+                                  ? (statusTag.isNotEmpty ? '${lang.name}, $statusTag' : lang.name)
+                                  : '${lang.name}, $statusTag';
+
+                              return Semantics(
+                                enabled: canSelect,
+                                label: semanticLabel,
+                                child: FilterChip(
+                                  label: Text(labelText),
+                                  selected: isSelected,
+                                  selectedColor: AppColors.brand.withValues(alpha: 0.2),
+                                  checkmarkColor: Colors.white,
+                                  labelStyle: AppTextStyles.labelMedium.copyWith(
+                                    fontSize: 11.5,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : (canSelect ? AppColors.textPrimary : const Color(0xFFA1A1AA)),
+                                  ),
+                                  onSelected: (val) {
+                                    if (!canSelect && val) {
+                                      if (isNotPlanned) {
+                                        AppSnackbar.info("${lang.name} isn't supported yet.");
+                                      } else {
+                                        AppSnackbar.info(
+                                          '${lang.name} is available soon! Active production dubbing languages: Telugu, Hindi, Marathi, Tamil, and Malayalam.',
+                                        );
+                                      }
+                                      return;
                                     }
-                                  }
-                                },
+                                    if (val) {
+                                      selectedLangs.add(lang.code);
+                                    } else {
+                                      if (selectedLangs.length > 1) {
+                                        selectedLangs.remove(lang.code);
+                                      }
+                                    }
+                                  },
+                                ),
                               );
                             }).toList(),
                           ),
@@ -823,9 +924,9 @@ import 'package:truthworld/theme/app_theme.dart';
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              const Text(
-                                'Estimated Total:',
-                                style: TextStyle(
+                              Text(
+                                isDubbingPriceFinal ? 'Total:' : 'Estimated Total:',
+                                style: const TextStyle(
                                   fontSize: 11,
                                   color: AppColors.textSecondary,
                                 ),
@@ -843,6 +944,41 @@ import 'package:truthworld/theme/app_theme.dart';
                         ],
                       ),
                     ),
+                    if (needsDubbingPrice &&
+                        (isAwaitingTranscript ||
+                            isQuoteUnavailable ||
+                            isLanguageUnavailable ||
+                            (quote?.isPricedByCharacters ?? false))) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        isAwaitingTranscript
+                            ? (quote?.message ??
+                                "We're still listening to your video. Your exact dubbing price will be ready in a few minutes.")
+                            : isLanguageUnavailable
+                                ? (quote?.message ??
+                                    "Audio dubbing isn't available for this video yet. Subtitles are still available.")
+                            : isQuoteUnavailable
+                                ? "We couldn't load the dubbing price right now. Please check your connection and try again."
+                                : 'Dubbing is priced by the length of the dubbed speech: \$0.30 per 1,000 characters, or \$0.30 per minute of video, whichever is higher.',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                          height: 1.3,
+                        ),
+                      ),
+                      if (isQuoteUnavailable)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton(
+                            onPressed: () => unawaited(refreshDubbingQuote()),
+                            child: Text(
+                              'Try again',
+                              style: AppTextStyles.buttonText.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                     const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -875,15 +1011,21 @@ import 'package:truthworld/theme/app_theme.dart';
                             size: 18,
                           ),
                           label: Text(
-                            totalEstimatedCost > 0
-                                ? 'Generate & Pay \$${totalEstimatedCost.toStringAsFixed(2)}'
-                                : 'Generate AI Features (Free)',
+                            isQuoteLoading.value
+                                ? 'Getting your price…'
+                                : isAwaitingTranscript
+                                    ? 'Price ready after transcript'
+                                    : isLanguageUnavailable
+                                        ? 'Dubbing not available yet'
+                                        : totalEstimatedCost > 0
+                                        ? 'Generate & Pay \$${totalEstimatedCost.toStringAsFixed(2)}'
+                                        : 'Generate AI Features (Free)',
                             style: AppTextStyles.buttonText.copyWith(
                               fontWeight: FontWeight.bold,
                               color: Colors.black,
                             ),
                           ),
-                          onPressed: selectedFeatures.isEmpty
+                          onPressed: !canPay
                               ? null
                               : () {
                                   Get.back<void>();
@@ -914,6 +1056,13 @@ import 'package:truthworld/theme/app_theme.dart';
           ),
         ),
       ),
+    );
+    unawaited(
+      dialogClosed.whenComplete(() {
+        for (final worker in quoteWorkers) {
+          worker.dispose();
+        }
+      }),
     );
   }
 

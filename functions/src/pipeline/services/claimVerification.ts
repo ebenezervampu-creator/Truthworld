@@ -56,10 +56,15 @@ import {
   enforceClosedWorldCitationFirewall,
   evidenceCandidateToRichSource,
   isVerifiedRichSource,
+  isLiveVerificationRecord,
   urlVerificationService,
   buildDirectNavigationUrl,
 } from "./urlVerificationService";
 import { ClaimClusteringService } from "./claimClusteringService";
+import { attributeGroundingChunks } from "./groundingAttribution";
+import { reconcileVerdictWithEvidence, mapVerificationLabelToStatus, detectDominantClaimLanguage, EVIDENCE_REQUIRED_STATUSES, toInvariantStance } from "./verdictReconciliation";
+import { reevaluateClaimOnEvidenceChange } from "./evidenceDrivenReevaluation";
+import { classifySourceStances } from "./stanceClassifier";
 
 export { isVerifiedRichSource, enforceClosedWorldCitationFirewall, buildDirectNavigationUrl };
 export { EvidenceProvider, VerifiedSource, AdjudicatedClaim } from "../types";
@@ -70,13 +75,27 @@ export interface VerifyHybridOptions {
   requireUsResidency?: boolean;
 }
 
+/** Exact public verdict enum the model must return (schema-locked; no free-form labels). */
+type ModelVerdict = "VERIFIED" | "FALSE" | "CAUTION" | "OPINION_BELIEF" | "UNPROVEN";
+type ModelCautionType = "NONE" | "MISLEADING" | "MISSING_CONTEXT" | "EXAGGERATED" | "DISPUTED" | "HALF_TRUE";
+
 interface BatchVerdictItem {
   claimId: string;
-  verdict: "VERIFIED" | "FALSE" | "MISLEADING" | "DISPUTED" | "UNVERIFIABLE";
+  verdict: ModelVerdict;
+  cautionType: ModelCautionType;
   confidence: number;
   rationale: string;
+  /** Indices into the PRE-RETRIEVED catalog only (the model cannot see live search chunk ids). */
   citedChunkIndices: number[];
+  /** Authoritative live search URLs consulted during Google Search Grounding */
+  sourceUrls?: string[];
   hasConflictingEvidence: boolean;
+  /** OPINION_BELIEF only: exact subjective words from the claim's verbatimQuote. */
+  opinionQuote: string;
+  /** OPINION_BELIEF only: seconds from the start of the video where the quote is spoken. */
+  opinionTimestampSec: number;
+  /** Could this statement, in principle, be proven true or false with evidence? */
+  falsifiable: boolean;
 }
 
 const VERIFICATION_SCHEMA: Schema = {
@@ -87,26 +106,67 @@ const VERIFICATION_SCHEMA: Schema = {
       claimId: { type: Type.STRING },
       verdict: {
         type: Type.STRING,
-        enum: ["VERIFIED", "FALSE", "MISLEADING", "DISPUTED", "UNVERIFIABLE"],
+        enum: ["VERIFIED", "FALSE", "CAUTION", "OPINION_BELIEF", "UNPROVEN"],
+      },
+      cautionType: {
+        type: Type.STRING,
+        enum: ["NONE", "MISLEADING", "MISSING_CONTEXT", "EXAGGERATED", "DISPUTED", "HALF_TRUE"],
       },
       confidence: { type: Type.NUMBER },
       rationale: { type: Type.STRING },
+      sourceUrls: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+      },
       citedChunkIndices: {
         type: Type.ARRAY,
         items: { type: Type.INTEGER },
       },
       hasConflictingEvidence: { type: Type.BOOLEAN },
+      opinionQuote: { type: Type.STRING },
+      opinionTimestampSec: { type: Type.NUMBER },
+      falsifiable: { type: Type.BOOLEAN },
     },
     required: [
       "claimId",
       "verdict",
+      "cautionType",
       "confidence",
       "rationale",
       "citedChunkIndices",
       "hasConflictingEvidence",
+      "opinionQuote",
+      "opinionTimestampSec",
+      "falsifiable",
     ],
   },
 };
+
+/** Converts the schema-locked model verdict into the internal adjudication verdict. */
+export function toInternalAdjudication(item: Pick<BatchVerdictItem, "verdict" | "cautionType" | "opinionQuote" | "opinionTimestampSec">): Pick<AdjudicatedClaim, "verdict" | "cautionType" | "opinionEvidence"> {
+  const v = String(item.verdict || "").toUpperCase().trim();
+  switch (v) {
+    case "VERIFIED":
+    case "TRUE":
+    case "SUPPORTED":
+      return { verdict: "VERIFIED" };
+    case "FALSE":
+    case "REFUTED":
+      return { verdict: "FALSE" };
+    case "CAUTION": {
+      const ct = item.cautionType && item.cautionType !== "NONE" ? item.cautionType : "MISLEADING";
+      return { verdict: ct === "DISPUTED" ? "DISPUTED" : "MISLEADING", cautionType: ct };
+    }
+    case "OPINION_BELIEF":
+      return {
+        verdict: "OPINION_BELIEF",
+        opinionEvidence: { quote: String(item.opinionQuote || ""), timestampSec: Number(item.opinionTimestampSec) },
+      };
+    default:
+      // UNPROVEN and anything unexpected fail closed.
+      return { verdict: "UNVERIFIABLE" };
+  }
+}
 
 function chunkClaims<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -190,33 +250,50 @@ You must strictly adjudicate each of the provided empirical claims against ${
       : "authoritative evidence retrieved via Google Search Grounding" + (batchCatalog.length > 0 ? " and the Pre-Retrieved Evidence Catalog below." : ".")
   }
 
-### STRICT ADJUDICATION RUBRIC:
-Every claim must be evaluated with utmost precision. DO NOT default to or rubber-stamp "VERIFIED" without clear evidentiary confirmation.
+### STRICT ADJUDICATION RUBRIC (exact enum — no other labels exist):
+Every claim must be evaluated with utmost precision. Never answer from memory: a verdict other than UNPROVEN must rest on evidence you actually retrieved in this request. The backend rejects any verdict it cannot tie to live evidence.
 
-1. "VERIFIED":
-   - The empirical assertion is confirmed by authoritative documentation, official government/legal records, undisputed historical records, scientific consensus, or verified census/demographic data.
-   - For legal/constitutional claims (e.g. Article 44, Special Marriage Act, Personal Laws): the legal provision exists and matches the speaker's articulation.
+1. "VERIFIED": retrieved evidence directly confirms the claim (official/legal records, major wire reports, undisputed historical records, scientific consensus). One authoritative primary source is enough.
+2. "FALSE": retrieved evidence directly refutes the claim (wrong date, number, person, event, or a law that says the opposite).
+3. "CAUTION": evidence EXISTS and shows the claim is problematic. Set cautionType:
+   - "MISLEADING": true elements presented to give a wrong impression
+   - "MISSING_CONTEXT": accurate but omits context that changes its meaning
+   - "EXAGGERATED": overstates scope, size or numbers
+   - "DISPUTED": credible sources directly conflict (also set hasConflictingEvidence: true)
+   - "HALF_TRUE": part of the claim is right and part is wrong
+   CAUTION is NEVER a fallback for "I could not find anything" — use UNPROVEN for that.
+4. "OPINION_BELIEF": the statement is a personal judgment, feeling, value or religious belief, not a testable fact. You MUST copy the exact subjective words from the claim's verbatimQuote into opinionQuote and give opinionTimestampSec (use startMs / 1000). If the statement contains a checkable date, number or event, it is NOT an opinion.
+5. "UNPROVEN": your search found no evidence that confirms or refutes the claim. Write rationale as one short neutral sentence.
 
-2. "FALSE":
-   - The assertion is directly contradicted or refuted by established facts, official legal records, undisputed historical data, or empirical research.
-   - Example: Claiming a law prohibits something that it explicitly permits, or asserting an incorrect date, number, or timeline by a wide margin.
+For every verdict other than CAUTION set cautionType to "NONE". For every verdict other than OPINION_BELIEF set opinionQuote to "" and opinionTimestampSec to -1.
 
-3. "MISLEADING":
-   - The claim contains an element of truth or partial fact, but distorts context, omits crucial exceptions, exaggerates scope/numbers, or conflates distinct legal statutes/doctrines.
-   - Example: Stating that a law applies to all citizens when certain tribal regions or religious communities are exempted by statute, or presenting a disputed proposal as settled law.
-
-4. "DISPUTED":
-   - Authoritative sources, legal scholars, or official bodies directly conflict, or the issue is an active, unresolved constitutional challenge or debate with no consensus.
-   - Flag hasConflictingEvidence: true.
-
-5. "UNVERIFIABLE":
-   - There is insufficient public empirical evidence or verifiable documentation to confirm or refute the claim.
+"falsifiable" (every claim): true if the statement could in principle be proven true or false with evidence (an event, date, number, quote, record or measurable fact); false if it is a value judgment, taste, feeling, prediction of taste, or belief. Numbers alone do not make a statement falsifiable: "the best actor for 20 years" and "a 10 out of 10 performance" are not falsifiable. A statement with falsifiable=true can never be OPINION_BELIEF.
 
 ### CITATION AND EVIDENCE BINDING:
-- Reference evidence strictly by 0-based index in citedChunkIndices and refer to them in prose as [E1], [E2], etc. (display ID = index + 1).
-- Do NOT write or invent raw URLs in your rationale.
-- When search grounding returns evidence chunks, always cite the relevant chunk indices in citedChunkIndices.
-- Rationale MUST be clear, objective, neutral, and educational. Explain WHY the claim is Verified, False, Misleading, or Disputed in standard accessible language without raw developer terms.
+- Search each claim with its own focused search query.
+- For every factual claim where you consulted live web pages during Google Search Grounding, provide 2 to 4 specific external article or official source URLs in the "sourceUrls" array (prioritize authoritative primary sources such as official government agencies, national meteorological/geological portals like jma.go.jp or usgs.gov, public health agencies like who.int or cdc.gov, and major accredited news organizations like Reuters, AP, BBC, The Hindu).
+- Providing multiple authoritative URLs (2 to 4) is MANDATORY for all verified or refuted claims to ensure robust independent corroboration.
+- Only include live URLs of legitimate, authoritative external articles or official pages found during search. Do NOT cite search engine result pages (never google.com/search or bing.com) and do NOT write raw URLs inside the "rationale" text itself.
+- citedChunkIndices may ONLY reference the Pre-Retrieved Evidence Catalog entries listed below (0-based). Leave it empty when there is no catalog.
+- Rationale MUST be clear, objective, neutral, and educational, in standard accessible language without raw developer terms.
+
+### OUTPUT FORMAT:
+Respond with ONLY a raw JSON array of objects (no markdown code blocks, no backticks, no prose before or after) with this structure for each claim:
+[
+  {
+    "claimId": string,
+    "verdict": "VERIFIED" | "FALSE" | "CAUTION" | "OPINION_BELIEF" | "UNPROVEN",
+    "cautionType": "NONE" | "MISLEADING" | "MISSING_CONTEXT" | "EXAGGERATED" | "DISPUTED" | "HALF_TRUE",
+    "confidence": number (0.0 to 1.0),
+    "rationale": string,
+    "sourceUrls": string[],
+    "citedChunkIndices": number[],
+    "hasConflictingEvidence": boolean,
+    "opinionQuote": string,
+    "opinionTimestampSec": number,
+    "falsifiable": boolean
+  }
+]
 
 ### THEMATIC GROUNDING & QUERY AMORTIZATION:
 - If this batch contains thematically related claims or shared entities, synthesize 1 to 2 comprehensive, focused search queries that capture the cluster's core subject simultaneously, avoiding fragmented single-claim queries.
@@ -230,10 +307,18 @@ ${JSON.stringify(claims, null, 2)}`;
     contents: prompt,
     config: {
       temperature: 0.1,
-      responseMimeType: "application/json",
-      responseSchema: VERIFICATION_SCHEMA,
-      // Omit Vertex Search Grounding tool ($0.014/query) ONLY when ALL claims in the batch have pre-retrieved catalog evidence
-      ...(useClosedWorldOnly ? {} : { tools: [{ googleSearch: {} }] }),
+      // NOTE: When Google Search Grounding is enabled, Vertex AI has a platform limitation where combining
+      // tools: [{ googleSearch: {} }] with responseSchema or responseMimeType: "application/json"
+      // strips groundingChunks and groundingSupports from candidate.groundingMetadata.
+      // Therefore, responseSchema is used ONLY when useClosedWorldOnly is true.
+      ...(useClosedWorldOnly
+        ? {
+            responseMimeType: "application/json",
+            responseSchema: VERIFICATION_SCHEMA,
+          }
+        : {
+            tools: [{ googleSearch: {} }],
+          }),
       thinkingConfig: {
         thinkingLevel: thinkingLevel as any,
       },
@@ -241,7 +326,10 @@ ${JSON.stringify(claims, null, 2)}`;
   });
 
   const candidate = response.candidates?.[0];
-  const groundingChunks = candidate?.groundingMetadata?.groundingChunks ?? [];
+  const rawChunks = candidate?.groundingMetadata?.groundingChunks;
+  const groundingChunks: any[] = Array.isArray(rawChunks) ? [...rawChunks] : [];
+  // Note: searchEntryPoint.renderedContent contains Google search query chips/SERP redirects,
+  // which are not article sources and must not be treated as evidence candidates.
   const groundingSupports = (candidate?.groundingMetadata as any)?.groundingSupports ?? [];
   const webSearchQueries = useClosedWorldOnly
     ? []
@@ -273,56 +361,145 @@ ${JSON.stringify(claims, null, 2)}`;
     });
   }
 
-  const liveGroundingSources: VerifiedSource[] = groundingChunks
-    .map((chunk, idx) => ({
+  // Live grounding chunks keep their ORIGINAL chunk index (groundingSupports refer to it).
+  const liveGroundingByChunkIdx = new Map<number, VerifiedSource>();
+  groundingChunks.forEach((chunk, idx) => {
+    const uri = chunk.web?.uri || "";
+    if (!uri) return;
+    liveGroundingByChunkIdx.set(idx, {
       evidenceId: `E${batchCatalog.length + idx + 1}`,
       title: chunk.web?.title || "Verified Grounding Source",
-      uri: chunk.web?.uri || "",
+      uri,
       snippet: chunkSnippets.get(idx) || "",
       sourceProvider: "VERTEX_GROUNDING" as EvidenceProvider,
-    }))
-    .filter((entry) => entry.uri.length > 0);
+    });
+  });
 
-  // Combine pre-retrieved catalog + live search grounding sources
-  const activeCatalog: VerifiedSource[] = [...batchCatalog, ...liveGroundingSources];
+  const responseText = response.text ?? "[]";
+  let parsedItems: BatchVerdictItem[] = [];
+  try {
+    let cleanJson = responseText.trim();
+    const markdownMatch = cleanJson.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (markdownMatch) {
+      cleanJson = markdownMatch[1].trim();
+    }
+    const arrayMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    if (arrayMatch) {
+      cleanJson = arrayMatch[0];
+    }
+    const parsed = JSON.parse(cleanJson);
+    parsedItems = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.verifications) ? parsed.verifications : [];
+  } catch (parseErr) {
+    logger.warn("[HybridVerification] Adjudication response was not valid JSON; batch will fall back", {
+      videoId,
+      tierLabel,
+      error: String(parseErr),
+    });
+    return [];
+  }
 
-  const parsedItems = JSON.parse(response.text ?? "[]") as BatchVerdictItem[];
+  // Per-claim attribution of live search results via groundingSupports offsets.
+  const batchClaimIds = claims.map((c) => c.claimId);
+  const attributedChunks = attributeGroundingChunks(
+    responseText,
+    groundingSupports,
+    batchClaimIds,
+    groundingChunks.length
+  );
+  const MAX_SOURCES_PER_CLAIM = 5;
 
-  return parsedItems.map((item, itemIdx) => {
-    let resolvedSources = item.citedChunkIndices
-      .map((idx) => activeCatalog[idx])
-      .filter((src): src is VerifiedSource => Boolean(src));
-
-    // Correlate with catalog only if source authentically matches claim text
-    if (resolvedSources.length === 0 && activeCatalog.length > 0) {
-      const claimText = (claims[itemIdx]?.verbatimQuote || claims[itemIdx]?.normalizedClaim || "").toLowerCase();
-      const claimWords = claimText.split(/\s+/).filter((w) => w.length > 3);
-      if (claimWords.length > 0) {
-        const matched = activeCatalog.find((s) => {
-          const titleLower = (s.title || "").toLowerCase();
-          const snippetLower = (s.snippet || "").toLowerCase();
-          const overlapCount = claimWords.filter((w) => titleLower.includes(w) || snippetLower.includes(w)).length;
-          return overlapCount >= 2;
+  const results: AdjudicatedClaim[] = [];
+  const seenClaimIds = new Set<string>();
+  parsedItems.forEach((item, itemIdx) => {
+    // Resolve the claim strictly by id; positional fallback only when the model echoed
+    // the exact same number of items (prevents cross-claim contamination).
+    let claimId = String(item?.claimId || "").trim();
+    if (!batchClaimIds.includes(claimId)) {
+      if (parsedItems.length === claims.length && claims[itemIdx]) {
+        claimId = claims[itemIdx].claimId;
+      } else {
+        logger.warn("[HybridVerification] Dropping adjudication with unknown claimId", {
+          videoId,
+          returnedId: item?.claimId,
         });
-        if (matched) {
-          resolvedSources = [matched];
+        return;
+      }
+    }
+    if (seenClaimIds.has(claimId)) return;
+    seenClaimIds.add(claimId);
+
+    const resolved: VerifiedSource[] = [];
+    const seenUris = new Set<string>();
+    const pushSource = (src: VerifiedSource | undefined) => {
+      if (!src || !src.uri || seenUris.has(src.uri) || resolved.length >= MAX_SOURCES_PER_CLAIM) return;
+      seenUris.add(src.uri);
+      resolved.push(src);
+    };
+
+    // 1. Pre-retrieved catalog entries: the model sees these indices, so they are trustworthy,
+    //    but only when that catalog entry is scoped to this claim.
+    for (const idx of Array.isArray(item.citedChunkIndices) ? item.citedChunkIndices : []) {
+      if (!Number.isInteger(idx) || idx < 0 || idx >= batchCatalog.length) continue;
+      const cand = batchCatalog[idx];
+      if (cand.claimIds && cand.claimIds.length > 0 && !cand.claimIds.includes(claimId)) continue;
+      pushSource(cand);
+    }
+
+    // 2. Live Google Search chunks attributed to THIS claim's JSON item.
+    for (const chunkIdx of attributedChunks.get(claimId) || []) {
+      pushSource(liveGroundingByChunkIdx.get(chunkIdx));
+    }
+
+    // 3. Single-claim batch: every live chunk was retrieved for this claim alone.
+    if (claims.length === 1) {
+      for (const src of liveGroundingByChunkIdx.values()) pushSource(src);
+    }
+
+    // 4. Authoritative live search URLs reported directly by the model in sourceUrls.
+    if (Array.isArray(item.sourceUrls)) {
+      for (let sIdx = 0; sIdx < item.sourceUrls.length; sIdx++) {
+        const urlStr = String(item.sourceUrls[sIdx] || "").trim();
+        if (/^https?:\/\//i.test(urlStr) && !urlStr.includes("google.com/search") && !urlStr.includes("bing.com/search")) {
+          pushSource({
+            evidenceId: `E_LIVE_${claimId}_${sIdx + 1}`,
+            title: "Authoritative Live Search Source",
+            uri: urlStr,
+            snippet: item.rationale || "",
+            sourceProvider: "VERTEX_GROUNDING" as EvidenceProvider,
+          });
         }
       }
     }
 
-    return {
-      claimId: item.claimId,
-      verdict: item.verdict,
-      confidence: item.confidence,
+    const internal = toInternalAdjudication(item);
+    results.push({
+      claimId,
+      ...internal,
+      ...(typeof item.falsifiable === "boolean" ? { falsifiable: item.falsifiable } : {}),
+      confidence: typeof item.confidence === "number" ? item.confidence : 0.5,
       rationale: item.rationale,
-      citedEvidenceIds: resolvedSources.map((s) => s.evidenceId),
-      v2VerifiedUrls: resolvedSources,
-      hasConflictingEvidence: item.hasConflictingEvidence,
+      citedEvidenceIds: resolved.map((s) => s.evidenceId),
+      v2VerifiedUrls: resolved,
+      hasConflictingEvidence: Boolean(item.hasConflictingEvidence),
       escalatedToTier3: tierLabel === "TIER_3_ARBITER",
       thinkingLevelUsed: thinkingLevel,
       usedPreRetrievedEvidence: useClosedWorldOnly,
-    };
+    });
   });
+
+  return results;
+}
+
+/**
+ * A claim adjudicated inside a multi-claim batch whose verdict depends on evidence but
+ * for which no evidence could be attributed must be re-run on its own so the source
+ * list reflects THAT claim, never a neighbour's search results.
+ */
+function needsIsolatedRetry(res: AdjudicatedClaim, batchSize: number): boolean {
+  if (batchSize <= 1) return false;
+  // Opinions are proven by transcript quotes, not web sources.
+  if (res.verdict === "OPINION_BELIEF") return false;
+  return res.v2VerifiedUrls.length === 0;
 }
 
 /**
@@ -375,15 +552,28 @@ export async function verifyClaimsHybrid(
       requireUsResidency,
     });
 
+    // Claims the model silently omitted from its answer must not vanish from the report.
+    const answeredIds = new Set(batchResults.map((r) => r.claimId));
+    for (const c of batch) {
+      if (!answeredIds.has(c.claimId)) uncoveredTier2Claims.push(c);
+    }
+
     for (const res of batchResults) {
       const original = claimById.get(res.claimId);
+
+      // Safeguard 0 (Per-claim evidence): a multi-claim batch result with no evidence
+      // attributed to THIS claim is re-adjudicated alone with its own live search.
+      if (needsIsolatedRetry(res, batch.length)) {
+        if (original) uncoveredTier2Claims.push(original);
+        continue;
+      }
 
       // Edge-Case Safeguard 1: If a claim was evaluated in closed-world mode and marked
       // UNVERIFIABLE, but had ZERO entries in preRetrievedEvidence, do not drop it as
       // unverifiable. Route it through a live Search Grounding fallback batch.
       if (
         res.usedPreRetrievedEvidence &&
-        res.verdict === "UNVERIFIABLE" &&
+        (res.verdict === "UNVERIFIABLE") &&
         !hasPreRetrievedEvidenceForClaim(res.claimId, preRetrievedEvidence)
       ) {
         if (original) uncoveredTier2Claims.push(original);
@@ -393,7 +583,7 @@ export async function verifyClaimsHybrid(
       // Safeguard 2 (Single-Claim Retry Fallback): If a claim inside a multi-claim cluster (batch.length > 1)
       // returns UNVERIFIABLE, it may have suffered from clustered query dilution.
       // Route it to an isolated single-claim search grounding pass so clustering NEVER degrades accuracy.
-      if (batch.length > 1 && res.verdict === "UNVERIFIABLE") {
+      if (batch.length > 1 && (res.verdict === "UNVERIFIABLE")) {
         if (original) uncoveredTier2Claims.push(original);
         continue;
       }
@@ -408,18 +598,40 @@ export async function verifyClaimsHybrid(
 
   // Fallback pass: Uncovered Tier-2 claims run with dedicated single-claim live search grounding
   if (uncoveredTier2Claims.length > 0) {
+    // Isolated single-claim passes run with bounded concurrency: with per-claim evidence
+    // attribution more claims land here, and a strictly sequential loop would eat the
+    // function's execution budget on long videos.
     const fallbackBatches = chunkClaims(uncoveredTier2Claims, 1);
-    for (const fBatch of fallbackBatches) {
-      const fallbackResults = await runGroundedAdjudication({
-        videoId,
-        claims: fBatch,
-        model: GEMINI_MODELS.verification.model,
-        tierLabel: "TIER_2_BULK_VERIFY",
-        thinkingLevel: GEMINI_MODELS.verification.defaultThinkingLevel,
-        preRetrievedEvidence: undefined, // Forces live Search Grounding tool
-        requireUsResidency,
-      });
+    const FALLBACK_CONCURRENCY = 4;
+    const fallbackResultSets: AdjudicatedClaim[][] = [];
+    for (let i = 0; i < fallbackBatches.length; i += FALLBACK_CONCURRENCY) {
+      const wave = fallbackBatches.slice(i, i + FALLBACK_CONCURRENCY);
+      const settled = await Promise.allSettled(
+        wave.map((fBatch) =>
+          runGroundedAdjudication({
+            videoId,
+            claims: fBatch,
+            model: GEMINI_MODELS.verification.model,
+            tierLabel: "TIER_2_BULK_VERIFY",
+            thinkingLevel: GEMINI_MODELS.verification.defaultThinkingLevel,
+            preRetrievedEvidence: undefined, // Forces live Search Grounding tool
+            requireUsResidency,
+          })
+        )
+      );
+      for (const outcome of settled) {
+        if (outcome.status === "fulfilled") {
+          fallbackResultSets.push(outcome.value);
+        } else {
+          logger.warn("[HybridVerification] Isolated single-claim adjudication failed; claim continues via standard path", {
+            videoId,
+            error: String(outcome.reason),
+          });
+        }
+      }
+    }
 
+    for (const fallbackResults of fallbackResultSets) {
       for (const res of fallbackResults) {
         const original = claimById.get(res.claimId);
         if (res.hasConflictingEvidence || res.confidence < 0.75) {
@@ -451,6 +663,11 @@ export async function verifyClaimsHybrid(
       const conflictClaims: ModernExtractedClaim[] = [];
       const uncoveredTier3Claims: ModernExtractedClaim[] = [];
 
+      const answeredTier3Ids = new Set(mediumPassResults.map((r) => r.claimId));
+      for (const c of batch) {
+        if (!answeredTier3Ids.has(c.claimId)) uncoveredTier3Claims.push(c);
+      }
+
       for (const res of mediumPassResults) {
         const original = claimById.get(res.claimId);
         if (!original) {
@@ -458,10 +675,15 @@ export async function verifyClaimsHybrid(
           continue;
         }
 
+        if (needsIsolatedRetry(res, batch.length)) {
+          uncoveredTier3Claims.push(original);
+          continue;
+        }
+
         // Edge-Case Safeguard: If marked UNVERIFIABLE in closed-world mode without Layer 06C evidence
         if (
           res.usedPreRetrievedEvidence &&
-          res.verdict === "UNVERIFIABLE" &&
+          (res.verdict === "UNVERIFIABLE") &&
           !hasPreRetrievedEvidenceForClaim(res.claimId, preRetrievedEvidence)
         ) {
           uncoveredTier3Claims.push(original);
@@ -478,10 +700,10 @@ export async function verifyClaimsHybrid(
       }
 
       // Fallback pass for uncovered sensitive claims before escalation
-      if (uncoveredTier3Claims.length > 0) {
+      for (const uncoveredClaim of uncoveredTier3Claims) {
         const uncoveredResults = await runGroundedAdjudication({
           videoId,
-          claims: uncoveredTier3Claims,
+          claims: [uncoveredClaim],
           model: GEMINI_MODELS.reasoning.model,
           tierLabel: "TIER_3_ARBITER",
           thinkingLevel: PIPELINE_LIMITS.TIER3_DEFAULT_THINKING,
@@ -506,10 +728,10 @@ export async function verifyClaimsHybrid(
       }
 
       // Stage 3B: HIGH escalation for low-confidence sensitive claims
-      if (lowConfidenceClaims.length > 0) {
+      for (const lowConfidenceClaim of lowConfidenceClaims) {
         const highPassResults = await runGroundedAdjudication({
           videoId,
-          claims: lowConfidenceClaims,
+          claims: [lowConfidenceClaim],
           model: GEMINI_MODELS.reasoning.model,
           tierLabel: "TIER_3_ARBITER",
           thinkingLevel: PIPELINE_LIMITS.TIER3_ESCALATION_THINKING,
@@ -528,10 +750,10 @@ export async function verifyClaimsHybrid(
       }
 
       // Stage 3C: XHIGH escalation strictly for unresolved conflicting evidence
-      if (conflictClaims.length > 0) {
+      for (const conflictClaim of conflictClaims) {
         const xhighResults = await runGroundedAdjudication({
           videoId,
-          claims: conflictClaims,
+          claims: [conflictClaim],
           model: GEMINI_MODELS.reasoning.model,
           tierLabel: "TIER_3_ARBITER",
           thinkingLevel: PIPELINE_LIMITS.TIER3_CONFLICT_THINKING,
@@ -757,6 +979,25 @@ export class ClaimVerificationService {
   }
 
   /**
+   * Re-tiers a live source from the URL it actually resolved to. A grounding source's
+   * tier/domain/publisher assigned BEFORE the live check may have been inferred from the
+   * grounding chunk's TITLE (publisher-controlled text: "… - Reuters", any title containing
+   * "who" → who.int), which must never decide trust. Mutates `src`; returns false when the
+   * resolved URL is not admissible (invalid or Tier E), in which case the caller quarantines it.
+   */
+  retierFromResolvedUrl(src: RichSource, resolvedUrl: string): boolean {
+    const resolved = this.validateSource(resolvedUrl, "");
+    if (!resolved.isValid || (resolved.tier as string) === "E") {
+      src.tier = "E" as SourceTier;
+      return false;
+    }
+    src.tier = resolved.tier;
+    if (resolved.domain) src.domain = resolved.domain;
+    if (resolved.publisher) src.publisher = resolved.publisher;
+    return true;
+  }
+
+  /**
    * Assigns a tier to a source based on its domain using the SourceTrustService.
    */
   private getSourceTier(url: string, domainContext: string = "General"): SourceTier {
@@ -974,6 +1215,7 @@ export class ClaimVerificationService {
       channelTitle?: string;
       topicContext?: string;
       functionStartTime?: number;
+      bypassCache?: boolean;
     } = {
         groundingMode: 'sensitive_only',
         forcePro: false,
@@ -1130,6 +1372,10 @@ export class ClaimVerificationService {
         videoContextInjection = `\n### VIDEO CONTEXT (GROUNDING & COREFERENCE RESOLUTION):\n- Video Title: "${options.videoTitle || 'N/A'}"\n- Channel: "${options.channelTitle || 'N/A'}"\n- Topic Context: "${options.topicContext || 'N/A'}"\n- Video Description: "${(options.videoDescription || 'N/A').slice(0, 1000)}"\n\nMANDATORY COREFERENCE RESOLUTION RULE:\nClaims extracted from speech frequently contain demonstratives and pronouns (e.g., "this IPO", "they", "their", "the company", "ఈ ఐపీఓ", "వాళ్ళ", "ఇది", "ఈ సంస్థ").\nYou MUST resolve these pronouns against the video context above (e.g. if the video title is "Jio IPO 2026...", then "this IPO" / "the company" / "వాళ్ళ" refers to Reliance Jio / Jio IPO).\nNEVER reject or mark a claim as UNSUPPORTED or INCONCLUSIVE merely because the transcript sentence said "they" or "this" instead of explicitly repeating the company's full name! Always resolve the referent to the subject of the video before checking factual truth.\n`;
       }
 
+      // One explanation language per report: the dominant script of the claim texts.
+      // (Previously the model chose per claim, so one English claim came back in Telugu.)
+      const reportLanguageName = detectDominantClaimLanguage(remainingToVerify.map((c) => c.text));
+
       const prompt = `ROLE: TruthWorld Institutional Verification Engine (Credibility System).
 ${videoContextInjection}${providedSourcesInjection}${communitySourcesInjection}
 OBJECTIVE: Verify the following batch of claims with world-class source attribution.
@@ -1178,14 +1424,18 @@ PROTOCOL:
 6. GENERAL FACTS FALLBACK: If search finds nothing for a basic, well-known fact (like simple science or geography), check what is widely known silently and label it MOSTLY TRUE or LIMITED SUPPORT — NEVER say "from internal data", "from my memory", "internal training data", or "this claim" in your answer.
 7. EVIDENCE LEVELS: STRONG | MODERATE | WEAK | NONE | CONTRADICTED. Use NONE for INCONCLUSIVE.
 8. ANTI-HALLUCINATION: Never invent sources or URLs. If real proof is missing and you are not sure, use INCONCLUSIVE.
-9. CLOSED-WORLD CITATION FIREWALL (MANDATORY — STRICT CITE-BY-ID):
+${enforceCiteById ? `9. CLOSED-WORLD CITATION FIREWALL (MANDATORY — STRICT CITE-BY-ID):
    - You are STRICTLY FORBIDDEN from generating, guessing, recalling, or writing any external URLs.
    - Each claim below is paired with a pre-verified Evidence Catalog containing Evidence IDs (E1, E2, E3, ...).
    - ONLY cite evidence from THAT claim's Evidence Catalog by listing its IDs in "citedEvidenceIds": ["E1", "E2"].
    - Leave "sources": [] EMPTY in your JSON output; the backend hydrates verified URLs exclusively from "citedEvidenceIds" via the Closed-World Firewall.
    - If a claim has NO verified candidates in its catalog ("Available Evidence Catalog: NONE"), return "citedEvidenceIds": [] and keep "evidenceLevel" / "missingEvidence" completely honest. Never invent fake URLs or fallback publisher homepages.
    - You may summarize confirmed facts silently when catalog evidence or verified metadata is limited, and when academic metadata (PubMed PMID / Crossref DOI) is provided for context without an accessible landing URL, do NOT invent a clickable URL for it.
-10. TIMELESS CLAIMS: For timeless historical, religious, or supernatural claims, you may output "Timeless" in the "freshness" field, and set the rating accordingly without penalizing for lack of recent news.
+` : `9. LIVE SEARCH EVIDENCE (MANDATORY):
+   - Use the Google Search tool for EVERY factual claim below. Search each claim separately; do not reuse one claim's search results for another claim.
+   - Base the verdict on what the search results say. The backend attaches the matching search results as sources automatically, so leave "sources": [] and "citedEvidenceIds": [] EMPTY and never write URLs yourself.
+   - Write each claim's "summary" so that it restates the specific facts the search results confirm or contradict (names, dates, numbers), keeping each claim's JSON item self-contained.
+`}10. TIMELESS CLAIMS: For timeless historical, religious, or supernatural claims, you may output "Timeless" in the "freshness" field, and set the rating accordingly without penalizing for lack of recent news.
 11. DIGITAL & ARCHIVAL AVAILABILITY BIAS (MANDATORY SAFEGUARD):
    Centralized repositories (Wikipedia, PubMed, NIST, SEC) inherently have coverage gaps regarding regional vernacular, local folklore, oral traditions, and non-digitized community history.
    If an empirical or historical claim pertains to regional, oral, or hyper-local unindexed heritage, and web search returns no digitized matches:
@@ -1245,16 +1495,16 @@ PROTOCOL:
       * Translate and correlate names, locations, and events across languages and scripts (e.g. Telugu "గోపిక" ↔ English "Gopika", "చైన్ సా దాడి" ↔ "chainsaw attack", "రాప్తాడు / అనంతపురం" ↔ "Raptadu / Anantapur").
       * When authoritative English or regional news articles verify the event, YOU MUST USE THEM to substantiate the claim.
       * NEVER respond with "UNSUPPORTED" or say "I cannot find from memory" or "from internal data" when live news or reports confirm the event!
-      * VERDICT LOCALIZATION MANDATE: Write the "summary", "verifiedFacts", and "missingEvidence" in the PRIMARY SPOKEN LANGUAGE of the claim/video (e.g., Telugu for Telugu claims, Hindi for Hindi claims, English for English claims). Do NOT force English verdict explanations on regional Indian language claims.
+      * VERDICT LANGUAGE MANDATE: Write the "summary", "verifiedFacts", and "missingEvidence" in ${reportLanguageName}. Use this one language for EVERY claim in the batch, even when a claim or a search result contains words from another language or script.
 ${tier0Injection}
-### BATCH TO VERIFY (STRICT CITE-BY-ID CLOSED-WORLD MODE):
+### BATCH TO VERIFY${enforceCiteById ? " (STRICT CITE-BY-ID CLOSED-WORLD MODE)" : " (LIVE SEARCH MODE)"}:
 ${remainingToVerify.map(c => {
   // v11.6: Sanity-strip emoji hallucinations from extraction layer
   const cleanText = c.text.replace(/^[🔍\s]+/, '').trim();
   const hasVernacular = /[^\x00-\x7F]/.test(cleanText);
   const langTag = hasVernacular ? " [Multilingual/Regional Claim - Evaluate against Translated Queries & Verified Catalog]" : "";
   const catalog = catalogsByClaimId.get(c.claimId);
-  let catalogBlock = "\n  Available Evidence Catalog: NONE (cite citedEvidenceIds: [])";
+  let catalogBlock = enforceCiteById ? "\n  Available Evidence Catalog: NONE (cite citedEvidenceIds: [])" : "";
   if (catalog && catalog.orderedCandidates.length > 0) {
     const items = catalog.orderedCandidates.map(cand => {
       const snippetClean = (cand.snippet || "").replace(/\s+/g, " ").trim().slice(0, 220);
@@ -1543,6 +1793,14 @@ RETURN JSON:
         // v11.0: Extract claim-level grounding attribution
         const groundingSupports = groundingMetadata?.groundingSupports || [];
 
+        // Per-claim attribution of live search chunks (see groundingAttribution.ts)
+        const groundingAttributionByClaim = attributeGroundingChunks(
+          text,
+          groundingSupports,
+          remainingToVerify.map((c) => c.claimId),
+          groundingChunks.length
+        );
+
         // Step C: Map verifications back — STRICT claimId matching only (v11.0)
         return Promise.all(remainingToVerify.map(async (claim) => {
           // v11.0: Strict claimId matching — no fuzzy substring fallback
@@ -1583,7 +1841,6 @@ RETURN JSON:
 
           const claimRichSources: RichSource[] = [];
           const claimQuarantinedSources: RichSource[] = [];
-          const claimTextLower = claim.text.toLowerCase();
 
           // Closed-World Record of any catalog candidates that failed URL verification (observability)
           if (catalog?.rejectedCandidates?.length) {
@@ -1764,83 +2021,52 @@ RETURN JSON:
               }
             }
           } else {
-            // Non-Cite-by-ID legacy path (only when ENFORCE_CITE_BY_ID === false):
-            // NEVER admit LLM `verification.sources` directly; only inspect live groundingChunks verified via UrlVerificationService
-            if (groundingSupports.length > 0) {
-              groundingSupports.forEach((support: any) => {
-                const supportText = (support.segment?.text || '').toLowerCase();
-                const isDirectMatch = supportText.length > 10 && (
-                  claimTextLower.includes(supportText.substring(0, Math.min(40, supportText.length))) ||
-                  supportText.includes(claimTextLower.substring(0, Math.min(40, claimTextLower.length)))
-                );
+            // Non-Cite-by-ID path (ENFORCE_CITE_BY_ID === false, the default):
+            // NEVER admit LLM `verification.sources` directly. Only live groundingChunks that
+            // groundingSupports tie to THIS claim's JSON item are considered. The previous
+            // fallback attached every chunk of the whole batch to each claim, so unrelated
+            // search results (e.g. another claim's page) showed up as this claim's source.
+            const attributedIdx = groundingAttributionByClaim.get(claim.claimId) || [];
+            const candidateChunkIdx: number[] =
+              attributedIdx.length > 0
+                ? attributedIdx
+                : remainingToVerify.length === 1
+                ? groundingChunks.map((_: any, i: number) => i)
+                : [];
 
-                if (isDirectMatch && support.groundingChunkIndices) {
-                  support.groundingChunkIndices.forEach((idx: number) => {
-                    const chunk = groundingChunks[idx];
-                    if (chunk?.web?.uri) {
-                      const validated = this.validateSource(chunk.web.uri, chunk.web.title || '');
-                      const targetUrl = validated.resolvedUrl || chunk.web.uri;
-                      const candidate: RichSource = {
-                        title: chunk.web.title || "Reference Source",
-                        url: targetUrl,
-                        directUrl: targetUrl,
-                        domain: validated.domain,
-                        publisher: validated.publisher,
-                        type: validated.isSecondary ? 'secondary' : 'primary',
-                        tier: validated.tier || this.getSourceTierFromGroundingChunk(chunk, domainContext),
-                        snippet: support.segment?.text || '',
-                        retrievalMethod: 'google_grounding',
-                        retrievalProvider: validated.retrievalProvider || 'Google Grounding',
-                        lastVerified: new Date().toISOString()
-                      };
+            for (const idx of candidateChunkIdx.slice(0, 8)) {
+              const chunk = groundingChunks[idx];
+              if (!chunk?.web?.uri) continue;
+              const validated = this.validateSource(chunk.web.uri, chunk.web.title || '');
+              const targetUrl = validated.resolvedUrl || chunk.web.uri;
+              const supportText = groundingSupports
+                .filter((sup: any) => Array.isArray(sup?.groundingChunkIndices) && sup.groundingChunkIndices.includes(idx))
+                .map((sup: any) => sup?.segment?.text || '')
+                .find((t: string) => t.length > 10) || '';
+              const candidate: RichSource = {
+                title: chunk.web.title || "Reference Source",
+                url: targetUrl,
+                directUrl: targetUrl,
+                domain: validated.domain,
+                publisher: validated.publisher,
+                type: validated.isSecondary ? 'secondary' : 'primary',
+                tier: validated.tier || this.getSourceTierFromGroundingChunk(chunk, domainContext),
+                snippet: supportText,
+                retrievalMethod: 'google_grounding',
+                retrievalProvider: validated.retrievalProvider || 'Google Grounding',
+                lastVerified: new Date().toISOString()
+              };
 
-                      const assessment = this.evaluateDocumentEvidence(candidate, claim.text, domainContext, claimRichSources);
-                      candidate.evidenceAssessment = assessment;
-                      if (assessment.isContradictory) candidate.isContradictory = true;
-                      if (assessment.wireOrigin) candidate.wireOrigin = assessment.wireOrigin;
+              const assessment = this.evaluateDocumentEvidence(candidate, claim.text, domainContext, claimRichSources);
+              candidate.evidenceAssessment = assessment;
+              if (assessment.isContradictory) candidate.isContradictory = true;
+              if (assessment.wireOrigin) candidate.wireOrigin = assessment.wireOrigin;
 
-                      if (validated.isValid && assessment.admissionStatus === 'admitted') {
-                        claimRichSources.push(candidate);
-                      } else {
-                        claimQuarantinedSources.push(candidate);
-                      }
-                    }
-                  });
-                }
-              });
-            }
-
-            if (claimRichSources.length === 0 && groundingChunks.length > 0) {
-              groundingChunks.forEach((chunk: any) => {
-                if (chunk.web?.uri) {
-                  const validated = this.validateSource(chunk.web.uri, chunk.web.title || '');
-                  const targetUrl = validated.resolvedUrl || chunk.web.uri;
-                  const candidate: RichSource = {
-                    title: chunk.web.title || "Reference Source",
-                    url: targetUrl,
-                    directUrl: targetUrl,
-                    domain: validated.domain,
-                    publisher: validated.publisher,
-                    type: validated.isSecondary ? 'secondary' : 'primary',
-                    tier: validated.tier || this.getSourceTierFromGroundingChunk(chunk, domainContext),
-                    snippet: "",
-                    retrievalMethod: 'google_grounding',
-                    retrievalProvider: validated.retrievalProvider || 'Google Grounding',
-                    lastVerified: new Date().toISOString()
-                  };
-
-                  const assessment = this.evaluateDocumentEvidence(candidate, claim.text, domainContext, claimRichSources);
-                  candidate.evidenceAssessment = assessment;
-                  if (assessment.isContradictory) candidate.isContradictory = true;
-                  if (assessment.wireOrigin) candidate.wireOrigin = assessment.wireOrigin;
-
-                  if (validated.isValid && assessment.admissionStatus === 'admitted') {
-                    claimRichSources.push(candidate);
-                  } else {
-                    claimQuarantinedSources.push(candidate);
-                  }
-                }
-              });
+              if (validated.isValid && assessment.admissionStatus === 'admitted') {
+                claimRichSources.push(candidate);
+              } else {
+                claimQuarantinedSources.push(candidate);
+              }
             }
 
             // Live HTTP verification gate on all non-catalog grounding chunks; drop any URL failing HTTP 200
@@ -1850,10 +2076,14 @@ RETURN JSON:
                 if (!src.url) return;
                 const uv = await this.urlVerifier.verifyUrl(src.url);
                 src.urlVerification = uv;
-                if (uv.status === "VERIFIED" && uv.canonicalUrl) {
+                if (isLiveVerificationRecord(uv) && uv.canonicalUrl) {
                   src.url = uv.canonicalUrl;
                   src.directUrl = uv.canonicalUrl;
-                  checkedRichSources.push(src);
+                  if (this.retierFromResolvedUrl(src, uv.canonicalUrl)) {
+                    checkedRichSources.push(src);
+                  } else {
+                    claimQuarantinedSources.push(src);
+                  }
                 } else {
                   claimQuarantinedSources.push(src);
                 }
@@ -1865,7 +2095,7 @@ RETURN JSON:
 
           // Ensure every surviving source still passes UrlVerificationService HTTP 200 gate
           let richSources: RichSource[] = claimRichSources.filter((s) =>
-            Boolean(s.url && s.urlVerification?.status === "VERIFIED" && s.urlVerification.httpStatus === 200 && !s.urlVerification.isSoft404)
+            Boolean(s.url && isLiveVerificationRecord(s.urlVerification))
           );
 
           // Deduplicate by URL
@@ -1880,9 +2110,22 @@ RETURN JSON:
           }
 
           // Apply domain diversity filtering if requested
-          const finalSources = options.sourceDiversityRequired
+          const diverseSources = options.sourceDiversityRequired
             ? this.enforceSourceDiversity(uniqueSources)
             : uniqueSources;
+
+          // Stance step: only sources whose own text supports, refutes or qualifies this
+          // claim count as evidence; off-topic / unreadable ones are set aside.
+          const isOpinionLike = claim.nature === ClaimNature.BELIEF || claim.nature === ClaimNature.OPINION || claim.nature === ClaimNature.PREDICTION;
+          const finalSources: RichSource[] = [];
+          if (diverseSources.length > 0 && !isOpinionLike) {
+            for (const cs of await classifySourceStances(claim.text, diverseSources, { auditPresets: true })) {
+              if (cs.claimStance === "OFF_TOPIC" || cs.claimStance === "UNREADABLE") claimQuarantinedSources.push(cs);
+              else finalSources.push(cs);
+            }
+          } else {
+            finalSources.push(...diverseSources);
+          }
 
           const isFactual = claim.nature === ClaimNature.VERIFIABLE_FACT || claim.nature === ClaimNature.HISTORICAL_FACT || claim.nature === ClaimNature.SCIENTIFIC_CLAIM;
           const { level: computedEvLevel, status: evStatus, summary: evSummary } = isFactual
@@ -1939,23 +2182,26 @@ RETURN JSON:
           // Strictly enforces: false_claim requires affirmative empirical refutation.
           // Absence of evidence falls back to unproven, never false_claim.
           const isBeliefOrOpinion = claim.nature === ClaimNature.BELIEF || claim.nature === ClaimNature.OPINION || claim.nature === ClaimNature.PREDICTION;
-          if (!isBeliefOrOpinion && finalStatus !== 'opinion_claim' && finalStatus !== 'religious_belief' && finalStatus !== 'satire_claim') {
-            const invariantEval = sourceTrustService.evaluateDualMassInvariants(
-              finalSources.map(s => ({
-                evidentiaryCapacity: s.evidentiaryCapacity ?? 0.5,
-                stance: s.stance ?? (s.isContradictory ? "CONTRADICTS" : "SUPPORTS"),
-                tier: s.tier,
-                role: s.evidenceRole,
-                isContradictory: s.isContradictory,
-              })),
-              finalStatus
-            );
-
-            if (invariantEval.isOverridden) {
-              logger.info(`[P7.1 Invariant] Overrode proposed verdict '${finalStatus}' to '${invariantEval.invariantVerdict}' for claim: "${claim.text.slice(0, 60)}" - Reason: ${invariantEval.reason}`);
-              finalStatus = invariantEval.invariantVerdict;
-              publicNote = publicNote ? `${publicNote} [${invariantEval.reason}]` : invariantEval.reason;
+          let verdictReasoning: string = verification.summary;
+          let verdictAdjustmentReason: string | undefined;
+          let evidenceConfidenceCeiling = 1;
+          if (!isBeliefOrOpinion) {
+            const reconciled = reconcileVerdictWithEvidence({
+              proposedStatus: finalStatus,
+              reasoning: verification.summary,
+              publicNote,
+              sources: finalSources,
+            });
+            if (reconciled.status !== finalStatus) {
+              logger.info(`[P7.1 Invariant] Adjusted verdict '${finalStatus}' -> '${reconciled.status}' for claim: "${claim.text.slice(0, 60)}"`, {
+                reason: reconciled.invariantReason,
+              });
             }
+            finalStatus = reconciled.status;
+            verdictReasoning = reconciled.reasoning;
+            publicNote = reconciled.publicNote;
+            verdictAdjustmentReason = reconciled.invariantReason;
+            evidenceConfidenceCeiling = reconciled.confidenceCap;
           }
 
           const resolvedNature = (verification.nature as any) || claim.nature;
@@ -1963,7 +2209,7 @@ RETURN JSON:
           const isFaithOrBelief = resolvedNature === ClaimNature.RELIGIOUS_CLAIM || resolvedNature === ClaimNature.SUPERNATURAL_CLAIM || claim.nature === ClaimNature.BELIEF || finalStatus === 'faith_based_claim' || finalStatus === 'religious_belief';
           const resolvedRating = isFaithOrBelief ? null : (verification.rating ?? null);
 
-          const sanitizedReasoning = this.sanitizeInstitutionalReasoning(verification.summary, claim.text, finalStatus);
+          const sanitizedReasoning = this.sanitizeInstitutionalReasoning(verdictReasoning, claim.text, finalStatus);
 
           const primaryEvStrength = computedEvLevel === EvidenceLevel.VERY_STRONG ? 0.95 
             : computedEvLevel === EvidenceLevel.STRONG ? 0.85 
@@ -1983,7 +2229,7 @@ RETURN JSON:
             evidenceStrength: primaryEvStrength,
             sourceIndependenceScore: primaryIndependence,
             multiModelConsensus: crossExam.consensusMetadata,
-            verificationConfidence: verification.confidence,
+            verificationConfidence: Math.min(Number(verification.confidence ?? 0.5), evidenceConfidenceCeiling),
             reasoning: sanitizedReasoning,
             sources: finalSources.map(s => s.title || s.domain || "Verified Source"),
             richSources: finalSources,
@@ -1999,6 +2245,7 @@ RETURN JSON:
             trueAsOf: verification.freshness,
             verificationMethod,
             evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
+            ...(verdictAdjustmentReason ? { verdictAdjustmentReason } : {}),
 
             claimType: verification.claimType,
             nature: resolvedNature,
@@ -2386,6 +2633,7 @@ RETURN JSON:
       channelTitle?: string;
       topicContext?: string;
       functionStartTime?: number;
+      bypassCache?: boolean;
     } = {
         groundingMode: 'auto' as any,
         forcePro: false,
@@ -2423,7 +2671,7 @@ RETURN JSON:
 
     // Step 0: Persistent Claim Cache check — bypass Gemini if verified claim & sources exist
     const cachedClaims: VerifiedClaim[] = [];
-    if (!isRetryPass) {
+    if (!isRetryPass && !options.bypassCache) {
       const cachedMap = await claimCacheService.getBatch(claimsToVerify.map(c => c.text));
       const uncachedClaims: FilteredClaim[] = [];
 
@@ -2454,8 +2702,21 @@ RETURN JSON:
         }
       });
 
+      // A cached verdict is reused ONLY while its evidence is still live. Each cached
+      // source is re-checked (cheap: the URL health cache absorbs repeats); a claim whose
+      // evidence changed is re-evaluated by the evidence rule, and a claim left with no
+      // live source is verified afresh instead of replaying an evidence-less verdict.
       if (cachedClaims.length > 0) {
-        logger.info(`[ClaimCache] Hit persistent cache for ${cachedClaims.length}/${claimsToVerify.length} claims (bypassing Gemini for these)`);
+        const revalidated = await this.revalidateCachedClaims(cachedClaims);
+        cachedClaims.length = 0;
+        cachedClaims.push(...revalidated.keep);
+        for (const stale of revalidated.reverify) {
+          const original = claimsToVerify.find((c) => c.text === stale.text);
+          if (original) uncachedClaims.push(original);
+        }
+        logger.info(`[ClaimCache] Hit persistent cache for ${cachedClaims.length}/${claimsToVerify.length} claims (bypassing Gemini for these)`, {
+          reverifiedBecauseEvidenceDied: revalidated.reverify.length,
+        });
       }
 
       claimsToVerify = uncachedClaims;
@@ -2468,7 +2729,10 @@ RETURN JSON:
     // ⚡ 3-Tier Hybrid Delegation: Run uncached claims through verifyClaimsHybrid
     if (process.env.ENABLE_HYBRID_VERIFICATION !== "false" && claimsToVerify.length > 0) {
       try {
-        const modernClaims: ModernExtractedClaim[] = claimsToVerify.map((c) => {
+        // Stable ids: a claim without an id gets a deterministic one so its result can never
+        // be attached to a different claim (the old fallback mapped unknown ids to claim[0]).
+        const hybridIdToClaim = new Map<string, FilteredClaim>();
+        const modernClaims: ModernExtractedClaim[] = claimsToVerify.map((c, idx) => {
           let domain: "GENERAL_FACT" | "HEALTH_MEDICAL" | "GEOPOLITICS_WAR" | "ELECTIONS_GOVERNANCE" | "MACROECONOMICS_FINANCE" = "GENERAL_FACT";
           const lower = (c.text || "").toLowerCase();
           if (/\b(?:niacin|fda|drug|trial|mortality|health|cancer|disease|vaccine|lifespan|medical)\b/i.test(lower)) {
@@ -2481,12 +2745,15 @@ RETURN JSON:
             domain = "MACROECONOMICS_FINANCE";
           }
 
+          const hybridId = c.claimId || `claim_auto_${idx}_${hashClaimText(c.text || String(idx)).slice(0, 8)}`;
+          hybridIdToClaim.set(hybridId, c);
           return {
-            claimId: c.claimId || `claim_${Math.random().toString(36).substring(2, 9)}`,
+            claimId: hybridId,
             speakerId: c.speaker || "A",
             startMs: c.start || 0,
             endMs: c.end || 0,
-            verbatimQuote: c.text,
+            // The words actually spoken (when available) so OPINION_BELIEF quotes are verbatim.
+            verbatimQuote: (c as any).transcriptExcerpt || c.text,
             normalizedClaim: c.text,
             domain,
             requiresVerification: true,
@@ -2494,8 +2761,8 @@ RETURN JSON:
         });
 
         const hybridResults = await verifyClaimsHybrid(options.jobId || "hybrid_job", modernClaims);
-        
-        // 1. Collect all candidate URIs across all hybrid results to verify through live URL verification gate
+
+        // 1. Live-verify every attributed URL (resolves Google redirects, HTTP status, Soft-404).
         const allUrisToVerify: string[] = [];
         hybridResults.forEach((res) => {
           res.v2VerifiedUrls.forEach((src) => {
@@ -2506,7 +2773,6 @@ RETURN JSON:
           });
         });
 
-        // 2. Batch-verify all external URLs (resolves redirects, checks HTTP 200, Soft-404, caches results)
         const verificationMap = allUrisToVerify.length > 0
           ? await this.urlVerifier.verifyBatch(allUrisToVerify, {
               bypassCache: false,
@@ -2514,92 +2780,164 @@ RETURN JSON:
             })
           : new Map<string, any>();
 
-        const hybridVerified: VerifiedClaim[] = hybridResults.map((res) => {
-          const original = primaryClaimMap.get(normalizeClaimText(res.claimId)) ||
-            claimsToVerify.find(c => c.claimId === res.claimId) ||
-            claimsToVerify[0];
+        const hybridVerified: VerifiedClaim[] = [];
+        const resolvedHybridIds = new Set<string>();
+        // Each result is processed independently (stance step = one small model call per
+        // claim), with bounded concurrency so long videos stay within the time budget.
+        const processHybridResult = async (res: AdjudicatedClaim): Promise<void> => {
+          const original = hybridIdToClaim.get(res.claimId);
+          if (!original || resolvedHybridIds.has(res.claimId)) return;
+          resolvedHybridIds.add(res.claimId);
 
-          let status: ClaimStatus = "correct";
-          if (res.verdict === "FALSE") status = "incorrect";
-          else if (res.verdict === "MISLEADING") status = "misleading";
-          else if (res.verdict === "DISPUTED") status = "disputed";
-          else if (res.verdict === "UNVERIFIABLE") status = "unverifiable";
+          const CAUTION_TO_STATUS: Record<string, ClaimStatus> = {
+            MISLEADING: "misleading",
+            MISSING_CONTEXT: "needs_context",
+            EXAGGERATED: "rhetorical_exaggeration",
+            DISPUTED: "disputed",
+            HALF_TRUE: "partially_true",
+          };
+          const proposedStatus: ClaimStatus =
+            res.verdict === "VERIFIED" ? "verified_true"
+            : res.verdict === "FALSE" ? "false_claim"
+            : res.verdict === "OPINION_BELIEF" ? "opinion_claim"
+            : res.cautionType ? (CAUTION_TO_STATUS[res.cautionType] || "misleading")
+            : res.verdict === "MISLEADING" ? "misleading"
+            : res.verdict === "DISPUTED" ? "disputed"
+            : "unproven";
 
-          const richSources: RichSource[] = res.v2VerifiedUrls.map((src) => {
+          const admitted: RichSource[] = [];
+          const quarantined: RichSource[] = [];
+          for (const src of res.v2VerifiedUrls) {
             const rawUri = (src.uri || (src as any).url || "").trim();
-            const uv = verificationMap.get(rawUri) || verificationMap.get(rawUri.toLowerCase());
-            const canonicalUrl = (uv && uv.status === "VERIFIED" && uv.canonicalUrl) ? uv.canonicalUrl : rawUri;
-            const directUrl = buildDirectNavigationUrl(canonicalUrl, src.snippet, original?.text);
+            const uv = verificationMap.get(rawUri);
+            const isLive = isLiveVerificationRecord(uv);
+            const canonicalUrl = isLive && uv?.canonicalUrl ? uv.canonicalUrl : rawUri;
             const domain = uv?.domain || extractDomainSafe(canonicalUrl);
-            const publisher = src.sourceProvider || domain;
-
-            const effectiveUv: any = (uv && uv.status === "VERIFIED") ? uv : {
-              status: "VERIFIED",
-              originalUrl: rawUri,
-              canonicalUrl,
-              domain,
-              httpStatus: 200,
-              redirectHops: 0,
-              isSoft404: false,
-              verifiedAtUtc: new Date().toISOString(),
-              verifierMethod: "grounding_resolved",
-              fetchStatus: "HTTP_200_OK",
-            };
-
-            return {
+            const trust = sourceTrustService.resolveSourceTrust(canonicalUrl, domainContext);
+            const rich: RichSource = {
               evidenceId: src.evidenceId,
-              title: src.title || publisher || "Verified Source",
+              title: src.title || uv?.contentTitle || domain || "Source",
               url: canonicalUrl,
-              directUrl,
+              directUrl: isLive ? buildDirectNavigationUrl(canonicalUrl, src.snippet, original.text) : canonicalUrl,
               domain,
-              publisher,
-              snippet: src.snippet || "",
-              tier: "A" as SourceTier,
-              status: "verified" as const,
-              reliability: 0.95,
-              urlVerification: effectiveUv,
-            };
+              publisher: domain,
+              snippet: src.snippet || uv?.excerpt || "",
+              tier: trust.tier,
+              retrievalMethod: src.sourceProvider === "VERTEX_GROUNDING" ? "google_grounding" : "closed_world_catalog",
+              retrievalProvider: src.sourceProvider,
+              // Never fabricate a verification record: an unchecked URL stays unverified.
+              urlVerification: uv ?? buildUnverifiedVerificationRecord({
+                url: rawUri,
+                errorReason: "URL verification did not return a result",
+              }),
+              lastVerified: uv?.verifiedAtUtc,
+            } as RichSource;
+            if (isLive && (trust.tier as string) !== "E") {
+              admitted.push(rich);
+            } else {
+              quarantined.push(rich);
+            }
+          }
+
+          // Stance step: only sources whose OWN text supports, refutes or qualifies THIS
+          // claim count as evidence. Off-topic and unreadable sources are set aside.
+          if (admitted.length > 0 && proposedStatus !== "opinion_claim") {
+            const classified = await classifySourceStances(original.text, admitted, { auditPresets: true });
+            admitted.length = 0;
+            for (const cs of classified) {
+              if (cs.claimStance === "OFF_TOPIC" || cs.claimStance === "UNREADABLE") quarantined.push(cs);
+              else admitted.push(cs);
+            }
+          }
+
+          const isFactual = original.nature === ClaimNature.VERIFIABLE_FACT ||
+            original.nature === ClaimNature.HISTORICAL_FACT ||
+            original.nature === ClaimNature.SCIENTIFIC_CLAIM ||
+            !original.nature;
+          const { level: evLevel, status: evStatus, summary: evSummary } = isFactual
+            ? this.calculateEvidenceLevel(admitted)
+            : { level: EvidenceLevel.NONE, status: "complete" as const, summary: { independentPublishers: 0, tierA: 0, tierB: 0, secondarySources: 0 } };
+
+          const reconciled = reconcileVerdictWithEvidence({
+            proposedStatus,
+            reasoning: res.rationale,
+            sources: admitted,
           });
 
-          return enforceClosedWorldCitationFirewall({
+          hybridVerified.push(enforceClosedWorldCitationFirewall({
             ...original,
-            status,
-            reasoning: res.rationale,
-            verificationConfidence: res.confidence,
-            sources: richSources.map((s) => s.directUrl || s.url),
-            richSources,
-            evidenceLevel: EvidenceLevel.STRONG,
-            isGrounded: richSources.length > 0,
-            importance: original?.importance || 0.5,
-            claimStrength: "moderate",
-            assertiveness: "confident",
+            status: reconciled.status,
+            reasoning: reconciled.reasoning,
+            verificationSummary: reconciled.reasoning,
+            publicNote: reconciled.publicNote,
+            verificationConfidence: Math.min(res.confidence, reconciled.confidenceCap),
+            sources: admitted.map((s) => s.title || s.domain || "Verified Source"),
+            richSources: admitted,
+            quarantinedSources: quarantined,
+            evidenceLevel: evLevel,
+            evidenceSummary: evSummary,
+            sourceStatus: evStatus,
+            isGrounded: admitted.length > 0,
+            verificationMethod: admitted.length > 0 ? "grounded" : "llm_training",
+            evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
+            importance: original.importance || 0.5,
             hasConflictingEvidence: res.hasConflictingEvidence,
             escalatedToTier3: res.escalatedToTier3,
             thinkingLevelUsed: res.thinkingLevelUsed,
-          } as any);
-        });
+            ...(reconciled.invariantReason ? { verdictAdjustmentReason: reconciled.invariantReason } : {}),
+            ...(res.opinionEvidence ? { opinionEvidence: res.opinionEvidence } : {}),
+            ...(typeof res.falsifiable === "boolean" ? { falsifiable: res.falsifiable } : {}),
+            ...(res.cautionType ? { cautionType: res.cautionType } : {}),
+          } as any));
+        };
 
-        // Re-attach duplicates
-        const allWithDuplicates = [...cachedClaims];
-        hybridVerified.forEach((claim) => {
-          allWithDuplicates.push(claim);
-          const normalized = normalizeClaimText(claim.text);
-          const duplicates = duplicateMap.get(normalized) || [];
-          duplicates.forEach((dup) => {
-            allWithDuplicates.push({
-              ...claim,
-              claimId: dup.claimId,
-              start: dup.start,
-              end: dup.end,
-              chunkIndex: dup.chunkIndex,
+        const HYBRID_POST_CONCURRENCY = 6;
+        for (let i = 0; i < hybridResults.length; i += HYBRID_POST_CONCURRENCY) {
+          await Promise.all(hybridResults.slice(i, i + HYBRID_POST_CONCURRENCY).map(processHybridResult));
+        }
+
+        // Claims the hybrid engine could not return (model omission, parse failure) continue
+        // through the standard batch path below instead of disappearing or timing out.
+        const unresolvedClaims = modernClaims
+          .filter((m) => !resolvedHybridIds.has(m.claimId))
+          .map((m) => hybridIdToClaim.get(m.claimId)!)
+          .filter(Boolean);
+
+        const hybridWithCache = [...cachedClaims, ...hybridVerified];
+        if (unresolvedClaims.length === 0) {
+          const allWithDuplicates: VerifiedClaim[] = [];
+          hybridWithCache.forEach((claim) => {
+            allWithDuplicates.push(claim);
+            const normalized = normalizeClaimText(claim.text);
+            const duplicates = duplicateMap.get(normalized) || [];
+            duplicates.forEach((dup) => {
+              allWithDuplicates.push({
+                ...claim,
+                claimId: dup.claimId,
+                start: dup.start,
+                end: dup.end,
+                chunkIndex: dup.chunkIndex,
+              });
             });
           });
-        });
 
-        return {
-          claims: allWithDuplicates,
-          batchStats: { completed: hybridVerified.length, timedOut: 0 },
-        };
+          const newlyVerified = hybridVerified.filter((c) => c.status !== "verification_timeout");
+          if (!isRetryPass && newlyVerified.length > 0) {
+            await claimCacheService.setBatch(newlyVerified);
+          }
+
+          return {
+            claims: allWithDuplicates,
+            batchStats: { completed: hybridVerified.length, timedOut: 0 },
+          };
+        }
+
+        logger.warn("[ClaimVerification] Hybrid engine left claims unresolved; continuing with standard batching for them", {
+          resolved: hybridVerified.length,
+          unresolved: unresolvedClaims.length,
+        });
+        cachedClaims.push(...hybridVerified);
+        claimsToVerify = unresolvedClaims;
       } catch (hybridError) {
         logger.warn("[ClaimVerification] verifyClaimsHybrid error, falling back to standard batching", { error: String(hybridError) });
       }
@@ -2639,7 +2977,9 @@ RETURN JSON:
     ];
 
     // Process with concurrency control
-    const allVerified: VerifiedClaim[] = [];
+    // Cache hits (and hybrid results carried over) are already verified; seed them so the
+    // final re-mapping does not report them as "verification_timeout".
+    const allVerified: VerifiedClaim[] = [...cachedClaims];
     let completed = 0;
     let timedOut = 0;
 
@@ -2903,11 +3243,18 @@ RETURN JSON:
         }
       }
       // ── Citation Retrieval Retry Pass (Capped at 5 to protect execution deadline) ──
+      // Previously capped at 5 claims and limited to VERIFIABLE_FACT, so on a 9-minute video
+      // with 25+ source-less claims, 20 never got a second, per-claim evidence search.
+      // The cap now scales with the remaining verification budget.
+      const citationBudgetLeftMs = MAX_VERIFICATION_BUDGET_MS - (Date.now() - verificationLoopStartTime);
+      const citationRetryCap = citationBudgetLeftMs > 120_000 ? 20 : citationBudgetLeftMs > 60_000 ? 10 : 5;
       const claimsNeedingCitations = allVerified.filter(
-        c => c.nature === ClaimNature.VERIFIABLE_FACT &&
+        c => (c.nature === ClaimNature.VERIFIABLE_FACT ||
+              c.nature === ClaimNature.HISTORICAL_FACT ||
+              c.nature === ClaimNature.SCIENTIFIC_CLAIM) &&
              c.sourceStatus === 'missing' &&
              c.status !== 'verification_timeout'
-      ).slice(0, 5);
+      ).slice(0, citationRetryCap);
 
       if (claimsNeedingCitations.length > 0) {
         logger.info(`[ClaimVerification] Found ${claimsNeedingCitations.length} claims needing citation retrieval retry`);
@@ -2974,7 +3321,7 @@ RETURN JSON:
                   if (!src.url) return;
                   const uv = await this.urlVerifier.verifyUrl(src.url);
                   src.urlVerification = uv;
-                  if (uv.status === "VERIFIED" && uv.canonicalUrl) {
+                  if (isLiveVerificationRecord(uv) && uv.canonicalUrl) {
                     src.url = uv.canonicalUrl;
                     src.directUrl = uv.canonicalUrl;
                     verifiedRetryList.push(src);
@@ -3270,20 +3617,63 @@ RETURN JSON:
     });
   }
 
+  /**
+   * Re-checks the sources behind cached verdicts. Claims whose sources are all still live
+   * are reused unchanged; claims that lost some sources are re-evaluated by the evidence
+   * rule; factual claims that lost ALL sources are sent back for fresh verification.
+   */
+  private async revalidateCachedClaims(cached: VerifiedClaim[]): Promise<{ keep: VerifiedClaim[]; reverify: VerifiedClaim[] }> {
+    const urls = Array.from(new Set(
+      cached.flatMap((c) => (c.richSources || []).map((s) => String(s.url || "").trim())).filter((u) => /^https?:\/\//i.test(u))
+    ));
+    let health = new Map<string, any>();
+    try {
+      health = urls.length > 0 ? await this.urlVerifier.verifyBatch(urls, { bypassCache: false, allowHomepage: false }) : health;
+    } catch (err) {
+      logger.warn("[ClaimCache] Cached-source revalidation failed; reusing cached verdicts as stored", { err: String(err) });
+      return { keep: cached, reverify: [] };
+    }
+
+    const keep: VerifiedClaim[] = [];
+    const reverify: VerifiedClaim[] = [];
+    for (const claim of cached) {
+      const before = claim.richSources || [];
+      const live = before
+        .map((s) => {
+          const uv = health.get(String(s.url || "").trim());
+          return uv ? { ...s, urlVerification: uv } : s;
+        })
+        .filter((s) => isLiveVerificationRecord(s.urlVerification));
+
+      const isFactual = !claim.nature ||
+        claim.nature === ClaimNature.VERIFIABLE_FACT ||
+        claim.nature === ClaimNature.HISTORICAL_FACT ||
+        claim.nature === ClaimNature.SCIENTIFIC_CLAIM;
+      if (before.length === 0) {
+        // An evidence-less cached factual verdict is never replayed.
+        if (isFactual && EVIDENCE_REQUIRED_STATUSES.has(String(claim.status))) reverify.push(claim);
+        else keep.push(claim);
+        continue;
+      }
+      if (live.length === before.length) {
+        keep.push(claim);
+        continue;
+      }
+      if (live.length === 0 && isFactual) {
+        reverify.push(claim);
+        continue;
+      }
+      const re = await reevaluateClaimOnEvidenceChange({ claim, newSources: live, trigger: "cache_revalidation" });
+      keep.push(enforceClosedWorldCitationFirewall({
+        ...(re.claim as VerifiedClaim),
+        sources: live.map((s) => s.title || s.domain || "Verified Source"),
+      }));
+    }
+    return { keep, reverify };
+  }
+
   private mapLabelToStatus(label: string): ClaimStatus {
-    const l = label.toUpperCase();
-    if (l.includes("VERIFIED TRUE") || l === "TRUE") return "verified_true";
-    if (l.includes("MOSTLY TRUE")) return "mostly_true";
-    if (l.includes("DISPUTED")) return "disputed";
-    if (l.includes("UNPROVEN") || l.includes("UNSUPPORTED")) return "unsupported";
-    if (l.includes("FALSE CLAIM") || l === "FALSE" || l.includes("FALSE")) return "false_claim";
-    if (l.includes("MISLEADING")) return "misleading";
-    if (l.includes("RELIGIOUS BELIEF") || l.includes("FAITH-BASED CLAIM") || l.includes("FAITH_BASED_CLAIM") || l.includes("FAITH BASED CLAIM")) return "faith_based_claim";
-    if (l.includes("NOT HISTORICALLY VERIFIABLE") || l.includes("NOT_HISTORICALLY_VERIFIABLE")) return "not_historically_verifiable";
-    if (l.includes("HISTORICAL TRADITION") || l.includes("HISTORICAL_TRADITION")) return "historical_tradition";
-    if (l.includes("OPINION")) return "opinion_claim";
-    if (l.includes("SATIRE")) return "satire_claim";
-    return "inconclusive";
+    return mapVerificationLabelToStatus(label);
   }
 
   /**
@@ -4129,7 +4519,16 @@ Output format (strictly valid JSON):
         if (!jsonMatch) throw new Error("No JSON in re-adjudication response");
 
         const parsed = JSON.parse(sanitizeJSON(jsonMatch[0]));
-        const mappedStatus = this.mapLabelToStatus(parsed.verdict || "INCONCLUSIVE");
+        // Exact enum only — an unexpected label fails closed to "unproven" instead of being
+        // fuzzily mapped (which is how verified claims used to land in Caution).
+        const REREVIEW_VERDICTS: Record<string, ClaimStatus> = {
+          VERIFIED_TRUE: "verified_true",
+          MOSTLY_TRUE: "mostly_true",
+          FALSE_CLAIM: "false_claim",
+          MISLEADING: "misleading",
+          INCONCLUSIVE: "unproven",
+        };
+        const mappedStatus: ClaimStatus = REREVIEW_VERDICTS[String(parsed.verdict || "").trim().toUpperCase()] ?? "unproven";
 
         const rawReasoning = parsed.reasoning || "Checked using the trusted documents and outside reports found.";
         const cleanReasoning = this.sanitizeInstitutionalReasoning(rawReasoning, claim.text, mappedStatus);
@@ -4192,9 +4591,9 @@ Output format (strictly valid JSON):
       const invariantEval = sourceTrustService.evaluateDualMassInvariants(
         admissibleSources.map(s => ({
           evidentiaryCapacity: s.evidentiaryCapacity ?? 0.5,
-          stance: s.stance ?? (s.isContradictory ? "CONTRADICTS" : "SUPPORTS"),
+          stance: toInvariantStance(s),
           tier: s.tier,
-          role: s.evidenceRole,
+          role: (s as any).sourceKind === "PRIMARY_RECORD" ? ("primary_record" as any) : s.evidenceRole,
           isContradictory: s.isContradictory,
         })),
         finalStatus

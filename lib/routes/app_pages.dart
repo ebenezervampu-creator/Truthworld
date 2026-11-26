@@ -5,6 +5,7 @@ import 'package:truthworld/routes/modules/advertiser_routes.dart';
 import 'package:truthworld/routes/modules/channel_routes.dart';
 import 'package:truthworld/routes/modules/community_routes.dart';
 import 'package:truthworld/routes/modules/core_routes.dart';
+import 'package:truthworld/routes/modules/dubbing_routes.dart';
 import 'package:truthworld/routes/modules/economy_routes.dart';
 import 'package:truthworld/routes/modules/legal_routes.dart';
 import 'package:truthworld/routes/modules/studio_routes.dart';
@@ -47,6 +48,7 @@ class AppPages {
       ...UserLibraryRoutes.routes,
       ...AdminRoutes.routes,
       ...AdvertiserRoutes.routes,
+      ...DubbingRoutes.routes,
       ...EconomyRoutes.routes,
       ...LegalRoutes.routes,
       ChannelRoutes.handleRoute,

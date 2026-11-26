@@ -1,6 +1,6 @@
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
-import { getTypesenseAdminClient } from "./typesenseClient";
+import { getTypesenseAdminClient, isTypesenseConfigured } from "./typesenseClient";
 import {
   mapVideoToTypesense,
   mapChannelToTypesense,
@@ -18,6 +18,10 @@ export const onVideoWrittenTypesenseSync = onDocumentWritten(
     maxInstances: 5,
   },
   async (event) => {
+    if (!isTypesenseConfigured()) {
+      logger.info("[TypesenseSync] Skipped: Typesense not configured in this environment.");
+      return;
+    }
     const videoId = event.params.videoId;
     const afterData = event.data?.after.data();
     const client = getTypesenseAdminClient();
@@ -64,6 +68,10 @@ export const onChannelWrittenTypesenseSync = onDocumentWritten(
     maxInstances: 5,
   },
   async (event) => {
+    if (!isTypesenseConfigured()) {
+      logger.info("[TypesenseSync] Skipped: Typesense not configured in this environment.");
+      return;
+    }
     const channelId = event.params.channelId;
     const afterData = event.data?.after.data();
     const client = getTypesenseAdminClient();
@@ -110,6 +118,10 @@ export const onTopicWrittenTypesenseSync = onDocumentWritten(
     maxInstances: 5,
   },
   async (event) => {
+    if (!isTypesenseConfigured()) {
+      logger.info("[TypesenseSync] Skipped: Typesense not configured in this environment.");
+      return;
+    }
     const topicId = event.params.topicId;
     const afterData = event.data?.after.data();
     const client = getTypesenseAdminClient();

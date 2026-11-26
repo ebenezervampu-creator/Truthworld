@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -86,7 +87,7 @@ class ChannelWizardViewController extends GetxController {
       if (!Get.isRegistered<AuthService>()) return;
       if (AuthService.to.hasChannel.value && AuthService.to.userChannel != null) {
         if (AppFlavor.isStudio) {
-          Get.offAllNamed('/studio', arguments: {
+          RouteStackObserver.navigateToStudio(arguments: {
             'channel': AuthService.to.userChannel,
           });
         } else {
@@ -101,7 +102,7 @@ class ChannelWizardViewController extends GetxController {
       final ch = await AuthService.to.ensureChannelLoaded();
       if (ch != null) {
         if (AppFlavor.isStudio) {
-          Get.offAllNamed('/studio', arguments: {
+          RouteStackObserver.navigateToStudio(arguments: {
             'channel': ch,
           });
         } else {

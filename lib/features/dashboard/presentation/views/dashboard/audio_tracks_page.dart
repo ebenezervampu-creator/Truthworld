@@ -5,6 +5,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/dashboard
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_widgets.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_registry.dart';
+import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'audio_tracks/audio_tracks_widgets.dart';
@@ -187,6 +188,26 @@ class AudioTracksPage extends GetView<AudioTracksController> {
               ],
             ),
           ),
+          OutlinedButton.icon(
+            onPressed: () {
+              final v = controller.selectedVideo.value;
+              Get.toNamed(
+                AppRoutes.dubbing,
+                arguments: v != null ? {'video': v, 'videoId': v.id} : null,
+              );
+            },
+            icon: const Icon(Icons.waves, size: 16, color: Colors.white),
+            label: const Text(
+              'Dubbing Studio',
+              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: AppColors.bgSurface),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          const SizedBox(width: 8),
           Obx(() {
             final isSaving = controller.isSaving.value;
             final hasChanges = controller.hasUnsavedChanges.value;

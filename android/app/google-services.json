@@ -23,6 +23,14 @@
           }
         },
         {
+          "client_id": "768266102263-i5rls5nmp6d0nbrj8c4ukeniavb147nv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.truthworld",
+            "certificate_hash": "28832afaf149f0dc24d849513052520d2f693a40"
+          }
+        },
+        {
           "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -147,6 +155,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "768266102263-5ar59dm817meigjgcgcgt8pam1vluvqh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.truthworld.app",
+            "certificate_hash": "fa1fe4a45844f485852b0592aa040e8cf884db40"
+          }
+        },
+        {
           "client_id": "768266102263-jkjd1ikgqvcus88lod50hlsc3acd5rpq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -162,6 +178,42 @@
             "certificate_hash": "cd1caf4684839b90a9d6848c49bc5283662f9622"
           }
         },
+        {
+          "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "768266102263-hbtemsacolkd51lk7515nld3m707eooo.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.truthworld"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:768266102263:android:656b81ce67262393143af2",
+        "android_client_info": {
+          "package_name": "com.truthworld.dubbing"
+        }
+      },
+      "oauth_client": [
         {
           "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
           "client_type": 3

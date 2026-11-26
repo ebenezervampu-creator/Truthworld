@@ -314,11 +314,15 @@ class _WebAudioPlayer implements WebAudioPlayerAdapter {
     required void Function() onCanPlay,
     required void Function(String err) onError,
     required void Function(double dur) onDurationChange,
+    bool useCors = true,
   }) {
     try {
-      _audioElement = web.document.createElement('audio') as web.HTMLAudioElement
-        ..preload = 'auto'
-        ..crossOrigin = 'anonymous';
+      final el = web.document.createElement('audio') as web.HTMLAudioElement
+        ..preload = 'auto';
+      if (useCors) {
+        el.crossOrigin = 'anonymous';
+      }
+      _audioElement = el;
 
       _audioElement!.onplay = ((web.Event _) => onPlay()).toJS;
       _audioElement!.onpause = ((web.Event _) => onPause()).toJS;
@@ -343,6 +347,15 @@ class _WebAudioPlayer implements WebAudioPlayerAdapter {
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'WebAudioPlayer.init');
     }
+  }
+
+  @override
+  void load(String url, {double volume = 1.0, bool loop = false}) {
+    if (_audioElement == null) return;
+    _audioElement!.src = url;
+    _audioElement!.volume = volume.clamp(0.0, 1.0);
+    _audioElement!.loop = loop;
+    _audioElement!.load();
   }
 
   @override
@@ -402,6 +415,20 @@ class _WebAudioPlayer implements WebAudioPlayerAdapter {
     if (_audioElement != null) {
       _audioElement!.muted = muted;
     }
+  }
+
+  @override
+  void setPlaybackRate(double rate) {
+    if (_audioElement != null) {
+      _audioElement!.playbackRate = rate.clamp(0.25, 4.0);
+    }
+  }
+
+  @override
+  bool get isPlaying {
+    final el = _audioElement;
+    if (el == null) return false;
+    return !el.paused && !el.ended;
   }
 
   @override

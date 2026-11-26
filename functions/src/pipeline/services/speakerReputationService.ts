@@ -40,7 +40,7 @@ export class SpeakerReputationService {
     await this.db.runTransaction(async (transaction) => {
       const doc = await transaction.get(repRef);
       const now = Date.now();
-      const currentScore = metrics.trustIndex;
+      const currentScore = metrics.trustIndex ?? 50;
 
       let rep: SpeakerReputation;
 

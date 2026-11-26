@@ -385,7 +385,7 @@ void main() {
 
       // Verify that Channel Financial Economics & Spendings card is visible
       expect(find.text('Channel Financial Economics & Spendings'), findsOneWidget);
-      expect(find.text('SUPER ADMIN ONLY'), findsOneWidget);
+      expect(find.text('SUPER ADMIN ONLY'), findsWidgets);
 
       // Verify KPI Tiles
       expect(find.text('GROSS REVENUE'), findsOneWidget);

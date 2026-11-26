@@ -80,7 +80,7 @@ describe('Credibility & Dubbing 100% System Independence', () => {
 
   it('finalizes Credibility immediately while Dubbing is still running, without prematurely completing video_jobs', async () => {
     const jobId = 'job_cred_fast';
-    const videoId = 'vid_cred_fast';
+    const videoId = '11111111-1111-4111-8111-111111111111';
     const userId = 'user_cred';
 
     const plan: ExecutionPlan = {
@@ -162,7 +162,7 @@ describe('Credibility & Dubbing 100% System Independence', () => {
 
   it('converges Credibility to completed when Dubbing fails via EdgeLayer.failStage', async () => {
     const jobId = 'job_dub_fails_cred_ok';
-    const videoId = 'vid_dub_fails_cred_ok';
+    const videoId = '22222222-2222-4222-8222-222222222222';
     const userId = 'user_2';
 
     const plan: ExecutionPlan = {
@@ -245,7 +245,7 @@ describe('Credibility & Dubbing 100% System Independence', () => {
 
   it('converges Dubbing to completed and preserves pre-existing Credibility when Credibility fails', async () => {
     const jobId = 'job_cred_fails_dub_ok';
-    const videoId = 'vid_cred_fails_dub_ok';
+    const videoId = '33333333-3333-4333-8333-333333333333';
     const userId = 'user_3';
 
     const plan: ExecutionPlan = {
@@ -327,7 +327,7 @@ describe('Credibility & Dubbing 100% System Independence', () => {
 
   it('marks video_jobs failed only when ALL enabled systems fail', async () => {
     const jobId = 'job_both_fail';
-    const videoId = 'vid_both_fail';
+    const videoId = '44444444-4444-4444-8444-444444444444';
     const userId = 'user_4';
 
     const plan: ExecutionPlan = {

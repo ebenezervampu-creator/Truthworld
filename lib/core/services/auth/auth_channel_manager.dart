@@ -65,6 +65,24 @@ class AuthChannelManager {
 
   /// Sets the active channel and updates local cache.
   void setUserChannel(Channel? channel, [String? uid]) {
+    final prev = _userChannel.value;
+    if (prev != null && channel != null && prev.id == channel.id) {
+      final isSame = prev.status == channel.status &&
+          prev.name == channel.name &&
+          prev.handle == channel.handle &&
+          prev.avatarUrl == channel.avatarUrl &&
+          prev.bannerUrl == channel.bannerUrl &&
+          prev.subscriberCount == channel.subscriberCount &&
+          prev.videoCount == channel.videoCount &&
+          prev.updatedAt == channel.updatedAt &&
+          prev.isVerified == channel.isVerified;
+      if (isSame) {
+        return;
+      }
+    } else if (prev == null && channel == null) {
+      return;
+    }
+
     _userChannel.value = channel;
     _hasChannel.value =
         channel != null && channel.status != ChannelStatus.deleted;

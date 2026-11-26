@@ -25,6 +25,7 @@
           { "/": "/chapter/*" },
           { "/": "/chapters/*" },
           { "/": "/studio/*" },
+          { "/": "/dubbing*" },
           { "/": "/advertiser/*" },
           { "/": "/ads/*" },
           { "/": "/post/*" },

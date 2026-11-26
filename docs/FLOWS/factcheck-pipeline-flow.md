@@ -105,12 +105,6 @@ When an error or unexpected state occurs during Fact-Checking, TruthWorld logs a
 To run the pipeline verification tests:
 
 ```bash
-# Run 10-Claim End-to-End Unit Verification
-npm test tests/unit/tenClaimsFactChecking.test.ts
-
-# Run 10 Critical Claims Grounded Sample Test
-npm test tests/unit/tenCriticalClaimsVideoSample.test.ts
-
 # Run Pipeline Diagnostics & Bug Traceability Test
 npm test tests/unit/factcheckPipelineDiagnostics.test.ts
 

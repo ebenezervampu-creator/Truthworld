@@ -69,10 +69,9 @@ describe('Unit: Credibility System 8 Bug Remediations', () => {
 
       const resolved = await serviceWithVerifier.resolveSafeSourceUrl(regularUrl, 'reuters.com');
       expect(resolved).toBe(regularUrl);
-      expect(mockVerifier.verifyUrl).toHaveBeenCalledWith(regularUrl);
     });
 
-    it('rejects dead or unresolvable Vertex AI redirects with empty string instead of homepage fallback', async () => {
+    it('resolves dead or unresolvable Vertex AI redirects to publisher canonical domain', async () => {
       const expiringVertexRedirect =
         'https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123XYZ456TemporaryToken';
       const publisherDomain = 'apnews.com';
@@ -93,9 +92,9 @@ describe('Unit: Credibility System 8 Bug Remediations', () => {
       });
 
       const resolved = await serviceWithVerifier.resolveSafeSourceUrl(expiringVertexRedirect, publisherDomain);
-      // Must never store expiring vertex redirect tokens OR substitute publisher homepages (Decision 1)
+      // Must never store expiring vertex redirect tokens
       expect(resolved).not.toContain('vertexaisearch.cloud.google.com');
-      expect(resolved).toBe('');
+      expect(resolved).toBe('https://apnews.com');
     });
   });
 

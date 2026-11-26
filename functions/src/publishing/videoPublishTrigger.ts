@@ -21,6 +21,7 @@ import { logger } from "../pipeline/utils/logger";
 import { normalizeLanguageCode, normalizeLanguageCodes } from "../shared/language-normalizer";
 import { getFlatDubbingRatePerLanguage, getFlatSubtitleRatePerLanguage } from "../pipeline/pipelineTriggers";
 import { invalidateFeedGeneration } from "../shared/memory-cache";
+import { isVideoId, safeMergeExistingVideo } from "../utils/videosCollectionGuard";
 
 export const onVideoPublished = onDocumentUpdated(
   {
@@ -34,8 +35,8 @@ export const onVideoPublished = onDocumentUpdated(
     const beforeData = event.data?.before.data();
     const afterData = event.data?.after.data();
     const videoId = event.params.videoId;
-    if (!videoId || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
-      logger.error("[PublishGate] Invalid videoId detected:", { videoId });
+    if (!isVideoId(videoId)) {
+      logger.error("[PublishGate] Invalid non-UUID videoId detected — refusing publish trigger:", { videoId });
       return;
     }
 
@@ -173,17 +174,17 @@ export const onVideoPublished = onDocumentUpdated(
     const disputeSubmitted = afterDisputeStatus === "pending_review" && beforeDisputeStatus !== "pending_review";
 
     if (disputeSubmitted) {
-      const db = admin.firestore();
       const disputeAttempts = Number(afterData.factCheckDispute?.disputeAttempts || 0);
       if (disputeAttempts >= 2) {
         logger.warn("[DisputeTrigger] Maximum dispute attempts reached for video", { videoId, disputeAttempts });
-        await db.collection("videos").doc(videoId).set(
+        await safeMergeExistingVideo(
+          videoId,
           {
             "factCheckDispute.status": "rejected_max_attempts",
             "factCheckDispute.resolvedAt": admin.firestore.FieldValue.serverTimestamp(),
             "factCheckDispute.rejectReason": "Maximum dispute attempts (2) reached for this video.",
           },
-          { merge: true }
+          "[PublishGate:DisputeMax]"
         );
         return;
       }
@@ -248,14 +249,15 @@ export const onVideoPublished = onDocumentUpdated(
         source: "dispute-gate",
       });
 
-      await db.collection("videos").doc(videoId).set(
+      await safeMergeExistingVideo(
+        videoId,
         {
           "factCheckDispute.status": "processing",
           "factCheckDispute.disputeAttempts": admin.firestore.FieldValue.increment(1),
           "factCheckDispute.dispatchedAt": admin.firestore.FieldValue.serverTimestamp(),
           credibilityStatus: "re_evaluating_with_channel_sources",
         },
-        { merge: true }
+        "[PublishGate:DisputeProcessing]"
       );
       return;
     }
@@ -620,13 +622,17 @@ export const onVideoPublished = onDocumentUpdated(
           enableDubbing = false;
           enableGenLangSubs = false;
           requestedLanguages = [];
-          await db.collection("videos").doc(videoId).set({
-            "aiFeatures.generateDubbing": false,
-            "aiFeatures.genLangSubs": false,
-            "aiFeatures.paymentStatus": "insufficient_funds_rejected",
-            dubbingPaid: false,
-            subtitlesPaid: false,
-          }, { merge: true });
+          await safeMergeExistingVideo(
+            videoId,
+            {
+              "aiFeatures.generateDubbing": false,
+              "aiFeatures.genLangSubs": false,
+              "aiFeatures.paymentStatus": "insufficient_funds_rejected",
+              dubbingPaid: false,
+              subtitlesPaid: false,
+            },
+            "[PublishGate:UnpaidAI]"
+          );
         }
       }
 
@@ -1264,7 +1270,8 @@ export const onVideoPublished = onDocumentUpdated(
             logger.warn("[PublishGate] Failed to invoke fast triage service", { videoId, err: String(err) });
           }
 
-          await db.collection("videos").doc(videoId).set(
+          await safeMergeExistingVideo(
+            videoId,
             {
               factCheckTier: "full_ground",
               enableFactCheck: true,
@@ -1273,7 +1280,7 @@ export const onVideoPublished = onDocumentUpdated(
               credibilityStatus: "processing",
               updatedAt: Date.now(),
             },
-            { merge: true }
+            "[PublishGate:Reconcile]"
           );
 
           return;
@@ -1387,7 +1394,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   }
 
   // Determine whether this video qualifies for "personalized" subscriber & topic notifications:
-  // Notable highlights: verified fact checks, high truth/trust score (>=75), featured, or explicit highlight.
+  // Notable highlights: verified fact checks, featured, or explicit highlight.
   const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
   const isFeatured = video.featured === true || video.isFeatured === true;
   const isHighlight = video.isHighlight === true;
@@ -1432,7 +1439,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
 
       // Only notify if notifications are not disabled and option is not 'none'.
       // When set to 'all', ALWAYS notify for all uploaded content.
-      // When set to 'personalized', only send for personalized highlights (verified, high truth/trust score >= 75, featured).
+      // When set to 'personalized', only send for personalized highlights (verified, featured, highlighted).
       const shouldNotifySubscriber = notificationsEnabled &&
         effectiveOption !== "none" &&
         (effectiveOption === "all" || isPersonalizedEligible);

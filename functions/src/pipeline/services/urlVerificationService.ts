@@ -465,6 +465,11 @@ export function extractHtmlSignals(html: string): ParsedHtmlSignals {
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
       .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+      .replace(/<header[\s\S]*?<\/header>/gi, " ")
+      .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+      .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
+      .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+      .replace(/<div[^>]+id=["']mw-navigation["'][\s\S]*?<\/div>/gi, " ")
       .replace(/<[^>]+>/g, " ")
   );
 
@@ -474,7 +479,7 @@ export function extractHtmlSignals(html: string): ParsedHtmlSignals {
     metaDescription: metaDescMatch ? decodeHtmlEntities(metaDescMatch[1]) : "",
     canonicalHref: canonicalMatch ? decodeHtmlEntities(canonicalMatch[1]) : undefined,
     robotsMeta: robotsMatch ? decodeHtmlEntities(robotsMatch[1]).toLowerCase() : "",
-    visibleText: cleanedBody.slice(0, 4000),
+    visibleText: cleanedBody.slice(0, 12000),
   };
 }
 
@@ -796,6 +801,15 @@ export class UrlVerificationService {
       return this.buildFailure(rawUrl, rawUrl, "FETCH_FAILED", 0, "Invalid or unsafe URL", nowIso);
     }
 
+    const hostLower = initialParsed.hostname.toLowerCase();
+    const pathLower = initialParsed.pathname.toLowerCase();
+    if (
+      (hostLower === "google.com" || hostLower.endsWith(".google.com") || hostLower === "bing.com" || hostLower.endsWith(".bing.com")) &&
+      (pathLower.startsWith("/search") || pathLower.startsWith("/url"))
+    ) {
+      return this.buildFailure(rawUrl, rawUrl, "FETCH_FAILED", 0, "Search engine result pages are not valid citations", nowIso);
+    }
+
     const allowHomepage = options.allowHomepage ?? false;
     const initialCanonical = canonicalizeUrl(initialParsed.toString());
     const cacheKey = this.buildCacheKey(initialCanonical, allowHomepage);
@@ -1026,6 +1040,7 @@ export class UrlVerificationService {
           contentType: contentType || "text/html",
           contentTitle: signals.title || signals.h1 || undefined,
           excerpt: snippetCandidate || undefined,
+          evidenceText: signals.visibleText ? signals.visibleText.slice(0, 12000) : undefined,
           verifiedAtUtc: nowIso,
           verifierMethod: options.verifierMethod ?? (redirectHops > 0 ? "grounding_resolved" : "http_get"),
           fetchStatus: "HTTP_200_OK",
@@ -1178,7 +1193,7 @@ export class UrlVerificationService {
       httpStatus,
       redirectHops,
       isSoft404: status === "SOFT_404",
-      soft404Reason: status === "SOFT_404" ? errorReason : undefined,
+      ...(status === "SOFT_404" && errorReason ? { soft404Reason: errorReason } : {}),
       contentType,
       verifiedAtUtc,
       verifierMethod: "http_get",
@@ -1237,12 +1252,13 @@ export class UrlVerificationService {
     if (!this.useFirestoreCache) return;
     try {
       const docId = cacheKey.replace(/^url_health:/, "");
+      const cleanRecord = JSON.parse(JSON.stringify(record));
       await admin
         .firestore()
         .collection(HEALTH_CACHE_COLLECTION)
         .doc(docId)
         .set({
-          ...record,
+          ...cleanRecord,
           expiresAtMs: Date.now() + ttlSeconds * 1000,
         });
     } catch (err) {
@@ -1291,7 +1307,8 @@ export function evidenceCandidateToRichSource(
   cand: EvidenceCandidate,
   fallbackVerifiedAtUtc?: string
 ): RichSource {
-  const tier: SourceTier = cand.tier ?? "B";
+  // A candidate without a tier is an unknown publisher: low-weight D, never B.
+  const tier: SourceTier = cand.tier ?? "D";
   const canonicalTarget = cand.canonicalUrl || cand.url;
   const meta = cand.verifiedAcademicMetadata;
   const yearNumeric =
@@ -1324,6 +1341,41 @@ export function evidenceCandidateToRichSource(
 }
 
 /**
+ * Single source of truth for "is this URL verification record good enough to show as a
+ * clickable source". Every gate (claim verification, the citation firewall, the report
+ * sanitizer) must use this so a source admitted at one layer is not silently dropped at
+ * the next.
+ *
+ * Accepted:
+ *  - VERIFIED: HTTP 200, not a Soft-404.
+ *  - BOT_BLOCKED (HTTP 403/429) ONLY when the URL was reached by following a Google
+ *    grounding redirect to a specific article (not a homepage). Google already fetched
+ *    the page to ground the answer; the publisher merely blocks our crawler. Many Indian
+ *    news publishers (Cloudflare-protected) fall in this bucket, and rejecting them was a
+ *    major cause of claims ending with zero sources.
+ */
+export function isLiveVerificationRecord(uv: UrlVerificationRecord | null | undefined): boolean {
+  if (!uv) return false;
+  if (uv.isSoft404 === true) return false;
+  if (uv.status === "VERIFIED") {
+    return uv.httpStatus === 200 || uv.verifierMethod === "grounding_resolved";
+  }
+  if (uv.status === "BOT_BLOCKED") {
+    const viaGroundingRedirect =
+      (uv.redirectHops ?? 0) > 0 &&
+      /grounding-api-redirect|vertexaisearch\.cloud\.google\.com/i.test(uv.originalUrl || "");
+    const target = uv.canonicalUrl || "";
+    return (
+      viaGroundingRedirect &&
+      /^https?:\/\//i.test(target) &&
+      !/grounding-api-redirect|vertexaisearch\.cloud\.google\.com/i.test(target) &&
+      !isGenericHomepageUrl(target)
+    );
+  }
+  return false;
+}
+
+/**
  * Verifies whether a RichSource satisfies the Closed-World Citation Firewall:
  * - Valid http(s) URL (no generic homepage root)
  * - Explicitly verified via UrlVerificationService (HTTP 200, not Soft-404)
@@ -1352,11 +1404,7 @@ export function isVerifiedRichSource(src: RichSource | null | undefined): boolea
     }
     return false;
   }
-  return (
-    (uv.status === "VERIFIED" || uv.status === "BOT_BLOCKED") &&
-    (uv.httpStatus === 200 || uv.httpStatus === 403 || uv.verifierMethod === "grounding_resolved") &&
-    uv.isSoft404 !== true
-  );
+  return isLiveVerificationRecord(uv);
 }
 
 /**
@@ -1582,13 +1630,31 @@ export function sanitizeReportPayloadForClosedWorld<T>(payload: T): T {
   const clone: any = { ...payload };
   const verifiedUrlSet = new Set<string>();
 
+  const rememberAdmitted = (s: any) => {
+    for (const u of [s?.url, s?.directUrl, s?.urlVerification?.canonicalUrl, s?.urlVerification?.originalUrl]) {
+      const norm = String(u || "").trim().toLowerCase();
+      if (norm) {
+        verifiedUrlSet.add(norm);
+        verifiedUrlSet.add(norm.split("#")[0]);
+      }
+    }
+  };
+
+  // A source object is kept when it carries its own live verification record or when
+  // its URL belongs to a source admitted on one of the claims above.
+  const isAdmittedSourceEntry = (s: any): boolean => {
+    const u = String(s?.url || s?.directUrl || "").trim();
+    if (!/^https?:\/\//i.test(u) || isGenericHomepageUrl(u)) return false;
+    if (isLiveVerificationRecord(s?.urlVerification)) return true;
+    const key = u.toLowerCase();
+    return verifiedUrlSet.has(key) || verifiedUrlSet.has(key.split("#")[0]);
+  };
+
   const sanitizeClaimsArray = (claims: any[]): any[] =>
     claims.map((c) => {
       if (!c || typeof c !== "object") return c;
       const firewalled = enforceClosedWorldCitationFirewall(c as VerifiedClaim);
-      for (const s of firewalled.richSources || []) {
-        if (s.url) verifiedUrlSet.add(s.url.trim().toLowerCase());
-      }
+      for (const s of firewalled.richSources || []) rememberAdmitted(s);
       return firewalled;
     });
 
@@ -1599,9 +1665,7 @@ export function sanitizeReportPayloadForClosedWorld<T>(payload: T): T {
   if (clone.credibility && typeof clone.credibility === "object") {
     clone.credibility = sanitizeReportPayloadForClosedWorld(clone.credibility);
     for (const c of [...(clone.credibility.claims || []), ...(clone.credibility.verifiedClaims || []), ...(clone.credibility.claimsLedger || [])]) {
-      for (const s of c?.richSources || []) {
-        if (s?.url) verifiedUrlSet.add(s.url.trim().toLowerCase());
-      }
+      for (const s of c?.richSources || []) rememberAdmitted(s);
     }
   }
 
@@ -1609,13 +1673,7 @@ export function sanitizeReportPayloadForClosedWorld<T>(payload: T): T {
     clone.explainability = clone.explainability.map((exp: any) => {
       if (!exp || typeof exp !== "object") return exp;
       const rawExpSources = Array.isArray(exp.sources) ? exp.sources : [];
-      const filteredExpSources = rawExpSources.filter((s: any) => {
-        const u = String(s?.url || "").trim();
-        if (!/^https?:\/\//i.test(u) || isGenericHomepageUrl(u)) return false;
-        const uv = s?.urlVerification;
-        if (uv && uv.status === "VERIFIED" && uv.httpStatus === 200 && !uv.isSoft404) return true;
-        return verifiedUrlSet.has(u.toLowerCase());
-      });
+      const filteredExpSources = rawExpSources.filter(isAdmittedSourceEntry);
       return {
         ...exp,
         sources: filteredExpSources,
@@ -1627,13 +1685,7 @@ export function sanitizeReportPayloadForClosedWorld<T>(payload: T): T {
   if (clone.synthesis && typeof clone.synthesis === "object") {
     const synClone = { ...clone.synthesis };
     if (Array.isArray(synClone.sources)) {
-      synClone.sources = synClone.sources.filter((s: any) => {
-        const u = String(s?.url || "").trim();
-        if (!/^https?:\/\//i.test(u) || isGenericHomepageUrl(u)) return false;
-        const uv = s?.urlVerification;
-        if (uv && uv.status === "VERIFIED" && uv.httpStatus === 200 && !uv.isSoft404) return true;
-        return verifiedUrlSet.has(u.toLowerCase());
-      });
+      synClone.sources = synClone.sources.filter(isAdmittedSourceEntry);
     }
     clone.synthesis = synClone;
   }
@@ -1641,11 +1693,7 @@ export function sanitizeReportPayloadForClosedWorld<T>(payload: T): T {
   if (Array.isArray(clone.sources)) {
     clone.sources = clone.sources.filter((s: any) => {
       if (typeof s === "string") return !/^https?:\/\//i.test(s) || verifiedUrlSet.has(s.trim().toLowerCase());
-      const u = String(s?.url || "").trim();
-      if (!/^https?:\/\//i.test(u) || isGenericHomepageUrl(u)) return false;
-      const uv = s?.urlVerification;
-      if (uv && uv.status === "VERIFIED" && uv.httpStatus === 200 && !uv.isSoft404) return true;
-      return verifiedUrlSet.has(u.toLowerCase());
+      return isAdmittedSourceEntry(s);
     });
   }
 

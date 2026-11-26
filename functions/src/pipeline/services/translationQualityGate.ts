@@ -42,7 +42,7 @@ export interface TranslationQualityGateOptions {
 
 export class TranslationQualityGate {
   private static readonly NEGATION_REGEX =
-    /\b(not|never|no|neither|nor|none|false|unproven|without|hardly|scarcely|barely|refute|deny|debunk|incorrect|disproven|fake|inaccurate|untrue)\b|\b\w+n't\b/gi;
+    /\b(not|never|no|neither|nor|none|nothing|nobody|nowhere|false|unproven|without|hardly|scarcely|barely|refute|deny|debunk|incorrect|disproven|fake|inaccurate|untrue)\b|\b\w+n't\b/gi;
 
   /**
    * Executes the unified two-pass post-translation quality verification.
@@ -98,15 +98,16 @@ export class TranslationQualityGate {
         }
       }
 
-      // ─── PASS 2: Semantic Back-Translation Spot Check (~10% + Claims) ───
+      // ─── PASS 2: Semantic Back-Translation Spot Check (~10% + Claims, English source only) ───
       let semanticParityScore: number | undefined = undefined;
       let reviewRecommended = !numericalParityVerified;
       let polarityFlipped = false;
 
+      const isEnglishSource = (sourceLang || "").toLowerCase().split(/[-_]/)[0] === "en";
       const hasNumericEntities = parity.sourceEntities.length > 0;
       const isPrioritySegment = Boolean(seg.isClaim || seg.isHook || hasNumericEntities);
       const isPeriodicSample = i % Math.max(1, Math.round(1 / sampleRate)) === 0;
-      const shouldSpotCheck = (isPrioritySegment || isPeriodicSample) && Boolean(options?.backTranslateCallback);
+      const shouldSpotCheck = isEnglishSource && (isPrioritySegment || isPeriodicSample) && Boolean(options?.backTranslateCallback);
 
       if (shouldSpotCheck && options?.backTranslateCallback) {
         try {
@@ -151,15 +152,31 @@ export class TranslationQualityGate {
 
   /**
    * Detects whether factual negation was inverted (e.g., "effective" -> "not effective" or vice versa).
+   * Evaluates clause-by-clause so "not ..., never" in separate clauses is not cancelled by global parity.
    */
   public static checkNegationPolarityFlip(sourceEn: string, backTranslatedEn: string): boolean {
-    const srcMatches = sourceEn.match(this.NEGATION_REGEX) || [];
-    const backMatches = backTranslatedEn.match(this.NEGATION_REGEX) || [];
+    const splitClauses = (text: string): string[] =>
+      (text || "")
+        .split(/[,;:]|\b(?:but|and|or|because|so)\b/i)
+        .map((c) => c.trim())
+        .filter(Boolean);
 
-    const isSrcNegative = srcMatches.length % 2 === 1;
-    const isBackNegative = backMatches.length % 2 === 1;
+    const isClauseNegative = (clause: string): boolean => {
+      const matches = clause.match(this.NEGATION_REGEX) || [];
+      return matches.length % 2 === 1;
+    };
 
-    return isSrcNegative !== isBackNegative;
+    const srcClauses = splitClauses(sourceEn);
+    const backClauses = splitClauses(backTranslatedEn);
+
+    if (srcClauses.length === 0 && backClauses.length === 0) return false;
+    if (srcClauses.length === backClauses.length) {
+      return srcClauses.some((c, i) => isClauseNegative(c) !== isClauseNegative(backClauses[i]));
+    }
+
+    const srcHasNeg = srcClauses.some(isClauseNegative);
+    const backHasNeg = backClauses.some(isClauseNegative);
+    return srcHasNeg !== backHasNeg;
   }
 
   /**

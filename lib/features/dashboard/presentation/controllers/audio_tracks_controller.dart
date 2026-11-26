@@ -14,7 +14,6 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
-import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/audio_tracks_barrel.dart';
@@ -84,6 +83,17 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   RxBool get isSaving => _editorManager.isSaving;
   RxBool get isLoadingTracks => _editorManager.isLoadingTracks;
   RxBool get hasUnsavedChanges => _editorManager.hasUnsavedChanges;
+
+  /// Polite notices for creators regarding dubbing (e.g. voice cloning fallbacks, skipped languages).
+  final RxList<Map<String, dynamic>> dubbingNotices = <Map<String, dynamic>>[].obs;
+
+  /// Finds a creator notice for a specific language code, if one exists.
+  Map<String, dynamic>? getNoticeForLanguage(String langCode) {
+    final clean = langCode.trim().toLowerCase();
+    return dubbingNotices.firstWhereOrNull(
+      (n) => (n['language'] as String?)?.trim().toLowerCase() == clean,
+    );
+  }
 
   List<({String code, String name})> get supportedLanguages =>
       kSupportedLanguages;
@@ -1718,7 +1728,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
     Future<void> markTriggeredSuccess() async {
       if (walletTx != null) {
-        await FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(video.id).set({
+        await FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(video.id).update({
           'dubbingPaid': true,
           'dubbingCostUSD': dubbingCost,
           'dubbingDurationSeconds': durationSecs,
@@ -1727,7 +1737,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           'dubbingTier': dubbingTier,
           'cinemaGrade': isEffectiveCinema,
           'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        });
       }
 
       // Proactively reset video_jobs stages for the target languages so listeners never observe stale failures
@@ -1857,22 +1867,20 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           final nowMs = DateTime.now().millisecondsSinceEpoch;
           final firestore = FirebaseFirestore.instance;
 
-          // 1. Direct write to videos/{video.id} to trigger onVideoPublished (Scenario B: languagesChanged)
-          await firestore.collection(FirestoreCollections.videos).doc(video.id).set({
-            'aiFeatures': {
-              'generateDubbing': true,
-              'dubbingLanguages': FieldValue.arrayUnion(targetLangs),
-              'translationLanguages': FieldValue.arrayUnion(targetLangs),
-              'dubbingTier': dubbingTier,
-              'voiceGender': voiceGender,
-              'dubbingMode': isEffectiveVoiceClone ? 'voice_clone' : 'standard',
-            },
+          // 1. Direct write to existing videos/{video.id} to trigger onVideoPublished (Scenario B: languagesChanged)
+          await firestore.collection(FirestoreCollections.videos).doc(video.id).update({
+            'aiFeatures.generateDubbing': true,
+            'aiFeatures.dubbingLanguages': FieldValue.arrayUnion(targetLangs),
+            'aiFeatures.translationLanguages': FieldValue.arrayUnion(targetLangs),
+            'aiFeatures.dubbingTier': dubbingTier,
+            'aiFeatures.voiceGender': voiceGender,
+            'aiFeatures.dubbingMode': isEffectiveVoiceClone ? 'voice_clone' : 'standard',
             if (walletTx != null) 'dubbingPaid': true,
             if (walletTx != null) 'dubbingWalletTxId': walletTx.id,
             if (walletTx != null) 'dubbingCostUSD': dubbingCost,
             if (walletTx != null) 'dubbingDurationSeconds': durationSecs,
             'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          });
 
           // 2. Direct write to canonical video_jobs/{video.id}
           final stageUpdates = <String, dynamic>{
@@ -1955,6 +1963,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     _videoJobFallbackSub?.cancel();
     _videoDocSub?.cancel();
     _locDocSub?.cancel();
+    dubbingNotices.clear();
 
     void checkAndCompleteTrack(String lang, String? url) {
       if (url != null && url.isNotEmpty && generatingDubLanguages.contains(lang)) {
@@ -2019,6 +2028,17 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     Future<void> handleJobSnapshot(DocumentSnapshot snap) async {
       if (!snap.exists || snap.data() == null) return;
       final data = snap.data()! as Map<String, dynamic>;
+
+      // Track polite creator dubbing notices from backend
+      final rawNotices = data['dubbingNotices'];
+      if (rawNotices is List) {
+        final noticesList = rawNotices
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+        dubbingNotices.assignAll(noticesList);
+      }
+
       final jobStatus = (data['status'] as String?)?.toLowerCase();
       final stages = (data['stages'] as Map<String, dynamic>?) ?? {};
       final onDemand = stages['onDemandAI'] as Map<String, dynamic>?;
@@ -2448,6 +2468,14 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     // Also check video_jobs
     final jobDoc = await FirebaseFirestore.instance.collection('video_jobs').doc(vId).get();
     final jobData = jobDoc.data() ?? {};
+    final rawNotices = jobData['dubbingNotices'];
+    if (rawNotices is List) {
+      final noticesList = rawNotices
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+      dubbingNotices.assignAll(noticesList);
+    }
     final jobOutputs = (jobData['outputs'] as Map<String, dynamic>?) ?? {};
     final jobAudioTracks = (jobOutputs['audioTracks'] as Map<String, dynamic>?) ?? {};
     final stages = (jobData['stages'] as Map<String, dynamic>?) ?? {};

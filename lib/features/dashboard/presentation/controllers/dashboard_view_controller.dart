@@ -37,10 +37,10 @@ class DashboardViewController extends BaseController
   bool get isDisposed => _isDisposed || super.isDisposed;
 
   TextEditingController get searchController {
-    bool isCtrlDisposed = _isSearchControllerDisposed;
+    var isCtrlDisposed = _isSearchControllerDisposed;
     if (!isCtrlDisposed) {
       try {
-        final _ = _searchController.hasListeners;
+        final _ = _searchController.text;
       } catch (_) {
         isCtrlDisposed = true;
       }
@@ -53,10 +53,10 @@ class DashboardViewController extends BaseController
   }
 
   FocusNode get searchFocusNode {
-    bool isNodeDisposed = _isSearchFocusNodeDisposed;
+    var isNodeDisposed = _isSearchFocusNodeDisposed;
     if (!isNodeDisposed) {
       try {
-        final _ = _searchFocusNode.hasListeners;
+        final _ = _searchFocusNode.hasFocus;
       } catch (_) {
         isNodeDisposed = true;
       }
@@ -223,7 +223,9 @@ class DashboardViewController extends BaseController
       } else {
         if (Get.isRegistered<DashboardController>()) {
           dashboardController.currentChannel.value = ch;
-          dashboardController.updateChannelId(ch.id);
+          if (dashboardController.channelId != ch.id) {
+            dashboardController.updateChannelId(ch.id);
+          }
         }
       }
     });

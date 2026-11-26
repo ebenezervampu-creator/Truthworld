@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -145,39 +144,30 @@ class ClaimSourceSubmissionController extends BaseController
         return;
       }
 
-      final firestore = FirebaseFirestore.instance;
-
-      final sourceData = <String, dynamic>{
-        'videoId': video.id,
-        'target': selectedTarget.value,
-        'url': normalizedUrl,
-        'title': titleController.text.trim(),
-        'note': noteController.text.trim(),
-        'submittedBy': user.uid,
-        'submittedByEmail': user.email,
-        'submittedByName': user.displayName ?? 'Anonymous User',
-        'submittedAt': FieldValue.serverTimestamp(),
-        'status': 'pending_review',
-      };
-
-      await firestore.collection('claim_sources').add(sourceData);
-
-      // Submit to authoritative credibility governance engine for cross-perspective re-evaluation
+      // The submission is recorded once, server-side, in the evidence review queue
+      // (validation, daily limit, reviewer approval). The app no longer writes its own
+      // unvalidated copy to `claim_sources`.
+      final target = _resolveTargetClaim();
       final reasonText = note.isNotEmpty
           ? note
           : (title.isNotEmpty
               ? title
               : 'Community supporting source: $normalizedUrl');
-      await CredibilityGovernanceService.submitFactualDispute(
+      final result = await CredibilityGovernanceService.submitFactualDispute(
         videoId: video.id,
         reason: reasonText,
         additionalSources: [normalizedUrl],
+        claimId: target.claimId,
+        claimText: target.claimText,
       );
 
       if (context.mounted) {
         Navigator.of(context).pop();
+        final message = result['message'];
         AppSnackbar.success(
-          'Thank you! Your supporting evidence has been submitted for credibility review.',
+          message is String && message.trim().isNotEmpty
+              ? message
+              : 'Thanks! Your source is queued for review. If a reviewer approves it, the claim will be re-checked with your evidence.',
         );
       }
     } catch (e) {
@@ -187,6 +177,31 @@ class ClaimSourceSubmissionController extends BaseController
         AppSnackbar.error('Unable to submit source. Please try again.');
       }
     }
+  }
+
+  /// Resolves the claim the user selected so the server can re-check exactly that claim.
+  ({String? claimId, String? claimText}) _resolveTargetClaim() {
+    final targetText = selectedTarget.value.trim();
+    if (targetText.isEmpty || targetText == 'Entire Video') {
+      return (claimId: null, claimText: null);
+    }
+    String? idOf(dynamic c) {
+      if (c is! Map) return null;
+      final id = c['claimId'] ?? c['id'];
+      return id is String && id.isNotEmpty ? id : null;
+    }
+    String textOf(dynamic c) =>
+        c is Map ? (c['claim'] ?? c['text'] ?? '').toString().trim() : '';
+
+    if (initialClaim != null && textOf(initialClaim) == targetText) {
+      return (claimId: idOf(initialClaim), claimText: targetText);
+    }
+    for (final c in claims) {
+      if (textOf(c) == targetText) {
+        return (claimId: idOf(c), claimText: targetText);
+      }
+    }
+    return (claimId: null, claimText: targetText);
   }
 
   /// Submits a formal appeal to the Independent Fact-Check Appeals Desk.

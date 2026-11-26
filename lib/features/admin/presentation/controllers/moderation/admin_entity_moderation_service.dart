@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -421,6 +422,300 @@ class AdminEntityModerationService {
       ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AdminEntityModerationService.updateChannelAiDiscounts');
       AppSnackbar.error(
         'Unable to update channel discounts. Please try again.',
+      );
+      return false;
+    } finally {
+      isActionSubmitting.value = false;
+    }
+  }
+
+  /// Grants free Dubbing Studio credits directly to a particular channel and its creator wallet.
+  static Future<bool> grantChannelDubbingCredits({
+    required String channelId,
+    required int amountCredits,
+    required String reason,
+    required RxList<Map<String, dynamic>> channels,
+    required Rxn<Map<String, dynamic>> selectedChannel,
+    required RxBool isActionSubmitting,
+    Future<void> Function({
+      required String action,
+      required String targetType,
+      required String targetId,
+      required String reason,
+      Map<String, dynamic>? metadata,
+    })? logAdminAction,
+  }) async {
+    if (channelId.isEmpty || amountCredits <= 0) return false;
+    isActionSubmitting.value = true;
+    try {
+      final adminUser = FirebaseAuth.instance.currentUser;
+      final adminIdentifier = adminUser?.email ?? adminUser?.uid ?? 'Super Admin';
+
+      // 0ms Optimistic UI update
+      final chIdx = channels.indexWhere((c) => c['id'] == channelId);
+      if (chIdx != -1) {
+        final item = Map<String, dynamic>.from(channels[chIdx]);
+        final prevCredits = (item['freeDubbingCredits'] as num?)?.toInt() ?? 0;
+        final newCredits = prevCredits + amountCredits;
+        item['freeDubbingCredits'] = newCredits;
+        item['dubbingCreditsGrantedTotal'] = ((item['dubbingCreditsGrantedTotal'] as num?)?.toInt() ?? 0) + amountCredits;
+        item['lastDubbingCreditsGranted'] = amountCredits;
+        item['lastDubbingGrantReason'] = reason;
+        item['lastDubbingGrantAt'] = Timestamp.now();
+        item['lastDubbingGrantBy'] = adminIdentifier;
+        channels[chIdx] = item;
+        channels.refresh();
+
+        if (selectedChannel.value?['id'] == channelId) {
+          selectedChannel.value = Map<String, dynamic>.from(item);
+        }
+      }
+
+      // 1. Authoritative Cloud Function call
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+            .httpsCallable('adminGrantChannelDubbingCredits');
+        await callable.call({
+          'channelId': channelId,
+          'amountCredits': amountCredits,
+          'reason': reason.isNotEmpty ? reason : 'Super Admin Channel Dubbing Grant',
+        });
+      } catch (cfErr, s) {
+        ErrorHandler.log(cfErr, stackTrace: s, tag: 'AdminEntityModerationService.grantChannelDubbingCredits.callable');
+        // Resilient fallback direct to Firestore
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .set({
+          'freeDubbingCredits': FieldValue.increment(amountCredits),
+          'dubbingCreditsGrantedTotal': FieldValue.increment(amountCredits),
+          'lastDubbingCreditsGranted': amountCredits,
+          'lastDubbingGrantReason': reason,
+          'lastDubbingGrantAt': FieldValue.serverTimestamp(),
+          'lastDubbingGrantBy': adminIdentifier,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      // Audit Log
+      if (logAdminAction != null) {
+        unawaited(
+          logAdminAction(
+            action: 'grant_channel_dubbing_credits',
+            targetType: 'channel',
+            targetId: channelId,
+            reason: 'Super Admin granted +$amountCredits free Dubbing Studio credits to channel: $reason',
+            metadata: {
+              'channelId': channelId,
+              'amountCredits': amountCredits,
+              'reason': reason,
+            },
+          ),
+        );
+      }
+
+      AppSnackbar.success(
+        'Granted +${amountCredits.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} free Dubbing Studio characters to channel.',
+      );
+      return true;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AdminEntityModerationService.grantChannelDubbingCredits');
+      AppSnackbar.error(
+        'Unable to grant dubbing credits to channel. Please try again.',
+      );
+      return false;
+    } finally {
+      isActionSubmitting.value = false;
+    }
+  }
+
+  /// Comprehensive Super Admin Privileges: Atomically updates AI discounts, grants free Dubbing Studio credits,
+  /// and configures channel upload duration limit for any channel.
+  static Future<bool> updateChannelSuperAdminPrivileges({
+    required String channelId,
+    required String dubbingDiscountType, // 'none', '50%', 'free', 'custom'
+    required double dubbingDiscountPercent, // 0.0 - 100.0
+    required String subtitlesDiscountType, // 'none', '50%', 'free', 'custom'
+    required double subtitlesDiscountPercent, // 0.0 - 100.0
+    required int dailyUploadDurationMinutes, // 10 - 1440
+    required int freeCreditsToGrant, // 0+
+    required String reason,
+    required RxList<Map<String, dynamic>> channels,
+    required Rxn<Map<String, dynamic>> selectedChannel,
+    required RxBool isActionSubmitting,
+    Future<void> Function({
+      required String action,
+      required String targetType,
+      required String targetId,
+      required String reason,
+      Map<String, dynamic>? metadata,
+    })? logAdminAction,
+  }) async {
+    if (channelId.isEmpty) return false;
+    isActionSubmitting.value = true;
+    try {
+      final adminUser = FirebaseAuth.instance.currentUser;
+      final adminIdentifier = adminUser?.email ?? adminUser?.uid ?? 'Super Admin';
+
+      final dubPercentClamped = dubbingDiscountType == 'free'
+          ? 100.0
+          : (dubbingDiscountType == '50%'
+              ? 50.0
+              : (dubbingDiscountType == 'none'
+                  ? 0.0
+                  : dubbingDiscountPercent.clamp(0.0, 100.0)));
+
+      final subPercentClamped = subtitlesDiscountType == 'free'
+          ? 100.0
+          : (subtitlesDiscountType == '50%'
+              ? 50.0
+              : (subtitlesDiscountType == 'none'
+                  ? 0.0
+                  : subtitlesDiscountPercent.clamp(0.0, 100.0)));
+
+      final minutesClamped = dailyUploadDurationMinutes.clamp(10, 1440);
+      final dailySeconds = minutesClamped * 60;
+      final maxVideoSeconds = dailySeconds;
+      final hasCustomQuota = minutesClamped > 10;
+      final isDubFree = dubbingDiscountType == 'free' || dubPercentClamped >= 100.0;
+      final isSubFree = subtitlesDiscountType == 'free' || subPercentClamped >= 100.0;
+
+      // 0ms Optimistic UI update
+      final chIdx = channels.indexWhere((c) => c['id'] == channelId);
+      if (chIdx != -1) {
+        final item = Map<String, dynamic>.from(channels[chIdx]);
+        item['dubbingDiscountType'] = dubbingDiscountType;
+        item['dubbingDiscountPercent'] = dubPercentClamped;
+        item['isDubbingFree'] = isDubFree;
+        item['subtitlesDiscountType'] = subtitlesDiscountType;
+        item['subtitlesDiscountPercent'] = subPercentClamped;
+        item['isSubtitlesFree'] = isSubFree;
+
+        item['customDailyVideoDurationSeconds'] = hasCustomQuota ? dailySeconds : null;
+        item['customDailyUploadLimitMinutes'] = hasCustomQuota ? minutesClamped : null;
+        item['customMaxVideoDurationSeconds'] = hasCustomQuota ? maxVideoSeconds : null;
+        item['maxDailyVideoDurationSeconds'] = dailySeconds;
+        item['maxVideoDurationSeconds'] = maxVideoSeconds;
+        item['hasCustomQuota'] = hasCustomQuota;
+        item['quotaIncreasedBy'] = adminIdentifier;
+        item['quotaIncreasedAt'] = Timestamp.now();
+        item['quotaIncreaseReason'] = reason;
+
+        if (freeCreditsToGrant > 0) {
+          final prevCredits = (item['freeDubbingCredits'] as num?)?.toInt() ?? 0;
+          item['freeDubbingCredits'] = prevCredits + freeCreditsToGrant;
+          item['dubbingCreditsGrantedTotal'] = ((item['dubbingCreditsGrantedTotal'] as num?)?.toInt() ?? 0) + freeCreditsToGrant;
+          item['lastDubbingCreditsGranted'] = freeCreditsToGrant;
+          item['lastDubbingGrantReason'] = reason;
+          item['lastDubbingGrantAt'] = Timestamp.now();
+          item['lastDubbingGrantBy'] = adminIdentifier;
+        }
+
+        item['aiDiscounts'] = {
+          'dubbing': {
+            'type': dubbingDiscountType,
+            'percent': dubPercentClamped,
+            'enabled': dubPercentClamped > 0,
+          },
+          'subtitles': {
+            'type': subtitlesDiscountType,
+            'percent': subPercentClamped,
+            'enabled': subPercentClamped > 0,
+          },
+          'updatedAt': Timestamp.now(),
+          'updatedBy': adminIdentifier,
+        };
+
+        channels[chIdx] = item;
+        channels.refresh();
+
+        if (selectedChannel.value?['id'] == channelId) {
+          selectedChannel.value = Map<String, dynamic>.from(item);
+        }
+      }
+
+      // 1. Authoritative Cloud Function call
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+            .httpsCallable('adminGrantChannelDubbingCredits');
+        await callable.call({
+          'channelId': channelId,
+          'amountCredits': freeCreditsToGrant,
+          'reason': reason.isNotEmpty ? reason : 'Super Admin Channel Privileges',
+          'customDailyDurationMinutes': minutesClamped,
+          'dubbingDiscountPercent': dubPercentClamped,
+          'dubbingDiscountType': dubbingDiscountType,
+          'subtitlesDiscountPercent': subPercentClamped,
+          'subtitlesDiscountType': subtitlesDiscountType,
+        });
+      } catch (cfErr, s) {
+        ErrorHandler.log(cfErr, stackTrace: s, tag: 'AdminEntityModerationService.updateChannelSuperAdminPrivileges.callable');
+        // Resilient direct Firestore update
+        final updates = <String, dynamic>{
+          'dubbingDiscountType': dubbingDiscountType,
+          'dubbingDiscountPercent': dubPercentClamped,
+          'isDubbingFree': isDubFree,
+          'subtitlesDiscountType': subtitlesDiscountType,
+          'subtitlesDiscountPercent': subPercentClamped,
+          'isSubtitlesFree': isSubFree,
+          'customDailyVideoDurationSeconds': hasCustomQuota ? dailySeconds : FieldValue.delete(),
+          'customDailyUploadLimitMinutes': hasCustomQuota ? minutesClamped : FieldValue.delete(),
+          'customMaxVideoDurationSeconds': hasCustomQuota ? maxVideoSeconds : FieldValue.delete(),
+          'maxDailyVideoDurationSeconds': dailySeconds,
+          'maxVideoDurationSeconds': maxVideoSeconds,
+          'hasCustomQuota': hasCustomQuota,
+          'quotaIncreasedBy': adminIdentifier,
+          'quotaIncreasedAt': FieldValue.serverTimestamp(),
+          'quotaIncreaseReason': reason,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        if (freeCreditsToGrant > 0) {
+          updates['freeDubbingCredits'] = FieldValue.increment(freeCreditsToGrant);
+          updates['dubbingCreditsGrantedTotal'] = FieldValue.increment(freeCreditsToGrant);
+          updates['lastDubbingCreditsGranted'] = freeCreditsToGrant;
+          updates['lastDubbingGrantReason'] = reason;
+          updates['lastDubbingGrantAt'] = FieldValue.serverTimestamp();
+          updates['lastDubbingGrantBy'] = adminIdentifier;
+        }
+
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .set(updates, SetOptions(merge: true));
+      }
+
+      // Audit Log
+      if (logAdminAction != null) {
+        unawaited(
+          logAdminAction(
+            action: 'update_channel_super_admin_privileges',
+            targetType: 'channel',
+            targetId: channelId,
+            reason: 'Super Admin updated channel privileges: Dubbing ($dubbingDiscountType, $dubPercentClamped%), Subtitles ($subtitlesDiscountType, $subPercentClamped%), ${freeCreditsToGrant > 0 ? "+$freeCreditsToGrant chars, " : ""}Upload Limit: ${minutesClamped}m/day.',
+            metadata: {
+              'channelId': channelId,
+              'dubbingDiscountPercent': dubPercentClamped,
+              'dubbingDiscountType': dubbingDiscountType,
+              'subtitlesDiscountPercent': subPercentClamped,
+              'subtitlesDiscountType': subtitlesDiscountType,
+              'dailyUploadDurationMinutes': minutesClamped,
+              'freeCreditsToGrant': freeCreditsToGrant,
+            },
+          ),
+        );
+      }
+
+      final dubLabel = dubPercentClamped >= 100.0 ? 'Free' : (dubPercentClamped > 0 ? '${dubPercentClamped.toStringAsFixed(0)}% off' : 'Standard');
+      final creditsMsg = freeCreditsToGrant > 0 ? ', +${freeCreditsToGrant.toString()} free credits' : '';
+      AppSnackbar.success(
+        'Updated privileges for channel: Dubbing $dubLabel, ${minutesClamped}m upload limit$creditsMsg.',
+      );
+      return true;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AdminEntityModerationService.updateChannelSuperAdminPrivileges');
+      AppSnackbar.error(
+        'Unable to update channel privileges. Please try again.',
       );
       return false;
     } finally {

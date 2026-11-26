@@ -1,4 +1,3 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/routes/app_pages.dart';
 import 'package:truthworld/routes/app_routes.dart';
@@ -66,7 +65,6 @@ void main() {
         (p) => [
           AppRoutes.upload,
           AppRoutes.uploadVideo,
-          AppRoutes.uploadSubtitles,
           AppRoutes.uploadDubbing,
           AppRoutes.uploadCommunity,
           AppRoutes.createPost,

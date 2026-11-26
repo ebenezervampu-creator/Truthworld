@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_methodology_section.dart';
 import 'package:truthworld/features/video/presentation/widgets/fact_check/fact_check_barrel.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -163,8 +162,6 @@ class FactCheckReportWidget extends StatelessWidget {
                     ],
                     FactCheckDiagnosticsSection(diagnostics: diagnostics),
                     const SizedBox(height: 32),
-                    const VideoAnalysisMethodologySection(),
-                    const SizedBox(height: 48),
                     FactCheckReportFooter(video: video),
                     const SizedBox(height: 64),
                   ],

@@ -187,6 +187,12 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
           }
         }
 
+        final hadPreviousVideo = pickedVideo.value != null;
+        if (hadPreviousVideo && hasConfiguredLanguageTracks) {
+          resetAllLanguageTracks();
+          AppSnackbar.info('Reset previously configured audio & subtitle tracks for the new video.');
+        }
+
         videoDuration.value = Duration(seconds: duration);
         videoDurationSeconds.value = duration;
         pickedVideo.value = pickedFile;

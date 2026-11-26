@@ -158,10 +158,12 @@ describe("Cinema Dubbing Architecture Upgrades", () => {
       expect(afArg).toContain("loudnorm=I=-24:TP=-1:LRA=14:linear=true");
     });
 
-    it("picks lower-dialogue-bleed stem between parallel Demucs and ElevenLabs isolation", async () => {
+    it("picks lower-dialogue-bleed stem between parallel Demucs and isolated-vocal subtraction", async () => {
       const media = new MediaService();
       const prevWorkerUrl = (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL;
       (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL = "https://demucs-worker.test.local";
+      const prevWorkerToken = process.env.DEMUX_WORKER_TOKEN;
+      process.env.DEMUX_WORKER_TOKEN = "test-worker-token-0123456789abcdef0123456789"; // the worker requires it
 
       try {
         jest.spyOn(axios, "post").mockResolvedValueOnce({
@@ -185,6 +187,8 @@ describe("Cinema Dubbing Architecture Upgrades", () => {
             channels: 2,
             channelLayout: "stereo",
             dialogueBleedDb: url.includes("_iso") ? -36.5 : -24.0,
+            // Candidates are ranked by measured voice suppression; an unmeasured stem is never "clean".
+            vocalSuppressionDb: url.includes("_iso") ? 30 : 18,
             clippingDetected: false,
             corruptionDetected: false,
             validationStatus: "passed",
@@ -207,20 +211,27 @@ describe("Cinema Dubbing Architecture Upgrades", () => {
         expect(best.degraded).toBe(false);
       } finally {
         (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL = prevWorkerUrl;
+        if (prevWorkerToken === undefined) delete process.env.DEMUX_WORKER_TOKEN; else process.env.DEMUX_WORKER_TOKEN = prevWorkerToken;
       }
     });
   });
 
   describe("2. Multimodal Prosody Cue Mapping", () => {
     it("modulates stability via voiceQuality and promotes high-intensity 6-axis emotions", () => {
+      // A whisper needs measured evidence (delivery-tag-guard.ts, 2026-11-24): no pitch and a
+      // measured voiced share below 0.2.
       const breathyWhisper = mapEmotionToElevenLabsCue(
         "whisper",
         -31,
         "breathy",
-        { anger: 0.05, sadness: 0.2, joy: 0.05, fear: 0.6, disgust: 0.0, surprise: 0.1 }
+        { anger: 0.05, sadness: 0.2, joy: 0.05, fear: 0.6, disgust: 0.0, surprise: 0.1 },
+        { f0Hz: null, voicedShare: 0.08 }
       );
       expect(breathyWhisper.emotionTag).toBe("whispers");
       expect(breathyWhisper.similarityBoostOverride).toBeGreaterThanOrEqual(0.86);
+      // Without any voicing measurement the same line is not whispered.
+      const unmeasured = mapEmotionToElevenLabsCue("whisper", -31, "breathy");
+      expect(unmeasured.emotionTag).toBe("soft");
 
       const furiousAutoPromoted = mapEmotionToElevenLabsCue(
         undefined,

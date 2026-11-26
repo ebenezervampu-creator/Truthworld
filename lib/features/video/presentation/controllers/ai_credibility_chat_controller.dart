@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/source_avatar_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/credibility_chat_message.dart';

@@ -10,6 +10,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { blockOnTranslationErrorsEnabled } from "../services/translation-flags";
 
 export interface DubbingQualityGateParams {
   jobId: string;
@@ -37,6 +38,10 @@ export interface DubbingQualityGateParams {
   mneValidation?: import("../services/media").MneValidationResult;
   translatedSegments?: Array<{ original?: string; translated?: string; text?: string; translatedText?: string }>;
   translatedTexts?: string[];
+  /** Findings from measuring the dub against the original (dub-sync-check.ts syncViolations). */
+  syncViolations?: string[];
+  /** Lines that still failed number, polarity, or meaning checks after repair (Fix 2.3). */
+  translationBlockedLines?: Array<{ index: number; reason: string; source: string; text: string }>;
 }
 
 export interface DubbingQualityGateResult {
@@ -66,6 +71,31 @@ export interface DubbingQualityGateResult {
   };
 }
 
+/**
+ * Violations that mean the creator would receive a broken track, so no tier may publish it (A4):
+ * missing lines, a track much shorter or longer than the video, speech out of sync, or an
+ * empty / truncated file. Other violations (voice-clone fallback, background stem quality, tail
+ * margin, turn overlaps, translation wording checks) stay warnings for the audio-track tier.
+ */
+export const BLOCKING_VIOLATION_PREFIXES = [
+  "Missing speech segments",
+  "Audio duration mismatch",
+  "Dialogue onset drift",
+  "Audio file invalid",
+  "Audio file truncated",
+  // Measured against the original audio (dub-sync-check.ts), 2026-11-24.
+  "Dubbed speech missing",
+  "Voice gender mismatch",
+  "Translation meaning error",
+] as const;
+
+export function isBlockingViolation(violation: string): boolean {
+  if (violation.startsWith("Translation meaning error") && !blockOnTranslationErrorsEnabled()) {
+    return false;
+  }
+  return BLOCKING_VIOLATION_PREFIXES.some((p) => violation.startsWith(p));
+}
+
 export class DubbingQualityGate {
   /**
    * Evaluates all quality rules against dubbing artifacts.
@@ -86,6 +116,16 @@ export class DubbingQualityGate {
     } = params;
 
     const quotaExceeded = failedSegments.some((f) => f.isQuota);
+
+    // ── Rule 0: the dub measured against the original (missing lines, wrong-gender voice) ──
+    for (const v of params.syncViolations || []) violations.push(v);
+
+    // ── Rule 0b: Unresolved translation meaning / polarity / number errors (Fix 2.3) ──
+    for (const b of params.translationBlockedLines || []) {
+      violations.push(
+        `Translation meaning error: line ${b.index + 1} (${b.reason}): "${b.source}" → "${b.text}"`
+      );
+    }
 
     // ── Rule 1: Zero Missing Segments ──────────────────────────────────────────
     if (failedSegments.length > 0 || successfulSegments < totalSegments) {

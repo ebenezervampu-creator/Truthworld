@@ -128,6 +128,7 @@ dev_dependencies:
   video_player_platform_interface: ^6.2.0
 
   firebase_core_platform_interface: any
+  just_audio_platform_interface: any
 dependency_overrides:
   get_storage:
     path: packages/get_storage

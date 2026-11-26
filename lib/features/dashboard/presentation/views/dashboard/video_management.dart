@@ -924,6 +924,13 @@ class VideoManagementController extends BaseController with ContentValidationMix
     return '$minutes:$seconds';
   }
 
+  /// Starts AI features for a video.
+  ///
+  /// The server prices and charges the channel wallet — once — in
+  /// `triggerVideoAIFeatures`, with the same function `getDubbingQuote` used for the
+  /// price shown in the dialog. The app no longer debits the wallet itself (that,
+  /// plus the server's own debit, charged creators twice) and never writes
+  /// `video_jobs` directly (that skipped payment).
   Future<void> triggerAIFeatures({
     required String videoId,
     required List<String> features,
@@ -943,73 +950,6 @@ class VideoManagementController extends BaseController with ContentValidationMix
         return;
       }
 
-      // Validate and debit channel balance for paid AI features (Dubbing & Subtitles are NOT free)
-      var effectiveChannel = channel;
-      if (effectiveChannel == null) {
-        try {
-          final vidDoc = await FirebaseFirestore.instance.collection('videos').doc(videoId).get();
-          final chId = vidDoc.data()?['channelId'] as String?;
-          if (chId != null && chId.isNotEmpty) {
-            final chDoc = await FirebaseFirestore.instance.collection('channels').doc(chId).get();
-            if (chDoc.exists && chDoc.data() != null) {
-              effectiveChannel = Channel.fromMap(chDoc.data()!, chDoc.id);
-            }
-          }
-        } catch (_) {}
-      }
-
-      final hasPaidFeatures = features.contains('dubbing') || features.contains('subtitles');
-      final channelType = effectiveChannel?.channelType ?? ChannelType.standard;
-      final totalEstimatedCost = ChannelWalletService.calculateAIFeatureCost(
-        selectedFeatures: features.toSet(),
-        targetLanguages: targetLanguages,
-        channelType: channelType,
-        durationSeconds: durationSeconds,
-        factCheckTier: factCheckTier,
-      );
-
-      if (hasPaidFeatures && totalEstimatedCost > 0) {
-        if (effectiveChannel == null) {
-          AppSnackbar.warning(
-            'Unable to verify channel revenue for paid AI services. Please select a valid channel to proceed.',
-          );
-          return;
-        }
-
-        final walletService = ChannelWalletService();
-        final balance = await walletService.getSpendableBalanceForChannelId(effectiveChannel.id);
-
-        if (!balance.canAfford(totalEstimatedCost)) {
-          final balanceStr = '\$${balance.totalSpendableBalance.toStringAsFixed(2)}';
-          final totalStr = '\$${totalEstimatedCost.toStringAsFixed(2)}';
-          AppSnackbar.warning(
-            'AI services are not free. Your channel revenue of $balanceStr is insufficient for the required services ($totalStr). Please pay directly to proceed.',
-          );
-          return;
-        }
-
-        // Deduct from channel balance
-        final paid = await walletService.spendForVideoAIFeatures(
-          channel: effectiveChannel,
-          userId: currentUser.uid,
-          videoId: videoId,
-          videoTitle: 'Video #$videoId',
-          features: features.toSet(),
-          targetLanguages: targetLanguages,
-          durationSeconds: durationSeconds,
-          priorityMode: priorityMode,
-          autoChapters: autoChapters,
-          factCheckTier: factCheckTier,
-        );
-
-        if (!paid) {
-          AppSnackbar.error(
-            'Unable to complete deduction from channel revenue for AI features. Please try again.',
-          );
-          return;
-        }
-      }
-
       AppSnackbar.info(
         'Requesting ${features.join(", ")} in ${targetLanguages.join(", ").toUpperCase()}...',
       );
@@ -1019,18 +959,20 @@ class VideoManagementController extends BaseController with ContentValidationMix
         '${AppConfig.cloudFunctionsBaseUrl}/triggerVideoAIFeatures',
       );
 
-      var pipelineTriggered = false;
       String? resolvedSourceLang;
       try {
         final videoDoc = await _firestore.collection('videos').doc(videoId).get();
         final videoData = videoDoc.data() ?? {};
         final rawLang = (videoData['sourceLanguage'] ?? videoData['originalLanguage'] ?? videoData['language'] ?? 'en') as String;
         resolvedSourceLang = rawLang.isNotEmpty ? normalizeLanguageCode(rawLang) : 'en';
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(e, stackTrace: stackTrace, tag: 'VideoManagement:resolveSourceLanguage');
+      }
 
+      final tierObj = DubbingProductionTier.fromId(dubbingTier);
+      final http.Response response;
       try {
-        final tierObj = DubbingProductionTier.fromId(dubbingTier);
-        final response = await http.post(
+        response = await http.post(
           url,
           headers: {
             'Content-Type': 'application/json',
@@ -1052,107 +994,38 @@ class VideoManagementController extends BaseController with ContentValidationMix
             'isCinemaGrade': tierObj.isCinemaGrade,
             'stemIsolation': true,
           }),
-        ).timeout(const Duration(seconds: 15));
-
-        if (response.statusCode == 200) {
-          pipelineTriggered = true;
-          AppSnackbar.success(
-            'AI features generation is underway. Subtitles and audio tracks will update automatically!',
-          );
-          return;
-        } else {
-          ErrorHandler.log(
-            'triggerVideoAIFeatures returned HTTP ${response.statusCode}: ${response.body}',
-            tag: 'VideoManagement',
-          );
-        }
-      } catch (httpError) {
-        ErrorHandler.log(
-          httpError,
-          tag: 'VideoManagement:triggerVideoAIFeatures:http',
+        ).timeout(const Duration(seconds: 30));
+      } on TimeoutException catch (e, stackTrace) {
+        // The request may still complete on the server: don't retry automatically (no double order).
+        ErrorHandler.log(e, stackTrace: stackTrace, tag: 'VideoManagement:triggerVideoAIFeatures:timeout');
+        AppSnackbar.info(
+          "This is taking longer than usual. Please check this video's AI status in a minute before trying again.",
         );
+        return;
       }
 
-      // Fallback: update Firestore document directly
-      if (!pipelineTriggered) {
-        final videoDoc = await _firestore.collection('videos').doc(videoId).get();
-        final videoData = videoDoc.data() ?? {};
-        final hasSource = (videoData['subtitles'] != null && (videoData['subtitles'] as Map).isNotEmpty) ||
-            (videoData['media']?['subtitles'] != null && (videoData['media']?['subtitles'] as Map).isNotEmpty) ||
-            (videoData['transcript'] != null && (videoData['transcript'] as String).trim().isNotEmpty) ||
-            (videoData['transcriptionUrl'] != null && (videoData['transcriptionUrl'] as String).trim().isNotEmpty) ||
-            videoData['status'] == 'published';
-
-        final nowMs = DateTime.now().millisecondsSinceEpoch;
-        await _firestore.collection('video_jobs').doc(videoId).set({
-          'jobId': videoId,
-          'videoId': videoId,
-          'userId': currentUser.uid,
-          'channelId': channel?.id ?? currentUser.uid,
-          'status': 'processing',
-          'sourceLanguage': resolvedSourceLang ?? 'en',
-          'primaryLanguage': resolvedSourceLang ?? 'en',
-          'executionPlan': {
-            'languages': targetLanguages,
-            'sourceLanguage': resolvedSourceLang ?? 'en',
-            'primaryLanguage': resolvedSourceLang ?? 'en',
-            'generateSubtitles': features.contains('subtitles'),
-            'generateDubbing': features.contains('dubbing'),
-            'durationSeconds': durationSeconds,
-            'factCheckTier': factCheckTier,
-            'enableCredibility': features.contains('factcheck'),
-            'factCheckEnabled': features.contains('factcheck'),
-            'enableDubbing': features.contains('dubbing'),
-            'enableSubtitles': features.contains('subtitles'),
-            'autoChapters': autoChapters,
-            'priorityMode': priorityMode,
-          },
-          'updatedAt': nowMs,
-          'stages': {
-            if (hasSource)
-              'transcription': {
-                'status': 'completed',
-                'progress': 100,
-                'completedAt': nowMs,
-              },
-            if (features.contains('subtitles'))
-              'subtitles': {
-                'status': 'running',
-                'progress': hasSource ? 35 : 10,
-                'startedAt': nowMs,
-              },
-            'onDemandAI': {
-              'status': 'running',
-              'progress': hasSource ? 35 : 10,
-              'requestedFeatures': features,
-              'requestedLanguages': targetLanguages,
-              'startedAt': nowMs,
-            },
-          },
-        }, SetOptions(merge: true));
-
-        final isPublished = videoData['status'] == 'published' ||
-            videoData['publishedAt'] != null;
-        if (!isPublished) {
-          try {
-            await _firestore.collection('videos').doc(videoId).update({
-              'status': 'processing',
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-          } catch (videoUpdateErr) {
-            ErrorHandler.log(
-              videoUpdateErr,
-              tag: 'VideoManagement:updateVideoStatus',
-            );
-          }
-        }
-
+      if (response.statusCode == 200) {
         AppSnackbar.success(
-          'Pipeline job queued successfully for video.',
+          'AI features generation is underway. Subtitles and audio tracks will update automatically!',
         );
+        return;
       }
-    } catch (e) {
-      ErrorHandler.log(e, tag: 'VideoManagement');
+
+      ErrorHandler.log(
+        'triggerVideoAIFeatures returned HTTP ${response.statusCode}: ${response.body}',
+        tag: 'VideoManagement',
+      );
+      if (response.statusCode == 402) {
+        AppSnackbar.warning(
+          "Your channel balance isn't enough for this request. Please add funds or choose fewer languages, then try again.",
+        );
+      } else if (response.statusCode == 403) {
+        AppSnackbar.warning('Only the owner of this video can generate AI features for it.');
+      } else {
+        AppSnackbar.error("We couldn't start AI features right now. Please try again in a few minutes.");
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'VideoManagement');
       AppSnackbar.error('Unable to initiate AI feature pipeline. Please try again.');
     }
   }

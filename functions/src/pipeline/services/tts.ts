@@ -13,15 +13,43 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { storage } from "firebase-admin";
 import * as streamLib from "stream";
+import * as fs from "fs";
 import { TTSResult, TTSRequest, PronunciationRule } from "../types";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
+import { emitDubbingTiming } from "../utils/dubbing-timing";
 import { createSilentMp3Buffer } from "./media";
 import { normalizeScriptureCitationsForTts, applyTeluguTheologicalLexiconGuard } from "./translation";
 import { expressiveV4Bus } from "./expressiveV4Bus";
+import { applyDubbingStabilityFloor, assertNativeScriptForTts, elevenLabsLanguageCode } from "./dubbing-guards";
+
+// Library voice fallbacks live in voice-fallbacks.ts (dependency-free); re-exported for callers.
+import { getVoiceFallback, isVoiceUnavailableError } from "./voice-fallbacks";
+import { evaluateCloneCapacity, type VoiceCapacity } from "./voice-capacity";
+import { readMaxElevenLabsConcurrency } from "./elevenlabs-plan";
+export { DEFAULT_MAX_ELEVENLABS_CONCURRENCY, readMaxElevenLabsConcurrency } from "./elevenlabs-plan";
+export { registerVoiceFallbacks, getVoiceFallback, isVoiceUnavailableError } from "./voice-fallbacks";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
+
+/** "HTTP 403 voice_not_allowed: <message>" from an axios error, without request headers. */
+export function describeElevenLabsError(err: any): string {
+  const status = err?.response?.status;
+  let data = err?.response?.data;
+  if (Buffer.isBuffer(data)) data = data.toString("utf8");
+  else if (data instanceof ArrayBuffer) data = Buffer.from(data).toString("utf8");
+  if (typeof data === "string") {
+    try { data = JSON.parse(data); } catch { /* plain text body */ }
+  }
+  const detail = data && typeof data === "object" ? (data.detail ?? data) : data;
+  const code = detail && typeof detail === "object" ? (detail.status ?? detail.code ?? detail.type) : undefined;
+  const message = detail && typeof detail === "object"
+    ? (detail.message ?? detail.msg ?? JSON.stringify(detail))
+    : (typeof detail === "string" ? detail : err?.message);
+  const text = String(message ?? "").slice(0, 400);
+  return `${status ? `HTTP ${status}` : "no response"}${code ? ` ${code}` : ""}${text ? `: ${text}` : ""}`;
+}
 
 export interface VoiceDescriptor {
   id: string;
@@ -180,6 +208,111 @@ export const V4_PREMIUM_80_LANGUAGES = new Set([
 
 const MAX_RETRIES = 2; // Retries transient 429/5xx strictly on eleven_v4 (Zero fallback models)
 
+// ── First use of a voice: one line at a time ──────────────────────────────────────────────────────
+// ElevenLabs adds a Voice Library voice to the account on its first use. When several lines of the same
+// new voice are synthesized in parallel, the extra calls fail with 409 "already_running" ("Multiple voice
+// additions/deletions for the same voice were called at the same time"), which failed a whole Hindi dub
+// in testing (2026-11-24). The first call for a voice therefore runs alone; once it has succeeded in this
+// process, further lines of that voice run in parallel as before.
+const warmedVoiceIds = new Set<string>();
+const firstUseQueues = new Map<string, Promise<void>>();
+/** Extra waits (on top of MAX_RETRIES) for a 409 "already_running" voice-add conflict. */
+export const VOICE_ADD_CONFLICT_RETRIES = 4;
+
+export function isVoiceAddConflict(statusCode: unknown, errorBody: unknown): boolean {
+  return statusCode === 409 && typeof errorBody === "string" && errorBody.includes("already_running");
+}
+
+const CLONE_PROBE_TRANSIENT_RETRIES = 3;
+
+/**
+ * Returns true if an ElevenLabs error is transient (rate limit / system_busy 429,
+ * voice-add 409 conflict, 5xx server error, or network timeout with no HTTP response).
+ */
+export function isTransientElevenLabsError(err: any): boolean {
+  const status = err?.response?.status;
+  if (!status) return true;
+  if (status === 429 || (status >= 500 && status < 600)) return true;
+  if (status === 409) {
+    let data = err?.response?.data;
+    if (Buffer.isBuffer(data)) data = data.toString("utf8");
+    else if (data instanceof ArrayBuffer) data = Buffer.from(data).toString("utf8");
+    const bodyStr = typeof data === "string" ? data : JSON.stringify(data ?? "");
+    return isVoiceAddConflict(status, bodyStr);
+  }
+  return false;
+}
+
+function getRetryDelayMs(err: any, attempt: number, baseMs = 1500): number {
+  let delayMs = baseMs * Math.pow(2, attempt) + Math.floor(Math.random() * 500);
+  const retryAfter = err?.response?.headers?.["retry-after"];
+  if (retryAfter) {
+    const parsedSec = parseInt(String(retryAfter), 10);
+    if (!isNaN(parsedSec) && parsedSec > 0) {
+      delayMs = Math.max(delayMs, Math.min(parsedSec * 1000, 30000));
+    }
+  }
+  return delayMs;
+}
+
+export async function retryElevenLabsTransient<T>(
+  opName: string,
+  fn: () => Promise<T>,
+  opts: { maxRetries?: number; baseMs?: number; sleep?: (ms: number) => Promise<void> } = {}
+): Promise<T> {
+  const maxRetries = opts.maxRetries ?? CLONE_PROBE_TRANSIENT_RETRIES;
+  const baseMs = opts.baseMs ?? 1500;
+  const sleepFn = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
+  let lastErr: any;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      if (attempt >= maxRetries || !isTransientElevenLabsError(err)) {
+        throw err;
+      }
+      const delayMs = getRetryDelayMs(err, attempt, baseMs);
+      logger.warn(`[ElevenLabsTTS] Transient error during ${opName} — retrying`, {
+        attempt: attempt + 1,
+        maxRetries,
+        delayMs,
+        err: describeElevenLabsError(err),
+      });
+      await sleepFn(delayMs);
+    }
+  }
+  throw lastErr;
+}
+
+/** Waits until this voice's first call may run. `done(ok)` must be called once the call has finished. */
+export async function acquireVoiceFirstUse(voiceId: string): Promise<(ok: boolean) => void> {
+  if (!voiceId || warmedVoiceIds.has(voiceId)) return () => {};
+  const previous = firstUseQueues.get(voiceId) || Promise.resolve();
+  let release!: () => void;
+  const mine = new Promise<void>((resolve) => (release = resolve));
+  firstUseQueues.set(voiceId, previous.then(() => mine));
+  await previous;
+  if (warmedVoiceIds.has(voiceId)) {
+    release();
+    return () => {};
+  }
+  return (ok: boolean) => {
+    if (ok) {
+      warmedVoiceIds.add(voiceId);
+      firstUseQueues.delete(voiceId);
+    }
+    release();
+  };
+}
+
+/** Test hook: forget which voices have been used. */
+export function resetVoiceFirstUseForTests(): void {
+  warmedVoiceIds.clear();
+  firstUseQueues.clear();
+}
+
 /**
  * Valid inline expressive audio tags supported by ElevenLabs eleven_v4.
  * Non-v4 bracketed noise annotations (e.g. [music], [applause]) are stripped so TTS does not read them aloud.
@@ -201,6 +334,13 @@ export const VALID_ELEVENLABS_AUDIO_TAGS = new Set<string>([
   "pauses",
   "hesitates",
   "stammers",
+  // Intense deliveries (emotion-transfer.ts); eleven_v4 reads these as performance cues
+  "shouting",
+  "screaming",
+  "crying",
+  "distressed",
+  "menacing",
+  "intense",
 ]);
 
 function escapeRegExp(str: string): string {
@@ -306,7 +446,7 @@ export class GlobalTTSConcurrencyManager {
   private static readonly LEASE_DURATION_MS = 30000; // 30s distributed lease TTL
 
   public static getMaxConcurrency(): number {
-    return Math.max(1, parseInt(process.env.ELEVENLABS_MAX_CONCURRENCY || "15", 10));
+    return readMaxElevenLabsConcurrency();
   }
 
   public static getCircuitState(): "CLOSED" | "OPEN" | "HALF_OPEN" {
@@ -724,7 +864,8 @@ export class ElevenLabsTTSService {
 
     let voiceId = request.voiceCloneId || request.voiceId;
 
-    // Check if voiceId is a Google Cloud voice name (e.g. "te-IN-Standard-B" or "en-US-Chirp3-HD-Achernar")
+    // Legacy guard: Google TTS (incl. Chirp 3: HD) is terminated. Voice IDs saved before the switch
+    // (e.g. "te-IN-Standard-B", "en-US-Chirp3-HD-Achernar") are remapped to ElevenLabs defaults so old jobs don't fail.
     const isGoogleVoiceName = voiceId && (
       voiceId.includes("-Standard-") ||
       voiceId.includes("-Chirp") ||
@@ -804,6 +945,10 @@ export class ElevenLabsTTSService {
       };
     }
 
+    // Native-script guard: romanized / mis-encoded Telugu is read with English phonetics.
+    // Fail here, before any credits are spent, so the quality gate halts the dub instead of shipping gibberish.
+    assertNativeScriptForTts(glossarizedText, request.language);
+
     const clamp01 = (v: number): number => Number(Math.max(0, Math.min(1, v)).toFixed(2));
 
     // Expressive v4 Bus dynamic parameterization fallback if not pre-computed
@@ -833,10 +978,15 @@ export class ElevenLabsTTSService {
       initialEmotionTag = initialEmotionTag ?? busResult.emotionTag;
     }
 
-    const resolvedStability =
+    // Every non-English target gets a stability floor: below ~0.5, eleven_v4 drifts in timbre between
+    // takes (one character, several voices) and slurs phonemes outside English.
+    const resolvedStability = applyDubbingStabilityFloor(
       typeof initialStability === "number" && Number.isFinite(initialStability)
         ? clamp01(initialStability)
-        : (request.preferVoiceCloning ? 0.45 : this.defaultVoiceSettings.stability);
+        : (request.preferVoiceCloning ? 0.45 : this.defaultVoiceSettings.stability),
+      request.language,
+      initialEmotionTag
+    );
     const resolvedSimilarity =
       typeof initialSimilarity === "number" && Number.isFinite(initialSimilarity)
         ? clamp01(initialSimilarity)
@@ -849,6 +999,10 @@ export class ElevenLabsTTSService {
       ...(typeof request.style === "number" && Number.isFinite(request.style) ? { style: clamp01(request.style) } : {}),
     };
 
+    // First use of this voice runs alone (see acquireVoiceFirstUse); waits before taking a TTS slot.
+    const finishFirstUse = await acquireVoiceFirstUse(voiceId);
+    let synthesized = false;
+    let voiceAddConflictWaits = 0;
     const releaseSlot = await GlobalTTSConcurrencyManager.acquireSlot();
 
     try {
@@ -862,6 +1016,19 @@ export class ElevenLabsTTSService {
           voice_settings: voiceSettings,
         };
 
+        // Tell ElevenLabs which language it is reading. Without this the model auto-detects, and a short
+        // Telugu line behind an English preset voice and an English audio tag gets English phonetics.
+        // Sent for every language on ElevenLabs' published eleven_v4 list.
+        const languageCode = elevenLabsLanguageCode(request.language);
+        if (languageCode) {
+          payload.language_code = languageCode;
+        } else if (attempt === 0) {
+          logger.warn("[ElevenLabsTTS] Language is not on ElevenLabs' published eleven_v4 list — synthesizing without language_code (auto-detect)", {
+            jobId: request.jobId,
+            language: request.language,
+          });
+        }
+
         // Context windowing: pass non-billed preceding & succeeding context to eliminate cadence cuts
         if (request.previousText && request.previousText.trim().length > 0) {
           payload.previous_text = request.previousText.trim().slice(-450);
@@ -871,6 +1038,7 @@ export class ElevenLabsTTSService {
         }
 
         try {
+          const tElReq = Date.now();
           const response = await axios.post(
             `${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`,
             payload,
@@ -887,6 +1055,19 @@ export class ElevenLabsTTSService {
             }
           );
 
+          const concurrentRaw = response.headers?.["current-concurrent-requests"];
+          const maxConcurrentRaw = response.headers?.["maximum-concurrent-requests"];
+          emitDubbingTiming("tts.elevenlabs_request", tElReq, {
+            jobId: request.jobId,
+            lang: request.language,
+            segmentIndex: request.segmentIndex ?? null,
+            voiceId,
+            model: currentModel,
+            textLength: request.text.length,
+            concurrentRequests: concurrentRaw !== undefined ? Number(concurrentRaw) : null,
+            maxConcurrentRequests: maxConcurrentRaw !== undefined ? Number(maxConcurrentRaw) : null,
+          });
+
           if (!response.data || (response.data.byteLength !== undefined && response.data.byteLength === 0)) {
             throw new Error("[ElevenLabsTTS] Empty audio response from ElevenLabs");
           }
@@ -898,6 +1079,7 @@ export class ElevenLabsTTSService {
           const file = bucket.file(filePath);
 
           // ⚡ Low latency: resumable: false performs direct single-shot PUT upload for small chunks
+          const tElUpload = Date.now();
           await file.save(response.data, {
             resumable: false,
             metadata: {
@@ -910,6 +1092,12 @@ export class ElevenLabsTTSService {
                 isVoiceClone: String(Boolean(request.voiceCloneId || request.preferVoiceCloning)),
               },
             },
+          });
+          emitDubbingTiming("tts.chunk_upload", tElUpload, {
+            jobId: request.jobId,
+            lang: request.language,
+            segmentIndex: request.segmentIndex ?? null,
+            bytes: response.data.byteLength,
           });
 
           const audioUrl = `gs://${bucket.name}/${filePath}`;
@@ -927,6 +1115,7 @@ export class ElevenLabsTTSService {
             bytes: response.data.byteLength,
           });
 
+          synthesized = true;
           return {
             jobId: request.jobId,
             language: request.language,
@@ -966,6 +1155,18 @@ export class ElevenLabsTTSService {
             voiceId,
           });
 
+          const fallbackVoiceId = getVoiceFallback(request.jobId, voiceId);
+          if (fallbackVoiceId && isVoiceUnavailableError(statusCode, errorBody)) {
+            logger.warn("[ElevenLabsTTS] Library voice unavailable — switching this speaker to the preset fallback voice", {
+              jobId: request.jobId,
+              language: request.language,
+              unavailableVoiceId: voiceId,
+              fallbackVoiceId,
+            });
+            voiceId = fallbackVoiceId;
+            continue;
+          }
+
           const isQuota = statusCode === 401 && (
             errorBody.includes("quota_exceeded") ||
             errorBody.includes("credits remaining")
@@ -976,6 +1177,22 @@ export class ElevenLabsTTSService {
             (quotaErr as any).isQuota = true;
             (quotaErr as any).code = "QUOTA_EXCEEDED";
             throw quotaErr;
+          }
+
+          // 409 "already_running": ElevenLabs is still adding this library voice to the account. Wait
+          // and repeat the same attempt (does not use up MAX_RETRIES).
+          if (isVoiceAddConflict(statusCode, errorBody) && voiceAddConflictWaits < VOICE_ADD_CONFLICT_RETRIES) {
+            const waitMs = 1500 * Math.pow(2, voiceAddConflictWaits) + Math.floor(Math.random() * 500);
+            voiceAddConflictWaits++;
+            logger.warn("[ElevenLabsTTS] Voice is still being added to the account (409 already_running) — waiting before retry", {
+              jobId: request.jobId,
+              voiceId,
+              wait: voiceAddConflictWaits,
+              waitMs,
+            });
+            await new Promise((r) => setTimeout(r, waitMs));
+            attempt--;
+            continue;
           }
 
           const isRateLimitOrConcurrency = statusCode === 429 || (
@@ -1021,6 +1238,7 @@ export class ElevenLabsTTSService {
       throw new Error("[ElevenLabsTTS] Synthesize failed after all retries");
     } finally {
       releaseSlot();
+      finishFirstUse(synthesized);
     }
   }
 
@@ -1050,19 +1268,44 @@ export class ElevenLabsTTSService {
       const resp = await axios.get(audioUrl, { responseType: "arraybuffer", timeout: 30000 });
       audioBuffer = Buffer.from(resp.data);
     }
+    return this.cloneVoiceFromBuffer(name, audioBuffer, apiKey);
+  }
 
-    const formData = new FormData();
-    formData.append("name", name);
-    formData.append("description", `TruthWorld voice clone for ${name}`);
-    const blob = new Blob([new Uint8Array(audioBuffer)], { type: "audio/mpeg" });
-    formData.append("files", blob, "sample.mp3");
+  /**
+   * Clones a voice from a local audio file (MP3). Used by per-speaker cloning, whose samples are cut
+   * from the vocal stem on this machine and never uploaded to storage.
+   */
+  async cloneVoiceFromFile(name: string, filePath: string): Promise<string> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error("[ElevenLabsTTS] API key missing for voice cloning");
+    }
+    const audioBuffer = await fs.promises.readFile(filePath);
+    return this.cloneVoiceFromBuffer(name, audioBuffer, apiKey);
+  }
 
-    const response = await axios.post(`${ELEVENLABS_BASE_URL}/voices/add`, formData, {
-      headers: {
-        "xi-api-key": apiKey,
-      },
-      timeout: 60000,
-    });
+  private async cloneVoiceFromBuffer(name: string, audioBuffer: Buffer, apiKey: string): Promise<string> {
+    let response: any;
+    try {
+      response = await retryElevenLabsTransient(`cloneVoice(${name})`, () => {
+        const formData = new FormData();
+        formData.append("name", name);
+        formData.append("description", `TruthWorld voice clone for ${name}`);
+        const blob = new Blob([new Uint8Array(audioBuffer)], { type: "audio/mpeg" });
+        formData.append("files", blob, "sample.mp3");
+
+        return axios.post(`${ELEVENLABS_BASE_URL}/voices/add`, formData, {
+          headers: {
+            "xi-api-key": apiKey,
+          },
+          timeout: 60000,
+        });
+      });
+    } catch (err: any) {
+      // Keep ElevenLabs' own reason (e.g. detail.status / detail.message) so a refused clone can be
+      // understood from the log. The API key is never part of the message.
+      throw new Error(`[ElevenLabsTTS] Voice clone refused: ${describeElevenLabsError(err)}`);
+    }
 
     if (!response.data || !response.data.voice_id) {
       throw new Error("[ElevenLabsTTS] Voice cloning failed: missing voice_id in response");
@@ -1071,6 +1314,31 @@ export class ElevenLabsTTSService {
     const voiceId: string = response.data.voice_id;
     logger.info("[ElevenLabsTTS] ✅ Instant voice clone created", { name, voiceId });
     return voiceId;
+  }
+
+  /**
+   * Speaks one short line with a voice and discards the audio, to learn straight after cloning
+   * whether ElevenLabs will let the account use it (e.g. HTTP 401 detected_captcha_voice: "This
+   * voice requires verification"). Costs the characters of `text` only.
+   */
+  async probeVoice(voiceId: string, text: string, languageCode?: string): Promise<{ ok: boolean; reason?: string }> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) return { ok: false, reason: "API key missing" };
+    try {
+      const payload: Record<string, unknown> = { text, model_id: TTS_MODELS.v4 };
+      if (languageCode) payload.language_code = languageCode;
+      await retryElevenLabsTransient(`probeVoice(${voiceId})`, () =>
+        axios.post(`${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`, payload, {
+          headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+          params: { output_format: "mp3_22050_32" },
+          responseType: "arraybuffer",
+          timeout: 30000,
+        })
+      );
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, reason: describeElevenLabsError(err) };
+    }
   }
 
   /**
@@ -1124,6 +1392,23 @@ export class ElevenLabsTTSService {
       status: data.status || "active",
     };
   }
+
+  /** Raw subscription payload from GET /v1/user/subscription (0 characters / $0.00 cost). */
+  async getRawSubscription(): Promise<Record<string, unknown>> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) throw new Error("[ElevenLabsTTS] No ElevenLabs API key configured in environment");
+    const response = await axios.get(`${ELEVENLABS_BASE_URL}/user/subscription`, {
+      headers: { "xi-api-key": apiKey },
+      timeout: 10000,
+    });
+    return (response.data || {}) as Record<string, unknown>;
+  }
+
+  /** Voice slots and monthly add/edit operations left (GET /v1/user/subscription). */
+  async getVoiceCapacity(): Promise<VoiceCapacity> {
+    const data = await this.getRawSubscription();
+    return evaluateCloneCapacity(data);
+  }
 }
 
 export class TTSService {
@@ -1134,6 +1419,16 @@ export class TTSService {
     elevenLabsTts?: ElevenLabsTTSService
   ) {
     this.elevenLabsTts = elevenLabsTts || new ElevenLabsTTSService();
+  }
+
+  /** Raw ElevenLabs subscription object for pre-order capacity checks. */
+  public async getRawSubscription(): Promise<Record<string, unknown>> {
+    return this.elevenLabsTts.getRawSubscription();
+  }
+
+  /** Whether another creator voice clone fits on the ElevenLabs plan right now. */
+  public async getVoiceCapacity(): Promise<VoiceCapacity> {
+    return this.elevenLabsTts.getVoiceCapacity();
   }
 
   public async verifyElevenLabsConnection(): Promise<{
@@ -1183,6 +1478,14 @@ export class TTSService {
     return this.elevenLabsTts.cloneVoice(name, audioUrl);
   }
 
+  public async cloneVoiceFromFile(name: string, filePath: string): Promise<string> {
+    return this.elevenLabsTts.cloneVoiceFromFile(name, filePath);
+  }
+
+  public async probeVoice(voiceId: string, text: string, languageCode?: string): Promise<{ ok: boolean; reason?: string }> {
+    return this.elevenLabsTts.probeVoice(voiceId, text, languageCode);
+  }
+
   public async deleteVoice(voiceId: string): Promise<boolean> {
     return this.elevenLabsTts.deleteVoice(voiceId);
   }
@@ -1191,22 +1494,18 @@ export class TTSService {
 export const elevenLabsTtsService = new ElevenLabsTTSService();
 export const ttsService = new TTSService();
 
-export const DEFAULT_MAX_ELEVENLABS_CONCURRENCY = 15;
 
 /**
  * Adaptive TTS batch size: maximizes ElevenLabs concurrency per video duration
  * while strictly adhering to provider concurrency limits to prevent HTTP 429 cascades.
  *
- * Concurrency tier ceilings:
- *   - Creator tier: 5
- *   - Pro tier: 10
- *   - Scale tier: 15 (default)
- *   - Business/Enterprise tier: 30+ (via ELEVENLABS_MAX_CONCURRENCY)
+ * Concurrency ceilings (eleven_v4): Starter 3 (default), Creator 5, Pro 10, Scale/Business 15;
+ * set ELEVENLABS_MAX_CONCURRENCY to match the plan.
  */
 export function getAdaptiveTTSBatchSize(
   segmentCount: number,
   videoDurationMs: number,
-  maxConcurrency: number = parseInt(process.env.ELEVENLABS_MAX_CONCURRENCY || "15", 10)
+  maxConcurrency: number = readMaxElevenLabsConcurrency()
 ): number {
   const cap = Math.max(1, maxConcurrency);
   if (videoDurationMs <= 0) return Math.min(25, cap);

@@ -18,26 +18,47 @@ class CrossAppLauncher {
   static const String studioPackage = 'com.truthworld.studio';
   static const String adminPackage = 'com.truthworld.admin';
   static const String advertiserPackage = 'com.truthworld.advertiser';
+  static const String dubbingPackage = 'com.truthworld.dubbing';
 
   // Custom URI schemes
   static const String consumerScheme = 'truthworld';
   static const String studioScheme = 'truthworldstudio';
   static const String adminScheme = 'truthworldadmin';
   static const String advertiserScheme = 'truthworldads';
+  static const String dubbingScheme = 'truthworlddubbing';
 
   // Web production URLs
   static const String consumerWebProduction = 'https://www.truthworld.in';
   static const String consumerWebFallback = 'https://truthworld.in';
 
+  static const bool _isStaging =
+      String.fromEnvironment('FIREBASE_ENV') == 'staging';
+  static const String _stagingProjectId = String.fromEnvironment(
+    'STAGING_PROJECT_ID',
+    defaultValue: 'truthworld-staging',
+  );
+
   static const String studioWebProduction = 'https://studio.truthworld.in';
   static const String studioWebAlternative = 'https://www.truthworld.in/studio';
-  static const String studioWebFallback = 'https://truthworld-1-studio.web.app/';
+  static const String studioWebFallback = _isStaging
+      ? 'https://$_stagingProjectId-studio.web.app/'
+      : 'https://truthworld-1-studio.web.app/';
 
   static const String adminWebProduction = 'https://admin.truthworld.in';
-  static const String adminWebFallback = 'https://truthworld-1-admin.web.app/';
+  static const String adminWebFallback = _isStaging
+      ? 'https://$_stagingProjectId-admin.web.app/'
+      : 'https://truthworld-1-admin.web.app/';
 
   static const String advertiserWebProduction = 'https://ads.truthworld.in';
-  static const String advertiserWebFallback = 'https://truthworld-1-ads.web.app/';
+  static const String advertiserWebFallback = _isStaging
+      ? 'https://$_stagingProjectId-ads.web.app/'
+      : 'https://truthworld-1-ads.web.app/';
+
+  static const String dubbingWebProduction = 'https://dubbing.truthworld.in';
+  static const String dubbingWebAlternative = 'https://www.truthworld.in/dubbing';
+  static const String dubbingWebFallback = _isStaging
+      ? 'https://$_stagingProjectId-dubbing.web.app/'
+      : 'https://truthworld-1-dubbing.web.app/';
 
   /// Returns the Android package name for the target [flavor].
   static String getPackageName(AppFlavor flavor) {
@@ -48,6 +69,8 @@ class CrossAppLauncher {
         return adminPackage;
       case AppFlavor.advertiser:
         return advertiserPackage;
+      case AppFlavor.dubbing:
+        return dubbingPackage;
       case AppFlavor.app:
         return consumerPackage;
     }
@@ -62,6 +85,8 @@ class CrossAppLauncher {
         return adminScheme;
       case AppFlavor.advertiser:
         return advertiserScheme;
+      case AppFlavor.dubbing:
+        return dubbingScheme;
       case AppFlavor.app:
         return consumerScheme;
     }
@@ -76,6 +101,8 @@ class CrossAppLauncher {
         return adminWebProduction;
       case AppFlavor.advertiser:
         return advertiserWebProduction;
+      case AppFlavor.dubbing:
+        return dubbingWebProduction;
       case AppFlavor.app:
         return consumerWebProduction;
     }
@@ -86,6 +113,8 @@ class CrossAppLauncher {
     switch (flavor) {
       case AppFlavor.studio:
         return studioWebAlternative;
+      case AppFlavor.dubbing:
+        return dubbingWebAlternative;
       case AppFlavor.admin:
       case AppFlavor.advertiser:
       case AppFlavor.app:
@@ -102,6 +131,8 @@ class CrossAppLauncher {
         return adminWebFallback;
       case AppFlavor.advertiser:
         return advertiserWebFallback;
+      case AppFlavor.dubbing:
+        return dubbingWebFallback;
       case AppFlavor.app:
         return consumerWebFallback;
     }

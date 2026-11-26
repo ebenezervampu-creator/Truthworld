@@ -4,6 +4,15 @@ import { translationService } from "../../src/pipeline/services/translation";
 import { WordTimestamp } from "../../src/pipeline/types";
 
 describe("⚡ 5-Pillar Subtitle Architecture & Edge Case Hardening Benchmark", () => {
+  // These tests cover the legacy translation path (Translation LLM + Adaptive MT, reuse of
+  // pre-translated dub text). The hybrid path is covered in tests/pipeline/netflix_subtitles.test.ts.
+  const previousMode = process.env.DUBBING_TRANSLATION_MODE;
+  beforeAll(() => { process.env.DUBBING_TRANSLATION_MODE = "legacy"; });
+  afterAll(() => {
+    if (previousMode === undefined) delete process.env.DUBBING_TRANSLATION_MODE;
+    else process.env.DUBBING_TRANSLATION_MODE = previousMode;
+  });
+
   // ─── PILLAR 1: Word-Level Anchor Cache & Sentence Extraction ────────────
   describe("Pillar 1: Word-Level Anchor Cache", () => {
     it("extracts grammatical sentences while preserving compound words with hyphens", () => {

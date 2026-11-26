@@ -23,19 +23,17 @@ import {
 } from "../types";
 import { FactExtractionService }   from "../services/factExtraction";
 import { ClaimVerificationService } from "../services/claimVerification";
-import { ScoringEngine }           from "../services/scoringEngine";
 import { DistributionLayer }       from "./04-distribution";
 import { EdgeLayer }               from "./01-edge";
 import { aggregationLayer }        from "./09-aggregation";
 import { PerformanceLayer }        from "./10-performance";
 import { logger }                  from "../utils/logger";
 import { alerting }                from "../utils/alerting";
-import { isDeepResearchEnabled }   from "../config";
-// import { reputationService }       from "../services/reputationService";
+import { isDeepResearchEnabled, PIPELINE_CONFIG }   from "../config";
+import { getVertexAI }              from "../utils/ai-client";
 import { contentIntentDetector }    from "../services/contentIntentDetector";
-import { speakerTrustEngine }       from "../services/speakerTrustEngine";
+import { computeSpeakerBreakdown }  from "../services/speakerBreakdown";
 import { SpeakerRegistryService }    from "../services/speakerRegistry";
-import { SpeakerReputationService }  from "../services/speakerReputationService";
 import { sourceTrustService } from "../services/sourceTrustService";
 import { tier0KnowledgeService } from "../services/tier0Knowledge";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
@@ -45,7 +43,8 @@ import {
   sanitizeReportPayloadForClosedWorld,
 } from "../services/urlVerificationService";
 import { costEngine } from "../services/cost-engine";
-import { JobTokenTracker, normalizeToGcsUri } from "../utils/ai-utils";
+import { isVideoId, safeMergeExistingVideo } from "../../utils/videosCollectionGuard";
+import { JobTokenTracker, normalizeToGcsUri, extractCandidateText } from "../utils/ai-utils";
 import { SourceAvatarService } from "../services/sourceAvatarService";
 import { StreamingClaimProcessor } from "../services/streamingClaimProcessor";
 import { VerificationCascadeService } from "../services/verificationCascadeService";
@@ -55,6 +54,8 @@ import {
   FactcheckDiagnosticTracker,
   FactcheckPipelineError,
 } from "./credibilityDiagnostics";
+import { auditCredibilityReport, ReportQualityAudit } from "../services/reportQualityAudit";
+import { applyVerdictGateToReport } from "../services/verdictGate";
 import {
   DiarizedUtterance,
   ExtractedClaim as ModernExtractedClaim,
@@ -89,6 +90,79 @@ function truncateSnippet(text: string, maxChars = MAX_SNIPPET_CHARS): string {
   return `${cleaned.slice(0, maxChars - 3)}...`;
 }
 
+function getClaimSearchText(c: any): string {
+  return (c?.normalizedClaim || c?.claim || c?.text || c?.displayLabel || "").trim();
+}
+
+/**
+ * Resolves concise English search queries for multilingual / regional claims (e.g. Telugu, Hindi)
+ * in a single, fast, ultra-low-cost Gemini Flash-Lite batch call before querying English-indexed
+ * encyclopedia and academic databases (Wikipedia, PubMed, Crossref).
+ */
+async function batchResolveMultilingualSearchQueries(
+  claims: Array<ModernExtractedClaim | FilteredClaim>
+): Promise<Map<string, string>> {
+  const queryMap = new Map<string, string>();
+  const nonAsciiClaims = claims.filter((c) => {
+    const text = getClaimSearchText(c);
+    return /[^\x00-\x7F]/.test(text);
+  });
+
+  if (nonAsciiClaims.length === 0) return queryMap;
+
+  // In test environment without Vertex AI, extract bracketed English tokens if present
+  if (process.env.NODE_ENV === "test") {
+    for (const c of nonAsciiClaims) {
+      const text = getClaimSearchText(c);
+      const englishMatch = text.match(/\/\s*([A-Za-z0-9\s]+)\]/);
+      queryMap.set(c.claimId, englishMatch ? englishMatch[1].trim() : text);
+    }
+    return queryMap;
+  }
+
+  try {
+    const ai = getVertexAI();
+    const modelId = PIPELINE_CONFIG?.GEMINI_MODELS?.queryDecomposition || "gemini-3.5-flash-lite";
+    const model = ai.getGenerativeModel({
+      model: modelId,
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.1,
+        maxOutputTokens: 1024,
+      },
+    });
+
+    const prompt = `Convert the following non-English factual claims into concise 3-8 word English search queries suitable for Wikipedia/PubMed search.
+Claims to convert:
+${nonAsciiClaims.map((c) => `[ID: ${c.claimId}] "${getClaimSearchText(c)}"`).join("\n")}
+
+Respond ONLY with valid JSON:
+{
+  "queries": [
+    { "claimId": "string", "englishQuery": "concise English search keywords" }
+  ]
+}`;
+
+    const res = await model.generateContent(prompt);
+    const text = extractCandidateText(res?.candidates?.[0] || res?.response?.candidates?.[0]) || (typeof res?.text === "string" ? res.text : "");
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed.queries)) {
+        for (const q of parsed.queries) {
+          if (q.claimId && typeof q.englishQuery === "string" && q.englishQuery.trim()) {
+            queryMap.set(q.claimId, q.englishQuery.trim());
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    logger.warn("[Credibility] Multilingual query decomposition fallback", { err: err?.message });
+  }
+
+  return queryMap;
+}
+
 /**
  * Layer 06C: Queries PubMed, Crossref, and Wikipedia in parallel for uncached claims,
  * deduplicates URIs, and builds a closed-world VerifiedSource[] catalog with passage snippets.
@@ -99,11 +173,15 @@ export async function gatherLayer06CEvidence(
   const verifiable = claims.filter((c) => (c as any).requiresVerification !== false);
   if (verifiable.length === 0) return [];
 
+  const multilingualQueries = await batchResolveMultilingualSearchQueries(verifiable);
+
   const retrievalTasks = verifiable.flatMap((claim) => {
-    const claimText = (claim as any).normalizedClaim || (claim as any).text || "";
+    const claimText = getClaimSearchText(claim);
     const claimDomain = (claim as any).domain || "";
+    const englishQuery = multilingualQueries.get(claim.claimId) || claimText;
+
     const tasks: Promise<RawProviderHit[]>[] = [
-      wikipediaAdapter.searchPassages(claimText, { limit: 2 }).then((hits) =>
+      wikipediaAdapter.searchPassages(englishQuery, { limit: 2 }).then((hits) =>
         hits.map((h) => ({
           title: h.title,
           uri: h.url,
@@ -114,13 +192,29 @@ export async function gatherLayer06CEvidence(
       ),
     ];
 
+    // If query was non-English and we have an English query, also attempt regional language search if relevant
+    if (englishQuery !== claimText && /[^\x00-\x7F]/.test(claimText)) {
+      tasks.push(
+        wikipediaAdapter.searchPassages(claimText, { limit: 1 }).then((hits) =>
+          hits.map((h) => ({
+            title: h.title,
+            uri: h.url,
+            passage: h.extract,
+            provider: "WIKIPEDIA" as EvidenceProvider,
+            claimId: claim.claimId,
+          }))
+        )
+      );
+    }
+
     // Route biomedical and quantitative claims to PubMed & Crossref
     if (
       claimDomain === "HEALTH_MEDICAL" ||
-      /\d+%|\bstudy\b|\btrial\b|\bclinical\b|\bvaccine\b|\bdrug\b|\bdisease\b/i.test(claimText)
+      /\d+%|\bstudy\b|\btrial\b|\bclinical\b|\bvaccine\b|\bdrug\b|\bdisease\b/i.test(claimText) ||
+      /\d+%|\bstudy\b|\btrial\b|\bclinical\b|\bvaccine\b|\bdrug\b|\bdisease\b/i.test(englishQuery)
     ) {
       tasks.push(
-        pubmedAdapter.searchAbstracts(claimText, { limit: 2 }).then((hits) =>
+        pubmedAdapter.searchAbstracts(englishQuery, { limit: 2 }).then((hits) =>
           hits.map((h) => ({
             title: h.title,
             uri: `https://pubmed.ncbi.nlm.nih.gov/${h.pmid}/`,
@@ -129,7 +223,7 @@ export async function gatherLayer06CEvidence(
             claimId: claim.claimId,
           }))
         ),
-        crossrefAdapter.searchWorks(claimText, { limit: 2 }).then((hits) =>
+        crossrefAdapter.searchWorks(englishQuery, { limit: 2 }).then((hits) =>
           hits.map((h) => ({
             title: h.title,
             uri: h.doiUrl,
@@ -144,10 +238,11 @@ export async function gatherLayer06CEvidence(
     // Route macroeconomic and quantitative financial claims to World Bank and FRED
     if (
       claimDomain === "MACROECONOMICS_FINANCE" ||
-      /\b(inflation|cpi|gdp|unemployment|interest rate|fed funds|treasury|recession)\b/i.test(claimText)
+      /\b(inflation|cpi|gdp|unemployment|interest rate|fed funds|treasury|recession)\b/i.test(claimText) ||
+      /\b(inflation|cpi|gdp|unemployment|interest rate|fed funds|treasury|recession)\b/i.test(englishQuery)
     ) {
       tasks.push(
-        worldBankAdapter.searchIndicators(claimText).then((hits) =>
+        worldBankAdapter.searchIndicators(englishQuery).then((hits) =>
           hits.map((h) => ({
             title: h.title,
             uri: h.url,
@@ -156,7 +251,7 @@ export async function gatherLayer06CEvidence(
             claimId: claim.claimId,
           }))
         ),
-        fredAdapter.searchObservations(claimText).then((hits) =>
+        fredAdapter.searchObservations(englishQuery).then((hits) =>
           hits.map((h) => ({
             title: h.title,
             uri: h.url,
@@ -175,7 +270,7 @@ export async function gatherLayer06CEvidence(
       (claim as any).requiresLiveWeb === false
     ) {
       tasks.push(
-        wikidataAdapter.searchEntities(claimText).then((hits) =>
+        wikidataAdapter.searchEntities(englishQuery).then((hits) =>
           hits.map((h) => ({
             title: h.title,
             uri: h.url,
@@ -258,6 +353,72 @@ export async function runLayer06CredibilityPipeline(params: {
 }
 
 const db = () => admin.firestore();
+
+/**
+ * Adds `transcriptExcerpt` (the words actually spoken between a claim's start and end,
+ * ±2 s) to each claim. Utterance and claim timestamps share the same unit (ms).
+ */
+function attachTranscriptExcerpts<T extends { start?: number; end?: number }>(claims: T[], utterances: Array<{ text?: string; start?: number; end?: number }>): T[] {
+  if (!Array.isArray(utterances) || utterances.length === 0) return claims;
+  const PAD = 2000;
+  return claims.map((c) => {
+    if (typeof c.start !== "number") return c;
+    const from = c.start - PAD;
+    const to = (typeof c.end === "number" && c.end > c.start ? c.end : c.start + 10000) + PAD;
+    const words = utterances
+      .filter((u) => typeof u.start === "number" && typeof u.end === "number" && (u.end as number) >= from && (u.start as number) <= to)
+      .map((u) => String(u.text || "").trim())
+      .filter(Boolean)
+      .join(" ");
+    return words ? ({ ...c, transcriptExcerpt: words.slice(0, 2000) } as T) : c;
+  });
+}
+
+/**
+ * Grades a finished report and records the outcome. Never throws and never blocks
+ * publishing: a quality problem must be visible to the team, not hide the report.
+ *  - Structured log line `TRUTHWORLD_CREDIBILITY_QUALITY` → create a log-based metric
+ *    on jsonPayload.grade / jsonPayload.checkIds and alert when FAIL rate rises.
+ *  - Firestore `credibility_quality_audits/{jobId}` → review queue for FAIL/WARN reports.
+ */
+async function recordReportQualityAudit(
+  jobId: string,
+  videoId: string | undefined,
+  report: any
+): Promise<ReportQualityAudit | undefined> {
+  try {
+    const audit = auditCredibilityReport(report);
+    const logPayload = {
+      event: "TRUTHWORLD_CREDIBILITY_QUALITY",
+      jobId,
+      videoId,
+      grade: audit.grade,
+      checkIds: audit.checks.map((c) => `${c.id}:${c.severity}`),
+      ...audit.metrics,
+    };
+    if (audit.grade === "FAIL") {
+      logger.warn("[CredibilityQuality] Report failed output quality audit", logPayload);
+    } else {
+      logger.info("[CredibilityQuality] Report output quality audit", logPayload);
+    }
+    await db().collection("credibility_quality_audits").doc(jobId).set({
+      ...audit,
+      jobId,
+      videoId: videoId || null,
+      reviewStatus: audit.grade === "PASS" ? "not_required" : "pending",
+      updatedAt: Date.now(),
+      // A freshly published report has freshly checked evidence; the daily
+      // evidenceFreshnessSweep re-checks the oldest ones first.
+      lastEvidenceCheckAt: Date.now(),
+    }, { merge: true }).catch((err) => {
+      logger.warn("[CredibilityQuality] Could not persist quality audit (non-fatal)", { jobId, err: String(err) });
+    });
+    return audit;
+  } catch (err) {
+    logger.warn("[CredibilityQuality] Quality audit skipped (non-fatal)", { jobId, err: String(err) });
+    return undefined;
+  }
+}
 
 // Distributed Circuit Breaker state (backed by Firestore with local 5s TTL read cache)
 const recentFailureTimestamps: number[] = [];
@@ -363,21 +524,17 @@ const MIN_HIT_RATE = 0.30;
 export class CredibilityEngine {
   private readonly extractionService:   FactExtractionService;
   private readonly verificationService: ClaimVerificationService;
-  public readonly scoringEngine:        ScoringEngine;
   private readonly distribution:        DistributionLayer;
   private readonly performanceLayer:    PerformanceLayer;
   private readonly speakerRegistry:     SpeakerRegistryService;   // v7
-  private readonly speakerReputation:   SpeakerReputationService; // v7
   private readonly analysisRepository:  AnalysisRepository;
 
   constructor(geminiApiKey: string, analysisRepository?: AnalysisRepository) {
     this.extractionService   = new FactExtractionService(geminiApiKey);
     this.verificationService = new ClaimVerificationService(geminiApiKey, 0.6);
-    this.scoringEngine       = new ScoringEngine();
     this.distribution        = new DistributionLayer();
     this.performanceLayer    = new PerformanceLayer();
     this.speakerRegistry     = new SpeakerRegistryService();
-    this.speakerReputation   = new SpeakerReputationService();
     this.analysisRepository  = analysisRepository || getAnalysisRepository();
   }
 
@@ -713,6 +870,10 @@ export class CredibilityEngine {
       speakerIdentities = await this.resolveSpeakerIdentities(jobId, jobData?.channelId || "unknown", transcript, {}).catch(() => ({}));
     }
 
+    // Attach the verbatim transcript words spoken at each claim's timestamp. The verdict
+    // gate uses them to prove an "Opinion & Belief" label with a real quote from the video.
+    rawClaims = attachTranscriptExcerpts(rawClaims, transcript.utterances ?? []);
+
     const contentIntent = contentIntentDetector.detectIntent(
       transcript.utterances ?? [],
       domainInfo
@@ -836,6 +997,28 @@ export class CredibilityEngine {
       }
     } catch (e) {
       logger.warn("[Credibility] Could not fetch community claim_sources", { jobId, targetVideoId, error: (e as any)?.message });
+    }
+
+    // Reviewer-approved community/creator evidence lives in the top-level `claim_sources`
+    // review queue (see communityEvidenceService). Only approved links are used; pending
+    // or rejected submissions never reach the fact-check.
+    try {
+      const approvedSnap = await db().collection("claim_sources").where("videoId", "==", targetVideoId).get();
+      approvedSnap.docs.forEach((doc) => {
+        const data = doc.data() || {};
+        if (data.status !== "approved_pending_rerun" && data.status !== "applied") return;
+        const urls: string[] = Array.isArray(data.urls) ? data.urls : data.url ? [data.url] : [];
+        for (const raw of urls) {
+          try {
+            const parsed = new URL(String(raw).trim());
+            if (parsed.protocol === "https:" && !communitySources.includes(parsed.href)) communitySources.push(parsed.href);
+          } catch {
+            continue;
+          }
+        }
+      });
+    } catch (e) {
+      logger.warn("[Credibility] Could not fetch approved community evidence", { jobId, targetVideoId, error: (e as any)?.message });
     }
 
     const rawCreatorSources = Array.from(new Set([...rawProvidedSources, ...disputeSources])).filter(s => typeof s === 'string' && s.trim().length > 0);
@@ -1016,8 +1199,8 @@ export class CredibilityEngine {
     };
 
     const confirmedCount = allVerified.filter(c => c.status === 'verified_true' || c.status === 'mostly_true' || c.status === 'correct' || c.status === 'mostly_correct').length;
-    const disputedCount = allVerified.filter(c => c.status === 'disputed' || c.status === 'inconclusive' || c.status === 'limited_support' || c.status === 'contested_interpretation').length;
-    const falseCount = allVerified.filter(c => c.status === 'false_claim' || c.status === 'incorrect' || c.status === 'verified_false' || c.status === 'historical_consensus_denial' || c.status === 'misleading').length;
+    const disputedCount = allVerified.filter(c => c.status === 'disputed' || c.status === 'inconclusive' || c.status === 'limited_support' || c.status === 'contested_interpretation' || c.status === 'misleading' || c.status === 'needs_context' || c.status === 'rhetorical_exaggeration' || c.status === 'partially_true' || c.status === 'outdated').length;
+    const falseCount = allVerified.filter(c => c.status === 'false_claim' || c.status === 'incorrect' || c.status === 'verified_false' || c.status === 'historical_consensus_denial' || c.status === 'incorrect_citation').length;
     const unprovenCount = allVerified.filter(c => c.status === 'unproven' || c.status === 'unsupported' || c.status === 'verification_timeout').length;
     const contextualCount = allVerified.filter(c => c.status === 'opinion_claim' || c.status === 'religious_belief' || c.status === 'satire_claim' || c.status === 'faith_based_claim' || c.status === 'not_historically_verifiable').length;
     const totalClaimsChecked = allVerified.length;
@@ -1151,7 +1334,13 @@ export class CredibilityEngine {
     const initialSources: any[] = [];
     const seenInitSourceKeys = new Set<string>();
     for (const c of allVerified) {
-      const sList = (c as any).sources || (c as any).richSources || (c as any).effectiveSources || [];
+      // claim.sources is a list of title STRINGS after the citation firewall; the URL-bearing
+      // objects live in richSources. Reading `sources` first meant every key was "" and the
+      // video-level source list started empty.
+      const rich = Array.isArray((c as any).richSources) ? (c as any).richSources : [];
+      const sList = rich.length > 0
+        ? rich
+        : ((c as any).effectiveSources || (c as any).sources || []).filter((s: any) => s && typeof s === "object");
       for (const s of sList) {
         const k = (s.url || s.domain || s.title || "").toLowerCase();
         if (k && !seenInitSourceKeys.has(k)) {
@@ -1191,7 +1380,7 @@ export class CredibilityEngine {
       speakerRoles: {},
     };
 
-    const speakerBreakdowns = speakerTrustEngine.computeSpeakerMetrics(allVerified, synthesis.speakerRoles);
+    const speakerBreakdowns = computeSpeakerBreakdown(allVerified, synthesis.speakerRoles);
     logger.info("[Credibility] Speaker metrics computed", { jobId, speakerCount: speakerBreakdowns.length });
 
     return { synthesis, speakerBreakdowns, synthesisTier };
@@ -1261,15 +1450,12 @@ export class CredibilityEngine {
 
     const result: CredibilityResult = {
       analysisState:    'VERIFIED' as any,
-      scoreAvailable:   false,
       analysisFailureReason: undefined,
       viewerNote:       synthesis.viewerNote,
       uiReport:         undefined,
-      trustLabel:       'Not Scored' as any,
       confidence:       0,
       confidenceTier:   'low' as any,
       
-      factors:          null,
       chapters:         synthesis.chapters || [],
       speakers:         speakerBreakdowns,
       speakerIdentities,
@@ -1278,16 +1464,9 @@ export class CredibilityEngine {
       sources:          aggregatedSources,
       richSources:      aggregatedSources as any,
       
-      deductions:       [],
       
       videoCategory:          executionPlan.videoCategory,
-      categoryWeightProfile:  undefined,
-      honestyBreakdown:       undefined,
       contextualFlags:        undefined,
-      harmCapApplied:         false,
-      harmCapReason:          undefined,
-      rawScoreBeforeCap:      undefined,
-      penaltyApplied:         undefined,
       
       factCheckStats,
       filteringReasons: [],
@@ -1305,7 +1484,6 @@ export class CredibilityEngine {
       diagnostics:      [],
       confidenceNotes:  [],
       vertical:         undefined,
-      verticalScores:   undefined,
       reviewTriggered:  falseCount > 0 && highestSeverityVerdict === 'false_claim',
       reviewReason:     falseCount > 0 && highestSeverityVerdict === 'false_claim'
         ? `Flagged for human review: ${falseCount} high-severity claim(s) contradicted by documented evidence.`
@@ -1382,7 +1560,7 @@ export class CredibilityEngine {
       }
     };
 
-    await this.storeResult(jobId, userId, result, targetVideoId);
+    const storedResult = await this.storeResult(jobId, userId, result, targetVideoId);
 
     await this.distribution.publish("credibility-synthesis", {
       eventId: uuidv4(),
@@ -1400,12 +1578,13 @@ export class CredibilityEngine {
     }).catch((synthErr) => logger.warn("[Credibility] Could not publish credibility-synthesis event", { jobId, err: String(synthErr) }));
     logger.info("[Credibility] Async synthesis event published after result storage", { jobId });
 
+    // Counts come from the stored (gated) report, not the raw pre-gate statuses.
+    const gatedStats = storedResult.factCheckStats ?? result.factCheckStats;
     const eventData: FactCompleteData = {
-      honestRating:     null,
-      claimsEvaluated:  result.factCheckStats.evaluatedClaims,
-      correct:          result.factCheckStats.correct,
-      incorrect:        result.factCheckStats.incorrect,
-      unverifiable:     result.factCheckStats.unverifiable,
+      claimsEvaluated:  gatedStats.evaluatedClaims,
+      correct:          gatedStats.correct,
+      incorrect:        gatedStats.incorrect,
+      unverifiable:     gatedStats.unverifiable,
       resultPath:       `factChecks/${jobId}`,
     };
 
@@ -1746,7 +1925,6 @@ export class CredibilityEngine {
           jobId, userId,
           timestamp:  Date.now(),
           data:       {
-            honestRating: null,
             claimsEvaluated: 0,
             correct: 0,
             incorrect: 0,
@@ -1782,12 +1960,8 @@ export class CredibilityEngine {
     // v12.0: No scoring engine invocation — return minimal result with null scores
     return {
       analysisState: 'ANALYSIS_INCOMPLETE' as any,
-      scoreAvailable: false,
-      trustLabel: 'Not Scored' as any,
       confidence: 0,
       confidenceTier: 'low' as any,
-      factors: null,
-      deductions: [],
       totalClaims: 0,
       evaluatedClaims: 0,
       claims: [],
@@ -1957,7 +2131,8 @@ export class CredibilityEngine {
         historical_consensus_denial: { label: "Historical Reality Failure", icon: "❌" },
         incorrect_citation:         { label: "Incorrect Source Citation", icon: "📜" },
         contested_interpretation:    { label: "Contested Interpretation", icon: "⚖️" },
-        unverifiable:               { label: "Unverifiable", icon: "❔" }
+        unverifiable:               { label: "Unverifiable", icon: "❔" },
+        rhetorical_exaggeration:    { label: "Rhetorical Exaggeration", icon: "🎭" }
       };
 
       const mapped = clinicalLabels[claim.status] || { label: claim.status, icon: "❔" };
@@ -1971,15 +2146,18 @@ export class CredibilityEngine {
         framing:        claim.framing,
         evidenceLevel:  claim.evidenceLevel,
         ontology:       claim.nature as any, // Legacy field
-        severity:       claim.severity || (['false_claim', 'incorrect', 'verified_false', 'historical_consensus_denial'].includes(claim.status) ? 'high' : ['misleading', 'disputed'].includes(claim.status) ? 'medium' : 'low'),
-        severityLabel:  severityLabels[claim.severity || (['false_claim', 'incorrect', 'verified_false', 'historical_consensus_denial'].includes(claim.status) ? 'high' : ['misleading', 'disputed'].includes(claim.status) ? 'medium' : 'low')],
+        severity:       claim.severity || (['false_claim', 'incorrect', 'verified_false', 'historical_consensus_denial'].includes(claim.status) ? 'high' : ['misleading', 'disputed'].includes(claim.status) ? 'medium' : (['unproven', 'unsupported', 'verification_timeout'].includes(claim.status) ? undefined : 'low')),
+        severityLabel:  (() => {
+          const sev = claim.severity || (['false_claim', 'incorrect', 'verified_false', 'historical_consensus_denial'].includes(claim.status) ? 'high' : ['misleading', 'disputed'].includes(claim.status) ? 'medium' : (['unproven', 'unsupported', 'verification_timeout'].includes(claim.status) ? undefined : 'low'));
+          return sev ? severityLabels[sev] : undefined;
+        })(),
         reasoning:      claim.reasoning || claim.verificationSummary || "",
         response:       claim.reasoning || claim.verificationSummary || "",
         explanation:    claim.reasoning || claim.verificationSummary || "",
-        whyWrong:       claim.reasoning || undefined,
+        whyWrong:       ['false_claim', 'incorrect', 'verified_false', 'historical_consensus_denial', 'misleading', 'disputed'].includes(claim.status) ? (claim.reasoning || undefined) : undefined,
         correction:     ['incorrect', 'historical_consensus_denial', 'incorrect_citation'].includes(claim.status)
           ? `Correction: ${claim.reasoning}`
-          : (claim.reasoning || undefined),
+          : (['false_claim', 'verified_false'].includes(claim.status) ? (claim.reasoning || undefined) : undefined),
         sources:        (claim.richSources && claim.richSources.length > 0)
           ? claim.richSources
               .filter((rs) => isVerifiedRichSource(rs))
@@ -2012,6 +2190,10 @@ export class CredibilityEngine {
         timestampEnd:   claim.end   ?? 0,
         confidence:     claim.verificationConfidence ?? claim.confidence ?? 0.5,
         multiModelConsensus: claim.multiModelConsensus,
+        // Inputs the verdict gate needs to prove Opinion & Belief / Caution labels.
+        ...((claim as any).transcriptExcerpt ? { transcriptExcerpt: (claim as any).transcriptExcerpt } : {}),
+        ...((claim as any).opinionEvidence ? { opinionEvidence: (claim as any).opinionEvidence } : {}),
+        ...((claim as any).cautionType ? { cautionType: (claim as any).cautionType } : {}),
       };
     });
   }
@@ -2021,8 +2203,12 @@ export class CredibilityEngine {
     userId: string,
     result: CredibilityResult,
     targetVideoId?: string
-  ): Promise<void> {
-    const sanitizedResult = sanitizeReportPayloadForClosedWorld(result);
+  ): Promise<CredibilityResult> {
+    // Verdict gate: the last code-level check — no verdict without its required evidence.
+    const sanitizedResult = applyVerdictGateToReport(sanitizeReportPayloadForClosedWorld(result));
+    // Output quality gate: grade the finished report (shared sources, unverified links,
+    // verdict/explanation contradictions, …) so regressions are caught before users do.
+    (sanitizedResult as any).qualityAudit = await recordReportQualityAudit(jobId, targetVideoId, sanitizedResult);
     const { path: latestPath } = await this.analysisRepository.saveAnalysis(jobId, "factChecks", sanitizedResult);
     const bucket = admin.storage().bucket();
     const factCheckUrl = `gs://${bucket.name}/${latestPath}`;
@@ -2052,15 +2238,22 @@ export class CredibilityEngine {
         factCheckUrl,
         progress: 95,
       }),
-      ...(targetVideoId ? [
-        db().collection("videos").doc(targetVideoId).set({
-          factCheckUrl,
-          factCheckProgress: 95,
-          factCheckStatus: "running",
-          updatedAt: Date.now(),
-        }, { merge: true }).catch(() => {})
+      ...(isVideoId(targetVideoId) ? [
+        safeMergeExistingVideo(
+          targetVideoId,
+          {
+            factCheckUrl,
+            factCheckProgress: 95,
+            factCheckStatus: "running",
+            updatedAt: Date.now(),
+          },
+          "[Credibility:FactCheckProgress]"
+        ).catch(() => false)
       ] : []),
     ]);
+
+    // The live claim list (videos/{id}/claims) now shows exactly the stored report's verdicts.
+    await this.syncLiveClaimsWithReport(targetVideoId, sanitizedResult, jobId);
 
     // Skip Firestore factChecks write to comply with storage-only verification results policy
     logger.info("[Credibility] Skipped Firestore factChecks write, result saved to Storage only", { jobId });
@@ -2068,12 +2261,19 @@ export class CredibilityEngine {
     // Note: Propagation to video collection is now handled centrally by AggregationLayer.onStageComplete
     // which is called immediately after this method returns in runCredibilityPipeline.
 
-    // Initialize/Update Creator Trust Score (Exponential Moving Average later)
-    await db().collection("users").doc(userId).set({
-       creatorTrustVersion: 30,
-       factors: result.factors,
-       updatedAt: Date.now()
-    }, { merge: true });
+    return sanitizedResult;
+  }
+
+  /**
+   * Overwrites each streamed claim in `videos/{videoId}/claims` with the verdict from the stored,
+   * gated report, so viewers never see a live verdict that disagrees with the report.
+   */
+  private async syncLiveClaimsWithReport(targetVideoId: string | undefined, report: any, jobId: string): Promise<void> {
+    const claims: VerifiedClaim[] = Array.isArray(report?.claims) ? report.claims.filter((c: any) => c?.claimId) : [];
+    if (!isVideoId(targetVideoId) || claims.length === 0) return;
+    await StreamingClaimProcessor.publishResolvedClaims(targetVideoId, claims).catch((err: any) => {
+      logger.warn("[Credibility] Could not sync live claims with the stored report", { jobId, err: err?.message });
+    });
   }
 
   public async runSynthesisPass(jobId: string, userId: string, eventId: string): Promise<void> {
@@ -2157,12 +2357,9 @@ export class CredibilityEngine {
           logger.warn("[CredibilityEngine.runSynthesisPass] Existing CredibilityResult not found in storage, synthesizing from draft claims directly", { jobId });
           existingResult = {
             analysisState: 'VERIFIED' as any,
-            scoreAvailable: false,
             analysisFailureReason: undefined,
-            trustLabel: 'Not Scored' as any,
             confidence: 0,
             confidenceTier: 'low' as any,
-            factors: null,
             chapters: [],
             speakers: [],
             speakerIdentities,
@@ -2194,7 +2391,6 @@ export class CredibilityEngine {
 
         const speakerCount = Object.keys(speakerIdentities).length;
         const pipelineMode = speakerCount > 1 ? "multi" : "standard";
-        const speakerPriors = await this.fetchSpeakerPriors(Object.values(speakerIdentities).map((id: any) => id.id)).catch(() => ({}));
 
         let synthesis: SynthesisResult;
         try {
@@ -2207,7 +2403,6 @@ export class CredibilityEngine {
               pipelineMode,
               speakerCount,
               speakerIdentities,
-              speakerPriors,
               evaluationHealth,
             }
           );
@@ -2295,7 +2490,12 @@ export class CredibilityEngine {
         }
 
         // Enforce Closed-World persistence invariant before saving GCS / Firestore artifacts
-        const sanitizedExistingResult = sanitizeReportPayloadForClosedWorld(targetResult);
+        const sanitizedExistingResult = applyVerdictGateToReport(sanitizeReportPayloadForClosedWorld(targetResult));
+        (sanitizedExistingResult as any).qualityAudit = await recordReportQualityAudit(
+          jobId,
+          (draft as any)?.videoId,
+          sanitizedExistingResult
+        );
 
         // Save updated result to GCS analysis repository and full.json
         await this.analysisRepository.saveAnalysis(jobId, "factChecks", sanitizedExistingResult);
@@ -2304,18 +2504,25 @@ export class CredibilityEngine {
           metadata: { contentType: "application/json" }
         });
 
-        // Update videos document in Firestore
-        const targetVideoDocId = draft.videoId || jobId;
-        try {
-          await db().collection("videos").doc(targetVideoDocId).set({
-            summary: synthesis.summary,
-            viewerNote: synthesis.viewerNote,
-            conclusion: synthesis.conclusion,
-            "aiFeatures.factCheckSummary": synthesis.summary,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-        } catch (videoUpdateErr: any) {
-          logger.warn("[CredibilityEngine.runSynthesisPass] Could not patch videos document directly", { jobId, error: videoUpdateErr?.message });
+        // Update existing videos document in Firestore (never create a new doc from jobId)
+        const targetVideoDocId = isVideoId(draft.videoId) ? draft.videoId : "";
+        await this.syncLiveClaimsWithReport(targetVideoDocId || undefined, sanitizedExistingResult, jobId);
+        if (targetVideoDocId) {
+          try {
+            await safeMergeExistingVideo(
+              targetVideoDocId,
+              {
+                summary: synthesis.summary,
+                viewerNote: synthesis.viewerNote,
+                conclusion: synthesis.conclusion,
+                "aiFeatures.factCheckSummary": synthesis.summary,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              "[Credibility:SynthesisPass]"
+            );
+          } catch (videoUpdateErr: any) {
+            logger.warn("[CredibilityEngine.runSynthesisPass] Could not patch videos document directly", { jobId, error: videoUpdateErr?.message });
+          }
         }
 
         // Clean up draft
@@ -2592,20 +2799,6 @@ export class CredibilityEngine {
     }
 
     return identities;
-  }
-
-  /**
-   * 🏆 v7: Fetch Speaker Priors
-   */
-  private async fetchSpeakerPriors(speakerIds: string[]) {
-    const priors: Record<string, any> = {};
-    for (const id of speakerIds) {
-      const rep = await this.speakerReputation.getReputation(id);
-      if (rep) {
-        priors[id] = rep;
-      }
-    }
-    return priors;
   }
 
   public async enqueueBackgroundRefresh(

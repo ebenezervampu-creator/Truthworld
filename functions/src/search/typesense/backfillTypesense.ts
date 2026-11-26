@@ -1,7 +1,5 @@
 import * as admin from "firebase-admin";
-import * as dotenv from "dotenv";
-import * as path from "path";
-import { getTypesenseAdminClient } from "./typesenseClient";
+import { getTypesenseAdminClient, isTypesenseConfigured } from "./typesenseClient";
 import { initializeCollections } from "./initCollections";
 import {
   mapVideoToTypesense,
@@ -12,12 +10,8 @@ import {
   TypesenseTopicDoc,
 } from "./typesenseMappers";
 
-dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
-
 if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: process.env.GCP_PROJECT_ID || "truthworld-1",
-  });
+  admin.initializeApp();
 }
 
 const db = admin.firestore();
@@ -27,6 +21,9 @@ export async function backfillTypesense(): Promise<{
   topicsCount: number;
   videosCount: number;
 }> {
+  if (!isTypesenseConfigured()) {
+    throw new Error("Typesense search cluster is not configured in this environment.");
+  }
   console.log("🚀 Starting Typesense Backfill from Firestore...");
   await initializeCollections();
 
@@ -128,6 +125,12 @@ export const triggerTypesenseBackfill = onCall(
       throw new HttpsError("unauthenticated", "Super Admin authentication required.");
     }
 
+    if (!isTypesenseConfigured()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Typesense search cluster is not configured in this environment."
+      );
+    }
     try {
       const result = await backfillTypesense();
       return { success: true, ...result };

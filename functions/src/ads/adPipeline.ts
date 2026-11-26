@@ -429,6 +429,7 @@ export class AdPipelineService {
       }
 
       // ── 2. AUDIO DUBBING PIPELINE ───────────────────────────────────────────
+      const newlyGeneratedAiAudio: Record<string, string> = {};
       if (wantDubbing) {
         const voiceId = this.resolveVoiceId(voiceStyle);
 
@@ -489,6 +490,7 @@ export class AdPipelineService {
           const directDownloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(rawFilePath)}?alt=media&token=${downloadToken}`;
 
           existingAudioTracks[lang] = directDownloadUrl;
+          newlyGeneratedAiAudio[lang] = directDownloadUrl;
 
           // Record TTS cost
           costEngine.recordTTSCost(campaignId, userId, speechText.length).catch(() => {});
@@ -497,10 +499,17 @@ export class AdPipelineService {
 
       // ── 3. UPDATE FIRESTORE AND COMPLETE STAGE ─────────────────────────────
       const completionTime = Date.now();
+      const existingAiDubbed = (adData.aiDubbedAudio || {}) as Record<string, string>;
+      const mergedAiDubbedAudio = {
+        ...existingAiDubbed,
+        ...newlyGeneratedAiAudio,
+      };
+
       await adDocRef.set(
         {
           subtitles: existingSubtitles,
           audioTracks: existingAudioTracks,
+          aiDubbedAudio: mergedAiDubbedAudio,
           stages: {
             ai: {
               status: "completed",

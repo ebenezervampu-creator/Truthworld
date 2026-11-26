@@ -8,7 +8,6 @@ import 'package:truthworld/features/channel/data/services/channel_memory_cache.d
 import 'package:truthworld/features/channel/presentation/controllers/channel_membership_join_controller.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_membership_join_sheet.dart';
 import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
-import 'package:truthworld/features/video/presentation/widgets/video_channel_membership_modal.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 void main() {

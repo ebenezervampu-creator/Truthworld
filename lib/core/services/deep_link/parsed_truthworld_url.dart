@@ -6,6 +6,7 @@ enum TruthworldUrlType {
   topic,
   post,
   studio,
+  dubbing,
   admin,
   settings,
   upload,

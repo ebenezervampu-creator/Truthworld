@@ -11,7 +11,9 @@ abstract class WebAudioPlayerAdapter {
     required void Function() onCanPlay,
     required void Function(String err) onError,
     required void Function(double dur) onDurationChange,
+    bool useCors = true,
   });
+  void load(String url, {double volume = 1.0, bool loop = false});
   void loadAndPlay(String url, {double volume = 1.0, bool loop = false});
   void play();
   void pause();
@@ -20,6 +22,8 @@ abstract class WebAudioPlayerAdapter {
   void seek(double seconds);
   void setVolume(double volume);
   void setMuted(bool muted);
+  void setPlaybackRate(double rate);
+  bool get isPlaying;
   double get currentTime;
   double get duration;
   void setupMediaSession({
@@ -85,7 +89,11 @@ class _StubAudioPlayer implements WebAudioPlayerAdapter {
     required void Function() onCanPlay,
     required void Function(String err) onError,
     required void Function(double dur) onDurationChange,
+    bool useCors = true,
   }) {}
+
+  @override
+  void load(String url, {double volume = 1.0, bool loop = false}) {}
 
   @override
   void loadAndPlay(String url, {double volume = 1.0, bool loop = false}) {}
@@ -107,6 +115,12 @@ class _StubAudioPlayer implements WebAudioPlayerAdapter {
 
   @override
   void setMuted(bool muted) {}
+
+  @override
+  void setPlaybackRate(double rate) {}
+
+  @override
+  bool get isPlaying => false;
 
   @override
   double get currentTime => 0.0;

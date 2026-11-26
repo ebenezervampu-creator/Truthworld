@@ -89,7 +89,7 @@ export const getUserSafetyProfile = onRequest(
 
       const db = admin.firestore();
       
-      const [userTrustSnap, imageVerifCountSnap, videoJobsCountSnap, channelsSnap] = await Promise.all([
+      const [moderationSnap, imageVerifCountSnap, videoJobsCountSnap, channelsSnap] = await Promise.all([
           db.collection("userTrust").doc(userId).get(),
           db.collection("image_verification").where("userId", "==", userId).count().get(),
           db.collection("video_jobs").where("userId", "==", userId).count().get(),
@@ -97,14 +97,13 @@ export const getUserSafetyProfile = onRequest(
       ]);
 
       const profile = {
-          trustScore: userTrustSnap.data()?.score || 0,
-          strikeCount: userTrustSnap.data()?.strikes || 0,
+          strikeCount: moderationSnap.data()?.strikes || 0,
           uploadStats: {
               images: imageVerifCountSnap.data().count,
               videos: videoJobsCountSnap.data().count
           },
           channels: channelsSnap.docs.map(d => ({id: d.id, ...d.data()})),
-          accountStatus: userTrustSnap.data()?.accountStatus || "ACTIVE"
+          accountStatus: moderationSnap.data()?.accountStatus || "ACTIVE"
       };
 
       res.status(200).json(profile);
@@ -250,16 +249,14 @@ export const moderateUser = onRequest(
         normalizedAction === "reset trust" ||
         normalizedAction === "reset"
       ) {
-        updates.trustScore = 100;
         updates.strikes = 0;
         try {
           await db.collection("userTrust").doc(userId).set({
-            score: 100,
             strikes: 0,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
-        } catch (trustErr) {
-          logger.warn("[moderateUser] Could not update userTrust doc:", trustErr);
+        } catch (resetErr) {
+          logger.warn("[moderateUser] Could not reset strikes:", resetErr);
         }
       } else if (
         normalizedAction === "delete" ||

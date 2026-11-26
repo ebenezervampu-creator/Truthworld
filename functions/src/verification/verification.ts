@@ -33,6 +33,7 @@
  */
 
 import { onObjectFinalized }  from "firebase-functions/v2/storage";
+import { defineString }      from "firebase-functions/params";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onRequest }          from "firebase-functions/v2/https";
 import { onSchedule }         from "firebase-functions/v2/scheduler";
@@ -44,8 +45,12 @@ import { applySecurityHeaders } from "../utils/securityHeaders";
 import { notifyUser } from "../notifications/notifications";
 
 if (!admin.apps.length) {
+  const currentProject = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
+  const rtdbUrl = process.env.FIREBASE_DATABASE_URL || (currentProject !== "truthworld-1"
+    ? `https://${currentProject}-default-rtdb.asia-southeast1.firebasedatabase.app`
+    : "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app");
   admin.initializeApp({
-    databaseURL: "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app",
+    databaseURL: rtdbUrl,
   });
 }
 
@@ -90,8 +95,7 @@ interface SafeSearchScores {
   spoof:    number;
 }
 
-interface UserTrustDoc {
-  score:         number;
+interface UserModerationDoc {
   approvedCount: number;
   rejectedCount: number;
   strikeCount:   number;
@@ -158,8 +162,17 @@ interface QueuedMessage {
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const BUCKET   = "truthworld-1.firebasestorage.app";
-const GCS_BASE = `gs://${BUCKET}`;
+const storageBucketParam = defineString("STORAGE_BUCKET", {
+  default: "truthworld-1.firebasestorage.app",
+});
+
+function getVerificationBucket(): string {
+  const currentProject = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
+  return process.env.STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET || (currentProject !== "truthworld-1"
+    ? `${currentProject}.firebasestorage.app`
+    : "truthworld-1.firebasestorage.app");
+}
+
 const REGION   = "asia-south1";
 
 const TOPIC_PREFILTER          = "image-prefilter";
@@ -208,11 +221,6 @@ const CONFIDENCE_LEVELS: Record<string, number> = {
   VERY_UNLIKELY: 0, UNLIKELY: 1, POSSIBLE: 2, LIKELY: 3, VERY_LIKELY: 4,
 };
 
-const TRUST_SCORE_NEW_USER    = 50;
-const TRUST_DELTA_APPROVED    = 2;
-const TRUST_DELTA_REJECTED    = -15;
-const TRUST_DELTA_FLAGGED     = -5;
-
 const TTL_VERIFICATION_DAYS = 7;
 const TTL_REJECTED_DAYS     = 30;
 const TTL_FLAGGED_DAYS      = 90;
@@ -256,7 +264,7 @@ const RETRY_PROCESSOR_CONFIG = {
 };
 
 const INGEST_CONFIG = {
-  bucket: BUCKET,
+  bucket: storageBucketParam,
   region: REGION, timeoutSeconds: 60,  memory: "256MiB" as const, maxInstances: 5, retry: true,
 };
 const PREFILTER_CONFIG = {
@@ -415,7 +423,7 @@ function extractMetadata(
   return {
     category, userId, contentId, fileName, filePath,
     uploadedAt: Date.now(), fileSize, bucket,
-    gcsUri: `${GCS_BASE}/${filePath}`, mimeType,
+    gcsUri: `gs://${getVerificationBucket()}/${filePath}`, mimeType,
   };
 }
 
@@ -486,10 +494,6 @@ function generateDocId(metadata: ImageMetadata): string {
 
 function generateMessageId(): string {
   return crypto.randomUUID();
-}
-
-function clampScore(score: number): number {
-  return Math.max(0, Math.min(100, score));
 }
 
 function getPriority(category: ImageCategory): string {
@@ -868,20 +872,18 @@ async function setHashDoc(hashDocId: string, hash: string, status: "APPROVED" | 
   }
 }
 
-async function updateUserTrust(userId: string, status: "APPROVED" | "REJECTED" | "FLAGGED"): Promise<void> {
+/** Records the image-moderation outcome for a user: approved / rejected counts and strikes. */
+async function recordUserModerationOutcome(userId: string, status: "APPROVED" | "REJECTED" | "FLAGGED"): Promise<void> {
   if (!userId) return;
   const ref = db().collection(COL_USER_TRUST).doc(userId);
   try {
     await db().runTransaction(async (tx) => {
       const snap     = await tx.get(ref);
-      const existing = snap.exists ? (snap.data() as UserTrustDoc) : null;
-      const current  = existing?.score         ?? TRUST_SCORE_NEW_USER;
+      const existing = snap.exists ? (snap.data() as UserModerationDoc) : null;
       const approved = existing?.approvedCount ?? 0;
       const rejected = existing?.rejectedCount ?? 0;
       const strikes  = existing?.strikeCount   ?? 0;
-      const delta    = status === "APPROVED" ? TRUST_DELTA_APPROVED : status === "REJECTED" ? TRUST_DELTA_REJECTED : TRUST_DELTA_FLAGGED;
       tx.set(ref, {
-        score:         clampScore(current + delta),
         approvedCount: approved + (status === "APPROVED" ? 1 : 0),
         rejectedCount: rejected + (status === "REJECTED" ? 1 : 0),
         strikeCount:   strikes  + (status === "REJECTED" ? 1 : 0),
@@ -889,7 +891,7 @@ async function updateUserTrust(userId: string, status: "APPROVED" | "REJECTED" |
       }, { merge: true });
     });
   } catch (err) {
-    logger.warn(`[Firestore] Trust update failed for ${userId}:`, err);
+    logger.warn(`[Firestore] Moderation outcome update failed for ${userId}:`, err);
   }
 }
 
@@ -1473,7 +1475,7 @@ export const prefilterWorker = onMessagePublished(
 async function doApprove(docId: string, metadata: ImageMetadata, start: number, reason: string): Promise<void> {
   const result: ValidationResult = { status: "APPROVED", reason: `Pre-filter approved (${reason})`, score: 0, timestamp: Date.now(), processedAt: Date.now() };
   await updateVerificationDoc(docId, metadata, result);
-  if (metadata.userId) await updateUserTrust(metadata.userId, "APPROVED");
+  if (metadata.userId) await recordUserModerationOutcome(metadata.userId, "APPROVED");
   await logMetrics(metadata, result, Date.now() - start, "prefilter", reason);
   logger.info(`[Prefilter] APPROVED (${reason}) → ${metadata.filePath}`);
 }
@@ -1486,7 +1488,7 @@ async function doReject(
   await updateVerificationDoc(docId, metadata, result);
   await quarantineFile(bucket, metadata, result);
   if (metadata.userId) {
-    await updateUserTrust(metadata.userId, "REJECTED");
+    await recordUserModerationOutcome(metadata.userId, "REJECTED");
     const isCommunity = metadata.category === "community";
     const itemLabel = isCommunity
       ? "community post image"
@@ -1718,8 +1720,8 @@ const createModerationWorker = (
       }
 
       if (metadata.userId && result.status !== "ERROR") {
-        const trustStatus = result.status === "APPROVED" ? "APPROVED" : result.status === "REJECTED" ? "REJECTED" : "FLAGGED";
-        await updateUserTrust(metadata.userId, trustStatus);
+        const outcome = result.status === "APPROVED" ? "APPROVED" : result.status === "REJECTED" ? "REJECTED" : "FLAGGED";
+        await recordUserModerationOutcome(metadata.userId, outcome);
       }
 
       if (result.status === "REJECTED") {
@@ -1792,7 +1794,7 @@ export const deadLetterHandler = onMessagePublished(
     try {
       await updateVerificationDoc(docId, metadata, result);
       await logFlaggedImage(metadata, result);
-      if (metadata.userId) await updateUserTrust(metadata.userId, "FLAGGED");
+      if (metadata.userId) await recordUserModerationOutcome(metadata.userId, "FLAGGED");
       logger.warn(`[DLQ] Marked ${docId} as FLAGGED (error: ${lastError || "unknown"})`);
       await logMetrics(metadata, result, Date.now() - startTime, "moderation", `dlq-${reason.includes("age") ? "age" : "retries"}`);
     } catch (err) {
@@ -1915,7 +1917,7 @@ export const moderateImageManual = onRequest(
         fileName: fileName || verificationId,
         filePath: filePath || "",
         uploadedAt: Date.now(),
-        bucket: BUCKET,
+        bucket: getVerificationBucket(),
         gcsUri: gcsUri || "",
         fileSize: 0,
       };
@@ -1930,7 +1932,7 @@ export const moderateImageManual = onRequest(
         detailedScores: detailedScores || {},
       };
 
-      const storageBucket = admin.storage().bucket(BUCKET);
+      const storageBucket = admin.storage().bucket(getVerificationBucket());
 
       if (action === "approve") {
         // 1. Update verification status doc
@@ -1946,7 +1948,7 @@ export const moderateImageManual = onRequest(
 
         // 3. Update User Trust
         if (userId) {
-          await updateUserTrust(userId, "APPROVED");
+          await recordUserModerationOutcome(userId, "APPROVED");
         }
 
         // 4. Set approved MD5 hash
@@ -1972,7 +1974,7 @@ export const moderateImageManual = onRequest(
 
         // 3. Update User Trust
         if (userId) {
-          await updateUserTrust(userId, "REJECTED");
+          await recordUserModerationOutcome(userId, "REJECTED");
         }
 
         // 4. Set rejected MD5 hash

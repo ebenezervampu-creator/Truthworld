@@ -44,11 +44,11 @@ class ChannelSubscriptionController extends BaseController {
   /// Returns real subscriber count for [channelId], prioritizing reactive registry, then [fallback], then local state
   int getSubscriberCount(String channelId, {int? fallback}) {
     if (channelId.isEmpty) return subscriberCount.value;
-    if (channelSubscriberCounts.containsKey(channelId)) {
-      return channelSubscriberCounts[channelId]!;
+    final cached = channelSubscriberCounts[channelId];
+    if (cached != null) {
+      return cached;
     }
     if (fallback != null) {
-      channelSubscriberCounts[channelId] = fallback;
       return fallback;
     }
     return subscriberCount.value;

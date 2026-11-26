@@ -66,12 +66,17 @@ class LanguagePanel extends StatelessWidget {
                 children: [
                   const SizedBox(height: 6),
                   ...ctrl.audioTracks.map(
-                    (t) => SelectTile(
-                      label: t.label,
-                      sublabel: t.type,
-                      badge: t.langCode.toUpperCase(),
+                    (t) => Semantics(
+                      label: t.isAiDub ? '${t.label}, AI-dubbed audio' : t.label,
                       selected: ctrl.activeAudioLang.value == t.label,
-                      onTap: () => ctrl.setAudioLanguage(t),
+                      button: true,
+                      child: SelectTile(
+                        label: t.isAiDub ? '${t.label} · AI dub' : t.label,
+                        sublabel: t.isAiDub ? 'AI-dubbed audio' : t.type,
+                        badge: t.isAiDub ? 'AI DUB' : t.langCode.toUpperCase(),
+                        selected: ctrl.activeAudioLang.value == t.label,
+                        onTap: () => ctrl.setAudioLanguage(t),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

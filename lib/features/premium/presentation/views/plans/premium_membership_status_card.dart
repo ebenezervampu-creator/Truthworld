@@ -1,10 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/features/premium/presentation/views/plans/premium_constants.dart';
 import 'package:truthworld/theme/app_theme.dart';

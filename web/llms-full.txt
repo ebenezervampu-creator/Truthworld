@@ -24,6 +24,7 @@ Truthworld is designed from the ground up for transparency, credibility, and glo
 
 ## Key Sections & URLs
 - **Home**: [https://www.truthworld.in/](https://www.truthworld.in/) - Main user landing feed, curated stories, and personalized recommendations.
+- **Truthworld Dubbing Studio**: [https://www.truthworld.in/dubbing](https://www.truthworld.in/dubbing) (also at [https://dubbing.truthworld.in/](https://dubbing.truthworld.in/)) - Standalone AI voice dubbing, speaker-matched voice cloning, multilingual subtitle localization, and interactive waveform segment editor.
 - **Creator Studio**: [https://www.truthworld.in/studio](https://www.truthworld.in/studio) - Content creator dashboard, video upload pipeline, subtitle/dub editor, and monetization payouts.
 - **Advertiser Portal**: [https://www.truthworld.in/advertisements](https://www.truthworld.in/advertisements) - Campaign creation, ad targeting, budget allocation, and analytics.
 - **Trending**: [https://www.truthworld.in/trending](https://www.truthworld.in/trending) - Most watched and discussed videos and claims.

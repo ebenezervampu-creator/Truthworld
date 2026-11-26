@@ -37,6 +37,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
   RxBool get isAutoplay;
   RxBool get isAudioOnly;
   Rx<VideoTrack?> get activeVideoTrack;
+  RxList<AudioTrack> get availableAudioTracks;
   Rx<VideoClip?> get activeClip;
   RxList<VideoResolutionV2> get availableResolutions;
   Rx<VideoResolutionV2?> get currentResolution;
@@ -53,8 +54,11 @@ mixin VideoPlaybackFlowMixin on GetxController {
   bool get isVpcInitialized;
   bool get canStreamHighResolution;
 
+  /// Adaptive HLS entry to start with in Auto quality (VideoTrackManagementMixin).
+  VideoResolutionV2? preferredHlsAutoStart();
+
   Future<void> initializeOfflinePlayback();
-  Future<void> fetchAvailableResolutions();
+  Future<void> fetchAvailableResolutions({bool fromServer = false});
   Future<void> fetchAvailableSubtitles();
   Future<void> fetchAvailableAudioTracks();
   Future<void> loadTranscriptForVideo({bool forceRefresh = false});
@@ -269,6 +273,41 @@ mixin VideoPlaybackFlowMixin on GetxController {
     disposePlayer();
   }
 
+  /// Resolves the authentic RFC 8216 demuxed HLS audio playlist or direct audio track
+  /// for the current media. Returns null if only video streams exist (triggering 144p fallback).
+  String? resolveAudioOnlyTargetUrl() {
+    // 1. Direct audio track resolution from model
+    if (video.audioTracks.isNotEmpty) {
+      final preferredLang = video.language.isNotEmpty ? video.language : 'original';
+      final match = video.audioTracks[preferredLang] ??
+          video.audioTracks['original'] ??
+          video.audioTracks.values.firstWhereOrNull((u) => u.isNotEmpty && !blacklistedStreamUrls.contains(u));
+      if (match != null && match.isNotEmpty && !blacklistedStreamUrls.contains(match)) {
+        return match;
+      }
+    }
+
+    // 2. Discover from availableAudioTracks (hydrated from localization / tracks)
+    final explicitAudio = availableAudioTracks.firstWhereOrNull(
+      (t) => t.url != null && t.url!.isNotEmpty && !blacklistedStreamUrls.contains(t.url!),
+    );
+    if (explicitAudio != null && explicitAudio.url != null) {
+      return explicitAudio.url;
+    }
+
+    // 3. RFC 8216 HLS audio rendition group: hls/{videoId}/audio/{langCode}/prog.m3u8
+    // On Safari or Native (Android/iOS), or if HLS is active:
+    if (video.hlsUrl.isNotEmpty && video.hlsUrl.contains('master.m3u8') && !blacklistedStreamUrls.contains(video.hlsUrl)) {
+      final lang = video.language.isNotEmpty ? video.language.toLowerCase() : 'en';
+      final hlsAudioRendition = video.hlsUrl.replaceAll('master.m3u8', 'audio/$lang/prog.m3u8');
+      if (!blacklistedStreamUrls.contains(hlsAudioRendition)) {
+        return hlsAudioRendition;
+      }
+    }
+
+    return null;
+  }
+
   Future<String?> resolvePlaybackTargetUrl({String? overrideUrl}) async {
     var targetUrl = overrideUrl;
     if (targetUrl != null && blacklistedStreamUrls.contains(targetUrl)) {
@@ -277,14 +316,29 @@ mixin VideoPlaybackFlowMixin on GetxController {
 
     if (targetUrl == null || targetUrl.isEmpty) {
       if (isAudioOnly.value) {
-        // Low-bandwidth optimization: In audio-only mode, prioritize 144p or lowest bandwidth stream
-        final lowRes = availableResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p' && !blacklistedStreamUrls.contains(r.url))
-            ?? video.adaptiveResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p' && !blacklistedStreamUrls.contains(r.url))
-            ?? (availableResolutions.isNotEmpty ? availableResolutions.lastWhereOrNull((r) => !blacklistedStreamUrls.contains(r.url)) : null)
-            ?? (video.adaptiveResolutions.isNotEmpty ? video.adaptiveResolutions.lastWhereOrNull((r) => !blacklistedStreamUrls.contains(r.url)) : null);
-        if (lowRes != null && lowRes.url.isNotEmpty) {
-          targetUrl = lowRes.url;
-          currentResolution.value = lowRes;
+        // Tier 1: True Demuxed HLS audio playlist (RFC 8216) or direct audio stream
+        final demuxedAudioUrl = resolveAudioOnlyTargetUrl();
+        if (demuxedAudioUrl != null && demuxedAudioUrl.isNotEmpty && !blacklistedStreamUrls.contains(demuxedAudioUrl)) {
+          targetUrl = demuxedAudioUrl;
+        } else {
+          // Tier 2: Low-bandwidth optimization: In audio-only mode, prioritize 144p or lowest bandwidth stream
+          final lowRes = availableResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p' && !blacklistedStreamUrls.contains(r.url))
+              ?? video.adaptiveResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p' && !blacklistedStreamUrls.contains(r.url))
+              ?? (availableResolutions.isNotEmpty ? availableResolutions.lastWhereOrNull((r) => !blacklistedStreamUrls.contains(r.url)) : null)
+              ?? (video.adaptiveResolutions.isNotEmpty ? video.adaptiveResolutions.lastWhereOrNull((r) => !blacklistedStreamUrls.contains(r.url)) : null);
+          if (lowRes != null && lowRes.url.isNotEmpty) {
+            targetUrl = lowRes.url;
+            currentResolution.value = lowRes;
+          }
+        }
+      }
+      if (targetUrl == null || targetUrl.isEmpty) {
+        // Adaptive HLS first when the viewer is in Auto quality (native players
+        // switch qualities between segments, no player rebuild).
+        final hlsAuto = preferredHlsAutoStart();
+        if (hlsAuto != null) {
+          targetUrl = hlsAuto.url;
+          currentResolution.value = hlsAuto;
         }
       }
       if (targetUrl == null || targetUrl.isEmpty) {

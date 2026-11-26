@@ -1216,7 +1216,6 @@ Return ONLY a valid JSON object matching this structure:
       pipelineMode: string; 
       speakerCount: number;
       speakerIdentities?: Record<string, any>;
-      speakerPriors?: Record<string, any>;
       evaluationHealth?: any; // v11.5: Pass health for honest synthesis
     } = { pipelineMode: "solo", speakerCount: 1 }
   ): Promise<SynthesisResult> {
@@ -1298,27 +1297,11 @@ Return ONLY a valid JSON object matching this structure:
 2. Analyze "Claim Ownership": Who is introducing the facts? Who is verifying them?
 3. Detect "Corrective Dynamics": If one speaker corrects another, note it in the summary.
 4. Flag "Crosstalk/Chaos": If there are 4+ speakers or heavy overlap, adjust confidence accordingly.`;
-
-      if (context.speakerPriors && Object.keys(context.speakerPriors).length > 0) {
-        const priorsInfo = Object.entries(context.speakerPriors)
-          .filter(([_, p]: any) => p && typeof p === "object")
-          .map(([id, p]: any) => {
-            const name = Object.values(context.speakerIdentities || {}).find((i: any) => i.id === id)?.name || id;
-            const accuracy = typeof p.factualAccuracy === "number" ? `${(p.factualAccuracy * 100).toFixed(0)}%` : "N/A";
-            return `- ${name}: Prior Trust Label "${p.trustLevel || 'Developing'}" (Historical Accuracy: ${accuracy})`;
-          }).join("\n");
-
-        if (priorsInfo) {
-          modeInstruction += `\n\n### SPEAKER REPUTATION (FOR CONTEXT ONLY):
-Use these priors to guide your confidence in their expertise, but NEVER let them override current evidence:
-${priorsInfo}`;
-        }
-      }
     }
 
     const chapterInstruction = tier === "standard" 
-      ? "Divide transcript into fixed 10-minute trust windows." 
-      : "Perform SEMANTIC chaptering: detect topic shifts and assign a trustIndex to each chapter.";
+      ? "Divide transcript into fixed 10-minute windows." 
+      : "Perform SEMANTIC chaptering: detect topic shifts and title each chapter.";
 
     const health = context.evaluationHealth;
     const healthBlob = health ? `
@@ -1397,7 +1380,7 @@ Return ONLY valid JSON according to:
   "manipulationScore": 0.15,
   "manipulationSignals": ["..."],
   "chapters": [
-    { "index": 0, "title": "...", "start": 0, "end": 600000, "trustIndex": 8.5, "primaryTopics": ["..."] }
+    { "index": 0, "title": "...", "start": 0, "end": 600000, "primaryTopics": ["..."] }
   ],
   "speakerRoles": { "Speaker A": "Host" }
 }

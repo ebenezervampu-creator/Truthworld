@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
 

@@ -24,12 +24,13 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import AppealsDeskTab from "./components/AppealsDeskTab";
+import DubbingAdminTab from "./components/DubbingAdminTab";
 
 const ROLES_DEFINITION = [
   {
     name: "Super Admin",
     description: "Full uninhibited access to all moderation queues, pipelines, settings, and team access.",
-    tabs: ["dashboard", "videos", "topics", "channels", "images", "reports", "logs", "team", "users", "ads", "analytics", "appeals", "feedbacks", "alerts", "security", "help"]
+    tabs: ["dashboard", "videos", "topics", "channels", "images", "reports", "logs", "team", "users", "dubbing", "ads", "analytics", "appeals", "feedbacks", "alerts", "security", "help"]
   },
   {
     name: "Content Moderator",
@@ -184,7 +185,7 @@ function App() {
   };
 
   const getAllowedTabs = () => {
-    const allTabs = ["dashboard", "videos", "topics", "channels", "images", "reports", "appeals", "logs", "team", "users"];
+    const allTabs = ["dashboard", "videos", "topics", "channels", "images", "reports", "appeals", "logs", "team", "users", "dubbing"];
     if (isOwner) allTabs.push("language_requests");
     const allowed = allTabs.filter(t => isTabAllowed(t));
     return allowed.length > 0 ? allowed : ["team"];
@@ -1512,6 +1513,22 @@ function App() {
                 </button>
               </li>
             )}
+            {isTabAllowed("dubbing") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "dubbing" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("dubbing"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                  <span>Dubbing & Credits</span>
+                </button>
+              </li>
+            )}
             {isTabAllowed("team") && (
               <li>
                 <button 
@@ -1603,6 +1620,7 @@ function App() {
               {currentTab === "appeals" && "IFCN Ombudsman Appeals Desk"}
               {currentTab === "logs" && "Audit Logs & Actions History"}
               {currentTab === "team" && "Team Access & Member Management"}
+              {currentTab === "dubbing" && "Dubbing Credits & Special Discounts"}
               {currentTab === "language_requests" && "Channel Language Requests (Owner Only)"}
             </h1>
             <p>
@@ -1615,6 +1633,7 @@ function App() {
               {currentTab === "appeals" && "Adjudicate contested fact-check claims, enforce dual-ombudsman quorum, and verify SHA-256 audit chains."}
               {currentTab === "logs" && "History of quarantined resources and manual administrator decisions."}
               {currentTab === "team" && "Add members with custom credentials, copy/share login access, and change passwords."}
+              {currentTab === "dubbing" && "Inspect user accounts, allocate free speech synthesis credits, and configure special discounts or full waivers."}
               {currentTab === "language_requests" && "Review creator requests to launch channels in invite-only languages."}
             </p>
           </div>
@@ -3158,6 +3177,11 @@ function App() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* TAB: DUBBING CREDITS & SPECIAL DISCOUNTS */}
+          {currentTab === "dubbing" && (
+            <DubbingAdminTab adminUser={user} isSuperAdmin={isSuperAdmin} />
           )}
 
           {/* TAB: OWNER-ONLY CHANNEL LANGUAGE REQUESTS */}

@@ -585,30 +585,10 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
             const SizedBox(height: 16),
           ],
 
-          // 4. Transparent Methodology Note
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.verified_user_outlined, size: 15, color: AppColors.textSecondary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Evaluated with peer-reviewed literature and empirical cross-referencing.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          // 4. Transparent Methodology & AI Fact-Check Disclaimer
+          VideoAnalysisDisclaimerCard(
+            analysisCtrl: analysisCtrl,
+            margin: EdgeInsets.zero,
           ),
         ],
       ),
@@ -1155,6 +1135,12 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(0, 14, 0, 24),
       children: [
+        // AI Fact-Check Disclaimer Card
+        VideoAnalysisDisclaimerCard(
+          analysisCtrl: analysisCtrl,
+          margin: const EdgeInsets.only(bottom: 16),
+        ),
+
         // 1. Claims Header: Title + Search Field + Sort Dropdown
         Obx(() {
           final sortOrder = analysisCtrl.sortOrder.value;
@@ -1497,8 +1483,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           const SizedBox(height: 16),
         ],
 
-        const VideoAnalysisMethodologySection(),
-        const SizedBox(height: 24),
+        const SizedBox(height: 8),
       ],
     );
   }
@@ -1520,6 +1505,12 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
         _buildExecutiveOverviewCard(context, parsed, summaryText),
         const SizedBox(height: 16),
 
+        // AI Fact-Check Disclaimer Card
+        VideoAnalysisDisclaimerCard(
+          analysisCtrl: analysisCtrl,
+          margin: const EdgeInsets.only(bottom: 16),
+        ),
+
         // 2. Claims Overview & Key Findings Card
         if (parsed.claims.isNotEmpty) ...[
           _buildDesktopClaimsOverviewCard(context, parsed),
@@ -1537,10 +1528,6 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           VideoAnalysisConfidenceBar(value: parsed.confidenceVal),
           const SizedBox(height: 16),
         ],
-
-        // 4. Transparent Methodology Accordion
-        const VideoAnalysisMethodologySection(),
-        const SizedBox(height: 16),
 
         // 5. Scoring Factors (if present)
         if (parsed.factors.isNotEmpty) ...[
@@ -1803,6 +1790,11 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+        VideoAnalysisDisclaimerCard(
+          analysisCtrl: analysisCtrl,
+          margin: EdgeInsets.zero,
         ),
       ],
     );

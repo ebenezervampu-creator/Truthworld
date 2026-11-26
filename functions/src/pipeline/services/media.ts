@@ -5,7 +5,76 @@ import * as fs from "fs";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { PIPELINE_CONFIG } from "../config";
+import { emitDubbingTiming } from "../utils/dubbing-timing";
 import { storage } from "firebase-admin";
+import { estimatePitch, f32leToSamples, type PitchEstimate } from "./pitch-estimation";
+import { checkDubSpeech, dialogueExtents, voiceGenderMismatch, type DubSyncReport } from "./dub-sync-check";
+import { BLEED_ANALYSIS_RATE, coherentVoiceSuppressionDb } from "./stem-bleed";
+import { parseMeanVolumeDb, selectExpression, speechGaps } from "./separation-policy";
+import {
+  FAITHFUL_MIX,
+  MAX_EQ_BRANCHES,
+  MIN_EQ_REFERENCE_SEC,
+  TIGHT_STEM_FADE_MS,
+  analysisRateFor,
+  bandProfileDb,
+  buildEnvelopes,
+  buildFaithfulMixGraph,
+  buildGainSpans,
+  planLineGainsDb,
+  activeRmsDb,
+  dubVoiceLiftDb,
+  checkFaithfulness,
+  detectActiveSpans,
+  detectNonVerbalSpans,
+  dubCoverage,
+  dubSpansNearLines,
+  bedMatchEnabled,
+  planBedMatch,
+  speechFreeSpans,
+  BED_MATCH,
+  type BedMatchPlan,
+  eqCorrectionDb,
+  envelopeRateFor,
+  eqFilterFor,
+  estimateOriginalVoiceDb,
+  fidelityStemSelectEnabled,
+  firstSpans,
+  keepNonVerbalEnabled,
+  measureEdgeStepsDb,
+  measureGapFidelity,
+  outsideRegions,
+  planDialogueRegions,
+  rmsDbOver,
+  spansSelectExpr,
+  subtractSpans,
+  voiceGainDb,
+  roomMatchEnabled,
+  sceneToneEnabled,
+  tightStemEnabled,
+  voiceRideEnabled,
+  estimateRegionRoom,
+  groupRegionsIntoScenes,
+  buildSyntheticRoomIr,
+  buildTightStemSpans,
+  computeVoiceRideEnvelope,
+  sortedLines,
+  type BgmReport,
+  type DubBranch,
+  type SpeakerSpanMs,
+  type TimeSpanMs,
+  type RegionRoomEstimate,
+  type SceneRoomEstimate,
+} from "./faithful-mix";
+import { planPreroll, prerollEnabled } from "./segment-preroll";
+import {
+  DELIVERY_TARGET_LUFS,
+  DELIVERY_TOLERANCE_LU,
+  detectSourceBleed,
+  loudnessCorrection,
+  type BleedReport,
+  type SpeechWindow,
+} from "./delivery-audio-check";
 
 export const execFileAsync = promisify(execFile);
 
@@ -22,6 +91,24 @@ export function getFfmpegPath(): string | null {
       }
     } catch {
       // Try next FFmpeg binary provider
+    }
+  }
+  return null;
+}
+
+export function getFfprobePath(): string | null {
+  for (const modName of ["@ffprobe-installer/ffprobe"]) {
+    try {
+      const mod = require(modName);
+      const candidate = typeof mod === "string" ? mod : mod?.path;
+      if (typeof candidate === "string" && candidate.length > 0 && fs.existsSync(candidate)) {
+        try {
+          fs.chmodSync(candidate, 0o755);
+        } catch (_) {}
+        return candidate;
+      }
+    } catch {
+      // Ignore missing ffprobe package
     }
   }
   return null;
@@ -248,18 +335,18 @@ export interface MergeAudioOptions {
 }
 
 // Pipeline version for M&E cache busting — increment when separation algorithm changes.
-export const MNE_PIPELINE_VERSION = "2";
+export const MNE_PIPELINE_VERSION = "3";
 
 export interface ExtractMneOptions {
   isolatedVocalUrl?: string;
   forceMidSideSplit?: boolean;
-  enableAutoVocalIsolation?: boolean;
   spokenSegments?: Array<{ start: number; end: number }>;
   expectedDurationSeconds?: number;
 }
 
 export interface ExtractMneDetailedResult {
   mneUrl: string;
+  vocalsUrl?: string;
   source: MneValidationResult["source"];
   engine: string;
   degraded: boolean;
@@ -325,6 +412,14 @@ export interface MneValidationResult {
   channels: number;
   channelLayout: string;
   dialogueBleedDb?: number;
+  /** Worst-quartile drop (dB) in the 250–3800 Hz voice band vs the original during speech. Higher = cleaner. */
+  vocalSuppressionDb?: number;
+  /**
+   * How vocalSuppressionDb was measured. "voice_coherence": only the part of the stem that moves with
+   * the isolated voice counts as bleed (see stem-bleed.ts). "level_drop": original minus stem level,
+   * which also counts loud music as bleed (used when no isolated voice is available).
+   */
+  bleedMethod?: "voice_coherence" | "level_drop";
   clippingDetected: boolean;
   corruptionDetected: boolean;
   validationStatus: "passed" | "degraded" | "failed" | "not_required";
@@ -359,6 +454,8 @@ export interface CinemaMasteringOptions {
 export interface MixDubOptions {
   mneUrl: string;
   dubbedAudioUrl: string;
+  isolatedVocalUrl?: string; // Neural isolated vocals stem for authentic non-dialogue vocal SFX recovery
+  sourceWords?: Array<{ start: number; end: number; text?: string }>; // AssemblyAI word timestamps for collision protection
   totalDurationSeconds?: number;
   totalDurationMs?: number;
   duckingThreshold?: number; // default: 0.12 (-18 dBFS)
@@ -375,6 +472,46 @@ export interface MixDubOptions {
   spokenSegments?: Array<{ start: number; end: number }>; // For speech vs pause energy safety verification
   isDegradedMne?: boolean;   // Caps makeup gain to +3 dB when stem comes from fallback separation
   mneValidation?: MneValidationResult;
+}
+
+export interface FaithfulMixOptions {
+  /** Full-band original audio (extractStereoSourceAudio). */
+  sourceAudioUrl: string;
+  /** Stitched dubbed dialogue for this language. */
+  dubbedAudioUrl: string;
+  /** Clean background stem; null → the dubbed voice plays alone inside the dialogue regions. */
+  bedUrl?: string | null;
+  /** Isolated original voice, used to set each dubbed voice to the original level. */
+  isolatedVocalUrl?: string | null;
+  /** The original's spoken lines (ms) with speaker labels. */
+  lines: SpeakerSpanMs[];
+  /** Word-level timestamps (ms) from the source transcript, for tight stem & non-verbal keeping. */
+  sourceWords?: TimeSpanMs[];
+  totalDurationMs?: number;
+  /** Measured speech-only (no background): the source itself is a clean voice reference. */
+  sourceIsSpeechOnly?: boolean;
+  /** EQ each dubbed speaker toward the original voice (default true). */
+  toneMatch?: boolean;
+}
+
+export interface FaithfulMixResult {
+  ok: boolean;
+  url: string | null;
+  reason?: string;
+  /** Integrated loudness of the original; the delivery check keeps the dub at this level. */
+  sourceLufs: number | null;
+  mixLufs: number | null;
+  regions: number;
+  regionMs: number;
+  outsideDiffDb: number | null;
+  voiceGainDb: Record<string, number>;
+  /** Speakers whose dubbed voice was EQ-matched to their original voice. */
+  toneMatchedSpeakers: string[];
+  usedBed: boolean;
+  /** The dub measured against the original (dub-sync-check.ts); the quality gate reads it. */
+  syncReport?: DubSyncReport;
+  /** Detailed BGM & SFX preservation measurements for this mix. */
+  bgmReport?: BgmReport;
 }
 
 /**
@@ -428,6 +565,21 @@ export function buildCinemaMasteringFilterChain(options?: {
 /**
  * Media processing service - handles FFmpeg operations & audio stitching
  */
+/**
+ * Request settings for the self-hosted Demux worker (scripts/modal_demux_worker.py).
+ * The worker refuses requests without the shared token, so without DEMUX_WORKER_TOKEN the worker
+ * is skipped (null) instead of being called and failing. DEMUX_TIMEOUT_MS defaults to 300 s:
+ * a 10-minute video on a cold GPU needs more than the old 120 s.
+ */
+export function demuxWorkerRequestConfig(): { headers: Record<string, string>; timeout: number } | null {
+  const token = (process.env.DEMUX_WORKER_TOKEN || "").trim();
+  if (!token) return null;
+  return {
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    timeout: Number(process.env.DEMUX_TIMEOUT_MS) || 300000,
+  };
+}
+
 export class MediaService {
   private amixNormalizeCache = new Map<string, boolean>();
 
@@ -497,12 +649,80 @@ export class MediaService {
   }
 
   /**
-   * Public helper extracting duration in milliseconds of an audio or video file using FFmpeg.
+   * Public helper extracting duration in milliseconds of an audio or video file using FFprobe / FFmpeg.
    */
   async probeMediaDurationMs(filePath: string): Promise<number> {
+    const ffprobePath = getFfprobePath();
+    if (ffprobePath) {
+      const probed = await this.probeDurationViaFfprobeMs(ffprobePath, filePath);
+      if (probed > 0) return probed;
+    }
     const ffmpegPath = getFfmpegPath();
     if (!ffmpegPath) return 0;
     return this.probeAudioDurationMs(ffmpegPath, filePath);
+  }
+
+  /**
+   * Static convenience helper for detecting video shot changes.
+   */
+  static async detectShotChanges(videoPathOrUrl: string, threshold: number = 0.35): Promise<number[]> {
+    return mediaService.detectShotChanges(videoPathOrUrl, threshold);
+  }
+
+  /**
+   * Detects video shot changes / scene cuts using FFmpeg's scene change filter.
+   *
+   * @param videoPathOrUrl Local video file path or accessible media URL
+   * @param threshold Sensitivity threshold (0.0 - 1.0, default 0.35). Lower = more cuts.
+   * @returns Array of cut timestamps in milliseconds, sorted ascending.
+   */
+  async detectShotChanges(videoPathOrUrl: string, threshold: number = 0.35): Promise<number[]> {
+    const ffmpegPath = getFfmpegPath();
+    if (!ffmpegPath) {
+      console.warn("[MediaService] FFmpeg not found, skipping shot-change detection");
+      return [];
+    }
+
+    try {
+      const clampedThresh = Math.max(0.1, Math.min(0.9, threshold));
+      const args = [
+        "-i", videoPathOrUrl,
+        "-filter:v", `select=gt(scene\\,${clampedThresh.toFixed(2)}),showinfo`,
+        "-f", "null", "-",
+      ];
+
+      const res = await execFileAsync(ffmpegPath, args, { maxBuffer: 50 * 1024 * 1024 }).catch((err) => {
+        return { stderr: String(err?.stderr || "") };
+      });
+      const stderr = (res as any)?.stderr || "";
+
+      const cutPoints: number[] = [];
+      const lines = stderr.split("\n");
+      for (const line of lines) {
+        if (!line.includes("pts_time:")) continue;
+        const match = line.match(/pts_time:([0-9.]+)/);
+        if (match && match[1]) {
+          const sec = parseFloat(match[1]);
+          if (Number.isFinite(sec) && sec >= 0) {
+            cutPoints.push(Math.round(sec * 1000));
+          }
+        }
+      }
+
+      // Sort and deduplicate (ensure minimum 66ms separation)
+      const sorted = Array.from(new Set(cutPoints)).sort((a, b) => a - b);
+      const filtered: number[] = [];
+      for (const cp of sorted) {
+        if (filtered.length === 0 || cp - filtered[filtered.length - 1] >= 66) {
+          filtered.push(cp);
+        }
+      }
+
+      return filtered;
+    } catch (err: any) {
+      console.warn(`[MediaService] Shot change detection notice for ${videoPathOrUrl}:`, err?.message || err);
+      return [];
+    }
   }
 
   /**
@@ -523,6 +743,14 @@ export class MediaService {
     options?: {
       spokenSegments?: Array<{ start: number; end: number }>;
       expectedSourceDegraded?: boolean;
+      /** Original mix. When given, bleed is measured relative to it and an identical URL fails outright. */
+      referenceAudioUrl?: string;
+      /**
+       * Isolated original voice, time-aligned with the stem (ideally from the same separation run).
+       * When given, bleed is measured as the part of the stem coherent with this voice, so loud
+       * music under the speech is not mistaken for bleed.
+       */
+      vocalsUrl?: string;
     }
   ): Promise<MneValidationResult> {
     const issues: string[] = [];
@@ -534,8 +762,26 @@ export class MediaService {
     let channels = 2;
     let channelLayout = "stereo";
     let dialogueBleedDb: number | undefined;
+    let vocalSuppressionDb: number | undefined;
     let clippingDetected = false;
     let corruptionDetected = false;
+    const referenceAudioUrl = options?.referenceAudioUrl;
+    const isUnseparatedOriginal = Boolean(referenceAudioUrl && referenceAudioUrl === mneUrl);
+    if (isUnseparatedOriginal) {
+      issues.push("M&E stem is the unseparated original mix (source dialogue would bleed under the dub)");
+    }
+    const tempRefPath = path.join(tmpDir, `probe_ref_${jobId}_${Date.now()}.mp3`);
+    let hasRefFile = false;
+    // A "vocals" URL equal to the stem or the original mix would compare the music with itself.
+    const vocalsUrl =
+      options?.vocalsUrl && options.vocalsUrl !== mneUrl && options.vocalsUrl !== referenceAudioUrl
+        ? options.vocalsUrl
+        : undefined;
+    const tempVocPath = path.join(tmpDir, `probe_voc_${jobId}_${Date.now()}.mp3`);
+    let hasVocFile = false;
+    let bleedMethod: MneValidationResult["bleedMethod"];
+    const minSuppressionFailDb = Number(process.env.MNE_MIN_SUPPRESSION_FAIL_DB) || 10;
+    const minSuppressionPassDb = Number(process.env.MNE_MIN_SUPPRESSION_PASS_DB) || 16;
 
     try {
       // 1. Accessibility & Existence Check
@@ -599,41 +845,108 @@ export class MediaService {
             }
           }
 
-          // Empirical dialogue-bleed measurement over spoken windows if provided
-          if (options?.spokenSegments && options.spokenSegments.length > 0 && durationSeconds > 0.5) {
-            const sampleWindows = options.spokenSegments
-              .filter((s) => s.end - s.start >= 300)
-              .slice(0, 4);
-            const windowLevels: number[] = [];
-            for (const win of sampleWindows) {
+          // Dialogue-bleed measurement across the WHOLE timeline (not just the first few lines).
+          // When the original mix is available, measure how far the voice band dropped vs the original
+          // in each speech window; residual source dialogue shows up as a small drop.
+          if (options?.spokenSegments && options.spokenSegments.length > 0 && durationSeconds > 0.5 && !isUnseparatedOriginal) {
+            const eligible = options.spokenSegments.filter((s) => s.end - s.start >= 300);
+            const MAX_WINDOWS = 12;
+            const stride = Math.max(1, Math.ceil(eligible.length / MAX_WINDOWS));
+            const sampleWindows = eligible.filter((_, i) => i % stride === 0).slice(0, MAX_WINDOWS);
+
+            if (referenceAudioUrl) {
+              try {
+                await this.downloadToStream(referenceAudioUrl, tempRefPath, bucket, 60000);
+                hasRefFile = true;
+              } catch (refErr: any) {
+                issues.push(`Could not download original mix for bleed comparison (${refErr?.message || refErr})`);
+              }
+            }
+
+            const probeVoiceBand = async (filePath: string, win: { start: number; end: number }): Promise<number | undefined> => {
               const startSec = Math.max(0, win.start / 1000);
               const durSec = Math.max(0.25, Math.min(8, (win.end - win.start) / 1000));
-              const bleedProbe = await execFileAsync(
+              const probe = await execFileAsync(
                 ffmpegPath,
                 [
                   "-ss", startSec.toFixed(3),
                   "-t", durSec.toFixed(3),
-                  "-i", tempMnePath,
+                  "-i", filePath,
                   "-af", "highpass=f=250,lowpass=f=3800,volumedetect",
                   "-f", "null",
                   process.platform === "win32" ? "NUL" : "/dev/null",
                 ],
                 { maxBuffer: 5 * 1024 * 1024 }
               ).catch((e) => ({ stdout: e?.stdout || "", stderr: e?.stderr || "" }));
-              const winMeanMatch = `${bleedProbe.stderr || ""}`.match(/mean_volume:\s*(-?[\d.]+)\s*dB/);
-              if (winMeanMatch) {
-                const dbVal = Number(winMeanMatch[1]);
-                if (Number.isFinite(dbVal)) windowLevels.push(dbVal);
+              const m = `${probe.stderr || ""}`.match(/mean_volume:\s*(-?[\d.]+)\s*dB/);
+              const v = m ? Number(m[1]) : NaN;
+              return Number.isFinite(v) ? v : undefined;
+            };
+
+            if (vocalsUrl) {
+              try {
+                await this.downloadToStream(vocalsUrl, tempVocPath, bucket, 60000);
+                hasVocFile = true;
+              } catch (vocErr: any) {
+                console.warn(
+                  `[MediaService] Isolated voice unavailable for bleed check (job ${jobId}); using level drop:`,
+                  vocErr?.message || String(vocErr)
+                );
               }
+            }
+
+            const windowLevels: number[] = [];
+            const levelDrops: number[] = [];
+            const coherentSuppressions: number[] = [];
+            for (const win of sampleWindows) {
+              const stemDb = await probeVoiceBand(tempMnePath, win);
+              if (stemDb === undefined) continue;
+              windowLevels.push(stemDb);
+              let levelDrop: number | undefined;
+              if (hasRefFile) {
+                const refDb = await probeVoiceBand(tempRefPath, win);
+                if (refDb !== undefined && refDb > -60) levelDrop = refDb - stemDb;
+              }
+              let coherent: number | null = null;
+              if (hasVocFile) {
+                const startSec = Math.max(0, win.start / 1000);
+                const durSec = Math.max(0.25, Math.min(8, (win.end - win.start) / 1000));
+                const [bedPcm, vocPcm] = await Promise.all([
+                  this.decodeWindowPcm(tempMnePath, startSec, durSec, BLEED_ANALYSIS_RATE),
+                  this.decodeWindowPcm(tempVocPath, startSec, durSec, BLEED_ANALYSIS_RATE),
+                ]);
+                coherent = coherentVoiceSuppressionDb(bedPcm, vocPcm, BLEED_ANALYSIS_RATE);
+              }
+              if (levelDrop !== undefined) levelDrops.push(levelDrop);
+              // The level drop never overstates suppression (the stem holds the leak AND the music),
+              // so the higher of the two is still a safe reading.
+              if (coherent !== null) {
+                coherentSuppressions.push(levelDrop !== undefined ? Math.max(levelDrop, coherent) : coherent);
+              }
+            }
+            // With the isolated voice, only coherence readings decide: a level drop on a window that is too
+            // short, or where the music drowns the voice, would count the music as bleed again. If no window
+            // could be measured, bleed is reported as unmeasured (degraded), never as a level-drop fail.
+            // Without the isolated voice, the level drop as before.
+            const suppressions = hasVocFile ? coherentSuppressions : levelDrops;
+            if (suppressions.length > 0) {
+              bleedMethod = coherentSuppressions.length > 0 ? "voice_coherence" : "level_drop";
             }
             if (windowLevels.length > 0) {
               const avgDb = windowLevels.reduce((a, b) => a + b, 0) / windowLevels.length;
               dialogueBleedDb = Number(avgDb.toFixed(1));
-              if (dialogueBleedDb > -14 && (source === "dsp_fallback" || source === "fallback_crossover")) {
+            }
+            if (suppressions.length > 0) {
+              // Worst quartile, so a few badly-bleeding lines are not averaged away.
+              const sorted = [...suppressions].sort((a, b) => a - b);
+              vocalSuppressionDb = Number(sorted[Math.floor((sorted.length - 1) * 0.25)].toFixed(1));
+              if (vocalSuppressionDb < minSuppressionPassDb) {
                 issues.push(
-                  `Elevated vocal-band energy during spoken windows (${dialogueBleedDb} dBFS) under DSP fallback`
+                  `Source dialogue bleed: voice band only ${vocalSuppressionDb} dB below original during speech (need >= ${minSuppressionPassDb} dB)`
                 );
               }
+            } else if (referenceAudioUrl || hasVocFile) {
+              issues.push("Dialogue bleed could not be measured against the original mix");
             }
           }
         } catch (probeErr: any) {
@@ -649,6 +962,8 @@ export class MediaService {
       issues.push(`Inaccessible or failed download: ${err?.message || String(err)}`);
     } finally {
       await fs.promises.unlink(tempMnePath).catch(() => {});
+      if (hasRefFile) await fs.promises.unlink(tempRefPath).catch(() => {});
+      if (hasVocFile) await fs.promises.unlink(tempVocPath).catch(() => {});
     }
 
     // 3. Duration & Timeline Alignment Check
@@ -669,7 +984,13 @@ export class MediaService {
 
     // 4. Status Determination
     let validationStatus: "passed" | "degraded" | "failed" | "not_required" = "passed";
-    if (corruptionDetected || (expectedDurationSeconds > 0 && durationDeltaMs > 15000)) {
+    const bleedFailed = vocalSuppressionDb !== undefined && vocalSuppressionDb < minSuppressionFailDb;
+    if (
+      corruptionDetected ||
+      isUnseparatedOriginal ||
+      bleedFailed ||
+      (expectedDurationSeconds > 0 && durationDeltaMs > 15000)
+    ) {
       validationStatus = "failed";
     } else if (clippingDetected || !durationMatch || isDspDegraded || issues.length > 0) {
       validationStatus = "degraded";
@@ -687,6 +1008,8 @@ export class MediaService {
       channels,
       channelLayout,
       dialogueBleedDb,
+      vocalSuppressionDb,
+      bleedMethod,
       clippingDetected,
       corruptionDetected,
       validationStatus,
@@ -849,6 +1172,250 @@ export class MediaService {
     }
   }
 
+  // ───────────────────────────── Delivery checks ─────────────────────────────
+  // Run on what the viewer actually receives. See delivery-audio-check.ts for why.
+
+  /** Integrated loudness (EBU R128) of a local media file, or null when it cannot be measured. */
+  async measureIntegratedLufs(localPath: string): Promise<number | null> {
+    const ffmpegPath = getFfmpegPath();
+    if (!ffmpegPath) return null;
+    const res: any = await execFileAsync(
+      ffmpegPath,
+      ["-nostats", "-i", localPath, "-map", "0:a:0", "-af", "ebur128", "-f", "null", process.platform === "win32" ? "NUL" : "/dev/null"],
+      { maxBuffer: 50 * 1024 * 1024 }
+    ).catch((e: any) => ({ stderr: e?.stderr || "" }));
+    const summary = String(res?.stderr || "").split("Summary:").pop() || "";
+    const m = summary.match(/I:\s*(-?[\d.]+|-inf)\s*LUFS/);
+    if (!m || m[1] === "-inf") return null;
+    const v = parseFloat(m[1]);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  /** Decode the first audio stream of a local file to mono float32 PCM. */
+  async decodeMonoPcm(localPath: string, sampleRate = 8000, maxSeconds = 1200): Promise<Float32Array> {
+    const ffmpegPath = getFfmpegPath();
+    if (!ffmpegPath) return new Float32Array(0);
+    const { stdout } = await execFileAsync(
+      ffmpegPath,
+      ["-v", "error", "-t", String(maxSeconds), "-i", localPath, "-map", "0:a:0", "-ac", "1", "-ar", String(sampleRate), "-f", "f32le", "pipe:1"],
+      { encoding: "buffer", maxBuffer: Math.ceil(maxSeconds * sampleRate * 4 * 1.1) + 1024 * 1024 } as any
+    );
+    const buf = stdout as unknown as Buffer;
+    const copy = Buffer.from(buf); // aligned copy for the Float32Array view
+    return new Float32Array(copy.buffer, copy.byteOffset, Math.floor(copy.length / 4));
+  }
+
+  /** Decode [startSec, startSec + durSec) of a local file to mono float32 PCM (sample-accurate seek). */
+  async decodeWindowPcm(localPath: string, startSec: number, durSec: number, sampleRate = 8000): Promise<Float32Array> {
+    const ffmpegPath = getFfmpegPath();
+    if (!ffmpegPath) return new Float32Array(0);
+    const { stdout } = await execFileAsync(
+      ffmpegPath,
+      ["-v", "error", "-ss", startSec.toFixed(3), "-t", durSec.toFixed(3), "-i", localPath,
+        "-map", "0:a:0", "-ac", "1", "-ar", String(sampleRate), "-f", "f32le", "pipe:1"],
+      { encoding: "buffer", maxBuffer: Math.ceil(durSec * sampleRate * 4 * 1.1) + 1024 * 1024 } as any
+    ).catch(() => ({ stdout: Buffer.alloc(0) }));
+    const copy = Buffer.from(stdout as unknown as Buffer);
+    return new Float32Array(copy.buffer, copy.byteOffset, Math.floor(copy.length / 4));
+  }
+
+  private async applyGainAndLimit(ffmpegPath: string, input: string, output: string, gainDb: number, isVideo: boolean): Promise<void> {
+    // alimiter at 0.891 (≈ −1 dBFS) so a large boost can never clip.
+    const af = `volume=${gainDb.toFixed(1)}dB,alimiter=limit=0.891:level=false`;
+    const args = isVideo
+      ? ["-y", "-i", input, "-map", "0", "-c", "copy", "-c:a", "aac", "-b:a", "192k", "-af", af, output]
+      : ["-y", "-i", input, "-af", af, "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "44100", "-ac", "2", output];
+    await execFileAsync(ffmpegPath, args, { maxBuffer: 100 * 1024 * 1024 });
+  }
+
+  /**
+   * Final check of a dub's master audio before it is published.
+   *  1. Source bleed: if the original voice is under the dub, fall back to the dialogue-only track
+   *     (a dub without background is acceptable; a dub with the original language under it is not).
+   *  2. Loudness: bring the chosen track to the delivery target (±2 LU).
+   * Returns the URL to publish. ok=false means neither candidate is fit to ship.
+   */
+  async verifyDeliveryAudio(
+    jobId: string,
+    language: string,
+    opts: {
+      masterUrl: string;
+      dialogueOnlyUrl?: string | null;
+      referenceUrl?: string | null;
+      speech: SpeechWindow[];
+      targetLufs?: number;
+    }
+  ): Promise<{
+    ok: boolean;
+    url: string;
+    reasons: string[];
+    action: "unchanged" | "loudness_corrected" | "dialogue_only" | "dialogue_only_loudness_corrected";
+    lufsBefore: number | null;
+    lufsAfter: number | null;
+    gainDb: number;
+    bleed: Omit<BleedReport, "windows"> & { flaggedWindows: Array<{ startMs: number; endMs: number; r: number }> } | null;
+    bleedAfterFallback?: { bleed: boolean; flaggedMs: number; worstR: number } | null;
+  }> {
+    const ffmpegPath = getFfmpegPath();
+    const target = opts.targetLufs ?? DELIVERY_TARGET_LUFS;
+    const empty = { ok: true, url: opts.masterUrl, reasons: [] as string[], action: "unchanged" as const, lufsBefore: null, lufsAfter: null, gainDb: 0, bleed: null };
+    if (!ffmpegPath || !opts.masterUrl) return empty;
+
+    const bucket = storage().bucket();
+    const tmp = os.tmpdir();
+    const stamp = Date.now();
+    const tMaster = path.join(tmp, `deliv_master_${jobId}_${language}_${stamp}.mp3`);
+    const tDialogue = path.join(tmp, `deliv_dialogue_${jobId}_${language}_${stamp}.mp3`);
+    const tRef = path.join(tmp, `deliv_ref_${jobId}_${language}_${stamp}.bin`);
+    const tOut = path.join(tmp, `deliv_out_${jobId}_${language}_${stamp}.mp3`);
+    const reasons: string[] = [];
+
+    try {
+      const tDelivDl = Date.now();
+      await this.downloadToStream(opts.masterUrl, tMaster, bucket, 120000);
+      emitDubbingTiming("post.delivery_download", tDelivDl, { jobId, lang: language, file: "master" });
+      let chosenPath = tMaster;
+      let chosenUrl = opts.masterUrl;
+      let usedDialogueOnly = false;
+
+      // 1. Source bleed
+      const tBleedLufs = Date.now();
+      let bleedSummary: any = null;
+      let bleedAfterFallback: any = null;
+      if (opts.referenceUrl && opts.speech.length > 0) {
+        try {
+          const tRefDl = Date.now();
+          await this.downloadToStream(opts.referenceUrl, tRef, bucket, 180000);
+          emitDubbingTiming("post.delivery_download", tRefDl, { jobId, lang: language, file: "reference" });
+          const ref = await this.decodeMonoPcm(tRef);
+          const master = await this.decodeMonoPcm(tMaster);
+          const report = detectSourceBleed(master, ref, 8000, opts.speech);
+          bleedSummary = {
+            bleed: report.bleed, lagSamples: report.lagSamples, testedMs: report.testedMs,
+            flaggedMs: report.flaggedMs, worstR: report.worstR,
+            flaggedWindows: report.windows.filter((w) => w.flagged).slice(0, 20).map(({ startMs, endMs, r }) => ({ startMs, endMs, r })),
+          };
+          if (report.bleed) {
+            const canFallBack = Boolean(opts.dialogueOnlyUrl && opts.dialogueOnlyUrl !== opts.masterUrl);
+            if (canFallBack) {
+              await this.downloadToStream(opts.dialogueOnlyUrl!, tDialogue, bucket, 120000);
+              const dlg = await this.decodeMonoPcm(tDialogue);
+              const again = detectSourceBleed(dlg, ref, 8000, opts.speech);
+              bleedAfterFallback = { bleed: again.bleed, flaggedMs: again.flaggedMs, worstR: again.worstR };
+              if (again.bleed) {
+                reasons.push(`source_bleed: original voice under the dub (master ${report.flaggedMs}/${report.testedMs} ms, dialogue-only ${again.flaggedMs}/${again.testedMs} ms)`);
+              } else {
+                chosenPath = tDialogue;
+                chosenUrl = opts.dialogueOnlyUrl!;
+                usedDialogueOnly = true;
+              }
+            } else {
+              reasons.push(`source_bleed: original voice under the dub (${report.flaggedMs}/${report.testedMs} ms of speech), no dialogue-only fallback`);
+            }
+          }
+        } catch (bleedErr) {
+          // A check that cannot run is reported, not treated as a pass or a failure.
+          console.warn("[MediaService:Delivery] Source-bleed check could not run:", bleedErr);
+        }
+      }
+
+      // 2. Loudness
+      const lufsBefore = await this.measureIntegratedLufs(chosenPath);
+      emitDubbingTiming("post.delivery_bleed_and_lufs", tBleedLufs, { jobId, lang: language, lufsBefore });
+      const corr = loudnessCorrection(lufsBefore, target);
+      let lufsAfter = lufsBefore;
+      let gainDb = 0;
+      if (corr.outOfRange) {
+        reasons.push(`loudness: ${lufsBefore === null ? "silent or unmeasurable" : `${lufsBefore} LUFS`} (target ${target})`);
+      } else if (corr.needed) {
+        const tDelivFf = Date.now();
+        await this.applyGainAndLimit(ffmpegPath, chosenPath, tOut, corr.gainDb, false);
+        lufsAfter = await this.measureIntegratedLufs(tOut);
+        emitDubbingTiming("post.delivery_loudness_ffmpeg", tDelivFf, { jobId, lang: language, gainDb: corr.gainDb });
+        gainDb = corr.gainDb;
+        if (lufsAfter === null || Math.abs(lufsAfter - target) > DELIVERY_TOLERANCE_LU + 1) {
+          // The limiter can hold a very peaky track below target; +1 LU grace before failing.
+          reasons.push(`loudness: ${lufsBefore} LUFS, ${lufsAfter ?? "unmeasurable"} LUFS after +${corr.gainDb} dB (target ${target})`);
+        } else {
+          const outputPath = `audio/${jobId}/${language}/master_delivery.mp3`;
+          const tDelivUp = Date.now();
+          await bucket.upload(tOut, {
+            destination: outputPath,
+            metadata: {
+              contentType: "audio/mpeg",
+              metadata: { jobId, language, stem: "master_delivery", lufsBefore: String(lufsBefore), lufsAfter: String(lufsAfter), gainDb: String(gainDb), dialogueOnly: String(usedDialogueOnly) },
+            },
+          });
+          emitDubbingTiming("post.delivery_upload", tDelivUp, { jobId, lang: language });
+          chosenUrl = `gs://${bucket.name}/${outputPath}`;
+        }
+      }
+
+      const action = usedDialogueOnly
+        ? (gainDb !== 0 ? "dialogue_only_loudness_corrected" : "dialogue_only")
+        : (gainDb !== 0 ? "loudness_corrected" : "unchanged");
+      return { ok: reasons.length === 0, url: chosenUrl, reasons, action, lufsBefore, lufsAfter, gainDb, bleed: bleedSummary, bleedAfterFallback };
+    } finally {
+      for (const p of [tMaster, tDialogue, tRef, tOut]) await fs.promises.unlink(p).catch(() => {});
+    }
+  }
+
+  /**
+   * Loudness check of a finished dubbed video (after muxing, which may run in an external service).
+   * Corrects the audio stream in place when it is off target; the video stream is copied untouched.
+   */
+  async verifyVideoLoudness(
+    jobId: string,
+    language: string,
+    videoUrl: string,
+    targetLufs = DELIVERY_TARGET_LUFS
+  ): Promise<{ videoUrl: string; lufsBefore: number | null; lufsAfter: number | null; corrected: boolean; ok: boolean }> {
+    const ffmpegPath = getFfmpegPath();
+    if (!ffmpegPath || !videoUrl) return { videoUrl, lufsBefore: null, lufsAfter: null, corrected: false, ok: true };
+    const bucket = storage().bucket();
+    const stamp = Date.now();
+    const tIn = path.join(os.tmpdir(), `deliv_vid_${jobId}_${language}_${stamp}.mp4`);
+    const tOut = path.join(os.tmpdir(), `deliv_vid_out_${jobId}_${language}_${stamp}.mp4`);
+    try {
+      const tVidDl = Date.now();
+      await this.downloadToStream(videoUrl, tIn, bucket, 300000);
+      emitDubbingTiming("post.video_loudness_download", tVidDl, { jobId, lang: language });
+      const tVidFf = Date.now();
+      const lufsBefore = await this.measureIntegratedLufs(tIn);
+      const corr = loudnessCorrection(lufsBefore, targetLufs);
+      if (!corr.needed || corr.outOfRange) {
+        emitDubbingTiming("post.video_loudness_ffmpeg", tVidFf, { jobId, lang: language, corrected: false, lufsBefore });
+        return { videoUrl, lufsBefore, lufsAfter: lufsBefore, corrected: false, ok: !corr.outOfRange };
+      }
+      await this.applyGainAndLimit(ffmpegPath, tIn, tOut, corr.gainDb, true);
+      const lufsAfter = await this.measureIntegratedLufs(tOut);
+      emitDubbingTiming("post.video_loudness_ffmpeg", tVidFf, { jobId, lang: language, corrected: true, lufsBefore, lufsAfter });
+      const ok = lufsAfter !== null && Math.abs(lufsAfter - targetLufs) <= DELIVERY_TOLERANCE_LU + 1;
+      if (!ok) return { videoUrl, lufsBefore, lufsAfter, corrected: false, ok: false };
+      const info = parseAnyStorageUrl(videoUrl);
+      const destBucket = info?.bucketName ? storage().bucket(info.bucketName) : bucket;
+      const destPath = info?.filePath || `videos/${jobId}/${language}-dubbed.mp4`;
+      const downloadToken = require("crypto").randomUUID();
+      const tVidUp = Date.now();
+      await destBucket.upload(tOut, {
+        destination: destPath,
+        metadata: {
+          contentType: "video/mp4",
+          metadata: {
+            lufsBefore: String(lufsBefore),
+            lufsAfter: String(lufsAfter),
+            loudnessGainDb: String(corr.gainDb),
+            firebaseStorageDownloadTokens: downloadToken,
+          },
+        },
+      });
+      emitDubbingTiming("post.video_loudness_upload", tVidUp, { jobId, lang: language });
+      return { videoUrl: `gs://${destBucket.name}/${destPath}`, lufsBefore, lufsAfter, corrected: true, ok: true };
+    } finally {
+      for (const p of [tIn, tOut]) await fs.promises.unlink(p).catch(() => {});
+    }
+  }
+
   async mergeAudioToVideo(request: any): Promise<string> {
     try {
       const outputPath = `videos/${request.jobId}/${request.language}-dubbed.mp4`;
@@ -870,8 +1437,10 @@ export class MediaService {
 
         try {
           // Memory-safe streaming downloads to disk
+          const tRemuxDl = Date.now();
           await this.downloadToStream(request.videoUrl, tempVideo, bucket, 180000);
           await this.downloadToStream(request.audioUrl, tempAudio, bucket, 90000);
+          emitDubbingTiming("post.remux_download", tRemuxDl, { jobId: request.jobId, lang: request.language });
 
           let audioFilterArg = request.audioFilters && !request.isPreMastered
             ? sanitizeAudioFilterString(request.audioFilters)
@@ -898,6 +1467,7 @@ export class MediaService {
           ];
 
           ffmpegArgs.push(tempOut);
+          const tRemuxFf = Date.now();
           try {
             await execFileAsync(ffmpegPath, ffmpegArgs, { maxBuffer: 100 * 1024 * 1024 });
           } catch (filterErr) {
@@ -916,12 +1486,21 @@ export class MediaService {
             ];
             await execFileAsync(ffmpegPath, simpleArgs, { maxBuffer: 100 * 1024 * 1024 });
           }
+          emitDubbingTiming("post.remux_ffmpeg", tRemuxFf, { jobId: request.jobId, lang: request.language });
 
-          // Upload stream
+          // Upload stream with a Firebase download token so Studio web playback & downloads avoid 403s
+          const tRemuxUp = Date.now();
+          const downloadToken = require("crypto").randomUUID();
           await bucket.upload(tempOut, {
             destination: outputPath,
-            metadata: { contentType: "video/mp4" },
+            metadata: {
+              contentType: "video/mp4",
+              metadata: {
+                firebaseStorageDownloadTokens: downloadToken,
+              },
+            },
           });
+          emitDubbingTiming("post.remux_upload", tRemuxUp, { jobId: request.jobId, lang: request.language });
 
           return `gs://${bucket.name}/${outputPath}`;
         } finally {
@@ -978,7 +1557,7 @@ export class MediaService {
   /**
    * Hardened M&E isolation returning explicit source + degradation telemetry:
    * 1. Modal GPU Demucs v4 neural demixing (/demix) when healthy and non-degraded
-   * 2. ElevenLabs Neural Audio Isolation + PCM delay-aligned phase subtraction
+   * 2. Phase subtraction against a supplied isolated vocal stem (e.g. Demucs vocals)
    * 3. FFmpeg adaptive DSP crossover (explicitly marked `source: "dsp_fallback"`, `degraded: true`)
    */
   async extractMneStemDetailed(
@@ -1002,7 +1581,7 @@ export class MediaService {
             const cachedSource = (customMeta.mneSource as MneValidationResult["source"]) ||
               (customMeta.separationMethod === "phase_subtraction_midside"
                 ? "neural_isolation_subtraction"
-                : "neural_demixing");
+                : (customMeta.separationMethod ? "neural_demixing" : "dsp_fallback"));
             const cachedDegraded = String(customMeta.degraded) === "true" || cachedSource === "dsp_fallback";
             return {
               mneUrl: `gs://${bucket.name}/${outputPath}`,
@@ -1022,15 +1601,19 @@ export class MediaService {
     // 0. Primary: Automated Stem Demixing via Demucs v4 on GPU Worker
     // Sign the GCS URL so the GPU worker can download without needing its own GCS credentials.
     const serviceUrl = PIPELINE_CONFIG.DEMUX_SERVICE_URL;
-    if (serviceUrl && !serviceUrl.includes("placeholder")) {
+    const workerRequest = demuxWorkerRequestConfig();
+    if (serviceUrl && !serviceUrl.includes("placeholder") && !workerRequest) {
+      issues.push("Demux worker skipped: DEMUX_WORKER_TOKEN not set");
+    }
+    if (serviceUrl && !serviceUrl.includes("placeholder") && workerRequest) {
       try {
-        const { audioIdentityService } = await import("./audio-identity.js");
+        const { audioIdentityService } = require("./audio-identity");
         const signedAudioUrl = await audioIdentityService.getAccessibleUrl(audioUrl).catch(() => audioUrl);
         const demixEndpoint = `${serviceUrl.replace(/\/$/, "")}/demix`;
         const demixRes = await axios.post(
           demixEndpoint,
           { jobId, audioUrl: signedAudioUrl },
-          { timeout: 120000, headers: { "Content-Type": "application/json" } }
+          workerRequest
         );
         const demixData = demixRes.data;
         const isRemoteDegraded =
@@ -1042,6 +1625,7 @@ export class MediaService {
           console.log(`[MediaService] Background music & foley isolated via Demucs v4 neural demixing for ${jobId}`);
           return {
             mneUrl: demixData.mneUrl,
+            vocalsUrl: demixData.vocalsUrl || undefined,
             source: "neural_demixing",
             engine: demixData.engine || "demucs_v4_neural",
             degraded: false,
@@ -1058,24 +1642,7 @@ export class MediaService {
       }
     }
 
-    // 1. Secondary Neural Path: ElevenLabs /v1/audio-isolation if no isolated vocal URL was supplied
     let resolvedIsolatedVocalUrl = options?.isolatedVocalUrl;
-    if (
-      !resolvedIsolatedVocalUrl &&
-      !options?.forceMidSideSplit &&
-      options?.enableAutoVocalIsolation &&
-      (PIPELINE_CONFIG.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY)
-    ) {
-      try {
-        const { audioIdentityService } = await import("./audio-identity.js");
-        const isolated = await audioIdentityService.isolateVocals(jobId, audioUrl);
-        if (isolated && isolated !== audioUrl) {
-          resolvedIsolatedVocalUrl = isolated;
-        }
-      } catch (isoErr: any) {
-        issues.push(`ElevenLabs Audio Isolation fallback failed (${isoErr?.message || isoErr})`);
-      }
-    }
 
     // Never allow orig - orig silent self-cancellation
     if (resolvedIsolatedVocalUrl && resolvedIsolatedVocalUrl === audioUrl) {
@@ -1094,14 +1661,9 @@ export class MediaService {
           issues,
         };
       }
-      console.warn("[MediaService] FFmpeg not found, returning unseparated original audio");
-      return {
-        mneUrl: audioUrl,
-        source: "dsp_fallback",
-        engine: "unseparated_original_fallback",
-        degraded: true,
-        issues: [...issues, "FFmpeg missing; returned unseparated original audio"],
-      };
+      // Never hand back the original mix as "M&E": it carries the source-language dialogue,
+      // which then bleeds under the dub. Fail loudly so the caller can skip the bed.
+      throw new Error(`M&E separation unavailable (FFmpeg missing): ${issues.join("; ")}`);
     }
 
     const tmpDir = os.tmpdir();
@@ -1128,8 +1690,7 @@ export class MediaService {
         }
       }
 
-      // 4. Phase-Inverted Subtraction (secondary fallback; labelled degraded because
-      //    ElevenLabs isolation is not phase-coherent — use Demucs when available)
+      // 4. Phase-Inverted Subtraction against the supplied vocal stem (secondary fallback)
       if (hasVocal) {
         usedPhaseSubtraction = await this.tryPhaseSubtraction(ffmpegPath, tempAudio, tempVocal, tempOut, issues);
         if (!usedPhaseSubtraction) {
@@ -1221,14 +1782,18 @@ export class MediaService {
         issues,
       };
     } catch (err: any) {
-      console.warn("[MediaService] M&E extraction encountered error, returning original audio fallback:", err);
-      return {
-        mneUrl: degradedRemoteFallbackUrl || audioUrl,
-        source: "dsp_fallback",
-        engine: "error_fallback",
-        degraded: true,
-        issues: [...issues, `M&E extraction error: ${err?.message || String(err)}`],
-      };
+      console.warn("[MediaService] M&E extraction encountered error:", err);
+      if (degradedRemoteFallbackUrl) {
+        return {
+          mneUrl: degradedRemoteFallbackUrl,
+          source: "dsp_fallback",
+          engine: "error_fallback",
+          degraded: true,
+          issues: [...issues, `M&E extraction error: ${err?.message || String(err)}`],
+        };
+      }
+      // Never return the original mix (source-language dialogue) as the M&E bed.
+      throw new Error(`M&E extraction failed: ${err?.message || String(err)}`);
     } finally {
       await fs.promises.unlink(tempAudio).catch(() => {});
       await fs.promises.unlink(tempVocal).catch(() => {});
@@ -1288,8 +1853,167 @@ export class MediaService {
   }
 
   /**
-   * Runs GPU Demucs v4 AND ElevenLabs Audio Isolation + PCM subtraction concurrently,
-   * probes empirical `dialogueBleedDb` on both when available, and selects the cleaner stem.
+   * 🎚️ Measures how loud the background is between spoken segments (FFmpeg volumedetect), to
+   * decide whether a video needs voice/background separation at all (separation-policy.ts).
+   * `gaps` are non-speech spans in ms. Never throws: missing measurements come back as null.
+   */
+  async measureBackgroundLevels(
+    jobId: string,
+    audioUrl: string,
+    gaps: Array<{ start: number; end: number }>
+  ): Promise<{ backgroundDb: number | null; overallDb: number | null; gapSeconds: number }> {
+    const gapSeconds = gaps.reduce((sum, g) => sum + Math.max(0, g.end - g.start), 0) / 1000;
+    const ffmpegPath = getFfmpegPath();
+    if (!ffmpegPath || gaps.length === 0) return { backgroundDb: null, overallDb: null, gapSeconds };
+    const tempAudio = path.join(os.tmpdir(), `bgprobe_${jobId}_${Date.now()}.audio`);
+    const volume = async (filter: string): Promise<number | null> => {
+      try {
+        const { stderr } = await execFileAsync(
+          ffmpegPath,
+          ["-hide_banner", "-nostats", "-i", tempAudio, "-af", filter, "-f", "null", "-"],
+          { maxBuffer: 8 * 1024 * 1024, timeout: 120000 }
+        );
+        return parseMeanVolumeDb(String(stderr));
+      } catch (err: any) {
+        return parseMeanVolumeDb(String(err?.stderr || ""));
+      }
+    };
+    try {
+      await this.downloadToStream(audioUrl, tempAudio, storage().bucket(), 90000);
+      const backgroundDb = await volume(`aselect='${selectExpression(gaps)}',volumedetect`);
+      const overallDb = await volume("volumedetect");
+      return { backgroundDb, overallDb, gapSeconds };
+    } catch (err: any) {
+      console.warn(`[MediaService] Background level probe failed for ${jobId}: ${err?.message || err}`);
+      return { backgroundDb: null, overallDb: null, gapSeconds };
+    } finally {
+      fs.promises.unlink(tempAudio).catch(() => {});
+    }
+  }
+
+  /**
+   * 🎛️ Voice / background separation via self-hosted Modal GPU Demucs v4 worker.
+   * Calls POST ${DEMUX_SERVICE_URL}/demix with { jobId, audioUrl }.
+   * Returns { mneUrl, vocalsUrl, engine, degraded }.
+   */
+  async separateWithDemuxWorker(
+    jobId: string,
+    audioUrl: string
+  ): Promise<{ mneUrl: string; vocalsUrl: string; engine: string; degraded: boolean } | null> {
+    const serviceUrl = PIPELINE_CONFIG.DEMUX_SERVICE_URL;
+    if (!serviceUrl || serviceUrl.includes("placeholder")) {
+      return null;
+    }
+    const workerRequest = demuxWorkerRequestConfig();
+    if (!workerRequest) {
+      console.warn("[MediaService] Demux worker skipped: DEMUX_WORKER_TOKEN not set");
+      return null;
+    }
+    try {
+      const { audioIdentityService } = require("./audio-identity");
+      const tSignUrl = Date.now();
+      const signedAudioUrl = await audioIdentityService.getAccessibleUrl(audioUrl).catch(() => audioUrl);
+      emitDubbingTiming("separation.worker_sign_url", tSignUrl, { jobId });
+      const demixEndpoint = `${serviceUrl.replace(/\/$/, "")}/demix`;
+
+      const tWorkerReq = Date.now();
+      const res = await axios.post(
+        demixEndpoint,
+        { jobId, audioUrl: signedAudioUrl },
+        workerRequest
+      );
+      const workerReqMs = Date.now() - tWorkerReq;
+      const demixData = res.data;
+      const workerProcessingMs =
+        typeof demixData?.processingMs === "number" && Number.isFinite(demixData.processingMs)
+          ? Math.max(0, Math.round(demixData.processingMs))
+          : null;
+      const workerOverheadMs = workerProcessingMs !== null ? Math.max(0, workerReqMs - workerProcessingMs) : null;
+      emitDubbingTiming("separation.worker_request", tWorkerReq, {
+        jobId,
+        workerProcessingMs,
+        workerOverheadMs,
+        workerAlreadyUp: workerOverheadMs !== null ? workerOverheadMs < 3000 : null,
+      }, undefined, workerReqMs);
+      if (workerProcessingMs !== null) {
+        emitDubbingTiming("separation.worker_compute", tWorkerReq, { jobId }, undefined, workerProcessingMs);
+      }
+      const isDegraded =
+        demixData?.degraded === true ||
+        demixData?.engine === "ffmpeg_crossover_fallback" ||
+        demixData?.validationStatus === "degraded";
+
+      if (demixData?.mneUrl && !isDegraded) {
+        let finalMneUrl = demixData.mneUrl;
+        let finalVocalsUrl = demixData.vocalsUrl || "";
+
+        // If stems were served via token-authenticated worker HTTPS, persist directly to Firebase Storage bucket
+        if (finalMneUrl.startsWith("http://") || finalMneUrl.startsWith("https://")) {
+          const bucket = storage().bucket();
+          const tmpDir = os.tmpdir();
+          const tempMne = path.join(tmpDir, `persist_mne_${jobId}_${Date.now()}.mp3`);
+          const tempVoc = path.join(tmpDir, `persist_voc_${jobId}_${Date.now()}.mp3`);
+          const mnePath = `audio/${jobId}/m_and_e.mp3`;
+          const vocPath = `audio/${jobId}/vocals_demucs.mp3`;
+
+          try {
+            const tStemDl = Date.now();
+            await this.downloadToStream(finalMneUrl, tempMne, bucket, 180000);
+            emitDubbingTiming("separation.stem_download", tStemDl, { jobId, stem: "mne" });
+            const tStemUp = Date.now();
+            await bucket.upload(tempMne, {
+              destination: mnePath,
+              metadata: {
+                contentType: "audio/mpeg",
+                metadata: {
+                  jobId,
+                  mnePipelineVersion: MNE_PIPELINE_VERSION,
+                  mneSource: "neural_demixing",
+                  separationMethod: demixData.engine || "demucs_v4_neural",
+                  degraded: "false",
+                },
+              },
+            });
+            emitDubbingTiming("separation.stem_upload", tStemUp, { jobId, stem: "mne" });
+            finalMneUrl = `gs://${bucket.name}/${mnePath}`;
+
+            if (finalVocalsUrl && (finalVocalsUrl.startsWith("http://") || finalVocalsUrl.startsWith("https://"))) {
+              const tVocDl = Date.now();
+              await this.downloadToStream(finalVocalsUrl, tempVoc, bucket, 180000);
+              emitDubbingTiming("separation.stem_download", tVocDl, { jobId, stem: "vocals" });
+              const tVocUp = Date.now();
+              await bucket.upload(tempVoc, {
+                destination: vocPath,
+                metadata: { contentType: "audio/mpeg", metadata: { jobId } },
+              });
+              emitDubbingTiming("separation.stem_upload", tVocUp, { jobId, stem: "vocals" });
+              finalVocalsUrl = `gs://${bucket.name}/${vocPath}`;
+            }
+          } catch (persistErr: any) {
+            console.warn(`[MediaService] Notice persisting Demux stems to GCS: ${persistErr?.message || persistErr}`);
+          } finally {
+            fs.promises.unlink(tempMne).catch(() => {});
+            fs.promises.unlink(tempVoc).catch(() => {});
+          }
+        }
+
+        return {
+          mneUrl: finalMneUrl,
+          vocalsUrl: finalVocalsUrl,
+          engine: demixData.engine || "demucs_v4_neural",
+          degraded: false,
+        };
+      }
+    } catch (err: any) {
+      console.warn(`[MediaService] Self-hosted Demux worker note: ${err?.message || err}`);
+    }
+    return null;
+  }
+
+  /**
+   * Runs GPU Demucs v4 (when DEMUX_SERVICE_URL is set) AND phase subtraction against a supplied
+   * isolated vocal stem concurrently, probes empirical `dialogueBleedDb` on both when available,
+   * and selects the cleaner stem. A cached non-degraded stem (e.g. from the Demux worker) wins first.
    */
   async extractMneStemDetailedParallel(
     jobId: string,
@@ -1312,7 +2036,7 @@ export class MediaService {
             const cachedSource = (customMeta.mneSource as MneValidationResult["source"]) ||
               (customMeta.separationMethod === "phase_subtraction_midside"
                 ? "neural_isolation_subtraction"
-                : "neural_demixing");
+                : (customMeta.separationMethod ? "neural_demixing" : "dsp_fallback"));
             const cachedDegraded = String(customMeta.degraded) === "true" || cachedSource === "dsp_fallback";
             if (!cachedDegraded) {
               return {
@@ -1337,7 +2061,12 @@ export class MediaService {
         issues.push("GPU Demucs worker URL not configured");
         return null;
       }
-      const DEMUCS_TIMEOUT_MS = 6000;
+      const workerRequest = demuxWorkerRequestConfig();
+      if (!workerRequest) {
+        issues.push("Demux worker skipped: DEMUX_WORKER_TOKEN not set");
+        return null;
+      }
+      const DEMUCS_TIMEOUT_MS = workerRequest.timeout;
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`Demucs timeout after ${DEMUCS_TIMEOUT_MS}ms`)), DEMUCS_TIMEOUT_MS)
       );
@@ -1346,14 +2075,14 @@ export class MediaService {
         // Sign the GCS URL so the Modal GPU worker can download private bucket objects
         let signedAudioUrl = audioUrl;
         try {
-          const { audioIdentityService } = await import("./audio-identity.js");
+          const { audioIdentityService } = require("./audio-identity");
           signedAudioUrl = await audioIdentityService.getAccessibleUrl(audioUrl);
         } catch (_) { /* non-fatal — proceed with original URL */ }
         const demixRes = await Promise.race([
           axios.post(
             demixEndpoint,
             { jobId, audioUrl: signedAudioUrl },
-            { timeout: DEMUCS_TIMEOUT_MS, headers: { "Content-Type": "application/json" } }
+            workerRequest
           ),
           timeoutPromise,
         ]);
@@ -1365,6 +2094,7 @@ export class MediaService {
         if (demixData?.mneUrl && !isRemoteDegraded) {
           return {
             mneUrl: demixData.mneUrl,
+            vocalsUrl: demixData.vocalsUrl || undefined,
             source: "neural_demixing",
             engine: demixData.engine || "demucs_v4_neural",
             degraded: false,
@@ -1379,30 +2109,17 @@ export class MediaService {
       }
     };
 
-    // Path B: ElevenLabs Audio Isolation + isolated GCS output path to avoid write races
+    // Path B: phase subtraction against a supplied isolated vocal stem (e.g. Demucs vocals),
+    // written to its own GCS path to avoid write races.
     const runIsolationCandidate = async (): Promise<ExtractMneDetailedResult | null> => {
-      const hasElevenLabs = Boolean(PIPELINE_CONFIG.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY);
-      if (options?.forceMidSideSplit || (!options?.isolatedVocalUrl && (!options?.enableAutoVocalIsolation || !hasElevenLabs))) {
+      if (options?.forceMidSideSplit || !options?.isolatedVocalUrl) {
         return null;
       }
 
       const ffmpegPath = getFfmpegPath();
       if (!ffmpegPath) return null;
 
-      let resolvedVocal = options?.isolatedVocalUrl;
-      if (!resolvedVocal) {
-        try {
-          const { audioIdentityService } = await import("./audio-identity.js");
-          const isolated = await audioIdentityService.isolateVocals(jobId, audioUrl);
-          if (isolated && isolated !== audioUrl) {
-            resolvedVocal = isolated;
-          }
-        } catch (err: any) {
-          issues.push(`ElevenLabs Audio Isolation failed (${err?.message || err})`);
-          return null;
-        }
-      }
-
+      const resolvedVocal = options.isolatedVocalUrl;
       if (!resolvedVocal || resolvedVocal === audioUrl) {
         return null;
       }
@@ -1460,49 +2177,92 @@ export class MediaService {
     const demucsCand = demucsSettled.status === "fulfilled" ? demucsSettled.value : null;
     const isoCand = isoSettled.status === "fulfilled" ? isoSettled.value : null;
 
-    if (demucsCand && isoCand) {
+    const candidates = [demucsCand, isoCand].filter((c): c is ExtractMneDetailedResult => Boolean(c));
+    if (candidates.length > 0) {
       const probeSegments =
         options?.spokenSegments && options.spokenSegments.length > 0
           ? options.spokenSegments
           : [{ start: 1000, end: 5000 }];
       const expDur = options?.expectedDurationSeconds ?? 0;
 
-      const [demucsVal, isoVal] = await Promise.all([
-        this.validateMneStem(jobId, demucsCand.mneUrl, expDur, "neural_demixing", { spokenSegments: probeSegments }),
-        this.validateMneStem(jobId, isoCand.mneUrl, expDur, "neural_isolation_subtraction", { spokenSegments: probeSegments }),
-      ]);
+      // Validate EVERY candidate against the original mix (previously a lone candidate skipped validation).
+      const validations = await Promise.all(
+        candidates.map((c) =>
+          this.validateMneStem(jobId, c.mneUrl, expDur, c.source, {
+            spokenSegments: probeSegments,
+            referenceAudioUrl: audioUrl,
+            vocalsUrl: c.vocalsUrl,
+          })
+        )
+      );
 
-      const demucsBleed = typeof demucsVal.dialogueBleedDb === "number" ? demucsVal.dialogueBleedDb : -30;
-      const isoBleed = typeof isoVal.dialogueBleedDb === "number" ? isoVal.dialogueBleedDb : -25;
-      const demucsHealthy = demucsVal.validationStatus !== "failed";
-      const isoHealthy = isoVal.validationStatus !== "failed";
+      // Eligible = not failed AND bleed actually measured. A missing measurement is not "clean".
+      const ranked = candidates
+        .map((cand, i) => ({ cand, val: validations[i] }))
+        .filter(({ val }) => val.validationStatus !== "failed" && typeof val.vocalSuppressionDb === "number")
+        .sort((x, y) => (y.val.vocalSuppressionDb as number) - (x.val.vocalSuppressionDb as number));
 
-      let winner = demucsCand;
-      if (!demucsHealthy && isoHealthy) {
-        winner = isoCand;
-      } else if (demucsHealthy && isoHealthy) {
-        // Lower dB = less dialogue bleed = cleaner M&E stem
-        winner = isoBleed < demucsBleed ? isoCand : demucsCand;
+      if (ranked.length === 0) {
+        const detail = candidates
+          .map((c, i) => `${c.engine}: ${validations[i].validationStatus}, suppression=${validations[i].vocalSuppressionDb ?? "n/a"} dB`)
+          .join(" | ");
+        throw new Error(`No M&E candidate passed dialogue-bleed validation (${detail}). ${issues.join("; ")}`);
       }
 
+      let best = ranked[0];
+      if (fidelityStemSelectEnabled() && ranked.length >= 2) {
+        const passing = ranked.filter((r) => r.val.validationStatus === "passed");
+        const pool = passing.length >= 2 ? passing : ranked;
+        const gaps = speechGaps(probeSegments, expDur > 0 ? expDur * 1000 : 60000).map((g) => ({
+          startMs: g.start,
+          endMs: g.end,
+        }));
+        if (gaps.length > 0) {
+          const tmpOrig = path.join(os.tmpdir(), `fid_orig_${jobId}_${Date.now()}.mp3`);
+          const tmpStems: string[] = [];
+          try {
+            await this.downloadToStream(audioUrl, tmpOrig, bucket, 60000);
+            const origPcm = await this.decodeMonoPcm(tmpOrig, 8000, Math.ceil(expDur || 60) + 5);
+            const scored = await Promise.all(
+              pool.map(async (item, idx) => {
+                const tmpStem = path.join(os.tmpdir(), `fid_stem_${idx}_${jobId}_${Date.now()}.mp3`);
+                tmpStems.push(tmpStem);
+                await this.downloadToStream(item.cand.mneUrl, tmpStem, bucket, 60000);
+                const stemPcm = await this.decodeMonoPcm(tmpStem, 8000, Math.ceil(expDur || 60) + 5);
+                const fid = measureGapFidelity(origPcm, stemPcm, 8000, gaps);
+                const bandErr = fid.meanAbsBandDeltaDb ?? 99;
+                const loudErr = fid.loudnessDeltaDb !== null ? Math.abs(fid.loudnessDeltaDb) : 99;
+                return { item, bandErr, loudErr, fid };
+              })
+            );
+            scored.sort((a, b) => (a.bandErr !== b.bandErr ? a.bandErr - b.bandErr : a.loudErr - b.loudErr));
+            best = scored[0].item;
+            console.log(
+              `[M&E:FidelitySelect] Picked ${best.cand.engine} (meanBandDelta=${scored[0].bandErr} dB, loudDelta=${scored[0].loudErr} dB)`
+            );
+          } catch (fidErr: any) {
+            console.warn(`[M&E:FidelitySelect] Skipped (${fidErr?.message || fidErr}), using bleed ranking`);
+          } finally {
+            await fs.promises.unlink(tmpOrig).catch(() => {});
+            for (const f of tmpStems) await fs.promises.unlink(f).catch(() => {});
+          }
+        }
+      }
       return {
-        mneUrl: winner.mneUrl,
-        source: "neural_demixing_best_of_2",
-        engine: `${winner.engine}_best_of_2`,
-        degraded: false,
-        dialogueBleedDb: Number((demucsHealthy ? demucsBleed : isoBleed).toFixed(1)),
-        issues: [],
+        mneUrl: best.cand.mneUrl,
+        vocalsUrl: best.cand.vocalsUrl,
+        source: candidates.length > 1 ? "neural_demixing_best_of_2" : best.cand.source,
+        engine: candidates.length > 1 ? `${best.cand.engine}_best_of_2` : best.cand.engine,
+        degraded: best.val.validationStatus === "degraded",
+        dialogueBleedDb: best.val.dialogueBleedDb,
+        issues: best.val.issues,
       };
     }
-
-    if (demucsCand) return demucsCand;
-    if (isoCand) return isoCand;
 
     // Both neural extractors unavailable -> explicit degraded DSP crossover
     return this.extractMneStemDetailed(jobId, audioUrl, {
       ...options,
       forceMidSideSplit: true,
-      enableAutoVocalIsolation: false,
     });
   }
 
@@ -1591,6 +2351,584 @@ export class MediaService {
    *   - Natural 300ms release swell when dub voice pauses
    *   - Integrated -14 LUFS broadcast mastering with -1 dBTP peak limit
    */
+  /**
+   * Faithful dub mix (see faithful-mix.ts): the original audio everywhere except the dialogue
+   * regions; inside them the clean background stem (when given) plus the dubbed voice, each speaker
+   * set to the original voice's level. No ducking and no loudness re-target, so the track keeps the
+   * original's balance and loudness. Returns ok=false with a reason when the result does not match
+   * the original outside the dialogue; the caller then falls back to mixDubWithMne.
+   */
+  async mixDubFaithful(jobId: string, language: string, opts: FaithfulMixOptions): Promise<FaithfulMixResult> {
+    const fail = (reason: string): FaithfulMixResult => ({
+      ok: false, url: null, reason, sourceLufs: null, mixLufs: null, regions: 0, regionMs: 0,
+      outsideDiffDb: null, voiceGainDb: {}, toneMatchedSpeakers: [], usedBed: false,
+    });
+    const ffmpegPath = getFfmpegPath();
+    if (!ffmpegPath) return fail("ffmpeg unavailable");
+    if (!opts.sourceAudioUrl || !opts.dubbedAudioUrl) return fail("missing source or dubbed audio");
+
+    const bucket = storage().bucket();
+    const stamp = `${jobId}_${language}_${Date.now()}`;
+    const tmp = (name: string) => path.join(os.tmpdir(), `faithful_${stamp}_${name}`);
+    const tSource = tmp("source.audio");
+    const tDub = tmp("dub.audio");
+    const tBed = tmp("bed.audio");
+    const tVocals = tmp("vocals.audio");
+    const tScript = tmp("graph.txt");
+    const tOut = tmp("mix.mp3");
+    const envFiles: string[] = [];
+    /** Mono PCM of the given spans joined together, from the start of the file (FFmpeg stops early). */
+    const spansPcm = async (file: string, spans: TimeSpanMs[], sampleRate: number, capSec = 60): Promise<Float32Array> => {
+      const chosen = firstSpans(spans, capSec * 1000);
+      if (chosen.length === 0) return new Float32Array(0);
+      const { stdout } = await execFileAsync(
+        ffmpegPath,
+        ["-v", "error", "-i", file, "-map", "0:a:0", "-af", `aselect='${spansSelectExpr(chosen)}',asetpts=N/SR/TB`,
+          "-t", String(capSec), "-ac", "1", "-ar", String(sampleRate), "-f", "f32le", "pipe:1"],
+        { encoding: "buffer", maxBuffer: capSec * sampleRate * 4 + 1024 * 1024, timeout: 300000 } as any
+      );
+      const buf = Buffer.from(stdout as unknown as Buffer);
+      return new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 4));
+    };
+
+    try {
+      const hasBed = Boolean(opts.bedUrl);
+      const tMixDl = Date.now();
+      await Promise.all([
+        this.downloadToStream(opts.sourceAudioUrl, tSource, bucket, 300000),
+        this.downloadToStream(opts.dubbedAudioUrl, tDub, bucket, 300000),
+        hasBed ? this.downloadToStream(opts.bedUrl!, tBed, bucket, 300000) : Promise.resolve(),
+        opts.isolatedVocalUrl ? this.downloadToStream(opts.isolatedVocalUrl, tVocals, bucket, 300000).catch(() => undefined) : Promise.resolve(),
+      ]);
+      emitDubbingTiming("post.mix_download", tMixDl, { jobId, lang: language, hasBed });
+      const tMixPcm = Date.now();
+      const haveVocals = Boolean(opts.isolatedVocalUrl) && fs.existsSync(tVocals);
+
+      // The mix must cover the whole original, even when the stored duration is short.
+      const probedMs = await this.probeMediaDurationMs(tSource).catch(() => 0);
+      const totalMs = Math.max(opts.totalDurationMs && opts.totalDurationMs > 0 ? opts.totalDurationMs : 0, probedMs || 0);
+      if (!totalMs || totalMs <= 0) return fail("source duration unknown");
+
+      // Every track is decoded once at a low rate; levels, activity and the final check are measured
+      // from these in memory (one pass per file, however many speakers or lines).
+      const rate = analysisRateFor(totalMs);
+      const maxSec = Math.ceil(totalMs / 1000) + 5;
+      const [srcPcm, dubPcm, bedPcm, vocPcm] = await Promise.all([
+        this.decodeMonoPcm(tSource, rate, maxSec),
+        this.decodeMonoPcm(tDub, rate, maxSec),
+        hasBed ? this.decodeMonoPcm(tBed, rate, maxSec) : Promise.resolve(null),
+        haveVocals ? this.decodeMonoPcm(tVocals, rate, maxSec) : Promise.resolve(null),
+      ]);
+
+      // Dialogue regions: the original's spoken lines plus wherever the dubbed track is audible
+      // (a dubbed line can run past its source window).
+      const lines = opts.lines.filter((l) => l.endMs > l.startMs);
+      const dubActiveAll = detectActiveSpans(dubPcm, rate);
+      const dubActive = dubSpansNearLines(dubActiveAll, lines);
+      const regions = planDialogueRegions([...lines, ...dubActive], totalMs);
+      if (regions.length === 0) return fail("no dialogue regions");
+      // The regions must hold the dubbed speech; otherwise masking would cut the dub and let the
+      // original language through (e.g. line timings in the wrong unit).
+      const coverage = dubCoverage(dubActiveAll, regions);
+      if (coverage < FAITHFUL_MIX.minDubCoverage) {
+        return fail(`dubbed speech outside the dialogue timings (${Math.round(coverage * 100)}% covered)`);
+      }
+
+      // Per speaker: level of the original voice, and (with a clean reference) its tone.
+      // Clean reference = the isolated voice, or the source itself on a speech-only video.
+      const toneReference = opts.toneMatch === false ? null : (haveVocals ? tVocals : (opts.sourceIsSpeechOnly ? tSource : null));
+      const extents = buildGainSpans(lines, {}, totalMs);
+      const speakers = Array.from(new Set(lines.map((l) => l.speaker)));
+      const gains: Record<string, number> = {};
+      const eqBySpeaker: Record<string, string | null> = {};
+      for (const speaker of speakers) {
+        const own = lines.filter((l) => l.speaker === speaker);
+        const ownExtents = extents.filter((e) => e.speaker === speaker);
+        const originalDb = estimateOriginalVoiceDb({
+          isolatedVoiceDb: vocPcm ? rmsDbOver(vocPcm, rate, own) : null,
+          sourceDb: rmsDbOver(srcPcm, rate, own),
+          bedDb: bedPcm ? rmsDbOver(bedPcm, rate, own) : null,
+        });
+        gains[speaker] = voiceGainDb(originalDb, rmsDbOver(dubPcm, rate, ownExtents));
+
+        const referenceSec = own.reduce((sum, l) => sum + (l.endMs - l.startMs), 0) / 1000;
+        const eqCount = Object.values(eqBySpeaker).filter(Boolean).length;
+        if (toneReference && referenceSec >= MIN_EQ_REFERENCE_SEC && eqCount < MAX_EQ_BRANCHES) {
+          try {
+            const [refPcm, dubSpeakerPcm] = await Promise.all([
+              spansPcm(toneReference, own, 44100),
+              spansPcm(tDub, ownExtents, 44100),
+            ]);
+            eqBySpeaker[speaker] = eqFilterFor(eqCorrectionDb(bandProfileDb(refPcm, 44100), bandProfileDb(dubSpeakerPcm, 44100)));
+          } catch (eqErr: any) {
+            console.warn(`[MediaService:Faithful] Tone match skipped for ${speaker}: ${eqErr?.message || eqErr}`);
+          }
+        }
+      }
+      // Line by line: each dubbed line is matched to the same English line (speech frames only),
+      // within ±LINE_LEVEL.maxDeviationDb of its speaker's gain, plus the dialogue lift.
+      const originalVoicePcm = vocPcm || (opts.sourceIsSpeechOnly ? srcPcm : null);
+      const originalVoiceActive = originalVoicePcm ? detectActiveSpans(originalVoicePcm, rate) : [];
+      const lineGainDb = planLineGainsDb({
+        lines,
+        totalMs,
+        speakerGainDb: gains,
+        liftDb: dubVoiceLiftDb(),
+        originalLineDb: (l) => (originalVoicePcm ? activeRmsDb(originalVoicePcm, rate, l, originalVoiceActive) : null),
+        dubLineDb: (e) => activeRmsDb(dubPcm, rate, e, dubActiveAll),
+      });
+      const gainSpans = buildGainSpans(lines, gains, totalMs, lineGainDb);
+
+      // Measured against the ORIGINAL, not our plan: a line the original speaks with no dubbed speech
+      // near it, and a speaker whose dubbed voice is clearly the other gender. The quality gate
+      // blocks delivery on either (dub-sync-check.ts). Needs the clean original voice.
+      let syncReport: DubSyncReport = { checked: false, missing: [], genderMismatches: [] };
+      if (originalVoicePcm) {
+        try {
+          const { missing, earlyFinish, untranscribed } = checkDubSpeech({
+            sourceSpeech: originalVoiceActive,
+            dubSpeech: dubActiveAll,
+            extents: dialogueExtents(lines),
+            lines,
+            words: (opts.sourceWords ?? []).filter((w) => w.endMs > w.startMs),
+          });
+          if (earlyFinish.length > 0) {
+            console.warn(`[MediaService:Faithful] Dubbed line(s) finish before the original speech ends (warning, not blocking): ${earlyFinish.map((m) => `${(m.startMs / 1000).toFixed(1)}s`).join(", ")}`);
+          }
+          if (untranscribed.length > 0) {
+            console.warn(`[MediaService:Faithful] Original voice with no transcribed words, nothing to dub (warning, not blocking): ${untranscribed.map((m) => `${(m.startMs / 1000).toFixed(1)}–${(m.endMs / 1000).toFixed(1)}s`).join(", ")}`);
+          }
+          const genderMismatches: DubSyncReport["genderMismatches"] = [];
+          if (rate >= 8000) {
+            const spansPcmIn = (pcm: Float32Array, spans: Array<{ startMs: number; endMs: number }>): Float32Array => {
+              const parts: Float32Array[] = [];
+              for (const sp of spans) {
+                const from = Math.max(0, Math.floor((sp.startMs / 1000) * rate));
+                const to = Math.min(pcm.length, Math.ceil((sp.endMs / 1000) * rate));
+                if (to > from) parts.push(pcm.subarray(from, to));
+              }
+              const total = parts.reduce((n, p) => n + p.length, 0);
+              const out = new Float32Array(total);
+              let o = 0;
+              for (const p of parts) { out.set(p, o); o += p.length; }
+              return out;
+            };
+            for (const speaker of speakers) {
+              const own = lines.filter((l) => l.speaker === speaker);
+              const ownExtents = extents.filter((e) => e.speaker === speaker);
+              const original = estimatePitch(spansPcmIn(originalVoicePcm, own), rate);
+              const dubHz = estimatePitch(spansPcmIn(dubPcm, ownExtents), rate)?.medianHz ?? 0;
+              if (original && voiceGenderMismatch(original, dubHz)) genderMismatches.push({ speaker, originalHz: original.medianHz, dubHz });
+            }
+          }
+          syncReport = { checked: true, missing, earlyFinish, untranscribed, genderMismatches };
+        } catch (syncErr: any) {
+          console.warn(`[MediaService:Faithful] Sync check skipped: ${syncErr?.message || syncErr}`);
+        }
+      }
+
+      // ─── Room measurement & synthetic IR (DUBBING_ROOM_MATCH) ───────────────────────────
+      let regionRoomEstimates: (RegionRoomEstimate | null)[] = [];
+      let scenes: SceneRoomEstimate[] = [];
+      const irFiles: string[] = [];
+      const irArgs: string[] = [];
+      const sceneIrInputIndex = new Map<number, number>();
+
+      if (roomMatchEnabled() && vocPcm) {
+        regionRoomEstimates = regions.map((r, idx) => estimateRegionRoom(vocPcm, rate, r, originalVoiceActive, idx));
+        scenes = groupRegionsIntoScenes(regions, regionRoomEstimates);
+        for (let i = 0; i < regions.length; i++) {
+          const est = regionRoomEstimates[i];
+          const sc = scenes.find((s) => s.regionIndices.includes(i));
+          console.log(`[Mix:Room] { region: ${i}, rt60Ms: ${est?.rt60Ms ?? null}, drrDb: ${est?.drrDb ?? null}, scene: ${sc?.sceneId ?? 0} }`);
+        }
+
+        let nextIrIdx = hasBed ? 3 : 2;
+        for (const sc of scenes) {
+          if (sc.rt60Ms !== null && sc.drrDb !== null) {
+            const ir = buildSyntheticRoomIr({
+              rt60Ms: sc.rt60Ms,
+              drrDb: sc.drrDb,
+              bandRt60Ms: sc.bandRt60Ms ?? undefined,
+              sampleRate: 44100,
+            });
+            const irFile = tmp(`scene_${sc.sceneId}_ir.f32`);
+            irFiles.push(irFile);
+            envFiles.push(irFile);
+            await fs.promises.writeFile(irFile, Buffer.from(ir.buffer, ir.byteOffset, ir.byteLength));
+            sceneIrInputIndex.set(sc.sceneId, nextIrIdx);
+            irArgs.push("-f", "f32le", "-ar", "44100", "-ac", "1", "-i", irFile);
+            nextIrIdx++;
+          }
+        }
+      }
+
+      // Map lines to scenes
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        const rIdx = regions.findIndex((r) => l.startMs >= r.startMs - 50 && l.endMs <= r.endMs + 50);
+        const sc = scenes.find((s) => s.regionIndices.includes(rIdx));
+        const sceneId = sc ? sc.sceneId : 0;
+        l.sceneId = sceneId;
+        if (gainSpans[i]) gainSpans[i].sceneId = sceneId;
+      }
+
+      // ─── Scene Tone (DUBBING_SCENE_TONE) ────────────────────────────────────────────────
+      const eqBySpeakerScene = new Map<string, string | null>();
+      if (sceneToneEnabled() && scenes.length > 1 && toneReference) {
+        for (const speaker of speakers) {
+          const own = lines.filter((l) => l.speaker === speaker);
+          for (const sc of scenes) {
+            const sceneOwn = own.filter((l) => l.sceneId === sc.sceneId);
+            const sceneExtents = extents.filter((e, idx) => lines[idx]?.speaker === speaker && lines[idx]?.sceneId === sc.sceneId);
+            const refSec = sceneOwn.reduce((sum, l) => sum + (l.endMs - l.startMs), 0) / 1000;
+            const key = `${speaker}_scene_${sc.sceneId}`;
+            if (refSec >= MIN_EQ_REFERENCE_SEC) {
+              try {
+                const [refPcm, dubScenePcm] = await Promise.all([
+                  spansPcm(toneReference, sceneOwn, 44100),
+                  spansPcm(tDub, sceneExtents, 44100),
+                ]);
+                eqBySpeakerScene.set(key, eqFilterFor(eqCorrectionDb(bandProfileDb(refPcm, 44100), bandProfileDb(dubScenePcm, 44100))));
+              } catch (eqErr: any) {
+                console.warn(`[MediaService:Faithful] Scene tone match skipped for ${key}: ${eqErr?.message || eqErr}`);
+                eqBySpeakerScene.set(key, eqBySpeaker[speaker] ?? null);
+              }
+            } else {
+              eqBySpeakerScene.set(key, eqBySpeaker[speaker] ?? null);
+            }
+          }
+        }
+      }
+
+      // ─── Build dub branches ─────────────────────────────────────────────────────────────
+      let branches: DubBranch[];
+      let toneMatchedSpeakers: string[] = [];
+
+      if ((sceneToneEnabled() && scenes.length > 1) || (roomMatchEnabled() && sceneIrInputIndex.size > 0)) {
+        branches = [];
+        for (const speaker of speakers) {
+          for (const sc of scenes) {
+            const hasLines = lines.some((l) => l.speaker === speaker && l.sceneId === sc.sceneId);
+            if (!hasLines) continue;
+            const key = `${speaker}_scene_${sc.sceneId}`;
+            const eq = eqBySpeakerScene.has(key) ? eqBySpeakerScene.get(key)! : (eqBySpeaker[speaker] ?? null);
+            const irIdx = sceneIrInputIndex.get(sc.sceneId);
+            if (branches.length < MAX_EQ_BRANCHES) {
+              branches.push({
+                speakers: [speaker],
+                eqFilter: eq,
+                irInputIndex: irIdx,
+                sceneId: sc.sceneId,
+              });
+              if (eq && !toneMatchedSpeakers.includes(speaker)) toneMatchedSpeakers.push(speaker);
+            }
+          }
+        }
+        if (branches.length === 0 || branches.length < MAX_EQ_BRANCHES) {
+          branches.push({ speakers: speakers.filter((spk) => !toneMatchedSpeakers.includes(spk)), eqFilter: null });
+        }
+      } else {
+        branches = Object.entries(eqBySpeaker)
+          .filter(([, eq]) => Boolean(eq))
+          .map(([speaker, eq]) => ({ speakers: [speaker], eqFilter: eq }));
+        toneMatchedSpeakers = branches.flatMap((b) => b.speakers);
+        branches.push({ speakers: speakers.filter((spk) => !toneMatchedSpeakers.includes(spk)), eqFilter: null });
+      }
+
+      // ─── Non-verbal vocal sounds & Tight stem (DUBBING_KEEP_NONVERBAL / DUBBING_TIGHT_STEM) ──
+      const sourceWords = (opts.sourceWords ?? []).filter((w) => w.endMs > w.startMs);
+      const nonVerbalSpans = vocPcm
+        ? detectNonVerbalSpans({
+            vocPcm,
+            sampleRate: rate,
+            words: sourceWords,
+            dubActive: dubActiveAll,
+            totalMs,
+          })
+        : [];
+      const applyNonVerbal = keepNonVerbalEnabled() && nonVerbalSpans.length > 0;
+      if (applyNonVerbal) {
+        for (const nv of nonVerbalSpans) {
+          console.log(`[Mix:NonVerbal] { startMs: ${nv.startMs}, endMs: ${nv.endMs}, reason: "${nv.reason}" }`);
+        }
+      }
+
+      let tightStemSpans: TimeSpanMs[] | undefined;
+      let stemFadesMs: { startFadeMs?: number; endFadeMs?: number }[] | undefined;
+      let equalPowerTightFade = false;
+      if (tightStemEnabled() && hasBed && originalVoicePcm) {
+        const tightVoiceActive = detectActiveSpans(originalVoicePcm, rate, {
+          frameMs: FAITHFUL_MIX.activityFrameMs,
+          minGapMs: 60,
+        });
+        let stemSpans = buildTightStemSpans(regions, tightVoiceActive, 100, {
+          words: sourceWords.length > 0 ? sourceWords : undefined,
+          mergeGapMs: 80,
+        });
+        if (applyNonVerbal) {
+          stemSpans = subtractSpans(stemSpans, nonVerbalSpans, 40);
+        }
+        tightStemSpans = stemSpans;
+        // Linear (equal-gain) fades: the original and the bed carry the same music, so they are
+        // correlated and an equal-power fade would lift it by up to +3 dB mid-fade (2026-11-25).
+        equalPowerTightFade = false;
+        stemFadesMs = stemSpans.map(() => ({
+          startFadeMs: TIGHT_STEM_FADE_MS,
+          endFadeMs: TIGHT_STEM_FADE_MS,
+        }));
+        const stemMsBefore = regions.reduce((sum, r) => sum + (r.endMs - r.startMs), 0);
+        const stemMsAfter = stemSpans.reduce((sum, s) => sum + (s.endMs - s.startMs), 0);
+        console.log(`[Mix:Stem] { stemMsBefore: ${stemMsBefore}, stemMsAfter: ${stemMsAfter} }`);
+      }
+
+      // ─── Voice ride (DUBBING_VOICE_RIDE) ────────────────────────────────────────────────
+      const envRate = envelopeRateFor(totalMs);
+      let voiceRideCurves: { spanIndex: number; curve: Float32Array }[] | undefined;
+      if (voiceRideEnabled() && bedPcm) {
+        voiceRideCurves = [];
+        // gainSpans and extents are in sortedLines order; `lines` is not, so index the sorted list.
+        const orderedLines = sortedLines(lines);
+        for (let i = 0; i < gainSpans.length; i++) {
+          const span = gainSpans[i];
+          const curve = computeVoiceRideEnvelope(bedPcm, rate, span, span.gain, envRate);
+          voiceRideCurves.push({ spanIndex: i, curve });
+
+          const line = orderedLines[i];
+          const extent = extents[i];
+          if (!line || !extent) continue;
+          const origVoiceDb = originalVoicePcm ? activeRmsDb(originalVoicePcm, rate, line, originalVoiceActive) : null;
+          // dubPcm is the raw dubbed track; the mix applies span.gain (speaker + line gain + lift) to it.
+          // Before 2026-11-24 the log left the gain out, so dubDiffDb read up to ~11 dB "louder than the
+          // original" on lines the mix had actually turned down.
+          const rawDubDb = activeRmsDb(dubPcm, rate, extent, dubActiveAll);
+          const appliedGainDb = span.gain > 0 ? 20 * Math.log10(span.gain) : null;
+          const dubVoiceDb = rawDubDb !== null && appliedGainDb !== null ? rawDubDb + appliedGainDb : null;
+          const bedDb = rmsDbOver(bedPcm, rate, [line]);
+          if (bedDb !== null) {
+            const origDiffDb = origVoiceDb !== null ? Number((origVoiceDb - bedDb).toFixed(1)) : null;
+            const dubDiffDb = dubVoiceDb !== null ? Number((dubVoiceDb - bedDb).toFixed(1)) : null;
+            const gapDb = origDiffDb !== null && dubDiffDb !== null ? Number((dubDiffDb - origDiffDb).toFixed(1)) : null;
+            console.log(
+              `[Mix:VoiceRide] { line: ${i}, startMs: ${line.startMs}, speaker: ${line.speaker}, origDiffDb: ${origDiffDb}, dubDiffDb: ${dubDiffDb}, gapDb: ${gapDb}, appliedGainDb: ${appliedGainDb !== null ? appliedGainDb.toFixed(1) : null}, liftDb: ${dubVoiceLiftDb()} }`
+            );
+          }
+        }
+      }
+
+      const envelopes = buildEnvelopes({
+        regions,
+        gainSpans,
+        totalMs,
+        branches,
+        rate: envRate,
+        tightStemSpans,
+        stemFadesMs,
+        equalPowerTightFade,
+        nonVerbalKeepSpans: applyNonVerbal ? nonVerbalSpans : undefined,
+        voiceRideCurves,
+      });
+      const curves = [envelopes.orig, ...(hasBed ? [envelopes.bed] : []), ...envelopes.dub];
+      const curveArgs: string[] = [];
+      for (let i = 0; i < curves.length; i++) {
+        const f = tmp(`env${i}.f32`);
+        envFiles.push(f);
+        await fs.promises.writeFile(f, Buffer.from(curves[i].buffer, curves[i].byteOffset, curves[i].byteLength));
+        curveArgs.push("-f", "f32le", "-ar", String(envRate), "-ac", "1", "-i", f);
+      }
+
+      // DUBBING_BED_MATCH: correct the separated background toward the original, measured where
+      // nobody speaks (the original is pure background there). Needs the voice stem to know where
+      // non-verbal sounds are; never throws (no correction on any failure).
+      let bedMatch: BedMatchPlan | null = null;
+      if (hasBed && bedMatchEnabled()) {
+        try {
+          if (!vocPcm) {
+            bedMatch = { applied: false, reason: "no voice stem to find speech-free audio", gapSeconds: 0, gainDb: 0, bandsDb: null, filter: null };
+          } else {
+            const freeSpans = speechFreeSpans(totalMs, [...lines, ...sourceWords, ...originalVoiceActive]);
+            const chosen = firstSpans(freeSpans, BED_MATCH.maxAnalysisSec * 1000);
+            const gapSeconds = chosen.reduce((sum, sp) => sum + (sp.endMs - sp.startMs), 0) / 1000;
+            if (gapSeconds < BED_MATCH.minGapSec) {
+              bedMatch = planBedMatch({ gapSeconds, originalProfile: null, bedProfile: null, originalDb: null, bedDb: null });
+            } else {
+              const [origGap, bedGap] = await Promise.all([
+                spansPcm(tSource, chosen, 44100, BED_MATCH.maxAnalysisSec),
+                spansPcm(tBed, chosen, 44100, BED_MATCH.maxAnalysisSec),
+              ]);
+              const levelDb = (pcm: Float32Array) => rmsDbOver(pcm, 44100, [{ startMs: 0, endMs: (pcm.length / 44100) * 1000 }]);
+              bedMatch = planBedMatch({
+                gapSeconds,
+                originalProfile: bandProfileDb(origGap, 44100),
+                bedProfile: bandProfileDb(bedGap, 44100),
+                originalDb: levelDb(origGap),
+                bedDb: levelDb(bedGap),
+              });
+            }
+          }
+          console.log("[Mix:BedMatch]", { jobId, language, ...bedMatch });
+        } catch (bmErr: any) {
+          bedMatch = { applied: false, reason: `measurement failed: ${bmErr?.message || bmErr}`, gapSeconds: 0, gainDb: 0, bandsDb: null, filter: null };
+          console.warn("[Mix:BedMatch] skipped", { jobId, language, reason: bedMatch.reason });
+        }
+      }
+
+      const firstEnvIndex = (hasBed ? 3 : 2) + irFiles.length;
+      await fs.promises.writeFile(tScript, buildFaithfulMixGraph({ hasBed, branches, firstEnvIndex, bedFilter: bedMatch?.applied ? bedMatch.filter : null }), "utf8");
+      emitDubbingTiming("post.mix_pcm_analysis", tMixPcm, { jobId, lang: language, regions: regions.length });
+      const tMixFf = Date.now();
+      await execFileAsync(ffmpegPath, [
+        "-y", "-hide_banner", "-nostats",
+        "-i", tSource, "-i", tDub, ...(hasBed ? ["-i", tBed] : []),
+        ...irArgs,
+        ...curveArgs,
+        "-filter_complex_script", tScript,
+        "-map", "[out]",
+        // 256k like the source extract: at 192k LAME already shifts the level by ~0.3 dB.
+        "-c:a", "libmp3lame", "-b:a", "256k", "-ar", "44100", "-ac", "2",
+        tOut,
+      ], { maxBuffer: 64 * 1024 * 1024, timeout: 900000 });
+      emitDubbingTiming("post.mix_ffmpeg_render", tMixFf, { jobId, lang: language });
+      const tMixVerify = Date.now();
+
+      // Outside the dialogue the dub must be the original (fades excluded).
+      const guard = FAITHFUL_MIX.fadeMs + 20;
+      const outside = outsideRegions(regions, totalMs)
+        .map((s) => ({ startMs: s.startMs + (s.startMs > 0 ? guard : 0), endMs: s.endMs - (s.endMs < totalMs ? guard : 0) }))
+        .filter((s) => s.endMs - s.startMs >= 200);
+      const [outPcm, sourceLufs, mixLufs] = await Promise.all([
+        this.decodeMonoPcm(tOut, rate, maxSec),
+        this.measureIntegratedLufs(tSource),
+        this.measureIntegratedLufs(tOut),
+      ]);
+      const check = checkFaithfulness(rmsDbOver(srcPcm, rate, outside), rmsDbOver(outPcm, rate, outside));
+      const regionMs = regions.reduce((sum, r) => sum + (r.endMs - r.startMs), 0);
+
+      // BGM & SFX fidelity report
+      let stemSamples = 0;
+      if (hasBed) {
+        const limitK = Math.min(envelopes.bed.length, Math.ceil((totalMs * envRate) / 1000));
+        for (let k = 0; k < limitK; k++) {
+          if (envelopes.bed[k] > 0.01) stemSamples++;
+        }
+      }
+      const stemSeconds = Number((stemSamples / envRate).toFixed(3));
+      const totalSeconds = Number((totalMs / 1000).toFixed(3));
+      const stemShare = totalSeconds > 0 ? Number((stemSeconds / totalSeconds).toFixed(4)) : 0;
+
+      const boundaryMsList: number[] = [];
+      for (const r of regions) {
+        boundaryMsList.push(r.startMs, r.endMs);
+      }
+      if (tightStemSpans) {
+        for (const s of tightStemSpans) {
+          boundaryMsList.push(s.startMs, s.endMs);
+        }
+      }
+      const edgeStepsDb = measureEdgeStepsDb(
+        srcPcm,
+        outPcm,
+        rate,
+        boundaryMsList,
+        [...dubActiveAll, ...originalVoiceActive, ...sourceWords],
+        totalMs
+      );
+
+      const speechCuts = [...(sourceWords.length > 0 ? sourceWords : lines), ...originalVoiceActive];
+      const regionGaps = subtractSpans(regions, speechCuts, 100);
+      const fallbackGaps =
+        regionGaps.length > 0
+          ? regionGaps
+          : speechGaps(
+              lines.map((l) => ({ start: l.startMs, end: l.endMs })),
+              totalMs
+            ).map((g) => ({ startMs: g.start, endMs: g.end }));
+      const gapFidelity = hasBed && bedPcm ? measureGapFidelity(srcPcm, bedPcm, rate, fallbackGaps) : null;
+
+      const silentInRegionGaps = subtractSpans(regions, [...speechCuts, ...dubActiveAll], 100);
+      let backgroundLevelDeltaDb: number | null = null;
+      if (hasBed && silentInRegionGaps.length > 0) {
+        const origBgDb = rmsDbOver(srcPcm, rate, silentInRegionGaps);
+        const outBgDb = rmsDbOver(outPcm, rate, silentInRegionGaps);
+        if (origBgDb !== null && outBgDb !== null) {
+          backgroundLevelDeltaDb = Number((outBgDb - origBgDb).toFixed(2));
+        }
+      } else if (gapFidelity?.loudnessDeltaDb !== null && gapFidelity?.loudnessDeltaDb !== undefined) {
+        backgroundLevelDeltaDb = gapFidelity.loudnessDeltaDb;
+      }
+
+      const keptNonVerbal = applyNonVerbal ? nonVerbalSpans : [];
+      const nonVerbalSeconds = Number(
+        (keptNonVerbal.reduce((sum, s) => sum + (s.endMs - s.startMs), 0) / 1000).toFixed(3)
+      );
+      const bgmReport: BgmReport = {
+        outsideDiffDb: check.outsideDiffDb,
+        stemSeconds,
+        totalSeconds,
+        stemShare,
+        edgeStepsDb,
+        gapFidelity,
+        nonVerbalKept: {
+          count: keptNonVerbal.length,
+          seconds: nonVerbalSeconds,
+          spans: keptNonVerbal,
+        },
+        bleed: null,
+        backgroundLevelDeltaDb,
+        bedMatch,
+        flags: {
+          bedMatch: bedMatchEnabled(),
+          tightStem: tightStemEnabled(),
+          keepNonVerbal: keepNonVerbalEnabled(),
+          fidelityStemSelect: fidelityStemSelectEnabled(),
+          roomMatch: roomMatchEnabled(),
+          sceneTone: sceneToneEnabled(),
+          voiceRide: voiceRideEnabled(),
+        },
+      };
+
+      const base = {
+        sourceLufs,
+        mixLufs,
+        regions: regions.length,
+        regionMs,
+        outsideDiffDb: check.outsideDiffDb,
+        voiceGainDb: gains,
+        toneMatchedSpeakers,
+        usedBed: hasBed,
+        syncReport,
+        bgmReport,
+      };
+      emitDubbingTiming("post.mix_verify", tMixVerify, { jobId, lang: language, ok: check.ok });
+      if (!check.ok) return { ...base, ok: false, url: null, reason: check.reason };
+
+      const outputPath = `audio/${jobId}/${language}/master_faithful.mp3`;
+      const tMixUp = Date.now();
+      await bucket.upload(tOut, {
+        destination: outputPath,
+        metadata: {
+          contentType: "audio/mpeg",
+          metadata: {
+            jobId,
+            language,
+            mixEngine: "faithful_v2",
+            regions: String(regions.length),
+            usedBed: String(hasBed),
+            toneMatched: toneMatchedSpeakers.join(","),
+            sourceLufs: String(sourceLufs ?? ""),
+            createdAt: String(Date.now()),
+          },
+        },
+      });
+      emitDubbingTiming("post.mix_upload", tMixUp, { jobId, lang: language });
+      return { ...base, ok: true, url: `gs://${bucket.name}/${outputPath}` };
+    } catch (err: any) {
+      return fail(`faithful mix error: ${String(err?.message || err).slice(0, 200)}`);
+    } finally {
+      for (const f of [tSource, tDub, tBed, tVocals, tScript, tOut, ...envFiles]) fs.promises.unlink(f).catch(() => {});
+    }
+  }
+
   async mixDubWithMne(jobId: string, language: string, options: MixDubOptions): Promise<string> {
     const bucket = storage().bucket();
     const outputPath = `audio/${jobId}/${language}/master.mp3`;
@@ -1604,6 +2942,7 @@ export class MediaService {
     const tmpDir = os.tmpdir();
     const tempMne = path.join(tmpDir, `mix_mne_${jobId}_${language}_${Date.now()}.mp3`);
     const tempDub = path.join(tmpDir, `mix_dub_${jobId}_${language}_${Date.now()}.mp3`);
+    const tempVocals = path.join(tmpDir, `mix_vocals_${jobId}_${language}_${Date.now()}.mp3`);
     const tempOut = path.join(tmpDir, `mix_out_${jobId}_${language}_${Date.now()}.mp3`);
 
     try {
@@ -1613,11 +2952,31 @@ export class MediaService {
       // 2. Memory-safe download of Dubbed dialogue stem
       await this.downloadToStream(options.dubbedAudioUrl, tempDub, bucket, 90000);
 
+      // 2b. Trap 2 Resolution: Restore authentic non-dialogue vocal SFX (screams, laughs, groans, shouts)
+      // from the neural isolated vocal track into the M&E background bed with 180ms padding & word safeguard.
+      if (options.isolatedVocalUrl && options.spokenSegments && options.spokenSegments.length > 0) {
+        try {
+          await this.downloadToStream(options.isolatedVocalUrl, tempVocals, bucket, 90000);
+          const totalMs = options.totalDurationMs || (options.totalDurationSeconds ? options.totalDurationSeconds * 1000 : 0);
+          await this.restoreNonDialogueVocalSFX(
+            ffmpegPath,
+            tempMne,
+            tempVocals,
+            options.spokenSegments,
+            options.sourceWords,
+            totalMs
+          );
+        } catch (sfxErr) {
+          console.warn("[MediaService] Non-dialogue vocal SFX restoration notice (proceeding with base M&E):", sfxErr);
+        }
+      }
+
       // 3. Sidechain Compression & Mastering Parameters
       const profile = options.masteringProfile ? MASTERING_PROFILES[options.masteringProfile] : MASTERING_PROFILES.web_streaming;
       // Gentler sidechain defaults — previous 0.12/2.8 over-ducked an already -14 LUFS dialogue track
-      const threshold = options.duckingThreshold ?? 0.08;
-      const ratio = options.duckingRatio ?? 2.0;
+      // With a clean, validated M&E stem only light ducking (~2–3 dB) is needed.
+      const threshold = options.duckingThreshold ?? 0.1;
+      const ratio = options.duckingRatio ?? 1.5;
       const attack = options.attackMs ?? 15;
       const release = options.releaseMs ?? 200;
       const targetLoudness = options.targetLoudnessLufs ?? profile.targetLufs;
@@ -1811,7 +3170,210 @@ export class MediaService {
     } finally {
       await fs.promises.unlink(tempMne).catch(() => {});
       await fs.promises.unlink(tempDub).catch(() => {});
+      await fs.promises.unlink(tempVocals).catch(() => {});
       await fs.promises.unlink(tempOut).catch(() => {});
+    }
+  }
+
+  /**
+   * 🛡️ Trap 2 Resolution: Restores authentic non-dialogue vocal SFX (screams, laughs, groans, shouts)
+   * from the isolated vocal track into the M&E background bed, while strictly preventing English speech bleed.
+   *
+   * Hardened Production Safeguards:
+   * 1. 180ms Guardband Padding: Every STT speech segment and word boundary is padded by 180ms on start and end.
+   * 2. Word Proximity Collision Guard: Candidate gaps touching any transcribed word boundary (±120ms) are rejected.
+   * 3. Formant Energy Probe: Vocal band (300Hz-3400Hz) is analyzed for active energy (mean >= -42 dBFS, max >= -28 dBFS).
+   * 4. Burst Crest Factor Guard: Verified non-verbal bursts (laughter attacks, screams, shouts) exhibit high crest (>= 12 dB).
+   * 5. Pop/Click-Free Integration: Qualified slices are extracted with 40ms crossfade ramps and layered into M&E at exact offsets.
+   */
+  async restoreNonDialogueVocalSFX(
+    ffmpegPath: string,
+    tempMne: string,
+    tempVocals: string,
+    spokenSegments: Array<{ start: number; end: number }>,
+    sourceWords: Array<{ start: number; end: number; text?: string }> | undefined,
+    totalDurationMs: number
+  ): Promise<boolean> {
+    if (!fs.existsSync(tempMne) || !fs.existsSync(tempVocals) || !spokenSegments || spokenSegments.length === 0 || totalDurationMs <= 0) {
+      return false;
+    }
+
+    const PAD_MS = 180;
+    const intervals: Array<{ start: number; end: number }> = spokenSegments
+      .filter((s) => s.end > s.start)
+      .map((s) => ({
+        start: Math.max(0, s.start - PAD_MS),
+        end: Math.min(totalDurationMs, s.end + PAD_MS),
+      }));
+
+    if (sourceWords && sourceWords.length > 0) {
+      for (const w of sourceWords) {
+        if (w.end > w.start) {
+          intervals.push({
+            start: Math.max(0, w.start - PAD_MS),
+            end: Math.min(totalDurationMs, w.end + PAD_MS),
+          });
+        }
+      }
+    }
+
+    // Sort and merge overlapping padded intervals
+    intervals.sort((a, b) => a.start - b.start);
+    const merged: Array<{ start: number; end: number }> = [];
+    for (const iv of intervals) {
+      if (merged.length === 0) {
+        merged.push({ ...iv });
+      } else {
+        const last = merged[merged.length - 1];
+        if (iv.start <= last.end) {
+          last.end = Math.max(last.end, iv.end);
+        } else {
+          merged.push({ ...iv });
+        }
+      }
+    }
+
+    // Find non-speech gaps (400ms to 20000ms)
+    const gaps: Array<{ start: number; end: number; duration: number }> = [];
+    let cursor = 0;
+    for (const m of merged) {
+      if (m.start > cursor) {
+        const dur = m.start - cursor;
+        if (dur >= 400 && dur <= 20000) {
+          gaps.push({ start: cursor, end: m.start, duration: dur });
+        }
+      }
+      cursor = Math.max(cursor, m.end);
+    }
+    if (totalDurationMs > cursor) {
+      const dur = totalDurationMs - cursor;
+      if (dur >= 400 && dur <= 20000) {
+        gaps.push({ start: cursor, end: totalDurationMs, duration: dur });
+      }
+    }
+
+    if (gaps.length === 0) {
+      return false;
+    }
+
+    // Inspect each gap with acoustic volume and crest-factor probes
+    const qualifiedGaps: Array<{ start: number; end: number; duration: number }> = [];
+    for (const gap of gaps) {
+      // Safeguard A: Word collision check
+      if (sourceWords && sourceWords.length > 0) {
+        const wordCollision = sourceWords.some(
+          (w) => w.start < gap.end + 120 && w.end > gap.start - 120
+        );
+        if (wordCollision) {
+          continue;
+        }
+      }
+
+      // Safeguard B: Acoustic formant energy probe in vocal band (300Hz-3400Hz)
+      const startSec = (gap.start / 1000).toFixed(3);
+      const durSec = (gap.duration / 1000).toFixed(3);
+      try {
+        const probeRes: any = await execFileAsync(ffmpegPath, [
+          "-ss", startSec,
+          "-t", durSec,
+          "-i", tempVocals,
+          "-af", "bandpass=f=1800:width_type=h:w=3000,volumedetect",
+          "-f", "null",
+          process.platform === "win32" ? "NUL" : "/dev/null",
+        ], { maxBuffer: 5 * 1024 * 1024 }).catch((e) => ({ stdout: e?.stdout || "", stderr: e?.stderr || "" }));
+
+        const stderr = `${probeRes?.stderr || ""}\n${probeRes?.stdout || ""}`;
+        const meanMatch = stderr.match(/mean_volume:\s*(-?[\d.]+)\s*dB/);
+        const maxMatch = stderr.match(/max_volume:\s*(-?[\d.]+)\s*dB/);
+        const meanVol = meanMatch ? parseFloat(meanMatch[1]) : -100;
+        const maxVol = maxMatch ? parseFloat(maxMatch[1]) : -100;
+        const crest = maxVol - meanVol;
+
+        // Non-verbal bursts (screams, laughter, gasps, groans) have dynamic crest >= 12 dB and active volume
+        if (meanVol >= -42 && maxVol >= -28 && crest >= 12) {
+          console.log(`[MediaService:SFX] Qualified non-dialogue vocal SFX: [${startSec}s - ${(gap.end / 1000).toFixed(3)}s] mean=${meanVol.toFixed(1)}dB max=${maxVol.toFixed(1)}dB crest=${crest.toFixed(1)}dB`);
+          qualifiedGaps.push(gap);
+        }
+      } catch (_) {
+        // Non-fatal probe failure
+      }
+    }
+
+    if (qualifiedGaps.length === 0) {
+      console.log("[MediaService:SFX] No qualifying non-dialogue vocal SFX gaps detected (clean M&E preserved)");
+      return false;
+    }
+
+    // Step E: Extract and mix qualified SFX slices into tempMne
+    const tempDir = os.tmpdir();
+    const tempEnriched = path.join(tempDir, `mne_enriched_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
+    const tempSlices: string[] = [];
+
+    try {
+      // Extract each qualified slice with 40ms edge crossfades to prevent clicks
+      for (let i = 0; i < qualifiedGaps.length; i++) {
+        const q = qualifiedGaps[i];
+        const sliceFile = path.join(tempDir, `vocal_sfx_slice_${i}_${Date.now()}.wav`);
+        const sliceStartSec = (q.start / 1000).toFixed(3);
+        const sliceDurSec = Math.max(0.1, q.duration / 1000);
+        const fadeOutStart = Math.max(0.01, sliceDurSec - 0.04).toFixed(3);
+        const filterStr = `highpass=f=80,afade=t=in:ss=0:d=0.04,afade=t=out:st=${fadeOutStart}:d=0.04,aformat=channel_layouts=stereo`;
+
+        await execFileAsync(ffmpegPath, [
+          "-y",
+          "-ss", sliceStartSec,
+          "-t", sliceDurSec.toFixed(3),
+          "-i", tempVocals,
+          "-af", filterStr,
+          sliceFile,
+        ]);
+        tempSlices.push(sliceFile);
+      }
+
+      // Layer all slices into tempMne using adelay and amix
+      const inputArgs: string[] = ["-y", "-i", tempMne];
+      for (const s of tempSlices) {
+        inputArgs.push("-i", s);
+      }
+
+      const hasNormalize = await this.supportsAmixNormalize(ffmpegPath);
+      const totalInputs = 1 + qualifiedGaps.length;
+      let filterComplex = "";
+      const mixInputs: string[] = ["[0:a]"];
+
+      for (let i = 0; i < qualifiedGaps.length; i++) {
+        const offsetMs = qualifiedGaps[i].start;
+        const delayTag = `[sfx_${i}]`;
+        filterComplex += `[${i + 1}:a]adelay=${offsetMs}|${offsetMs}${delayTag};`;
+        mixInputs.push(delayTag);
+      }
+
+      const weights = ["1.0", ...qualifiedGaps.map(() => "1.0")].join(" ");
+      const amixSuffix = hasNormalize
+        ? `:weights=${weights}:normalize=0:duration=first`
+        : `:weights=${weights}:dropout_transition=0:duration=first,volume=${totalInputs}`;
+
+      filterComplex += `${mixInputs.join("")}amix=inputs=${totalInputs}${amixSuffix}[mne_out]`;
+
+      inputArgs.push(
+        "-filter_complex", filterComplex,
+        "-map", "[mne_out]",
+        "-c:a", "libmp3lame",
+        "-b:a", "192k",
+        tempEnriched
+      );
+
+      await execFileAsync(ffmpegPath, inputArgs);
+
+      // Overwrite tempMne with tempEnriched
+      await fs.promises.copyFile(tempEnriched, tempMne);
+      console.log(`[MediaService:SFX] Successfully restored ${qualifiedGaps.length} non-dialogue vocal SFX intervals into M&E track`);
+      return true;
+    } finally {
+      await fs.promises.unlink(tempEnriched).catch(() => {});
+      for (const s of tempSlices) {
+        await fs.promises.unlink(s).catch(() => {});
+      }
     }
   }
 
@@ -1835,15 +3397,12 @@ export class MediaService {
         const tempAudio = path.join(tmpDir, `aud_${jobId}_${Date.now()}.mp3`);
 
         try {
-          if (videoUrl.startsWith("gs://")) {
-            const relPath = videoUrl.replace(`gs://${bucket.name}/`, "");
-            await bucket.file(relPath).download({ destination: tempVideo });
-          } else {
-            const resp = await axios.get(videoUrl, { responseType: "arraybuffer", timeout: 60000 });
-            await fs.promises.writeFile(tempVideo, Buffer.from(resp.data));
-          }
+          const tExtDl = Date.now();
+          await this.downloadToStream(videoUrl, tempVideo, bucket, 60000);
+          emitDubbingTiming("transcription.extract_download", tExtDl, { jobId });
 
           try {
+            const tExtFf = Date.now();
             await execFileAsync(ffmpegPath, [
               "-y",
               "-i", tempVideo,
@@ -1853,11 +3412,14 @@ export class MediaService {
               "-ac", "1",
               tempAudio,
             ]);
+            emitDubbingTiming("transcription.extract_ffmpeg", tExtFf, { jobId });
 
+            const tExtUp = Date.now();
             await bucket.upload(tempAudio, {
               destination: outputPath,
               metadata: { contentType: "audio/mpeg" },
             });
+            emitDubbingTiming("transcription.audio_upload", tExtUp, { jobId });
 
             return `gs://${bucket.name}/${outputPath}`;
           } catch (ffmpegErr: any) {
@@ -2057,11 +3619,38 @@ export class MediaService {
   }
 
   /**
+   * Extracts duration in milliseconds using FFprobe format inspection.
+   */
+  private async probeDurationViaFfprobeMs(ffprobePath: string, filePath: string): Promise<number> {
+    try {
+      const { stdout } = await execFileAsync(
+        ffprobePath,
+        ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", filePath],
+        { timeout: 25000, maxBuffer: 4 * 1024 * 1024 }
+      );
+      const seconds = parseFloat(String(stdout || "").trim());
+      if (Number.isFinite(seconds) && seconds > 0) {
+        return Math.round(seconds * 1000);
+      }
+    } catch (err: any) {
+      console.warn("[MediaService] ffprobe duration probe failed:", {
+        signal: err?.signal || null,
+        code: err?.code ?? null,
+        message: String(err?.message || err).slice(0, 200),
+      });
+    }
+    return 0;
+  }
+
+  /**
    * Helper extracting duration in milliseconds of an audio file using FFmpeg.
    */
   private async probeAudioDurationMs(ffmpegPath: string, filePath: string): Promise<number> {
     try {
-      const { stderr } = await execFileAsync(ffmpegPath, ["-i", filePath]);
+      const { stderr } = await execFileAsync(ffmpegPath, ["-i", filePath], {
+        timeout: 25000,
+        maxBuffer: 4 * 1024 * 1024,
+      });
       const match = stderr.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2,3})/);
       if (match) {
         const h = Number(match[1]);
@@ -2081,6 +3670,11 @@ export class MediaService {
           return h * 3600000 + m * 60000 + s * 1000 + ms;
         }
       }
+      console.warn("[MediaService] ffmpeg duration probe failed:", {
+        signal: err?.signal || null,
+        code: err?.code ?? null,
+        stderr: String(err?.stderr || "").slice(-240),
+      });
     }
     return 0;
   }
@@ -2335,6 +3929,7 @@ export class MediaService {
 
       try {
         // Download chunks locally in bounded concurrent batches of 20
+        const tStitchDl = Date.now();
         const localChunkPaths: Array<{ path: string; index: number }> = [];
         let firstChunkSample: Buffer | null = null;
         const CONCURRENT_DOWNLOADS = 20;
@@ -2345,13 +3940,19 @@ export class MediaService {
             batch.map(async (item, bIdx) => {
               const chunkIdx = i + bIdx;
               const localFile = path.join(workDir, `chunk_${chunkIdx}.mp3`);
-              try {
-                await this.downloadToStream(item.url, localFile, bucket, 60000);
-                const sample = chunkIdx === 0 ? (await fs.promises.readFile(localFile)).subarray(0, 1024) : null;
-                return { path: localFile, index: item.index, sample };
-              } catch (downloadErr) {
-                console.warn("[MediaService] Failed to download chunk for merge:", item.url, downloadErr);
-                return null;
+              // A4: every line must be in the track. One retry, then the merge fails (the language
+              // fails and is refunded) instead of silently dropping a line.
+              for (let attempt = 1; ; attempt++) {
+                try {
+                  await this.downloadToStream(item.url, localFile, bucket, 60000);
+                  const sample = chunkIdx === 0 ? (await fs.promises.readFile(localFile)).subarray(0, 1024) : null;
+                  return { path: localFile, index: item.index, sample };
+                } catch (downloadErr) {
+                  if (attempt >= 2) {
+                    throw new Error(`Speech chunk ${item.index} could not be downloaded for merge: ${downloadErr instanceof Error ? downloadErr.message : String(downloadErr)}`);
+                  }
+                  console.warn("[MediaService] Chunk download failed — retrying once:", item.url, downloadErr);
+                }
               }
             })
           );
@@ -2366,13 +3967,17 @@ export class MediaService {
         if (localChunkPaths.length === 0) {
           throw new Error(`[MediaService] Audio merge failed for ${language}: None of the ${validIndexed.length} chunks could be retrieved`);
         }
+        emitDubbingTiming("post.stitch_download", tStitchDl, { jobId, lang: language, chunks: localChunkPaths.length });
 
         // ─── Production Path: Absolute PTS Timeline Mixing (adelay + amix) ───
         // Eliminates cumulative concat drift, eliminates outro truncation, and avoids spawning 200 silence processes
         if (ffmpegPath && (!firstChunkSample || isValidAudioBuffer(firstChunkSample))) {
           try {
-            const preparedChunks: Array<{ path: string; startMs: number; effectiveDurationMs: number }> =
+            const tStitchPrep = Date.now();
+            const preparedChunks: Array<{ path: string; startMs: number; effectiveDurationMs: number; ceilingMs?: number; clampAllowed?: boolean }> =
               new Array(localChunkPaths.length);
+            // DUBBING_PREROLL: decide early start vs trim in line order, after every line's length is known.
+            const usePreroll = prerollEnabled();
             const CHUNK_PREP_CONCURRENCY = 8;
 
             for (let i = 0; i < localChunkPaths.length; i += CHUNK_PREP_CONCURRENCY) {
@@ -2467,9 +4072,105 @@ export class MediaService {
                     }
                   }
 
-                  preparedChunks[slot] = { path: chunkPath, startMs: targetStartMs, effectiveDurationMs };
+                  // ─── Hard segment-end clamp ───
+                  // Tempo stops at maxTempo. Anything still longer than the turn would run into the next
+                  // speaker, and the serializer below would then push that speaker's line late (Clip 2:
+                  // the guard's line ran over Joseph's reply at 0:08). Trim at the ceiling with a short fade.
+                  // Only for turns that don't overlap in the source; real cross-talk is left to the serializer.
+                  const sourceEndMs = seg && typeof seg.end === "number" ? seg.end : targetStartMs + segWindowMs;
+                  const sourceTurnsOverlap = nextStart !== null && nextStart < sourceEndMs;
+                  const maxPlayableMs = hardCeilingMs - targetStartMs;
+                  if (!usePreroll && !sourceTurnsOverlap && maxPlayableMs >= 200 && effectiveDurationMs > maxPlayableMs + 20) {
+                    const clampedPath = path.join(workDir, `chunk_${chunk.index}_clamped.mp3`);
+                    const fadeMs = Math.min(150, Math.floor(maxPlayableMs / 4));
+                    try {
+                      await execFileAsync(ffmpegPath, [
+                        "-y",
+                        "-i", chunkPath,
+                        "-af",
+                        `atrim=end=${(maxPlayableMs / 1000).toFixed(3)},afade=t=out:st=${((maxPlayableMs - fadeMs) / 1000).toFixed(3)}:d=${(fadeMs / 1000).toFixed(3)}`,
+                        "-c:a", "libmp3lame",
+                        "-b:a", "192k",
+                        "-ar", "44100",
+                        "-ac", "2",
+                        clampedPath,
+                      ]);
+                      console.warn("[MediaService:Clamp] Segment trimmed at next-turn boundary", {
+                        index: chunk.index,
+                        overflowMs: Math.round(effectiveDurationMs - maxPlayableMs),
+                        maxPlayableMs,
+                        hardCeilingMs,
+                      });
+                      chunkPath = clampedPath;
+                      effectiveDurationMs = maxPlayableMs;
+                    } catch (clampErr) {
+                      console.warn("[MediaService] segment clamp notice:", clampErr);
+                    }
+                  }
+
+                  preparedChunks[slot] = {
+                    path: chunkPath,
+                    startMs: targetStartMs,
+                    effectiveDurationMs,
+                    ceilingMs: hardCeilingMs,
+                    clampAllowed: !sourceTurnsOverlap && maxPlayableMs >= 200,
+                  };
                 })
               );
+            }
+
+            // ─── Early start instead of trim (DUBBING_PREROLL) ───
+            // In line order: a line that still overflows its turn starts up to 300 ms earlier when the
+            // previous dubbed line has left silence; only what still does not fit is trimmed.
+            if (usePreroll) {
+              let prevEndMs: number | null = null;
+              for (let i = 0; i < preparedChunks.length; i++) {
+                const c = preparedChunks[i];
+                if (!c) continue;
+                if (c.clampAllowed && typeof c.ceilingMs === "number") {
+                  const plan = planPreroll({ startMs: c.startMs, durationMs: c.effectiveDurationMs, ceilingMs: c.ceilingMs, prevEndMs });
+                  if (plan.shiftMs > 0) {
+                    console.log("[MediaService:Preroll] Line starts earlier instead of being trimmed", {
+                      slot: i,
+                      shiftMs: plan.shiftMs,
+                      fromMs: c.startMs,
+                      toMs: plan.startMs,
+                      stillTrimmedTo: plan.trimToMs,
+                    });
+                    c.startMs = plan.startMs;
+                  }
+                  if (plan.trimToMs !== null) {
+                    const clampedPath = path.join(workDir, `chunk_slot${i}_clamped.mp3`);
+                    const keepMs = plan.trimToMs;
+                    const fadeMs = Math.min(150, Math.floor(keepMs / 4));
+                    try {
+                      await execFileAsync(ffmpegPath, [
+                        "-y",
+                        "-i", c.path,
+                        "-af",
+                        `atrim=end=${(keepMs / 1000).toFixed(3)},afade=t=out:st=${((keepMs - fadeMs) / 1000).toFixed(3)}:d=${(fadeMs / 1000).toFixed(3)}`,
+                        "-c:a", "libmp3lame",
+                        "-b:a", "192k",
+                        "-ar", "44100",
+                        "-ac", "2",
+                        clampedPath,
+                      ]);
+                      console.warn("[MediaService:Clamp] Segment trimmed at next-turn boundary", {
+                        slot: i,
+                        overflowMs: Math.round(c.effectiveDurationMs - keepMs),
+                        maxPlayableMs: keepMs,
+                        hardCeilingMs: c.ceilingMs,
+                        afterPrerollMs: plan.shiftMs,
+                      });
+                      c.path = clampedPath;
+                      c.effectiveDurationMs = keepMs;
+                    } catch (clampErr) {
+                      console.warn("[MediaService] segment clamp notice:", clampErr);
+                    }
+                  }
+                }
+                prevEndMs = c.startMs + c.effectiveDurationMs;
+              }
             }
 
             // 🔄 Serialize Overlapping Interjections:
@@ -2520,9 +4221,11 @@ export class MediaService {
             }
 
             const hasNormalize = await this.supportsAmixNormalize(ffmpegPath);
+            emitDubbingTiming("post.stitch_ffmpeg_prep", tStitchPrep, { jobId, lang: language, chunks: preparedChunks.length });
             const finalOutputPath = path.join(workDir, "stitched.mp3");
             const useWindowedBatches = !hasNormalize || preparedChunks.length > 48;
 
+            const tStitchMix = Date.now();
             if (useWindowedBatches) {
               await this.stitchTimelineViaWindowedBatches(
                 ffmpegPath,
@@ -2586,9 +4289,11 @@ export class MediaService {
               ffmpegArgs.push(finalOutputPath);
               await execFileAsync(ffmpegPath, ffmpegArgs, { maxBuffer: 100 * 1024 * 1024 });
             }
+            emitDubbingTiming("post.stitch_ffmpeg_mix", tStitchMix, { jobId, lang: language, windowed: useWindowedBatches });
 
             const stitchedBuffer = await fs.promises.readFile(finalOutputPath);
             const file = bucket.file(outputPath);
+            const tStitchUp = Date.now();
             await file.save(stitchedBuffer, {
               metadata: {
                 contentType: "audio/mpeg",
@@ -2602,6 +4307,7 @@ export class MediaService {
                 },
               },
             });
+            emitDubbingTiming("post.stitch_upload", tStitchUp, { jobId, lang: language, bytes: stitchedBuffer.length });
 
             return `gs://${bucket.name}/${outputPath}`;
           } catch (ffmpegErr) {
@@ -2610,6 +4316,11 @@ export class MediaService {
         }
 
         // ─── Pure JavaScript Fallback (Header-Safe Buffer Merging) ───
+        // A4: back-to-back concatenation ignores every line's start time (all speech bunched at the
+        // start), so it is never used for a timed dub track: the merge fails instead.
+        if (targetDurationMs > 0 || (options?.segments && options.segments.length > 0)) {
+          throw new Error("FFmpeg timeline stitching failed; untimed buffer concatenation is not allowed for a dub track");
+        }
         console.warn("[MediaService] FFmpeg stitching unavailable or failed — streaming chunks into buffer fallback");
         const cleanedBuffers: Buffer[] = [];
         for (const chunk of localChunkPaths) {
@@ -2686,22 +4397,30 @@ export class MediaService {
   /**
    * Extracts fundamental pitch (F0 in Hz) from an audio clip using FFmpeg astats zero-crossings analysis.
    */
-  async extractMedianPitchHz(audioClipPath: string): Promise<number> {
+  /**
+   * Measures the voice's fundamental pitch (F0): decodes up to 30 s to 16 kHz mono PCM and runs a
+   * YIN pitch tracker over the voiced frames (pitch-estimation.ts). Returns null when there is too
+   * little voiced speech to judge, so callers can tell "unknown" from a real measurement.
+   */
+  async extractPitch(audioClipPath: string): Promise<PitchEstimate | null> {
     const ffmpeg = getFfmpegPath() || "ffmpeg";
     try {
-      const { stderr } = await execFileAsync(
+      const { stdout } = await execFileAsync(
         ffmpeg,
-        ["-i", audioClipPath, "-af", "asetrate=44100,aresample=44100,astats=metadata=1:reset=1", "-f", "null", "-"],
-        { maxBuffer: 8 * 1024 * 1024 }
+        ["-v", "error", "-t", "30", "-i", audioClipPath, "-vn", "-ac", "1", "-ar", "16000", "-af", "highpass=f=50", "-f", "f32le", "pipe:1"],
+        { encoding: "buffer", maxBuffer: 16 * 1024 * 1024 }
       );
-      // Fallback pitch heuristic from zero-crossing / spectral centroid if external yin/crepe binary is absent
-      const zcrMatch = stderr.match(/Zero crossings rate:\s*([\d.]+)/i);
-      const zcr = zcrMatch ? parseFloat(zcrMatch[1]) : 0.05;
-      return zcr > 0.085 ? 210 : zcr > 0.06 ? 135 : 105;
+      return estimatePitch(f32leToSamples(stdout as unknown as Buffer), 16000);
     } catch (err) {
       console.warn("[MediaService] Pitch extraction notice:", err);
-      return 120;
+      return null;
     }
+  }
+
+  /** Median F0 in Hz, or 120 Hz when it cannot be measured (kept for existing callers). */
+  async extractMedianPitchHz(audioClipPath: string): Promise<number> {
+    const estimate = await this.extractPitch(audioClipPath);
+    return estimate ? estimate.medianHz : 120;
   }
 
   /**
@@ -2736,6 +4455,46 @@ export class MediaService {
         "-ss", `${Math.max(0, startSec).toFixed(3)}`,
         "-t", `${Math.max(0.5, durationSec).toFixed(3)}`,
         "-i", sourcePath,
+        "-vn",
+        "-ac", "1",
+        "-ar", "44100",
+        "-c:a", "libmp3lame",
+        "-b:a", "128k",
+        outputPath,
+      ],
+      { maxBuffer: 8 * 1024 * 1024 }
+    );
+    return outputPath;
+  }
+
+  /**
+   * Cuts several turns out of one source and joins them, in order, into a single mono MP3.
+   * Used to give voice profiling several seconds of one speaker instead of one short slice.
+   */
+  async extractAudioTurns(
+    sourcePath: string,
+    turns: Array<{ startSec: number; durationSec: number }>,
+    outputPath: string
+  ): Promise<string> {
+    if (turns.length === 0) throw new Error("extractAudioTurns: no turns given");
+    if (turns.length === 1) {
+      return this.extractAudioSlice(sourcePath, turns[0].startSec, turns[0].durationSec, outputPath);
+    }
+    const ffmpeg = getFfmpegPath() || "ffmpeg";
+    const parts = turns.map((t, i) => {
+      const start = Math.max(0, t.startSec);
+      const end = start + Math.max(0.3, t.durationSec);
+      return `[0:a]atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)},asetpts=PTS-STARTPTS[t${i}]`;
+    });
+    const concatInputs = turns.map((_, i) => `[t${i}]`).join("");
+    const filter = `${parts.join(";")};${concatInputs}concat=n=${turns.length}:v=0:a=1[out]`;
+    await execFileAsync(
+      ffmpeg,
+      [
+        "-y",
+        "-i", sourcePath,
+        "-filter_complex", filter,
+        "-map", "[out]",
         "-vn",
         "-ac", "1",
         "-ar", "44100",
@@ -2803,6 +4562,10 @@ export async function extractMneStemDetailedParallel(
 
 export async function extractMedianPitchHz(audioClipPath: string): Promise<number> {
   return mediaService.extractMedianPitchHz(audioClipPath);
+}
+
+export async function extractPitch(audioClipPath: string): Promise<PitchEstimate | null> {
+  return mediaService.extractPitch(audioClipPath);
 }
 
 export async function extractVideoFrame(videoPath: string, timestampSec: number, outputPath: string): Promise<string> {

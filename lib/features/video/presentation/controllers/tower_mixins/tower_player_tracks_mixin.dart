@@ -57,6 +57,7 @@ mixin TowerPlayerTracksMixin on GetxController {
   }
 
   final RxString activeAudioLang = 'Original'.obs;
+  final RxBool isAiDubPlaying = false.obs;
   final RxList<AudioTrack> audioTracks = <AudioTrack>[].obs;
   final RxString activeVideoLang = 'Original'.obs;
   final RxList<VideoTrack> videoTracks = <VideoTrack>[].obs;
@@ -80,6 +81,7 @@ mixin TowerPlayerTracksMixin on GetxController {
       } catch (_) {}
       audioTrackController = null;
     }
+    isAiDubPlaying.value = false;
     activeAudioLang.value =
         audioTracks.isNotEmpty ? audioTracks.first.label : 'Original';
     videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
@@ -273,6 +275,7 @@ mixin TowerPlayerTracksMixin on GetxController {
   Future<void> setAudioLanguage(AudioTrack track) async {
     final currentEpoch = ++_audioInitEpoch;
     activeAudioLang.value = track.label;
+    isAiDubPlaying.value = track.isAiDub;
     activePanel.value = '';
     closeSettings();
     try {

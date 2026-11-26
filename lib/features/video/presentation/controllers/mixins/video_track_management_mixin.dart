@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -9,6 +10,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/utils/storage_canonicalizer.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
@@ -45,6 +47,138 @@ mixin VideoTrackManagementMixin on GetxController {
 
   bool _isFetchingAudioTracks = false;
 
+  /// Provided by [VideoController]: premium / channel-premium playback access.
+  bool get canStreamHighResolution;
+
+  // ── Adaptive HLS ("Auto") ────────────────────────────────────────────────
+  // Every processed video has an HLS master playlist. In Auto quality, native
+  // players (ExoPlayer / AVPlayer) switch qualities between segments without
+  // rebuilding the player, so the app's own ABR must not switch MP4 files then.
+
+  /// Label of the HLS Auto entry (never part of [availableResolutions]).
+  static const String hlsAutoLabel = 'Auto';
+
+  String _jobAbrHlsMasterUrl = '';
+  String _jobAbrHlsHdMasterUrl = '';
+  int _jobAbrHlsRenditions = 0;
+  int _playingHlsRenditions = 0;
+
+  Timer? _ladderRefreshTimer;
+  int _ladderRefreshCount = 0;
+  static const int _maxLadderRefreshes = 20; // ~10 minutes
+  static const Duration _ladderRefreshInterval = Duration(seconds: 30);
+
+  /// Flutter web plays through the browser's <video> element, which only plays
+  /// HLS natively in Safari, so web keeps the MP4 ladder.
+  bool get supportsNativeHls => !kIsWeb;
+
+  bool get _isAbrAutoMode => _resolveAbr()?.isAutoMode.value ?? true;
+
+  /// HLS master for this viewer: every quality with premium playback, up to
+  /// 1080p otherwise (same cap the quality menu enforces for MP4s).
+  String get abrHlsMasterUrl {
+    final all = _jobAbrHlsMasterUrl.isNotEmpty ? _jobAbrHlsMasterUrl : video.abrHlsUrl;
+    final hd = _jobAbrHlsHdMasterUrl.isNotEmpty ? _jobAbrHlsHdMasterUrl : video.abrHlsHdUrl;
+    final url = canStreamHighResolution && all.isNotEmpty ? all : hd;
+    if (url.isEmpty || blacklistedStreamUrls.contains(url)) return '';
+    return url;
+  }
+
+  /// The Auto entry to play, or null when HLS can't be used here.
+  VideoResolutionV2? get hlsAutoResolution {
+    if (!supportsNativeHls || isAudioOnly.value) return null;
+    final url = abrHlsMasterUrl;
+    if (url.isEmpty) return null;
+    return VideoResolutionV2(label: hlsAutoLabel, url: url, width: 0, height: 0, bitrate: 0);
+  }
+
+  /// True while the player streams the adaptive HLS master.
+  bool get isOnHlsAuto {
+    final current = currentResolution.value;
+    return current != null && current.label == hlsAutoLabel && current.url.contains('.m3u8');
+  }
+
+  /// Start-of-playback choice: the HLS master when the viewer is in Auto quality.
+  /// Used by [resolvePlaybackTargetUrl] before any MP4 is considered.
+  VideoResolutionV2? preferredHlsAutoStart() {
+    if (!_isAbrAutoMode) return null;
+    if (currentResolution.value != null && !isOnHlsAuto) return null;
+    return hlsAutoResolution;
+  }
+
+  /// Switches to adaptive HLS (used by "Auto" in the quality menu and when the
+  /// HLS master becomes available after playback started). Warm swap: the
+  /// current player keeps playing until the new one is ready at the same position.
+  Future<void> switchToHlsAuto({bool forceReload = false}) async {
+    final auto = hlsAutoResolution;
+    if (auto == null || isClosed) return;
+    var target = auto;
+    if (forceReload && isOnHlsAuto) {
+      // Same master URL with more qualities: a distinct URL makes the player
+      // re-read the master (no-cache) instead of reusing the current session.
+      final separator = auto.url.contains('?') ? '&' : '?';
+      target = VideoResolutionV2(
+        label: hlsAutoLabel,
+        url: '${auto.url}${separator}r=$_jobAbrHlsRenditions',
+        width: 0,
+        height: 0,
+        bitrate: 0,
+      );
+    }
+    _playingHlsRenditions = _jobAbrHlsRenditions;
+    await setResolution(target, isManual: false);
+  }
+
+  void _readAbrHls(Map<String, dynamic> jobData) {
+    final abrHls = jobData['abrHls'];
+    if (abrHls is Map) {
+      _jobAbrHlsMasterUrl = (abrHls['masterUrl'] as String?) ?? '';
+      _jobAbrHlsHdMasterUrl = (abrHls['hdMasterUrl'] as String?) ?? '';
+      _jobAbrHlsRenditions = (abrHls['renditions'] as num?)?.toInt() ?? 0;
+    }
+  }
+
+  /// While a new upload is still being processed (qualities arrive one by one,
+  /// 360p first), re-read the job from the server every 30 s for up to ~10 min,
+  /// so the viewer moves up without reloading the page:
+  ///  - MP4 ladder: the new qualities join the ABR ladder, which can step up.
+  ///  - HLS Auto: one warm reload picks up the master's new qualities.
+  void _scheduleLadderRefresh(Map<String, dynamic>? jobData) {
+    final status = (jobData?['status'] as String?) ?? '';
+    final finished = status == 'completed' || status == 'failed';
+    if (finished || isClosed || _ladderRefreshCount >= _maxLadderRefreshes) {
+      _ladderRefreshTimer?.cancel();
+      _ladderRefreshTimer = null;
+      return;
+    }
+    if (_ladderRefreshTimer?.isActive ?? false) return;
+    _ladderRefreshTimer = Timer(_ladderRefreshInterval, () {
+      _ladderRefreshTimer = null;
+      if (isClosed) return;
+      _ladderRefreshCount++;
+      unawaited(fetchAvailableResolutions(fromServer: true));
+    });
+  }
+
+  /// After a refresh: start HLS if it just became available, or reload it once
+  /// when the master gained qualities while the viewer is in Auto.
+  void _applyHlsAfterRefresh() {
+    if (isClosed || !_isAbrAutoMode || isSwitchingResolution.value) return;
+    if (hlsAutoResolution == null) return;
+    if (!isOnHlsAuto) {
+      if (isVpcInitialized) unawaited(switchToHlsAuto());
+      return;
+    }
+    if (_playingHlsRenditions == 0) {
+      // Playback started on HLS before the job was read: take today's count as the baseline.
+      _playingHlsRenditions = _jobAbrHlsRenditions;
+      return;
+    }
+    if (_jobAbrHlsRenditions > _playingHlsRenditions) {
+      unawaited(switchToHlsAuto(forceReload: true));
+    }
+  }
+
   AdaptiveBitrateController? _resolveAbr() {
     if (Get.isRegistered<AdaptiveBitrateController>(tag: video.id)) {
       return Get.find<AdaptiveBitrateController>(tag: video.id);
@@ -57,21 +191,26 @@ mixin VideoTrackManagementMixin on GetxController {
 
   Future<void> initializeVideoPlayer({String? overrideUrl});
 
-  Future<void> fetchAvailableResolutions() async {
+  Future<void> fetchAvailableResolutions({bool fromServer = false}) async {
     if (isClosed) return;
+    Map<String, dynamic>? jobData;
     try {
       final docId = video.id;
       debugPrint('[VideoController] 🔍 Fetching resolutions for: $docId');
 
-      final doc = await FirebaseFirestore.instance
-          .collection('resolution_jobs')
-          .doc(docId)
-          .getCacheFirst();
+      final jobRef = FirebaseFirestore.instance.collection('resolution_jobs').doc(docId);
+      // Refreshes go to the server: a cached job from before processing finished
+      // would keep the viewer on 360p.
+      final doc = fromServer
+          ? await jobRef.get(const GetOptions(source: Source.server))
+          : await jobRef.getCacheFirst();
 
       if (isClosed) return;
 
       if (doc.exists) {
         final data = doc.data();
+        jobData = data;
+        if (data != null) _readAbrHls(data);
         debugPrint('[VideoController] 📄 Doc data found: ${data != null}');
 
         if (data != null && data['variants'] != null) {
@@ -351,6 +490,10 @@ mixin VideoTrackManagementMixin on GetxController {
         tag: 'VideoTrackManagementMixin.fetchAvailableResolutions',
       );
     }
+
+    if (isClosed) return;
+    _applyHlsAfterRefresh();
+    _scheduleLadderRefresh(jobData);
   }
 
   Future<void> fetchAvailableSubtitles() async {
@@ -448,6 +591,39 @@ mixin VideoTrackManagementMixin on GetxController {
   /// Fetches the AI Summary from moderation.summary in the video document or credibility cache
   Future<void> fetchSummary() => transcriptController.fetchSummary(video);
 
+  /// Resolves track source using tamper-proof canonical storage object comparison.
+  /// A track is AI-dubbed if and only if video.aiDubbedAudio[lang] != null &&
+  /// canonical storage object of video.aiDubbedAudio[lang] == canonical storage object of trackUrl.
+  /// Pre-Task 5 fallback: if video.aiDubbedAudio.isEmpty:
+  ///   1. Check if completed dubbed videos contain this language (video.dubbedVideos[lang]).
+  ///   2. Fallback to video.dubbingLanguages which lists ordered/requested dub languages.
+  ///   3. If neither applies or language was not ordered/completed, return 'creator' (no label).
+  /// audioTrackSources is informational and is NEVER read for disclosure decisions.
+  String _resolveAudioTrackSource(Video vid, String langCode, String trackUrl) {
+    if (vid.aiDubbedAudio.isNotEmpty) {
+      final aiAudioUrl = vid.aiDubbedAudio[langCode];
+      if (aiAudioUrl != null && aiAudioUrl.isNotEmpty) {
+        if (StorageCanonicalizer.isSameStorageObject(aiAudioUrl, trackUrl)) {
+          return 'ai_dub';
+        }
+      }
+      return 'creator';
+    }
+
+    // Fallback for pre-Task 5 legacy videos (no aiDubbedAudio recorded on doc):
+    // 1. If completed dubbed video outputs exist on the loaded video, check if this language completed:
+    if (vid.dubbedVideos.containsKey(langCode)) {
+      return 'ai_dub';
+    }
+    // 2. Otherwise fallback to ordered languages in vid.dubbingLanguages (from aiFeatures.dubbingLanguages):
+    // Note: vid.dubbingLanguages represents ordered/requested dub languages; if the video was ordered for
+    // dubbing in this language, we conservatively attribute it as ai_dub until the backfill script lands.
+    if (vid.dubbingLanguages.isNotEmpty && vid.dubbingLanguages.contains(langCode)) {
+      return 'ai_dub';
+    }
+    return 'creator';
+  }
+
   Future<void> fetchAvailableAudioTracks() async {
     if (isClosed || _isFetchingAudioTracks) return;
     _isFetchingAudioTracks = true;
@@ -460,7 +636,8 @@ mixin VideoTrackManagementMixin on GetxController {
         for (final entry in video.audioTracks.entries) {
           final l = supportedLanguages.firstWhereOrNull((lang) => lang.code == entry.key);
           final label = l?.name != null ? '${l!.name} (Audio)' : '${entry.key.toUpperCase()} (Audio)';
-          initialAudio.add(AudioTrack(label: label, langCode: entry.key, type: 'Audio', url: entry.value));
+          final trackSource = _resolveAudioTrackSource(video, entry.key, entry.value);
+          initialAudio.add(AudioTrack(label: label, langCode: entry.key, type: 'Audio', url: entry.value, source: trackSource));
         }
         availableAudioTracks.assignAll(initialAudio);
       }
@@ -581,20 +758,20 @@ mixin VideoTrackManagementMixin on GetxController {
           if (isClosed) return;
 
           if (audioTracksMap.isNotEmpty) {
-            // Persist discovered audio tracks back to Firestore so subsequent loads are immediate
-            FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(video.id).set({
+            // Persist discovered audio tracks back to existing Firestore video document (never create a new doc)
+            FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(video.id).update({
               'audioTracks': audioTracksMap,
-              'media': {'audioTracks': audioTracksMap},
+              'media.audioTracks': audioTracksMap,
               'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true)).catchError((e) {
+            }).then((_) {
+              FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(video.id).collection('media').doc('localization').set({
+                'audioTracks': audioTracksMap,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true)).catchError((e) {
+                debugPrint('[AudioDiscovery] ⚠️ Failed to persist audioTracks to localization doc: $e');
+              });
+            }).catchError((e) {
               debugPrint('[AudioDiscovery] ⚠️ Failed to persist audioTracks to video doc: $e');
-            });
-
-            FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(video.id).collection('media').doc('localization').set({
-              'audioTracks': audioTracksMap,
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true)).catchError((e) {
-              debugPrint('[AudioDiscovery] ⚠️ Failed to persist audioTracks to localization doc: $e');
             });
           }
         }
@@ -680,12 +857,14 @@ mixin VideoTrackManagementMixin on GetxController {
             final label = lang?.name != null
                 ? '${lang!.name} (Audio)'
                 : '${langCode.toUpperCase()} (Audio)';
+            final trackSource = _resolveAudioTrackSource(video, langCode, url);
 
             return AudioTrack(
               label: label,
               langCode: langCode,
               type: 'Audio',
               url: url,
+              source: trackSource,
             );
           } catch (e, s) {
             // If direct download failed, it may be a directory holding audio chunks
@@ -705,14 +884,29 @@ mixin VideoTrackManagementMixin on GetxController {
                 final label = lang?.name != null
                     ? '${lang!.name} (Audio)'
                     : '${langCode.toUpperCase()} (Audio)';
+                // Compare resolved item's canonical storage object path
+                final itemStorageRef = 'gs://${item.bucket}/${item.fullPath}';
+                final trackSource = _resolveAudioTrackSource(video, langCode, itemStorageRef);
                 return AudioTrack(
                   label: label,
                   langCode: langCode,
                   type: 'Audio',
                   url: resolvedUrl,
+                  source: trackSource,
+                );
+              } else {
+                ErrorHandler.log(
+                  'Directory chunk at $pathOrUrl contained no items for audio track $langCode',
+                  tag: 'VideoTrackManagementMixin.fetchAvailableAudioTracks.emptyChunkDir',
                 );
               }
-            } catch (_) {}
+            } catch (chunkErr, chunkStack) {
+              ErrorHandler.log(
+                chunkErr,
+                stackTrace: chunkStack,
+                tag: 'VideoTrackManagementMixin.fetchAvailableAudioTracks.unresolvedChunkDir',
+              );
+            }
 
             ErrorHandler.log(
               e,
@@ -938,11 +1132,14 @@ mixin VideoTrackManagementMixin on GetxController {
     try {
       await initializeVideoPlayer(overrideUrl: res.url);
 
-      // Display HUD toast notification
-      final qualityText = isManual
-          ? 'Quality: ${res.label}'
-          : 'Quality: ${res.label} (Auto)';
-      towerCtrl?.showToast(qualityText);
+      // Display HUD toast notification. Moving into adaptive HLS is silent: the
+      // "Quality: Auto" toast is shown by the quality menu when the viewer picks it.
+      if (res.label != hlsAutoLabel) {
+        final qualityText = isManual
+            ? 'Quality: ${res.label}'
+            : 'Quality: ${res.label} (Auto)';
+        towerCtrl?.showToast(qualityText);
+      }
     } catch (e, s) {
       ErrorHandler.log(
         e,

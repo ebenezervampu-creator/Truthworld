@@ -362,10 +362,14 @@ export const onTopicWritten = onDocumentWritten(
           const gcsPath = getGcsPathFromUrl(thumbAfter);
           if (gcsPath) {
             const mimeType = getMimeTypeFromPath(gcsPath);
+            const currentProject = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
+            const bucketName = process.env.STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET || (currentProject !== "truthworld-1"
+              ? `${currentProject}.firebasestorage.app`
+              : "truthworld-1.firebasestorage.app");
             parts.push({
               fileData: {
                 mimeType,
-                fileUri: `gs://truthworld-1.firebasestorage.app/${gcsPath}`,
+                fileUri: `gs://${bucketName}/${gcsPath}`,
               },
             });
           }

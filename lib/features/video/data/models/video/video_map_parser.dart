@@ -567,6 +567,46 @@ class VideoMapParser {
         });
         return res;
       }(),
+      audioTrackSources: () {
+        final res = <String, String>{};
+        void extractFrom(dynamic raw) {
+          if (raw is Map) {
+            raw.forEach((k, v) {
+              if (k != null && v is String && v.isNotEmpty) {
+                res[k.toString()] = v;
+              }
+            });
+          }
+        }
+
+        extractFrom(data['media'] is Map ? data['media']['audioTrackSources'] : null);
+        extractFrom(data['audioTrackSources']);
+
+        data.forEach((key, val) {
+          if (val is String && val.isNotEmpty) {
+            if (key.startsWith('audioTrackSources.')) {
+              final code = key.substring('audioTrackSources.'.length);
+              if (code.isNotEmpty) res[code] = val;
+            } else if (key.startsWith('media.audioTrackSources.')) {
+              final code = key.substring('media.audioTrackSources.'.length);
+              if (code.isNotEmpty) res[code] = val;
+            }
+          }
+        });
+        return res;
+      }(),
+      aiDubbedAudio: () {
+        final res = <String, String>{};
+        final raw = data['aiDubbedAudio'];
+        if (raw is Map) {
+          raw.forEach((k, v) {
+            if (k != null && v is String && v.isNotEmpty) {
+              res[k.toString()] = v;
+            }
+          });
+        }
+        return res;
+      }(),
       jobId:
           ((data['jobId'] ?? data['pipelineJobId']) ??
                   (data['media'] is Map
@@ -711,6 +751,14 @@ class VideoMapParser {
             )
           : const [],
       credibilityStatus: data['credibilityStatus']?.toString(),
+      playbackReady: (data['media'] is Map && data['media']['playbackReady'] == true) ||
+          data['playbackReady'] == true,
+      transcodeFailed: (data['media'] is Map && data['media']['transcodeFailed'] == true) ||
+          data['transcodeFailed'] == true,
+      transcodeError: (data['media'] is Map ? data['media']['transcodeError'] as String? : null) ??
+          data['transcodeError'] as String?,
+      abrHlsUrl: (data['media'] is Map ? data['media']['abrHlsUrl'] as String? : null) ?? '',
+      abrHlsHdUrl: (data['media'] is Map ? data['media']['abrHlsHdUrl'] as String? : null) ?? '',
     );
   }
 

@@ -44,6 +44,30 @@ service firebase.storage {
       );
     }
 
+    // ===== Firestore-backed video ownership (audit C1 / C4) =====
+    // Storage paths under videos/{videoId}/ and resolutions/{videoId}/ must be
+    // tied to the Firestore video doc. Without this, any signed-in user could
+    // write a NEW file under someone else's video id (resource == null passes
+    // isOwnerOrNew) and the resolution trigger would publish it as that video.
+    function isFirestoreVideoOwner(videoId) {
+      let path = /databases/(default)/documents/videos/$(videoId);
+      return isSignedIn() && (
+        isAdmin() ||
+        (firestore.exists(path) && (
+          firestore.get(path).data.get('ownerId', '') == request.auth.uid ||
+          firestore.get(path).data.get('userId', '') == request.auth.uid ||
+          firestore.get(path).data.get('uploaderId', '') == request.auth.uid
+        ))
+      );
+    }
+
+    // Video exists and is not private / draft (mirrors the Firestore videos get rule).
+    function isFirestoreVideoPublic(videoId) {
+      let path = /databases/(default)/documents/videos/$(videoId);
+      return firestore.exists(path) &&
+        !(firestore.get(path).data.get('visibility', 'public') in ['Private', 'private', 'PRIVATE', 'draft', 'Draft', 'private_draft']);
+    }
+
     // Validate extension and enforce strict file size caps
     function isValidThumbnail() {
       return request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)')
@@ -192,7 +216,7 @@ service firebase.storage {
     // Video Chapters & Claim Chapters Frames / Visual Badges (Public visual media under video tree)
     match /videos/{videoId}/chapters/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew();
+      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew() && isFirestoreVideoOwner(videoId);
       allow delete: if isResourceOwner();
     }
 
@@ -202,7 +226,7 @@ service firebase.storage {
       allow write: if isSignedIn() && (
         request.resource.contentType.matches('text/(vtt|plain)') ||
         request.resource.contentType.matches('application/json')
-      ) && isUploaderClaimValid() && isOwnerOrNew();
+      ) && isUploaderClaimValid() && isOwnerOrNew() && isFirestoreVideoOwner(videoId);
       allow delete: if isResourceOwner();
     }
 
@@ -220,7 +244,7 @@ service firebase.storage {
     // Raw master uploads are strictly protected; viewers stream transcoded resolutions
     match /videos/{videoId}/{allPaths=**} {
       allow read: if isSignedIn() && (isResourceOwner() || isAdmin());
-      allow write: if isSignedIn() && isUploaderClaimValid() && isOwnerOrNew()
+      allow write: if isSignedIn() && isUploaderClaimValid() && isOwnerOrNew() && isFirestoreVideoOwner(videoId)
         && (
           (request.resource.contentType.matches('video/(mp4|webm|quicktime|x-matroska)') && request.resource.size <= 1024 * 1024 * 1024) ||
           (request.resource.contentType.matches('image/(jpeg|jpg|png|webp)') && request.resource.size <= 15 * 1024 * 1024) ||
@@ -241,8 +265,11 @@ service firebase.storage {
     // TRANSCODED RESOLUTIONS (Adaptive Streaming for In-App & Web Viewers)
     // ================================
     match /resolutions/{videoId}/{allPaths=**} {
-      // Public read allows web guests and authentic viewers to stream transcoded resolutions
-      allow read: if true;
+      // Public and unlisted videos stream to everyone (web guests included).
+      // Private / draft transcodes only to the owner and admins (audit C4).
+      // Note: URLs carrying a ?token= download token bypass these rules, so
+      // those tokens must also stay out of reach (see resolution_jobs rule).
+      allow read: if isFirestoreVideoPublic(videoId) || isFirestoreVideoOwner(videoId);
       allow write: if false; // System pipeline only
       allow delete: if false;
     }
@@ -272,6 +299,19 @@ service firebase.storage {
       allow read: if true;
       allow write: if false; 
       allow delete: if false;
+    }
+
+    // ================================
+    // DUBBING SOURCE MEDIA UPLOADS
+    // ================================
+    match /dubbing_uploads/{userId}/{allPaths=**} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin()) &&
+        (
+          (request.resource.contentType.matches('video/.*') && request.resource.size <= 1024 * 1024 * 1024) ||
+          (request.resource.contentType.matches('audio/.*') && request.resource.size <= 250 * 1024 * 1024)
+        );
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     // ================================

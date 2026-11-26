@@ -15,7 +15,6 @@ import 'package:truthworld/features/video/presentation/controllers/upload_contro
 import 'package:truthworld/features/video/presentation/controllers/upload_mixins/upload_controller_base.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_media_sections.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import '../../pages/page_test_harness.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 void main() {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/components/dubbing/dubbing_multi_language_picker_sheet.dart';
@@ -11,11 +12,13 @@ class SpokenLanguageSelectorCard extends StatelessWidget {
   final UploadController controller;
   final String title;
   final String subtitle;
+  final bool isDubbingContext;
 
   const SpokenLanguageSelectorCard({
     required this.controller,
     this.title = 'Spoken Video Language ("From")',
     this.subtitle = 'Speech recognition powered by AssemblyAI Universal 3.7 Pro',
+    this.isDubbingContext = false,
     super.key,
   });
 
@@ -107,6 +110,7 @@ class SpokenLanguageSelectorCard extends StatelessWidget {
               onTap: () => showSpokenLanguagePicker(
                 context: context,
                 controller: controller,
+                dubbingSourceMode: isDubbingContext,
               ),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -164,17 +168,24 @@ class SpokenLanguageSelectorCard extends StatelessWidget {
                     ...displayedChips.map((lang) {
                       final code = lang['code']!;
                       final isSelected = currentPrimary == code;
+                      final isClickable = !isDubbingContext || code == 'en';
                       final label = lang['native'] != lang['name'] && code != 'auto'
                           ? '${lang['name']} (${lang['native']})'
                           : lang['name']!;
 
                       return InkWell(
-                        onTap: () {
-                          controller.primarySpokenLanguage.value = code;
-                          if (code != 'auto' && !controller.spokenLanguages.contains(code)) {
-                            controller.spokenLanguages.insert(0, code);
-                          }
-                        },
+                        onTap: !isClickable
+                            ? () {
+                                AppSnackbar.info(
+                                  '${lang['name']} is available soon! Only English source audio is currently active.',
+                                );
+                              }
+                            : () {
+                                controller.primarySpokenLanguage.value = code;
+                                if (code != 'auto' && !controller.spokenLanguages.contains(code)) {
+                                  controller.spokenLanguages.insert(0, code);
+                                }
+                              },
                         borderRadius: BorderRadius.circular(8),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
@@ -214,6 +225,7 @@ class SpokenLanguageSelectorCard extends StatelessWidget {
                       onTap: () => showSpokenLanguagePicker(
                         context: context,
                         controller: controller,
+                        dubbingSourceMode: isDubbingContext,
                       ),
                       borderRadius: BorderRadius.circular(8),
                       child: Container(

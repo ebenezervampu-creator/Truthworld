@@ -3,6 +3,8 @@ import { logger } from "../utils/logger";
 import type { ExtractedClaim } from "./factExtraction";
 import type { AdjudicatedClaim, EvidenceProvider } from "../types";
 import { claimCacheService } from "./claimCacheService";
+import { sourceTrustService } from "./sourceTrustService";
+import { normalizeClaimForDeterministicMatch } from "./deterministicRegistry";
 import type { ClaimStatus } from "../types";
 
 export interface Tier0Context {
@@ -25,6 +27,7 @@ export interface PreIndexedFactMatch {
 
 interface PreIndexedCorpusEntry {
   title: string;
+  /** Descriptive only: never used to match a claim. */
   keywords: string[];
   patterns: RegExp[];
   status: 'verified_true' | 'false_claim';
@@ -40,7 +43,7 @@ export class Tier0KnowledgeService {
     {
       title: "Speed of Light in Vacuum",
       keywords: ["speed", "light", "vacuum", "constant", "physics", "meters"],
-      patterns: [/speed of light (in (a )?vacuum )?is/i, /c = 299,?792,?458/i],
+      patterns: [/^(the )?speed of light( in (a )?vacuum)? is (about |approximately |exactly )?(299792458 (m|meters|metres) per (s|second)|299792 (km|kilometers|kilometres) per (s|second)|300000 (km|kilometers|kilometres) per (s|second))$/],
       status: "verified_true",
       reasoning: "Light travels at about 299,792,458 meters every second in empty space. Scientists around the world use this exact speed as a standard measure.",
       source: "National Institute of Standards and Technology (NIST)",
@@ -50,7 +53,7 @@ export class Tier0KnowledgeService {
     {
       title: "Freezing & Boiling Points of Pure Water at Sea Level",
       keywords: ["freezing", "boiling", "water", "temperature", "celsius", "fahrenheit"],
-      patterns: [/water freezes at 0 degrees/i, /water boils at 100 degrees/i, /freezing point of water/i, /boiling point of water/i],
+      patterns: [/^(pure )?water freezes at (0|zero) degrees( celsius| c)?( at sea level)?$/, /^(pure )?water boils at 100 degrees( celsius| c)?( at sea level)?$/, /^(the )?freezing point of (pure )?water is (0|zero) degrees( celsius| c)?$/, /^(the )?boiling point of (pure )?water( at sea level)? is 100 degrees( celsius| c)?$/, /^(pure )?water freezes at (0|zero) degrees( celsius| c)? and boils at 100 degrees( celsius| c)?( at sea level)?$/],
       status: "verified_true",
       reasoning: "At normal sea-level air pressure, clean water turns into ice at 0°C (32°F) and boils at 100°C (212°F).",
       source: "Encyclopaedia Britannica (Physical Chemistry)",
@@ -60,7 +63,7 @@ export class Tier0KnowledgeService {
     {
       title: "Atmospheric Composition of Earth",
       keywords: ["earth", "atmosphere", "nitrogen", "oxygen", "percentage", "gases"],
-      patterns: [/atmosphere is (approximately |about )?78% nitrogen/i, /earth's atmosphere is mostly nitrogen/i, /21% oxygen/i],
+      patterns: [/^(the )?earths? atmosphere is (approximately |about )?78 % nitrogen$/, /^(the )?earths? atmosphere is mostly nitrogen$/],
       status: "verified_true",
       reasoning: "The air around Earth is made mostly of nitrogen gas (about 78%) and oxygen gas (about 21%), with small amounts of argon and carbon dioxide.",
       source: "NASA Earth Science Division",
@@ -70,7 +73,7 @@ export class Tier0KnowledgeService {
     {
       title: "DNA Double Helix Structure",
       keywords: ["dna", "structure", "double", "helix", "watson", "crick", "franklin", "nucleotide"],
-      patterns: [/dna (is|has) a double helix/i, /structure of dna/i],
+      patterns: [/^dna (is|has) a double helix( structure)?$/],
       status: "verified_true",
       reasoning: "DNA is shaped like a twisted ladder (called a double helix) made of two strands, first mapped by scientists in 1953.",
       source: "National Institutes of Health (NIH) / NHGRI",
@@ -82,7 +85,7 @@ export class Tier0KnowledgeService {
     {
       title: "Vaccination and Immune System Priming",
       keywords: ["vaccine", "vaccines", "immunity", "antibodies", "pathogen", "immune"],
-      patterns: [/vaccines work by (stimulating|training) the immune system/i, /vaccines produce antibodies/i],
+      patterns: [/^vaccines work by (stimulating|training) the immune system( to produce antibodies)?$/, /^vaccines (help the body )?produce antibodies$/],
       status: "verified_true",
       reasoning: "Vaccines safely train your body's defense system to recognize a germ and build antibodies, helping protect you without giving you the full illness.",
       source: "World Health Organization (WHO) Vaccines Guidance",
@@ -92,7 +95,7 @@ export class Tier0KnowledgeService {
     {
       title: "Smoking and Cardiovascular / Respiratory Disease Link",
       keywords: ["smoking", "tobacco", "cigarettes", "cancer", "cardiovascular", "heart", "disease"],
-      patterns: [/smoking causes lung cancer/i, /tobacco causes heart disease/i, /smoking increases cardiovascular risk/i],
+      patterns: [/^((clinical )?(research|studies|evidence) (proves?|shows?|confirms?) (that )?)?(smoking causes lung cancer|tobacco causes heart disease|smoking increases cardiovascular risk)$/],
       status: "verified_true",
       reasoning: "Years of large health studies prove that smoking tobacco directly causes lung cancer, serious breathing diseases, and heart problems.",
       source: "Centers for Disease Control and Prevention (CDC)",
@@ -102,7 +105,7 @@ export class Tier0KnowledgeService {
     {
       title: "Antibiotics Ineffective Against Viral Infections",
       keywords: ["antibiotics", "viruses", "bacteria", "penicillin"],
-      patterns: [/antibiotics (do not|cannot) kill viruses/i, /antibiotics only kill bacteria/i, /antibiotics are ineffective against viruses/i],
+      patterns: [/^antibiotics (do not|dont|cannot|cant) kill viruses$/, /^antibiotics only kill bacteria$/, /^antibiotics are ineffective against viruses$/],
       status: "verified_true",
       reasoning: "Antibiotic medicines only fight bacteria. They cannot kill viruses like the common cold, the flu, or COVID-19.",
       source: "World Health Organization (WHO) Antimicrobial Resistance",
@@ -112,7 +115,7 @@ export class Tier0KnowledgeService {
     {
       title: "Antibiotics Treat Viral Infections (Refuted)",
       keywords: ["antibiotics", "viral", "cure", "cold", "flu"],
-      patterns: [/antibiotics (cure|treat|kill) (viral|viruses|common cold|the flu)/i, /antibiotics are effective against (viral|viruses)/i],
+      patterns: [/^antibiotics (cure|treat|kill) (viral infections|viruses|the common cold|the flu)$/, /^antibiotics are effective against (viral infections|viruses)( and (the )?common cold)?$/],
       status: "false_claim",
       reasoning: "Antibiotics only kill bacteria, not viruses. They do not cure colds, the flu, or other viral sicknesses.",
       source: "Centers for Disease Control and Prevention (CDC)",
@@ -122,7 +125,7 @@ export class Tier0KnowledgeService {
     {
       title: "Turmeric Water Cures Cancer (Refuted)",
       keywords: ["turmeric", "curcumin", "cancer", "cure", "water", "drinking"],
-      patterns: [/turmeric (water )?(cures|treats|prevents) cancer/i, /drinking turmeric (water )?(cures|treats|prevents) cancer/i, /curcumin (cures|treats) cancer/i, /cancer cure (is |with )?turmeric/i],
+      patterns: [/^(drinking )?turmeric( water)? (cures|treats|prevents) cancer$/, /^curcumin (cures|treats) cancer$/],
       status: "false_claim",
       reasoning: "Doctors and cancer researchers agree this is not true. While lab tests have studied turmeric for swelling, there is no real proof in people that drinking turmeric water cures cancer. Major health groups like WHO and Cancer Research UK warn people never to skip real medical care for unproven home drinks.",
       source: "National Cancer Institute (NCI) / Cancer Research UK",
@@ -134,7 +137,7 @@ export class Tier0KnowledgeService {
     {
       title: "Foundation of the United Nations (1945)",
       keywords: ["united nations", "un", "charter", "founded", "1945", "san francisco"],
-      patterns: [/united nations was founded in 1945/i, /un charter was signed in 1945/i],
+      patterns: [/^(the )?united nations was founded in 1945$/, /^(the )?un charter was signed in 1945$/],
       status: "verified_true",
       reasoning: "The United Nations officially started on October 24, 1945, after founding countries signed and approved its agreement.",
       source: "United Nations Historical Registry",
@@ -144,7 +147,7 @@ export class Tier0KnowledgeService {
     {
       title: "Universal Declaration of Human Rights (1948)",
       keywords: ["universal declaration", "human rights", "udhr", "1948", "paris", "eleanor roosevelt"],
-      patterns: [/universal declaration of human rights was adopted in 1948/i, /udhr was proclaimed in 1948/i],
+      patterns: [/^(the )?universal declaration of human rights was adopted in 1948$/, /^(the )?udhr was proclaimed in 1948$/],
       status: "verified_true",
       reasoning: "World leaders at the United Nations approved the Universal Declaration of Human Rights in Paris on December 10, 1948.",
       source: "United Nations Treaty Series (UDHR)",
@@ -156,7 +159,7 @@ export class Tier0KnowledgeService {
     {
       title: "Apollo 11 Crewed Moon Landing (1969)",
       keywords: ["apollo 11", "moon", "landing", "1969", "neil armstrong", "buzz aldrin", "lunar"],
-      patterns: [/apollo 11 landed on the moon in 1969/i, /humans first walked on the moon in 1969/i, /neil armstrong walked on the moon/i],
+      patterns: [/^apollo 11 landed on the moon in 1969$/, /^humans first walked on the moon in 1969$/, /^neil armstrong walked on the moon( in 1969)?$/],
       status: "verified_true",
       reasoning: "NASA astronauts Neil Armstrong and Buzz Aldrin landed on the Moon during the Apollo 11 space mission on July 20, 1969.",
       source: "NASA Apollo Missions History",
@@ -166,7 +169,7 @@ export class Tier0KnowledgeService {
     {
       title: "Earth is an Oblate Spheroid",
       keywords: ["earth", "flat", "sphere", "oblate", "spheroid", "planet", "orbit"],
-      patterns: [/earth is flat/i, /earth is a flat disc/i],
+      patterns: [/^(the )?earth is flat$/, /^(the )?earth is a flat disc$/],
       status: "false_claim",
       reasoning: "Space photos, satellite measurements, and round-the-world trips prove Earth is not flat — it is shaped like a big round ball.",
       source: "National Oceanic and Atmospheric Administration (NOAA)",
@@ -176,16 +179,18 @@ export class Tier0KnowledgeService {
   ];
 
   /**
-   * High-speed, in-memory Tier-0 hybrid vector/lexical knowledge retriever.
-   * Resolves common factual constants in < 1ms, skipping expensive live search calls.
+   * High-speed, in-memory Tier-0 lookup for a few settled facts (< 1ms).
+   *
+   * Every pattern is anchored to the WHOLE normalized claim: a claim that only shares
+   * keywords with an entry ("Apollo 11 was faked", "smoking prevents cancer") never matches.
+   * There is deliberately no keyword-overlap fallback — overlapping words say nothing about
+   * whether the claim asserts the fact or its opposite.
    */
   lookupPreIndexedFact(claimText: string): PreIndexedFactMatch | null {
     if (!claimText || claimText.trim().length < 5) return null;
-    const clean = claimText.toLowerCase().replace(/[.,!?;:'"()[\]{}]/g, " ").trim();
-    const claimTokens = new Set(clean.split(/\s+/).filter(w => w.length > 2));
+    const clean = normalizeClaimForDeterministicMatch(claimText);
 
     for (const entry of Tier0KnowledgeService.CANONICAL_CORPUS) {
-      // 1. Check regex pattern matches
       for (const pattern of entry.patterns) {
         if (pattern.test(clean)) {
           return {
@@ -201,30 +206,6 @@ export class Tier0KnowledgeService {
             similarity: 1.0,
           };
         }
-      }
-
-      // 2. Token overlap similarity
-      let matchedCount = 0;
-      for (const kw of entry.keywords) {
-        if (claimTokens.has(kw.toLowerCase())) {
-          matchedCount++;
-        }
-      }
-
-      const similarity = matchedCount / Math.max(3, entry.keywords.length);
-      if (similarity >= 0.70) {
-        return {
-          matched: true,
-          title: entry.title,
-          status: entry.status,
-          confidence: 0.95,
-          reasoning: entry.reasoning,
-          source: entry.source,
-          url: entry.url,
-          domain: entry.domain,
-          tier: "A",
-          similarity: Number(similarity.toFixed(2)),
-        };
       }
     }
 
@@ -422,7 +403,7 @@ export class Tier0KnowledgeService {
 
       // 🛡️ Edge-Case Safeguard: Skip caching UNVERIFIABLE verdicts so breaking/novel
       // claims are not pinned as unproven across future videos before indexing.
-      if (adj.verdict === "UNVERIFIABLE") {
+      if (adj.verdict === "UNVERIFIABLE" || adj.verdict === "OPINION_BELIEF") {
         continue;
       }
 
@@ -437,25 +418,24 @@ export class Tier0KnowledgeService {
       await claimCacheService.set({
         claimId: adj.claimId,
         text,
-        status: verdictToStatus[adj.verdict] || ("verified_true" as ClaimStatus),
+        // Fail closed: an unknown verdict is never cached as "verified_true".
+        status: verdictToStatus[adj.verdict] || ("unproven" as ClaimStatus),
         verificationConfidence: adj.confidence,
         reasoning: adj.rationale,
-        richSources: adj.v2VerifiedUrls.map((s) => ({
-          title: s.title,
-          url: s.uri,
-          directUrl: s.uri,
-          domain: "",
-          tier: "A" as const,
-          snippet: s.snippet || "",
-          retrievalMethod: s.sourceProvider === "VERTEX_GROUNDING" ? "google_grounding" : "academic_direct",
-          urlVerification: {
+        richSources: adj.v2VerifiedUrls.map((s) => {
+          const trust = sourceTrustService.resolveSourceTrust(s.uri);
+          return {
+            title: s.title,
             url: s.uri,
-            httpStatus: 200,
-            accessible: true,
-            contentType: "text/html",
-            verifiedAt: new Date().toISOString(),
-          },
-        })),
+            directUrl: s.uri,
+            domain: trust.domain,
+            tier: trust.tier,
+            snippet: s.snippet || "",
+            retrievalMethod: s.sourceProvider === "VERTEX_GROUNDING" ? "google_grounding" : "academic_direct",
+            // Epistemic Guard: Never fabricate synthetic urlVerification records. Real verification
+            // status is resolved authoritatively by UrlVerificationService.
+          };
+        }),
         sources: adj.v2VerifiedUrls.map((s) => s.uri),
         sourceStatus: adj.v2VerifiedUrls.length > 0 ? "verified" : "missing",
         isGrounded: true,

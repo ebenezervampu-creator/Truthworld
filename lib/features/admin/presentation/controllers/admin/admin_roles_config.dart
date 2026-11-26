@@ -36,6 +36,7 @@ class AdminRolesConfig {
         'security',
         'help',
         'broadcast',
+        'dubbing',
       ],
     },
     {
@@ -175,7 +176,7 @@ class AdminRolesConfig {
       return {
         'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
         'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
-        'alerts', 'security', 'help', 'language_requests', 'broadcast',
+        'alerts', 'security', 'help', 'language_requests', 'broadcast', 'dubbing',
       };
     }
 
@@ -183,7 +184,7 @@ class AdminRolesConfig {
       return {
         'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
         'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
-        'alerts', 'security', 'help', 'broadcast',
+        'alerts', 'security', 'help', 'broadcast', 'dubbing',
       };
     }
 
@@ -193,7 +194,7 @@ class AdminRolesConfig {
       return {
         'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
         'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
-        'alerts', 'security', 'help', 'broadcast',
+        'alerts', 'security', 'help', 'broadcast', 'dubbing',
       };
     }
 
@@ -205,7 +206,7 @@ class AdminRolesConfig {
         allowed.addAll([
           'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
           'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
-          'alerts', 'security', 'help', 'broadcast'
+          'alerts', 'security', 'help', 'broadcast', 'dubbing'
         ]);
         return;
       }

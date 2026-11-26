@@ -85,6 +85,7 @@ class AdminSidebar extends StatelessWidget {
           Expanded(
             child: Obx(() {
               final hasManagementTabs = controller.isTabAllowed('users') ||
+                  controller.isTabAllowed('dubbing') ||
                   controller.isTabAllowed('team') ||
                   controller.isTabAllowed('ads') ||
                   controller.isTabAllowed('ad_reports') ||
@@ -190,6 +191,15 @@ class AdminSidebar extends StatelessWidget {
                         activeIcon: Icons.people_rounded,
                         label: 'User Management',
                         tabId: 'users',
+                        controller: controller,
+                        onTap: onCloseDrawer,
+                      ),
+                    if (controller.isTabAllowed('dubbing'))
+                      AdminNavItem(
+                        icon: Icons.record_voice_over_outlined,
+                        activeIcon: Icons.record_voice_over_rounded,
+                        label: 'Dubbing & Credits',
+                        tabId: 'dubbing',
                         controller: controller,
                         onTap: onCloseDrawer,
                       ),

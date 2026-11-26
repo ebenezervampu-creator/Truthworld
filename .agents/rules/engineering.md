@@ -69,3 +69,10 @@ Treat authentication, authorization, payments, user data, copyright, moderation,
   - All prices, quotas, credit allocations, and subscription tiers must use clean, honest, transparent round numbers (e.g., $10, $15, $20, $25, $30, $50, $100).
   - Promotional creator trial credits are completely discontinued to prevent promotional farming and bot abuse.
 - Do not claim something works unless it has been verified.
+- **Zero Unmeasured Claims Policy**:
+  - NEVER state an accuracy, success rate, quality score, speed, cost or "production" figure unless it comes from a real measurement you can name (test run, log, report file, dataset).
+  - Cite the source with every figure, e.g. "5 of 10 speakers correct (local-dub-output/.../report.json)".
+  - If nothing has been measured, say "not measured" and describe how to measure it. Never estimate a percentage from how the code is designed.
+  - Unit tests show the logic does what it was written to do. They are not accuracy evidence. Report which tests ran and how many, never "100% accurate".
+  - Never say "in production", "deployed" or "verified" unless that actually happened in this session or a cited record shows it.
+  - If you wrote or changed the code, say so. Your own work is not independent verification.

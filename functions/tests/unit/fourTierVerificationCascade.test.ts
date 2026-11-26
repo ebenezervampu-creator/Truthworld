@@ -199,7 +199,7 @@ describe("Four-Tier Verification Cascade Suite", () => {
   describe("Tier 3: Fast-Track LLM & Epistemic Safeguards", () => {
     test("Fast-resolves subjective opinion without external grounding", async () => {
       const result = await FastTrackLlmService.evaluateClaim(
-        "In my personal opinion, this film is the greatest artistic achievement of the century."
+        "This is a masterpiece."
       );
       expect(result.resolved).toBe(true);
       expect(result.status).toBe("opinion_claim");

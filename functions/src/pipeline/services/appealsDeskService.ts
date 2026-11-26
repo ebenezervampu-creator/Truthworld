@@ -13,6 +13,7 @@ import * as crypto from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../utils/logger";
 import { ClaimStatus, ClaimLedgerSummary } from "../types";
+import { communityEvidenceService } from "./communityEvidenceService";
 
 const db = () => admin.firestore();
 
@@ -232,8 +233,9 @@ export class AppealsDeskService {
     additionalSources?: string[];
     claimId?: string;
     claimIndex?: number;
+    claimText?: string;
   }): Promise<{ disputeId: string; status: string; message: string }> {
-    const { videoId, userId, userEmail, reason, additionalSources = [], claimId, claimIndex } = params;
+    const { videoId, userId, userEmail, reason, additionalSources = [], claimId, claimIndex, claimText } = params;
 
     if (!videoId || !userId) {
       throw new Error("Missing required parameters for dispute submission.");
@@ -318,37 +320,48 @@ export class AppealsDeskService {
       });
 
       await batch.commit();
-      logger.info("[AppealsDesk] Creator dispute registered and queued for re-evaluation", { videoId, disputeId, userId });
+
+      // Queue the creator's links for reviewer approval and a single-claim re-check.
+      if (sanitizedUrls.length > 0) {
+        await communityEvidenceService.recordSubmission({
+          evidenceId: disputeId,
+          videoId,
+          userId,
+          userEmail,
+          isCreator: true,
+          reason,
+          urls: sanitizedUrls,
+          claimId,
+          claimText,
+        });
+      }
+      logger.info("[AppealsDesk] Creator dispute registered and queued for review", { videoId, disputeId, userId });
 
       return {
         disputeId,
         status: "pending_review",
-        message: "Your dispute and counter-sources have been queued for credibility re-evaluation.",
+        message: "Thanks! Your dispute and sources are queued for review. If a reviewer approves them, the claim will be re-checked with your evidence.",
       };
     } else {
-      // Community Viewer dispute submission — recorded in claim_sources
-      const sourceRef = db().collection("claim_sources").doc(disputeId);
-      await sourceRef.set({
-        sourceId: disputeId,
+      // Community viewer submission — one canonical record in the review queue.
+      await communityEvidenceService.recordSubmission({
+        evidenceId: disputeId,
         videoId,
-        target: claimId ? `Claim: ${claimId}` : "Entire Video",
-        url: sanitizedUrls[0] || "",
-        additionalUrls: sanitizedUrls,
-        title: "Community Factual Dispute",
-        note: reason.trim(),
-        submittedBy: userId,
-        submittedByEmail: userEmail || "",
-        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-        status: "pending_review",
-        isDispute: true,
+        userId,
+        userEmail,
+        isCreator: false,
+        reason,
+        urls: sanitizedUrls,
+        claimId,
+        claimText,
       });
 
-      logger.info("[AppealsDesk] Community dispute source recorded", { videoId, disputeId, userId });
+      logger.info("[AppealsDesk] Community evidence queued for review", { videoId, disputeId, userId });
 
       return {
         disputeId,
-        status: "community_submitted",
-        message: "Thank you! Your dispute and counter-evidence have been recorded for community deliberation.",
+        status: "pending_review",
+        message: "Thanks! Your source is queued for review. If a reviewer approves it, the claim will be re-checked with your evidence.",
       };
     }
   }
@@ -574,8 +587,8 @@ export class AppealsDeskService {
       if (updatedCount > 0) {
         // Recalculate claim ledger summary
         const confirmedCount = claims.filter((c: any) => c.status === "verified_true" || c.status === "mostly_true" || c.status === "correct").length;
-        const disputedCount = claims.filter((c: any) => c.status === "disputed" || c.status === "inconclusive" || c.status === "limited_support").length;
-        const falseCount = claims.filter((c: any) => c.status === "false_claim" || c.status === "incorrect" || c.status === "misleading").length;
+        const disputedCount = claims.filter((c: any) => c.status === "disputed" || c.status === "inconclusive" || c.status === "limited_support" || c.status === "misleading" || c.status === "needs_context" || c.status === "rhetorical_exaggeration" || c.status === "partially_true" || c.status === "outdated").length;
+        const falseCount = claims.filter((c: any) => c.status === "false_claim" || c.status === "incorrect" || c.status === "verified_false" || c.status === "historical_consensus_denial" || c.status === "incorrect_citation").length;
         const unprovenCount = claims.filter((c: any) => c.status === "unproven" || c.status === "unsupported" || c.status === "not_historically_verifiable").length;
         const contextualCount = claims.filter((c: any) => c.status === "opinion_claim" || c.status === "religious_belief" || c.status === "satire_claim").length;
         const totalChecked = claims.length;

@@ -306,12 +306,44 @@ export const onUserCreated = runWith({
 
   logger.info(`[onUserCreated] Triggered for user: ${uid} (email: ${email || "no-email"})`);
 
+  const firestore = db();
+
+  // 🎁 Directly credit 1,000 Free Characters to every new user (Test Before Pay)
+  try {
+    const walletRef = firestore.collection("dubbing_wallets").doc(uid);
+    const walletSnap = await walletRef.get().catch(() => null);
+    if (!walletSnap || !walletSnap.exists) {
+      const now = Date.now();
+      const welcomeTx = {
+        id: `tx_welcome_${now}`,
+        type: "trial_credit",
+        amountCredits: 1000,
+        amountUsd: 0.50,
+        description: "Welcome: 1,000 Free Characters (Test Before Pay)",
+        timestamp: now,
+      };
+      await walletRef.set({
+        userId: uid,
+        balanceCredits: 1000,
+        balanceUsd: 0.50,
+        trialClaimed: true,
+        trialClaimedAt: now,
+        totalCharactersUsed: 0,
+        totalSpentUsd: 0,
+        transactions: [welcomeTx],
+        updatedAt: now,
+      });
+      logger.info(`[onUserCreated] Successfully granted 1,000 free test characters to new user ${uid}`);
+    }
+  } catch (walletErr) {
+    logger.warn(`[onUserCreated] Error provisioning 1k test characters for user ${uid}:`, walletErr);
+  }
+
   if (!email) {
     logger.info(`[onUserCreated] User ${uid} registered without an email; welcome email skipped.`);
     return;
   }
 
-  const firestore = db();
   const userRef = firestore.collection("users").doc(uid);
 
   try {

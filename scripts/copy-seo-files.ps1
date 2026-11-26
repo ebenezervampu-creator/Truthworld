@@ -18,6 +18,7 @@ if ($TargetDir -and $TargetDir.Trim().Length -gt 0) {
         (Join-Path $projectRoot "build\web_studio"),
         (Join-Path $projectRoot "build\web_admin"),
         (Join-Path $projectRoot "build\web_advertiser"),
+        (Join-Path $projectRoot "build\web_dubbing"),
         (Join-Path $projectRoot "build\web")
     )
 }

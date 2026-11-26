@@ -21,6 +21,7 @@ class VideoMediaCacheManager {
     Map<String, String>? mediaSubtitles,
     Map<String, String>? dubbedVideos,
     Map<String, String>? audioTracks,
+    Map<String, String>? audioTrackSources,
     List<VideoChapter>? chapters,
     String? factCheckUrl,
     String? transcriptionUrl,
@@ -44,12 +45,14 @@ class VideoMediaCacheManager {
     // 1. Localization cache
     if (mediaSubtitles != null ||
         dubbedVideos != null ||
-        audioTracks != null) {
+        audioTracks != null ||
+        audioTrackSources != null) {
       final existing = VideoMediaService.localizationCache[id];
       VideoMediaService.localizationCache[id] = VideoMediaLocalization(
         subtitles: mediaSubtitles ?? existing?.subtitles ?? const {},
         dubbedVideos: dubbedVideos ?? existing?.dubbedVideos ?? const {},
         audioTracks: audioTracks ?? existing?.audioTracks ?? const {},
+        audioTrackSources: audioTrackSources ?? existing?.audioTrackSources ?? const {},
         commentaryVideos: existing?.commentaryVideos ?? const {},
       );
     }

@@ -1,0 +1,1824 @@
+﻿
+> test:dubbing
+> jest tests/pipeline/google_translation_v3.test.ts tests/pipeline/elevenlabs_v4_dubbing.test.ts tests/pipeline/dubbing_quality_gate.test.ts tests/pipeline/dubbing_five_pillars.test.ts tests/pipeline/elevenlabs_zero_credit_verification.test.ts tests/pipeline/dubbing_guards.test.ts tests/pipeline/dubbing_context_and_voices.test.ts tests/pipeline/speaker_consistency.test.ts tests/pipeline/diarization_check.test.ts tests/pipeline/diarization_utterance_split.test.ts tests/pipeline/diarization_cast_list.test.ts tests/pipeline/dubbing_economics.test.ts tests/pipeline/dubbing_pricing.test.ts tests/pipeline/separation_policy.test.ts tests/pipeline/separation_replicate_adapter.test.ts tests/pipeline/crowded_video_speakers.test.ts tests/pipeline/voice_library.test.ts tests/pipeline/elevenlabs_plan_limits.test.ts tests/pipeline/native_voice_policy.test.ts tests/pipeline/voice_closeness.test.ts tests/pipeline/voice_match_closeness.test.ts tests/pipeline/stage4_address_forms.test.ts tests/pipeline/stage4_joseph_sample.test.ts tests/pipeline/delivery_audio_check.test.ts tests/pipeline/emotion_transfer.test.ts tests/pipeline/demux_worker_auth.test.ts tests/pipeline/dubbing_gender_and_level.test.ts tests/pipeline/dubbing_sync_check.test.ts tests/pipeline/dubbing_launch_fixes.test.ts tests/pipeline/dubbing_studio_order.test.ts tests/pipeline/stem_bleed.test.ts tests/pipeline/tts_voice_first_use.test.ts tests/pipeline/library_voice_catalog_child_age.test.ts --runInBand --forceExit
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+node.exe : PASS tests/pipeline/voice_library.test.ts (10.682 s)
+At C:\Program Files\nodejs\npm.ps1:29 char:3
++   & $NODE_EXE $NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (PASS tests/pipe...t.ts (10.682 s):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  build_voice_catalog.js
+    √ covers the dubbing languages on the eleven_v4 list by default, 5 per gender, with child age support (18 ms)
+    √ skips custom-priced, live-moderated, wrong-gender and wrong-language voices (2 ms)
+    √ verified first, spread across ages (5 ms)
+    √ catalog entries have the shape the pipeline reads (2 ms)
+    √ the old add-to-account script no longer adds voices (1 ms)
+  assignLanguageVoices
+    √ main speakers get native voices, unique within the language; extra speakers keep presets (2 ms)
+    √ records the preset fallback for every native voice
+    √ a creator's own clone is never replaced (1 ms)
+    √ picks the nearest native voice by the matcher's distance (1 ms)
+    √ no catalog voices → everyone keeps the preset voice (2 ms)
+  library catalog file
+    √ catalog file parses and provides valid language entries (4 ms)
+    √ lookup normalises region codes and Tagalog (1 ms)
+    √ library voices become matcher candidates (2 ms)
+  withdrawn library voice fallback
+    √ registers per job and looks up by voice (1 ms)
+    √ recognises voice-not-found errors but not other failures (1 ms)
+  voice matcher account voices
+    √ name helpers (1 ms)
+    √ pages through GET /v2/voices and still never uses creator clones (4 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/library_voice_catalog_child_age.test.ts
+  Library Voice Catalog & Child Voice Matching (Fix 1)
+    toAgeBucket
+      √ returns 'child' for 'child' or 'kid' labels (1 ms)
+      √ returns appropriate buckets for adult labels (1 ms)
+      √ anchors child age to 10 (1 ms)
+    libraryVoiceToCandidate with calibrations
+      √ applies VERIFIED_PRESET_CALIBRATIONS overrides to known child presets (2 ms)
+      √ defaults uncalibrated child library voice to AGE_BUCKET_ANCHORS.child (10) (1 ms)
+    scoreCandidate with mixed child and adult voice pool
+      √ assigns a child voice to a child speaker (age 9, child bucket, 260 Hz) (2 ms)
+      √ never assigns a child voice to an adult male speaker (age 40, ~110 Hz), even with pitchMeasured: false for all 
+candidates (2 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/voice_closeness.test.ts
+  pitch estimation (real F0, not a 3-level guess)
+    √ measures 85 Hz within 3% (305 ms)
+    √ measures 110 Hz within 3% (296 ms)
+    √ measures 140 Hz within 3% (369 ms)
+    √ measures 190 Hz within 3% (416 ms)
+    √ measures 220 Hz within 3% (280 ms)
+    √ measures 260 Hz within 3% (347 ms)
+    √ measures 310 Hz within 3% (266 ms)
+    √ finds the fundamental even when it is missing from the signal (phone / thin audio) (285 ms)
+    √ tells apart voices the old heuristic put in the same bucket (361 ms)
+    √ returns null for silence and for pure noise (61 ms)
+    √ compares pitch on a semitone scale
+  MediaService.extractPitch on an encoded audio file
+    ○ skipped measures a 105 Hz voice-like MP3
+    ○ skipped measures a 130 Hz voice-like MP3
+    ○ skipped measures a 210 Hz voice-like MP3
+    ○ skipped returns null (not a made-up number) for a silent file
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/tts_voice_first_use.test.ts
+  first use of a voice runs alone
+    √ runs the first call alone, then the rest in parallel (46 ms)
+    √ does not hold back a voice that is already in use (60 ms)
+    √ lets the next line try alone if the first call failed (83 ms)
+    √ does not make different voices wait for each other (31 ms)
+  409 already_running is retried
+    √ recognises the voice-add conflict only (3 ms)
+    √ is wired into synthesize: gate before the slot, retry without using up attempts, gate released (3 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+  console.info
+    {"project":"truthworld-1","location":"global","severity":"INFO","message":"[ai-client] Initialized modern @google/genai SDK in Vertex AI mode"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_p1_v4","language":"en","preferVoiceCloning":true,"textLength":17,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_p1_v4","language":"en","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":true,"textLength":17,"textPreview":"TruthWorld rocks!","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.debug
+    {"jobId":"job_p1_v4","language":"en","resolvedTag":"excited","stability":0.31,"style":0.1,"similarityBoost":0.89,"detectedStyle":"expressive:excited","pacingAdjustment":"neutral","hasPrevContext":false,"hasNextContext":false,"originalLength":19,"vocalLength":29,"severity":"DEBUG","message":"[ExpressiveV4Bus] Conditioned speech turn:"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_p1_v4","language":"en","audioUrl":"gs://undefined/audio/job_p1_v4/en/chunk-0d5c270f-92b7-4260-a576-29ce3e067ddb.mp3","bytes":21,"severity":"INFO","message":"[ElevenLabsTTS] ✅ Segment synthesized"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.debug
+    {"severity":"DEBUG","message":"[CostEngine] Recorded $0.001360 for standard channel unassigned"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_p1_v4_te","language":"te","textLength":51,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_p1_v4_te","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":51,"textPreview":"చింతించకండి. మిమ్మల్ని ఇక్కడ జాగ్రత్తగా చూసుకుంటాం.","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.debug
+    {"jobId":"job_p1_v4_te","language":"te","stability":0.25,"style":0.1,"similarityBoost":0.85,"detectedStyle":"natural","pacingAdjustment":"neutral","hasPrevContext":false,"hasNextContext":false,"originalLength":51,"vocalLength":51,"severity":"DEBUG","message":"[ExpressiveV4Bus] Conditioned speech turn:"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_p1_v4_te","language":"te","audioUrl":"gs://undefined/audio/job_p1_v4_te/te/chunk-befde6ce-8b57-418e-b23e-444a56cec943.mp3","bytes":18,"severity":"INFO","message":"[ElevenLabsTTS] ✅ Segment synthesized"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.debug
+    {"severity":"DEBUG","message":"[CostEngine] Recorded $0.004080 for standard channel unassigned"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_p1_v4_te_rom","language":"te","textLength":45,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_p1_v4_te_rom","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":45,"textPreview":"Chintinchakandi. Mimmalni ikkada chusukuntam.","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+(node:7316) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative 
+instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  console.warn
+    [MediaService] M&E extraction encountered error: Error: Command failed: C:\company\truthworld\functions\node_modules\ffmpeg-static\ffmpeg.exe -y -i C:\Users\ebene\AppData\Local\Temp\orig_job_mne_degraded_check_1795510271268.mp3 -filter_complex [0:a]aformat=channel_layouts=stereo,asplit=3[low_in][mid_in][high_in];[low_in]lowpass=f=220[low];[mid_in]bandpass=f=1800:width_type=h:w=3200,stereotools=mlev=0.45:slev=1.15[mid];[high_in]highpass=f=5000[high];[low][mid][high]amix=inputs=3:weights=1 1 1:normalize=0[mne_raw];[mne_raw]highpass=f=35,lowpass=f=18500,afftdn=nf=-40[mne] -map [mne] -c:a libmp3lame -b:a 192k -ar 44100 -ac 2 C:\Users\ebene\AppData\Local\Temp\mne_job_mne_degraded_check_1795510271268.mp3
+    ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers
+      built with gcc 12.2.0 (Rev10, Built by MSYS2 project)
+      configuration: --enable-gpl --enable-version3 --enable-static --pkg-config=pkgconf --disable-w32threads --disable-autodetect --enable-fontconfig --enable-iconv --enable-gnutls --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-zlib --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-sdl2 --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxvid --enable-libaom --enable-libopenjpeg --enable-libvpx --enable-mediafoundation --enable-libass --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-ffnvcodec --enable-nvdec --enable-nvenc --enable-dxva2 --enable-d3d11va --enable-libvpl --enable-libgme --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libvo-amrwbenc --enable-libgsm --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-librubberband
+      libavutil      58. 29.100 / 58. 29.100
+      libavcodec     60. 31.102 / 60. 31.102
+      libavformat    60. 16.100 / 60. 16.100
+      libavdevice    60.  3.100 / 60.  3.100
+      libavfilter     9. 12.100 /  9. 12.100
+      libswscale      7.  5.100 /  7.  5.100
+      libswresample   4. 12.100 /  4. 12.100
+      libpostproc    57.  3.100 / 57.  3.100
+    [in#0 @ 00000200257c7e80] Error opening input: No such file or directory
+    Error opening input file C:\Users\ebene\AppData\Local\Temp\orig_job_mne_degraded_check_1795510271268.mp3.
+    Error opening input files: No such file or directory
+    
+        at genericNodeError (node:internal/errors:983:15)
+        at wrappedFn (node:internal/errors:537:14)
+        at ChildProcess.exithandler (node:child_process:414:12)
+        at ChildProcess.emit (node:events:524:28)
+        at maybeClose (node:internal/child_process:1101:16)
+        at Process.ChildProcess._handle.onexit (node:internal/child_process:304:5)
+        at Process.callbackTrampoline (node:internal/async_hooks:130:17) {
+      code: 4294967294,
+      killed: false,
+      signal: null,
+      cmd: 'C:\\company\\truthworld\\functions\\node_modules\\ffmpeg-static\\ffmpeg.exe -y -i C:\\Users\\ebene\\AppData\\Local\\Temp\\orig_job_mne_degraded_check_1795510271268.mp3 -filter_complex [0:a]aformat=channel_layouts=stereo,asplit=3[low_in][mid_in][high_in];[low_in]lowpass=f=220[low];[mid_in]bandpass=f=1800:width_type=h:w=3200,stereotools=mlev=0.45:slev=1.15[mid];[high_in]highpass=f=5000[high];[low][mid][high]amix=inputs=3:weights=1 1 1:normalize=0[mne_raw];[mne_raw]highpass=f=35,lowpass=f=18500,afftdn=nf=-40[mne] -map [mne] -c:a libmp3lame -b:a 192k -ar 44100 -ac 2 C:\\Users\\ebene\\AppData\\Local\\Temp\\mne_job_mne_degraded_check_1795510271268.mp3',
+      stdout: '',
+      stderr: 'ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers\r\n' +
+        '  built with gcc 12.2.0 (Rev10, Built by MSYS2 project)\r\n' +
+        '  configuration: --enable-gpl --enable-version3 --enable-static --pkg-config=pkgconf --disable-w32threads --disable-autodetect --enable-fontconfig --enable-iconv --enable-gnutls --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-zlib --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-sdl2 --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxvid --enable-libaom --enable-libopenjpeg --enable-libvpx --enable-mediafoundation --enable-libass --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-ffnvcodec --enable-nvdec --enable-nvenc --enable-dxva2 --enable-d3d11va --enable-libvpl --enable-libgme --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libvo-amrwbenc --enable-libgsm --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-librubberband\r\n' +
+        '  libavutil      58. 29.100 / 58. 29.100\r\n' +
+        '  libavcodec     60. 31.102 / 60. 31.102\r\n' +
+        '  libavformat    60. 16.100 / 60. 16.100\r\n' +
+        '  libavdevice    60.  3.100 / 60.  3.100\r\n' +
+        '  libavfilter     9. 12.100 /  9. 12.100\r\n' +
+        '  libswscale      7.  5.100 /  7.  5.100\r\n' +
+        '  libswresample   4. 12.100 /  4. 12.100\r\n' +
+        '  libpostproc    57.  3.100 / 57.  3.100\r\n' +
+        '[in#0 @ 00000200257c7e80] Error opening input: No such file or directory\r\n' +
+        'Error opening input file C:\\Users\\ebene\\AppData\\Local\\Temp\\orig_job_mne_degraded_check_1795510271268.mp3.\r\n' +
+        'Error opening input files: No such file or directory\r\n'
+    }
+
+    [0m [90m 1688 |[39m       }[33m;[39m
+     [90m 1689 |[39m     } [36mcatch[39m (err[33m:[39m any) {
+    [31m[1m>[22m[39m[90m 1690 |[39m       console[33m.[39mwarn([32m"[MediaService] M&E extraction encountered error:"[39m[33m,[39m err)[33m;[39m
+     [90m      |[39m               [31m[1m^[22m[39m
+     [90m 1691 |[39m       [36mif[39m (degradedRemoteFallbackUrl) {
+     [90m 1692 |[39m         [36mreturn[39m {
+     [90m 1693 |[39m           mneUrl[33m:[39m degradedRemoteFallbackUrl[33m,[39m[0m
+
+      at MediaService.extractMneStemDetailed (src/pipeline/services/media.ts:1690:15)
+      at Object.<anonymous> (tests/pipeline/dubbing_five_pillars.test.ts:172:26)
+
+  console.debug
+    {"jobId":"job_editor_1","language":"te","resolvedTag":"excited","stability":0.35,"style":0.1,"similarityBoost":0.75,"detectedStyle":"expressive:excited","pacingAdjustment":"neutral","hasPrevContext":false,"hasNextContext":false,"originalLength":32,"vocalLength":42,"severity":"DEBUG","message":"[ExpressiveV4Bus] Conditioned speech turn:"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"langPairKey":"en_te","pairId":"113e26f19f9723858e6d0e9e","source":"TruthWorld is live.","target":"TruthWorld ఇప్పుడు లైవ్‌లో ఉంది!","severity":"INFO","message":"[AdaptiveMtDataset] ✅ Validated creator pair ingested into Translation Memory"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_editor_1","targetLang":"te","actualDuration":6,"expectedDuration":6,"severity":"INFO","message":"[Dubbing:QualityGate] ✅ All quality gates passed"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_editor_1","videoId":"22222222-2222-4222-8222-222222222222","audioTracks":1,"subtitleTracks":1,"sourceLanguage":"en","severity":"INFO","message":"[HlsPackager] Starting multilingual HLS packaging"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"videoId":"22222222-2222-4222-8222-222222222222","masterPlaylistUrl":"https://firebasestorage.googleapis.com/v0/b/undefined/o/hls%2F22222222-2222-4222-8222-222222222222%2Fmaster.m3u8?alt=media&token=2173ea0f-b559-40b2-a92b-781db884b5d0","audioTracksCount":1,"subtitlesCount":1,"severity":"INFO","message":"[HlsPackager] ✅ Master HLS playlist packaged and registered"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+PASS tests/pipeline/dubbing_five_pillars.test.ts (7.029 s)
+  TruthWorld 5-Pillar Dubbing Upgrade Verification (Zero Credits)
+    Pillar 1: Emotion, Prosody & ElevenLabs v4 Audio Tag Transfer
+      √ maps vocal emotion & RMS energy to whitelisted ElevenLabs v4 Audio Tags and dynamic stability (2 ms)
+      √ sanitizeTextForElevenLabsV4 preserves valid [audio tags], injects missing cue, and strips noise brackets (2 ms)
+      √ stripAudioTagsForSubtitles removes all inline performance tags cleanly for captions
+      √ applyPronunciationGlossary replaces terms with phonetic spelling before synthesis
+      √ ElevenLabs v4 payload forwards dynamic stability and preserved [tag] while omitting style & speed (28 ms)
+      √ Telugu payload sends language_code 'te' and lifts low stability to the 0.5 dubbing floor (14 ms)
+      √ romanized Telugu is rejected before ElevenLabs is called (9 ms)
+    Pillar 2: Hardened Neural M&E Isolation & Explicit Degraded Flagging
+      √ ignores Demucs ffmpeg_crossover_fallback masking and flags DSP fallback explicitly as degraded (148 ms)
+      √ validateMneStem enforces degraded status when source is dsp_fallback even if duration matches (2 ms)
+    Pillar 3: Long-Form Distributed 15-Min Reel Orchestration
+      √ processDubbingReel synthesizes per-reel segments and atomically dispatches assembly on final reel (3 ms)
+    Pillar 4: Interactive Creator Dubbing Editor Backend Flow
+      √ supports manifest retrieval, glossary saving, single-line re-synthesis, and track remastering (73 ms)
+    Pillar 5: Quality Benchmark Harness & Scorecard
+      √ calculates accurate Levenshtein WER, diarization accuracy, syllable compliance, and scorecard (4 ms)
+      √ executes --dry-run benchmark end-to-end with local FFmpeg and zero API credits (1460 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/delivery_audio_check.test.ts
+  detectSourceBleed
+    √ a clean dub (new recording) is not flagged (957 ms)
+    √ source voice 16 dB under the dub is flagged (the Joseph clip level) (261 ms)
+    √ found through a small decode offset (3 ms) (278 ms)
+    √ original audio in the gaps between lines is allowed (background between lines) (260 ms)
+    √ no speech windows → nothing tested, no verdict
+  loudnessCorrection
+    √ the Joseph clip (−34.1 LUFS) gets +20.1 dB; on-target and near-target tracks are untouched (1 ms)
+    √ silent, unmeasurable or absurdly quiet output is out of range, never blindly boosted (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+  console.error
+    {"jobId":"job_no_key","language":"te","severity":"ERROR","message":"Error: [TTS] ❌ ElevenLabs API key is missing. Video dubbing strictly requires ElevenLabs v4.\n    at entryFromArgs (C:\\company\\truthworld\\functions\\node_modules\\firebase-functions\\lib\\logger\\index.js:120:13)\n    at Object.error (C:\\company\\truthworld\\functions\\node_modules\\firebase-functions\\lib\\logger\\index.js:109:8)\n    at Object.error (C:\\company\\truthworld\\functions\\src\\pipeline\\utils\\logger.ts:64:16)\n    at TTSService.synthesize (C:\\company\\truthworld\\functions\\src\\pipeline\\services\\tts.ts:1290:14)\n    at Object.<anonymous> (C:\\company\\truthworld\\functions\\tests\\pipeline\\elevenlabs_v4_dubbing.test.ts:86:22)\n    at Promise.finally.completed (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:1774:10)\n    at _callCircusTest (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:1167:40)\n    at _runTestInContext (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:1103:3)\n    at runTestWithContext (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:824:5)\n    at run (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\jestAdapterInit.js:2300:21)\n    at jestAdapter (C:\\company\\truthworld\\functions\\node_modules\\jest-circus\\build\\runner.js:111:19)\n    at runTestInternal (C:\\company\\truthworld\\functions\\node_modules\\jest-runner\\build\\index.js:247:16)\n    at runTest (C:\\company\\truthworld\\functions\\node_modules\\jest-runner\\build\\index.js:315:7)"}
+
+    [0m [90m 62 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 63 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 64 |[39m       ffLogger[33m.[39merror(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 65 |[39m     } [36melse[39m {
+     [90m 66 |[39m       ffLogger[33m.[39merror(msg)[33m;[39m
+     [90m 67 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.error (node_modules/firebase-functions/lib/logger/index.js:109:2)
+      at Object.error (src/pipeline/utils/logger.ts:64:16)
+      at TTSService.synthesize (src/pipeline/services/tts.ts:1290:14)
+      at Object.<anonymous> (tests/pipeline/elevenlabs_v4_dubbing.test.ts:86:22)
+
+  console.info
+    {"jobId":"job_v4_retry","language":"te","textLength":8,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_v4_retry","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":8,"textPreview":"నమస్కారం","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.debug
+    {"jobId":"job_v4_retry","language":"te","stability":0.55,"style":0.1,"similarityBoost":0.75,"detectedStyle":"natural","pacingAdjustment":"neutral","hasPrevContext":false,"hasNextContext":false,"originalLength":8,"vocalLength":8,"severity":"DEBUG","message":"[ExpressiveV4Bus] Conditioned speech turn:"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.error
+    {"jobId":"job_v4_retry","language":"te","attempt":1,"statusCode":500,"error":"Temporary internal error","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","severity":"ERROR","message":"Error: [ElevenLabsTTS] ❌ ElevenLabs API error\n    at entryFromArgs (C:\\company\\truthworld\\functions\\node_modules\\firebase-functions\\lib\\logger\\index.js:120:13)\n    at Object.error (C:\\company\\truthworld\\functions\\node_modules\\firebase-functions\\lib\\logger\\index.js:109:8)\n    at Object.error (C:\\company\\truthworld\\functions\\src\\pipeline\\utils\\logger.ts:64:16)\n    at ElevenLabsTTSService.synthesize (C:\\company\\truthworld\\functions\\src\\pipeline\\services\\tts.ts:1044:18)\n    at TTSService.synthesize (C:\\company\\truthworld\\functions\\src\\pipeline\\services\\tts.ts:1305:12)\n    at Object.<anonymous> (C:\\company\\truthworld\\functions\\tests\\pipeline\\elevenlabs_v4_dubbing.test.ts:128:20)"}
+
+    [0m [90m 62 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 63 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 64 |[39m       ffLogger[33m.[39merror(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 65 |[39m     } [36melse[39m {
+     [90m 66 |[39m       ffLogger[33m.[39merror(msg)[33m;[39m
+     [90m 67 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.error (node_modules/firebase-functions/lib/logger/index.js:109:2)
+      at Object.error (src/pipeline/utils/logger.ts:64:16)
+      at ElevenLabsTTSService.synthesize (src/pipeline/services/tts.ts:1044:18)
+      at TTSService.synthesize (src/pipeline/services/tts.ts:1305:12)
+      at Object.<anonymous> (tests/pipeline/elevenlabs_v4_dubbing.test.ts:128:20)
+
+  console.info
+    {"jobId":"job_v4_retry","nextAttempt":2,"model":"eleven_v4","severity":"INFO","message":"[ElevenLabsTTS] Retrying synthesis strictly with eleven_v4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_v4_retry","language":"te","audioUrl":"gs://test-bucket/audio/job_v4_retry/te/chunk-4eba11e9-5a2c-4aa3-8cb9-4a31fbe6b90c.mp3","bytes":21,"severity":"INFO","message":"[ElevenLabsTTS] ✅ Segment synthesized"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.debug
+    {"severity":"DEBUG","message":"[CostEngine] Recorded $0.000640 for standard channel unassigned"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","textLength":7,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":7,"textPreview":"(music)","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","originalText":"(music)","severity":"INFO","message":"[ElevenLabsTTS] Non-speech segment detected — producing silent audio chunk"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","textLength":10,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":10,"textPreview":"[applause]","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","originalText":"[applause]","severity":"INFO","message":"[ElevenLabsTTS] Non-speech segment detected — producing silent audio chunk"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","textLength":9,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":9,"textPreview":"[silence]","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","originalText":"[silence]","severity":"INFO","message":"[ElevenLabsTTS] Non-speech segment detected — producing silent audio chunk"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","textLength":3,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":3,"textPreview":"   ","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","originalText":"   ","severity":"INFO","message":"[ElevenLabsTTS] Non-speech segment detected — producing silent audio chunk"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","textLength":3,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":3,"textPreview":"...","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","originalText":"...","severity":"INFO","message":"[ElevenLabsTTS] Non-speech segment detected — producing silent audio chunk"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","textLength":10,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":10,"textPreview":"[whispers]","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_silence_test","language":"te","originalText":"[whispers]","severity":"INFO","message":"[ElevenLabsTTS] Non-speech segment detected — producing silent audio chunk"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_ctx_test","language":"te","textLength":16,"severity":"INFO","message":"[TTS] Synthesizing audio track strictly with ElevenLabs v4 (eleven_v4, zero fallback models)"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_ctx_test","language":"te","model":"eleven_v4","voiceId":"ErXwobaYiN019PkySvjV","isVoiceClone":false,"textLength":16,"textPreview":"ముఖ్యమైన ప్రసంగం","severity":"INFO","message":"[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.debug
+    {"jobId":"job_ctx_test","language":"te","stability":0.55,"style":0.1,"similarityBoost":0.75,"detectedStyle":"natural","pacingAdjustment":"neutral","hasPrevContext":false,"hasNextContext":false,"originalLength":16,"vocalLength":16,"severity":"DEBUG","message":"[ExpressiveV4Bus] Conditioned speech turn:"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.info
+    {"jobId":"job_ctx_test","language":"te","audioUrl":"gs://test-bucket/audio/job_ctx_test/te/chunk-eb9b881b-1a52-4072-b266-1e396078f998.mp3","bytes":20,"severity":"INFO","message":"[ElevenLabsTTS] ✅ Segment synthesized"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.debug
+    {"severity":"DEBUG","message":"[CostEngine] Recorded $0.001280 for standard channel unassigned"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+PASS tests/pipeline/elevenlabs_v4_dubbing.test.ts
+  Strictly ElevenLabs v4 Dubbing Pipeline (Chirp 3: HD Terminated)
+    √ 1. Model selection strictly returns eleven_v4 for all languages (No Chirp, No v3, No Flash) (1 ms)
+    √ 2. Legacy Google Chirp 3: HD voice names are mapped to ElevenLabs v4 voices (1 ms)
+    √ 3. TTSService strictly requires ElevenLabs and rejects without API key (No Chirp 3 fallback) (7 ms)
+    √ 4. Zero fallback models: transient retry strictly uses eleven_v4 (zero fallback models) (1016 ms)
+    √ 5. hasVerbalContent accurately distinguishes verbal speech from non-verbal/music/silence (1 ms)
+    √ 6. Non-speech segments produce silent audio chunks with ZERO external API calls (0 credits billed) (375 ms)
+    √ 7. Context windowing: previous_text and next_text are passed to ElevenLabs API with zero extra character billing 
+(7 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/stem_bleed.test.ts
+  coherentVoiceSuppressionDb
+    √ passes a clean stem under loud music that the old level-drop measure fails (54 ms)
+    √ fails a stem with the voice left in at -6 dB (23 ms)
+    √ marks a stem with the voice left in at -13 dB as not clean (between the fail and pass lines) (20 ms)
+    √ passes a stem with only a faint -24 dB trace of voice (14 ms)
+    √ reads a stem that is all voice as fully bled (12 ms)
+    √ skips a window where the 'vocals' are only music left in by the separator (33 ms)
+    √ skips a window where the voice is far below the music, but measures one where it is not (47 ms)
+    √ returns null when there is nothing to measure (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/dubbing_studio_order.test.ts
+  voice cloning: off unless selected with consent
+    √ is standard voices when nothing is sent (1 ms)
+    √ is standard voices when cloning is off, even if consent is sent
+    √ refuses cloning without consent
+    √ only treats a real boolean true as consent (1 ms)
+    √ clones with consent, and saves the voice only when asked
+    √ defaults cloning to off in createDubbingJob and decides before charging (1 ms)
+  billed length: measured by the server
+    √ prefers the stored video length
+    √ uses the measured length when nothing is stored, rounded up (1 ms)
+    √ refuses when the length can't be read (no more 120 s guess)
+    √ refuses videos over 2 hours (1 ms)
+    √ never prices from the app-sent durationSeconds
+  price: dubbing vs subtitles only
+    √ bills a dub at the dubbing price (1 ms)
+    √ bills subtitles only at the subtitle price, not as a dub (1 ms)
+    √ applies admin-set subtitle discounts only (49 ms)
+    √ does not dub a subtitles-only order (1 ms)
+  dispatch failure refunds the order
+    √ refunds the whole order and tells the creator when Pub/Sub fails (2 ms)
+  credit purchase is switched off
+    √ takes no money (1 ms)
+  regenerate line: which line
+    √ maps the app's 1-based seg_N ids to 0-based lines (1 ms)
+    √ uses an explicit 0-based index as is (1 ms)
+    √ refuses instead of guessing line 0 (1 ms)
+  downloadable dubbed MP4 per language
+    √ accepts the pipeline's dubbed MP4 in any URL form (3 ms)
+    √ never offers the original upload as a dubbed video (1 ms)
+    √ asks the pipeline for an MP4 on Studio dub orders, not subtitle orders
+    √ exports every language, not just the last one (1 ms)
+    √ builds the MP4 for the audio-track tier only when asked (both remux spots) (5 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+  console.info
+    [Translation] Adaptive MT produced the composite primary result { referencePairCount: 2, glossaryPairCount: 1 }
+
+      at TranslationService.applyAdaptiveMtTranslation (src/pipeline/services/translation.ts:1511:13)
+
+  console.info
+    [Translation] Adaptive MT produced the composite primary result { referencePairCount: 2, glossaryPairCount: 1 }
+
+      at TranslationService.applyAdaptiveMtTranslation (src/pipeline/services/translation.ts:1511:13)
+
+  console.info
+    [Translation] Adaptive MT produced the composite primary result { referencePairCount: 2, glossaryPairCount: 1 }
+
+      at TranslationService.applyAdaptiveMtTranslation (src/pipeline/services/translation.ts:1511:13)
+
+  console.info
+    [Translation] Adaptive MT produced the composite primary result { referencePairCount: 2, glossaryPairCount: 1 }
+
+      at TranslationService.applyAdaptiveMtTranslation (src/pipeline/services/translation.ts:1511:13)
+
+  console.info
+    [Translation] Adaptive MT produced the composite primary result { referencePairCount: 2, glossaryPairCount: 1 }
+
+      at TranslationService.applyAdaptiveMtTranslation (src/pipeline/services/translation.ts:1511:13)
+
+  console.debug
+    {"severity":"DEBUG","message":"[CostEngine] Recorded $0.001160 for standard channel unassigned"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.warn
+    [Translation] Gemini contextual edit failed — using Translation LLM drafts Error: vertex down
+        at Object.<anonymous> (C:\company\truthworld\functions\tests\pipeline\google_translation_v3.test.ts:400:89)
+        at Promise.finally.completed (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1834:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1774:10)
+        at _callCircusTest (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1167:40)
+        at _runTestInContext (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1103:3)
+        at runTestWithContext (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:996:5)
+        at _runTestsForDescribeBlockOnce (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1008:11)
+        at _runTestsForDescribeBlock (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:824:5)
+        at _runTestsForDescribeBlockOnce (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1003:11)
+        at _runTestsForDescribeBlock (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:824:5)
+        at _runTestsForDescribeBlockOnce (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1003:11)
+        at _runTestsForDescribeBlock (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:824:5)
+        at run (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:789:3)
+        at runAndTransformResultsToJestFormat (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:2300:21)
+        at jestAdapter (C:\company\truthworld\functions\node_modules\jest-circus\build\runner.js:111:19)
+        at runTestInternal (C:\company\truthworld\functions\node_modules\jest-runner\build\index.js:247:16)
+        at runTest (C:\company\truthworld\functions\node_modules\jest-runner\build\index.js:315:7)
+
+    [0m [90m 1163 |[39m       }))[33m;[39m
+     [90m 1164 |[39m     } [36mcatch[39m (err) {
+    [31m[1m>[22m[39m[90m 1165 |[39m       console[33m.[39mwarn([32m"[Translation] Gemini contextual edit failed — using Translation LLM drafts"[39m[33m,[39m err)[33m;[39m
+     [90m      |[39m               [31m[1m^[22m[39m
+     [90m 1166 |[39m       [36mreturn[39m editorSegments[33m.[39mmap((s) [33m=>[39m ({
+     [90m 1167 |[39m         text[33m:[39m s[33m.[39mdraft[33m,[39m
+     [90m 1168 |[39m         subtitleText[33m:[39m s[33m.[39mdraft[33m,[39m[0m
+
+      at TranslationService.applyContextualDubbingEdit (src/pipeline/services/translation.ts:1165:15)
+      at TranslationService.translateSegments (src/pipeline/services/translation.ts:858:29)
+      at Object.<anonymous> (tests/pipeline/google_translation_v3.test.ts:401:22)
+
+  console.debug
+    {"severity":"DEBUG","message":"[CostEngine] Recorded $0.000420 for standard channel unassigned"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.warn
+    [Translation] Language detection failed — no AssemblyAI fallback available. Caller must handle undefined source language.
+
+    [0m [90m 1323 |[39m     }
+     [90m 1324 |[39m
+    [31m[1m>[22m[39m[90m 1325 |[39m     console[33m.[39mwarn([32m"[Translation] Language detection failed — no AssemblyAI fallback available. Caller must handle undefined source language."[39m)[33m;[39m
+     [90m      |[39m             [31m[1m^[22m[39m
+     [90m 1326 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m"[Translation] Language detection unavailable. Source language must be provided by AssemblyAI transcription layer."[39m)[33m;[39m
+     [90m 1327 |[39m   }
+     [90m 1328 |[39m[0m
+
+      at TranslationService.detectLanguage (src/pipeline/services/translation.ts:1325:13)
+      at Object.<anonymous> (tests/pipeline/google_translation_v3.test.ts:433:7)
+
+  console.warn
+    [Translation] Concise edit failed — keeping the Translation LLM draft Error: offline
+        at Object.<anonymous> (C:\company\truthworld\functions\tests\pipeline\google_translation_v3.test.ts:558:89)
+        at Promise.finally.completed (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1834:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1774:10)
+        at _callCircusTest (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1167:40)
+        at _runTestInContext (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1103:3)
+        at runTestWithContext (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:996:5)
+        at _runTestsForDescribeBlockOnce (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1008:11)
+        at _runTestsForDescribeBlock (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:824:5)
+        at _runTestsForDescribeBlockOnce (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1003:11)
+        at _runTestsForDescribeBlock (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:824:5)
+        at _runTestsForDescribeBlockOnce (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:1003:11)
+        at _runTestsForDescribeBlock (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:824:5)
+        at run (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:789:3)
+        at runAndTransformResultsToJestFormat (C:\company\truthworld\functions\node_modules\jest-circus\build\jestAdapterInit.js:2300:21)
+        at jestAdapter (C:\company\truthworld\functions\node_modules\jest-circus\build\runner.js:111:19)
+        at runTestInternal (C:\company\truthworld\functions\node_modules\jest-runner\build\index.js:247:16)
+        at runTest (C:\company\truthworld\functions\node_modules\jest-runner\build\index.js:315:7)
+
+    [0m [90m 771 |[39m           [36mif[39m (edited [33m&&[39m [33m![39medited[33m.[39musedDraft) result [33m=[39m edited[33m.[39mtext[33m;[39m
+     [90m 772 |[39m         } [36mcatch[39m (err) {
+    [31m[1m>[22m[39m[90m 773 |[39m           console[33m.[39mwarn([32m"[Translation] Concise edit failed — keeping the Translation LLM draft"[39m[33m,[39m err)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 774 |[39m         }
+     [90m 775 |[39m       }
+     [90m 776 |[39m     }[0m
+
+      at TranslationService.retranslateConcise (src/pipeline/services/translation.ts:773:19)
+      at Object.<anonymous> (tests/pipeline/google_translation_v3.test.ts:560:23)
+
+PASS tests/pipeline/google_translation_v3.test.ts
+  Google Cloud Translation API v3 Test Suite
+    1. Client Architecture & Parent Scoping
+      √ verifies v3 parent location path conforms to projects/{id}/locations/global (2 ms)
+      √ verifies zero v2 client references exist in the service instance (2 ms)
+      √ verifies AdaptiveMt client is available for terminology consistency
+    2. Single Text Translation (`translateText`)
+      √ uses v3 output as a reference for required Adaptive MT primary translation (16 ms)
+      √ normalizes language codes (e.g. 'en-US' -> 'en', 'te-IN' -> 'te') (3 ms)
+      √ automatically sanitizes and decodes HTML entities returned by Google v3 (2 ms)
+      √ fails explicitly when the required v3 client is unavailable (3 ms)
+      √ fails explicitly when required Adaptive MT is unavailable
+      √ fails explicitly when Adaptive MT returns no translation (1 ms)
+    3. Batch Translation (`batchTranslateV3`)
+      √ translates an array of texts preserving index order (1 ms)
+      √ uses general/translation-llm and Adaptive MT together as the composite primary (2 ms)
+      √ fails the composite batch instead of falling back to v3 when Adaptive MT fails (2 ms)
+      √ chunks large arrays (> 100 items) into batches of <= 100 items (1 ms)
+      √ handles empty input array without calling v3 API (1 ms)
+      √ decodes HTML entities across all batch items (1 ms)
+    4. Production Segment Pipeline (`translateSegments`)
+      √ legacy mode: translates dubbing/subtitle segments with the v3 + Adaptive MT composite (197 ms)
+      √ hybrid mode (default): Translation LLM drafts, Gemini edits in context, no Adaptive MT (8 ms)
+      √ hybrid mode keeps the drafts when the Gemini step throws (17 ms)
+    5. Language Detection (`detectLanguage` & `detectLanguages`)
+      √ detectLanguage invokes v3 detectLanguage and returns top languageCode (1 ms)
+      √ detectLanguage defaults to throwing error if API returns no languages or fails (14 ms)
+      √ detectLanguages detects multiple texts concurrently (1 ms)
+      √ detectLanguages handles empty array gracefully
+    6. Syllable-Budget Compliance & Language Expansion Ratios
+      √ verifies expansion ratio reflects Telugu polysyllabic structure (1.38 ratio) (1 ms)
+      √ computes compliance score of 1.0 when translated speech fits timing budget (1 ms)
+    7. Operational Health Checks, Circuit Breaker & Automatic Rollback
+      ○ skipped checkHealth probes model availability and reports healthy status
+      ○ skipped checkHealth reports unhealthy status when API call fails
+      ○ skipped trips circuit breaker and automatically rolls back to last-known-good after 3 consecutive failures
+    8. Concise Retranslation for Dubbing Pacing
+      √ drafts with Translation LLM and asks Gemini to fit the syllable budget (2 ms)
+      √ never replaces a Hindi line with hard-coded text (9 ms)
+    9. Multi-Profile Terminology Compliance
+      √ validates 4 terminology profiles for Telugu (neutral, colloquial, formal, technical) (1 ms)
+      √ flags disallowed literal translations in Hindi, Tamil, and Malayalam (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/dubbing_gender_and_level.test.ts
+  speaker gender decision
+    √ a reliable male reading overrides Gemini saying female (run 1: Steve cast as a woman) (1 ms)
+    √ an unreliable reading does not override Gemini (run 2: Peggy cast as a man)
+    √ too few voiced frames is unreliable
+    √ a reliable female reading overrides Gemini saying male
+    √ Gemini decides in the overlap band even when the reading is reliable
+    √ Gemini decides when pitch is unknown
+    √ a child's high voice is not forced to female
+    √ without Gemini, any reading is split at splitHz; nothing at all → male (1 ms)
+    √ a requested gender always wins (1 ms)
+  pitch clip covers all of a speaker's turns
+    √ takes every turn, not just the 3 longest (1 ms)
+    √ caps the total at 30 s and prefers clean turns (1 ms)
+    √ no turns → nothing
+  line-by-line dubbed voice level
+    √ a soft dubbed line is raised to its English line, beyond the speaker's average (1 ms)
+    √ correction stays within ±maxDeviationDb of the speaker's gain, and the lift is added
+    √ an unmeasurable line keeps the speaker's gain (plus lift) (6 ms)
+    √ buildGainSpans uses per-line gains when given (1 ms)
+    √ activeRmsDb measures only where speech is active (1 ms)
+    √ lift defaults to 2 dB and is bounded 0–6
+  dubbed line timing follows the words (24 Nov Telugu drift)
+    √ each sentence starts where its first word is spoken (2 ms)
+    √ falls back (null) when words don't match the text
+    √ attaches words to the utterance containing them, keeping existing words (1 ms)
+    √ sentences start on their own first word (1 ms)
+    √ a word missing from the word list does not shift later sentences (1 ms)
+    √ an extra filler word in the word list does not shift later sentences (1 ms)
+    √ collects words from top-level words or from segments (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/separation_replicate_adapter.test.ts
+  Replicate Demucs is removed from the dubbing pipeline
+    √ no pipeline source refers to Replicate (116 ms)
+    √ MediaService has no Replicate separation method (380 ms)
+    √ the self-hosted Demucs worker is still the separation engine in 07-dubbing.ts (4 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+  console.info
+    {"targetLanguage":"te","lines":2,"keptDraft":0,"overBudget":0,"model":"gemini-3.8-flash","severity":"INFO","message":"[GeminiDubbingEditor] Edit complete"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+PASS tests/pipeline/stage4_address_forms.test.ts
+  register directives
+    √ Indian languages get concrete rules (was a bare level word) (2 ms)
+    √ every other language still gets an instruction, never a bare level (1 ms)
+    √ peer is settled by the relationship type (1 ms)
+  parseCastRelationships (untrusted input)
+    √ overrides: strings only, known languages, at most 60 characters; relationship types checked (1 ms)
+    √ bounded count, duplicates dropped, bad formality → formal (2 ms)
+  pronoun detection and locks
+    √ Hindi तू forms (regex had Telugu-script 'తేరీ') (7 ms)
+    √ whole words only; Telugu, Tamil, Kannada, Malayalam, Bengali (18 ms)
+    √ a lock records the level the pronoun signals (was always FORMAL) (1 ms)
+  binding cast names to diarization labels
+    √ names and cast ids map to labels; a silent cast member is not bound (1 ms)
+    √ relationships by name → labels; silent addressee kept by name; unknown speaker reported (1 ms)
+  inferAddressees
+    √ a speaker continuing their turn keeps the same addressee (was AUDIENCE mid-turn) (1 ms)
+    √ a creator's relationship beats turn-taking; two-speaker and solo rules (1 ms)
+  editor: Gemini's inferred register reaches each line
+    √ bible infers A→B informal; the A→B line is told INFORMAL (was overridden by a FORMAL default) (47 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/dubbing_guards.test.ts
+  language_code for every eleven_v4 language
+    √ the v4 list has the 91 languages ElevenLabs publishes (2 ms)
+    √ every TruthWorld dubbing language on the v4 list gets a language_code (11 ms)
+    √ Tagalog is sent as Filipino
+    √ languages missing from the v4 list are never sent a code ElevenLabs would reject (2 ms)
+    √ region and casing forms resolve (1 ms)
+  native-script guard for every non-Latin dubbing language
+    √ correct te text passes (1 ms)
+    √ correct ta text passes (1 ms)
+    √ correct kn text passes (1 ms)
+    √ correct ml text passes (1 ms)
+    √ correct mr text passes
+    √ correct ne text passes
+    √ correct bn text passes (1 ms)
+    √ correct as text passes (1 ms)
+    √ correct gu text passes (1 ms)
+    √ correct pa text passes (1 ms)
+    √ correct or text passes (5 ms)
+    √ correct ur text passes (1 ms)
+    √ correct sd text passes (1 ms)
+    √ correct ar text passes (1 ms)
+    √ correct fa text passes (1 ms)
+    √ correct ps text passes (1 ms)
+    √ correct he text passes (1 ms)
+    √ correct el text passes (1 ms)
+    √ correct ru text passes (1 ms)
+    √ correct uk text passes (1 ms)
+    √ correct bg text passes (1 ms)
+    √ correct mk text passes (1 ms)
+    √ correct hy text passes (1 ms)
+    √ correct ka text passes
+    √ correct am text passes
+    √ correct th text passes (1 ms)
+    √ correct lo text passes (1 ms)
+    √ correct my text passes
+    √ correct zh text passes (1 ms)
+    √ correct ja text passes (1 ms)
+    √ correct ko text passes (1 ms)
+    √ an untranslated English line on a te track is rejected (8 ms)
+    √ an untranslated English line on a ta track is rejected (1 ms)
+    √ an untranslated English line on a kn track is rejected (1 ms)
+    √ an untranslated English line on a ml track is rejected (1 ms)
+    √ an untranslated English line on a mr track is rejected (1 ms)
+    √ an untranslated English line on a ne track is rejected (1 ms)
+    √ an untranslated English line on a bn track is rejected (1 ms)
+    √ an untranslated English line on a as track is rejected (2 ms)
+    √ an untranslated English line on a gu track is rejected (2 ms)
+    √ an untranslated English line on a pa track is rejected (2 ms)
+    √ an untranslated English line on a or track is rejected (4 ms)
+    √ an untranslated English line on a ur track is rejected (1 ms)
+    √ an untranslated English line on a sd track is rejected (2 ms)
+    √ an untranslated English line on a ar track is rejected (1 ms)
+    √ an untranslated English line on a fa track is rejected (1 ms)
+    √ an untranslated English line on a ps track is rejected (1 ms)
+    √ an untranslated English line on a he track is rejected (1 ms)
+    √ an untranslated English line on a el track is rejected (1 ms)
+    √ an untranslated English line on a ru track is rejected (2 ms)
+    √ an untranslated English line on a uk track is rejected (1 ms)
+    √ an untranslated English line on a bg track is rejected (1 ms)
+    √ an untranslated English line on a mk track is rejected (1 ms)
+    √ an untranslated English line on a hy track is rejected (1 ms)
+    √ an untranslated English line on a ka track is rejected (1 ms)
+    √ an untranslated English line on a am track is rejected (1 ms)
+    √ an untranslated English line on a th track is rejected (1 ms)
+    √ an untranslated English line on a lo track is rejected (1 ms)
+    √ an untranslated English line on a my track is rejected (1 ms)
+    √ an untranslated English line on a zh track is rejected (1 ms)
+    √ an untranslated English line on a ja track is rejected (1 ms)
+    √ an untranslated English line on a ko track is rejected (1 ms)
+    √ mojibake te text is rejected (2 ms)
+    √ mojibake ta text is rejected (1 ms)
+    √ mojibake kn text is rejected (1 ms)
+    √ mojibake ml text is rejected (1 ms)
+    √ mojibake mr text is rejected (1 ms)
+    √ mojibake ne text is rejected (5 ms)
+    √ mojibake bn text is rejected
+    √ mojibake as text is rejected
+    √ mojibake gu text is rejected
+    √ mojibake pa text is rejected (1 ms)
+    √ mojibake or text is rejected (2 ms)
+    √ mojibake ur text is rejected (1 ms)
+    √ mojibake sd text is rejected (2 ms)
+    √ mojibake ar text is rejected (2 ms)
+    √ mojibake fa text is rejected (2 ms)
+    √ mojibake ps text is rejected (1 ms)
+    √ mojibake he text is rejected (2 ms)
+    √ mojibake el text is rejected (2 ms)
+    √ mojibake ru text is rejected (2 ms)
+    √ mojibake uk text is rejected (1 ms)
+    √ mojibake bg text is rejected (2 ms)
+    √ mojibake mk text is rejected (1 ms)
+    √ mojibake hy text is rejected (1 ms)
+    √ mojibake ka text is rejected (1 ms)
+    √ mojibake am text is rejected (1 ms)
+    √ mojibake th text is rejected (1 ms)
+    √ mojibake lo text is rejected (1 ms)
+    √ mojibake my text is rejected (1 ms)
+    √ mojibake zh text is rejected (2 ms)
+    √ mojibake ja text is rejected (5 ms)
+    √ mojibake ko text is rejected (1 ms)
+    √ romanized Telugu is rejected; one Latin proper noun is allowed (2 ms)
+    √ Japanese with a katakana loanword and a Latin brand name passes (1 ms)
+    √ mixed-script and Latin-script languages are not checked (2 ms)
+  stability floor
+    √ every non-English dubbing language is floored (7 ms)
+    √ English keeps the expressive range (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/elevenlabs_zero_credit_verification.test.ts
+  ElevenLabs Zero-Credit Verification Suite
+    √ throws error when no API key is provided (11 ms)
+    √ calls /v1/user/subscription with xi-api-key and zero character cost (2 ms)
+    √ TTSService wraps ElevenLabs verifyConnection correctly (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/crowded_video_speakers.test.ts
+  assemblySpeakerOptions
+    √ dubbing without a count raises only the cap, by length (1 ms)
+    √ never guesses a floor, so a one-person video can stay one voice (1 ms)
+    √ creator's count wins, with +2 headroom, capped at 30 (1 ms)
+    √ subtitle-only jobs without a count keep AssemblyAI defaults (1 ms)
+  voice reuse
+    √ minGapMs measures the closest approach of two speakers (1 ms)
+    √ reuses the voice whose owner speaks furthest from the new speaker (1 ms)
+    √ never offers a voice whose owner speaks at the same time (1 ms)
+  concurrency helpers
+    √ mapWithConcurrency never runs more than the limit and keeps order (78 ms)
+    √ withRetry retries once, then gives up (22 ms)
+  windowed diarization check — simulated 30-speaker video
+    √ checks in windows of 80, passing video offsets and the roster forward (14 ms)
+    √ 10 merged labels are split back into 30 distinct labels (one per character) (7 ms)
+    √ a failed window keeps its turns on AssemblyAI labels; the rest are still corrected (4 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+  console.info
+    {"targetLanguage":"te","lines":9,"keptDraft":0,"overBudget":0,"model":"gemini-3.8-flash","severity":"INFO","message":"[GeminiDubbingEditor] Edit complete"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.log
+    ┌─────────┬──────┬───────────────────┬──────────┬──────────────────────────────┬─────────────────────────────────────────────────────┬───────────────────────────────────────┬─────────┐
+    │ (index) │ line │ speaker           │ to       │ directive                    │ english                                             │ telugu                                │ pronoun │
+    ├─────────┼──────┼───────────────────┼──────────┼──────────────────────────────┼─────────────────────────────────────────────────────┼───────────────────────────────────────┼─────────┤
+    │ 0       │ 'L1' │ 'Wise Men (A)'    │ 'B_3'    │ 'DEFERENTIAL (relationship)' │ 'But we cannot interpret your dreams.'              │ 'కానీ మీ కలలకు మేము అర్థం చెప్పలేము ప్రభూ.'    │ 'మీరు'   │
+    │ 1       │ 'L2' │ 'Pharaoh (B_3)'   │ 'GROUP'  │ 'FORMAL (relationship)'      │ 'Is there no one here who can interpret my dreams?' │ 'నా కలలకు అర్థం చెప్పగలవారు ఇక్కడ ఎవరూ లేరా?' │ '—'     │
+    │ 2       │ 'L3' │ 'Cupbearer (B_2)' │ 'Joseph' │ 'INFORMAL (friend)'          │ "Don't worry, Joseph."                              │ 'నువ్వు చింతించకు, యోసేపు.'                │ 'నువ్వు' │
+    │ 3       │ 'L4' │ 'Cupbearer (B_2)' │ 'Joseph' │ 'INFORMAL (friend)'          │ 'I will remember you and speak to Pharaoh.'         │ 'నేను నిన్ను గుర్తుంచుకొని ఫరోతో మాట్లాడతాను.'    │ 'నువ్వు' │
+    │ 4       │ 'L5' │ 'Cupbearer (B_2)' │ 'Joseph' │ 'INFORMAL (friend)'          │ 'I forgot about Joseph.'                            │ 'నేను యోసేపును మరచిపోయాను.'                 │ '—'     │
+    │ 5       │ 'L6' │ 'Guard (B)'       │ 'Joseph' │ 'INFORMAL (stranger)'        │ "God didn't protect you."                           │ 'దేవుడు నిన్ను కాపాడలేదు.'                  │ 'నువ్వు' │
+    │ 6       │ 'L7' │ 'Guard (B)'       │ 'Joseph' │ 'INFORMAL (stranger)'        │ 'He never protects you.'                            │ 'ఆయన నిన్ను ఎప్పుడూ కాపాడడు.'              │ 'నువ్వు' │
+    │ 7       │ 'L8' │ 'Guard (B)'       │ 'Joseph' │ 'INFORMAL (stranger)'        │ 'Do not serve him anymore.'                         │ 'ఇకపై నువ్వు ఆయనను సేవించకు.'             │ 'నువ్వు' │
+    │ 8       │ 'L9' │ 'Guard (B)'       │ 'Joseph' │ 'INFORMAL (stranger)'        │ 'Forsake him for letting you suffer.'               │ 'నిన్ను బాధపెట్టినందుకు ఆయనను విడిచిపెట్టు.'     │ 'నువ్వు' │
+    └─────────┴──────┴───────────────────┴──────────┴──────────────────────────────┴─────────────────────────────────────────────────────┴───────────────────────────────────────┴─────────┘
+
+      at Object.<anonymous> (tests/pipeline/stage4_joseph_sample.test.ts:136:13)
+
+PASS tests/pipeline/stage4_joseph_sample.test.ts
+  SAMPLE: Joseph clip, English → Telugu address forms
+    √ every line gets the right address form, and it never flips within a speaker pair (47 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/dubbing_pricing.test.ts
+  quoteLanguage
+    √ typical 10-minute English video into Hindi stays at $3 (minute price) (1 ms)
+    √ talk-heavy English into Malayalam is priced on characters (1 ms)
+    √ Chinese text is short, so a Chinese dub stays at the minute price (1 ms)
+    √ non-English source uses the ratio of the two languages (2 ms)
+    √ minute price matches the existing per-minute pricing (60-second minimum) (1 ms)
+    √ character price rounds up to the cent, never down (2 ms)
+  quoteDubbing
+    √ sums languages, skips the source language and duplicates, applies a discount (1 ms)
+    √ same transcript, same quote (what the creator sees is what the server charges) (2 ms)
+  transcriptCharacters
+    √ counts utterance text with whitespace collapsed; falls back to text (1 ms)
+  business rule: the price always keeps the profit share
+    √ 300 source chars/min, 10 minutes, into every language (3 ms)
+    √ 900 source chars/min, 10 minutes, into every language (2 ms)
+    √ 1300 source chars/min, 10 minutes, into every language (3 ms)
+    √ 1800 source chars/min, 10 minutes, into every language (3 ms)
+    √ 2200 source chars/min, 10 minutes, into every language (7 ms)
+    √ short videos too: 1 minute, very dense speech, into every language (10 ms)
+  channelDubbingDiscountPercent (admin-set channel fields only)
+    √ free and percentage discounts from the channel document (1 ms)
+    √ admins dub free (1 ms)
+  dubbingCharge (shared by the quote endpoint and the actual charge)
+    √ minute mode: per-minute price per language, discount applied, matches the old server formula (1 ms)
+    √ character mode: the quote's total, and per-language prices after discount (1 ms)
+    √ 100% discount charges nothing (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+  console.warn
+    {"jobId":"j","targetLang":"te","status":"FAILED","violations":["Dubbed speech missing: 1 original line(s) have no dubbed speech near them (at 10.3s)"],"severity":"WARNING","message":"[Dubbing:QualityGate] ❌ Quality gate failed"}
+
+    [0m [90m 53 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 54 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 55 |[39m       ffLogger[33m.[39mwarn(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 56 |[39m     } [36melse[39m {
+     [90m 57 |[39m       ffLogger[33m.[39mwarn(msg)[33m;[39m
+     [90m 58 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.warn (node_modules/firebase-functions/lib/logger/index.js:100:2)
+      at Object.warn (src/pipeline/utils/logger.ts:55:16)
+      at Function.evaluate (src/pipeline/layers/quality-gate.ts:286:14)
+      at Object.<anonymous> (tests/pipeline/dubbing_sync_check.test.ts:49:37)
+
+PASS tests/pipeline/dubbing_sync_check.test.ts
+  dub measured against the original
+    √ catches the morning dub that drifted 7–9 s early (lines at 54 s and 56 s had no Telugu) (3 ms)
+    √ catches the 11:05 dub that dropped the line at 10.3 s (1 ms)
+    √ passes a dub that speaks every line (2 ms)
+    √ ignores speech outside the transcribed dialogue (59.9 s, after the transcript ends) (1 ms)
+    √ turns findings into blocking gate violations (2 ms)
+    √ the quality gate fails a track with a sync finding (10 ms)
+  voice gender check
+    √ flags a reliably male original voiced by a clearly female dub, and the reverse (1 ms)
+    √ never flags a soft-spoken woman whose reading is unreliable (Peggy: 139 Hz, spread 5 st) (1 ms)
+    √ does not flag same-gender voices, the overlap band, or unmeasured voices (6 ms)
+  subtitle coverage
+    √ rejects the 24 Nov track: 2 cues for 11 lines
+    √ accepts a track that covers the lines
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/native_voice_policy.test.ts
+  nativeTier
+    √ Telugu: Telugu voice is tier 2, other Indian voices tier 1, American/British never (1 ms)
+    √ Hindi: Hindi library voice first, Telugu/Indian voices allowed, American never (1 ms)
+    √ Spanish: only Spanish voices — no American, no Indian (1 ms)
+    √ English: any English accent is native
+    √ voiceLanguages reads accent words and lang: markers
+  assignNativeVoices
+    √ Clip 2 in Telugu: guard, Joseph, prisoner all get Telugu voices — no American (1 ms)
+    √ this-language voices are used before same-region ones (1 ms)
+    √ a female speaker in Spanish with only a Spanish female voice → gets it; a male speaker → unresolved (no dub) (1 
+ms)
+    √ more speakers than native voices → reuse only between people far apart, never overlapping (1 ms)
+    √ a creator's own clone is always kept
+    √ library voices fall back to a native preset, never a foreign one (1 ms)
+  policy switch and creator message
+    √ on by default; only an explicit false turns it off (5 ms)
+    √ skipped-dub message names the language, mentions subtitles, no technical words (70 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+  console.info
+    {"jobId":"test-job-123","targetLang":"en","actualDuration":62.5,"expectedDuration":63,"severity":"INFO","message":"[Dubbing:QualityGate] ✅ All quality gates passed"}
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+
+  console.warn
+    {"jobId":"test-job-123","targetLang":"en","status":"PARTIAL","violations":["Missing speech segments: 1 of 10 segments failed to synthesize [TTS synthesis failure] (Synthesis timeout)"],"severity":"WARNING","message":"[Dubbing:QualityGate] ❌ Quality gate failed"}
+
+    [0m [90m 53 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 54 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 55 |[39m       ffLogger[33m.[39mwarn(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 56 |[39m     } [36melse[39m {
+     [90m 57 |[39m       ffLogger[33m.[39mwarn(msg)[33m;[39m
+     [90m 58 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.warn (node_modules/firebase-functions/lib/logger/index.js:100:2)
+      at Object.warn (src/pipeline/utils/logger.ts:55:16)
+      at Function.evaluate (src/pipeline/layers/quality-gate.ts:286:14)
+      at Object.<anonymous> (tests/pipeline/dubbing_quality_gate.test.ts:31:39)
+
+  console.warn
+    {"jobId":"test-job-123","targetLang":"en","status":"PARTIAL","violations":["Missing speech segments: 1 of 2 segments failed to synthesize [Credit quota exceeded] (quota_exceeded: 288 credits remaining)"],"severity":"WARNING","message":"[Dubbing:QualityGate] ❌ Quality gate failed"}
+
+    [0m [90m 53 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 54 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 55 |[39m       ffLogger[33m.[39mwarn(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 56 |[39m     } [36melse[39m {
+     [90m 57 |[39m       ffLogger[33m.[39mwarn(msg)[33m;[39m
+     [90m 58 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.warn (node_modules/firebase-functions/lib/logger/index.js:100:2)
+      at Object.warn (src/pipeline/utils/logger.ts:55:16)
+      at Function.evaluate (src/pipeline/layers/quality-gate.ts:286:14)
+      at Object.<anonymous> (tests/pipeline/dubbing_quality_gate.test.ts:49:39)
+
+  console.warn
+    {"jobId":"test-job-123","targetLang":"en","status":"FAILED","violations":["Audio duration mismatch: Dubbed audio is 2.7s, but video is 74.1s (container drift: 71410ms exceeds 3705ms Creator tolerance)"],"severity":"WARNING","message":"[Dubbing:QualityGate] ❌ Quality gate failed"}
+
+    [0m [90m 53 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 54 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 55 |[39m       ffLogger[33m.[39mwarn(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 56 |[39m     } [36melse[39m {
+     [90m 57 |[39m       ffLogger[33m.[39mwarn(msg)[33m;[39m
+     [90m 58 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.warn (node_modules/firebase-functions/lib/logger/index.js:100:2)
+      at Object.warn (src/pipeline/utils/logger.ts:55:16)
+      at Function.evaluate (src/pipeline/layers/quality-gate.ts:286:14)
+      at Object.<anonymous> (tests/pipeline/dubbing_quality_gate.test.ts:64:39)
+
+  console.warn
+    {"jobId":"test-job-123","targetLang":"en","status":"FAILED","violations":["Audio file truncated: Output size (4300 bytes) is suspiciously low for 60.0s video"],"severity":"WARNING","message":"[Dubbing:QualityGate] ❌ Quality gate failed"}
+
+    [0m [90m 53 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 54 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 55 |[39m       ffLogger[33m.[39mwarn(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 56 |[39m     } [36melse[39m {
+     [90m 57 |[39m       ffLogger[33m.[39mwarn(msg)[33m;[39m
+     [90m 58 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.warn (node_modules/firebase-functions/lib/logger/index.js:100:2)
+      at Object.warn (src/pipeline/utils/logger.ts:55:16)
+      at Function.evaluate (src/pipeline/layers/quality-gate.ts:286:14)
+      at Object.<anonymous> (tests/pipeline/dubbing_quality_gate.test.ts:80:39)
+
+  console.warn
+    {"jobId":"test-job-123","targetLang":"en","status":"FAILED","violations":["Voice cloning was requested, but fallback standard voice was used instead of creator timbre"],"severity":"WARNING","message":"[Dubbing:QualityGate] ❌ Quality gate failed"}
+
+    [0m [90m 53 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 54 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 55 |[39m       ffLogger[33m.[39mwarn(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 56 |[39m     } [36melse[39m {
+     [90m 57 |[39m       ffLogger[33m.[39mwarn(msg)[33m;[39m
+     [90m 58 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.warn (node_modules/firebase-functions/lib/logger/index.js:100:2)
+      at Object.warn (src/pipeline/utils/logger.ts:55:16)
+      at Function.evaluate (src/pipeline/layers/quality-gate.ts:286:14)
+      at Object.<anonymous> (tests/pipeline/dubbing_quality_gate.test.ts:96:39)
+
+  console.warn
+    {"jobId":"test-job-123","targetLang":"en","status":"FAILED","violations":["Background music preservation was requested, but discrete stem isolation or ducking failed"],"severity":"WARNING","message":"[Dubbing:QualityGate] ❌ Quality gate failed"}
+
+    [0m [90m 53 |[39m     [36mconst[39m { message[33m:[39m msg[33m,[39m meta } [33m=[39m formatLog(message[33m,[39m data)[33m;[39m
+     [90m 54 |[39m     [36mif[39m (meta) {
+    [31m[1m>[22m[39m[90m 55 |[39m       ffLogger[33m.[39mwarn(msg[33m,[39m meta)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 56 |[39m     } [36melse[39m {
+     [90m 57 |[39m       ffLogger[33m.[39mwarn(msg)[33m;[39m
+     [90m 58 |[39m     }[0m
+
+      at write (node_modules/firebase-functions/lib/logger/index.js:64:97)
+      at Object.warn (node_modules/firebase-functions/lib/logger/index.js:100:2)
+      at Object.warn (src/pipeline/utils/logger.ts:55:16)
+      at Function.evaluate (src/pipeline/layers/quality-gate.ts:286:14)
+      at Object.<anonymous> (tests/pipeline/dubbing_quality_gate.test.ts:111:39)
+
+PASS tests/pipeline/dubbing_quality_gate.test.ts
+  Dubbing Automated Quality Gate
+    √ 1. Passes when all quality standards are met (15 ms)
+    √ 2. Rejects when any segment fails (Zero Missing Segments Gate) (5 ms)
+    √ 3. Explicitly flags quota exceeded failures (4 ms)
+    √ 4. Rejects duration mismatch (e.g., 2.69s audio for 74s video) (5 ms)
+    √ 5. Rejects suspiciously small/truncated audio files for long videos (5 ms)
+    √ 6. Rejects when voice cloning was requested but could not be verified (3 ms)
+    √ 7. Rejects when background music was requested but stem preservation failed (4 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/voice_match_closeness.test.ts
+  scoreCandidate — measured pitch decides between otherwise equal voices
+    √ prefers the voice whose measured pitch is closest to the speaker (6 ms)
+    √ does not let a gender-default pitch (unmeasured) win or lose the match
+    √ treats an unmeasurable speaker pitch as unknown, not as 120 Hz (1 ms)
+    √ judges 'deep' relative to gender — a 190 Hz woman's voice is not penalised as light (1 ms)
+  assignNativeVoices — closest native voice, not first native voice
+    √ picks a close Indian voice over a clearly worse exact-language voice (1 ms)
+    √ keeps the exact-language voice when the two are nearly as close (1 ms)
+    √ lets the speaker who talks most choose first (1 ms)
+    √ still never uses a foreign voice: no native voice → unresolved (1 ms)
+  library catalog voices carry what matching needs
+    √ marks pitch as unmeasured, keeps the preview link, and uses descriptive words as timbre tags (1 ms)
+    √ reads descriptors only from the part after the separator (1 ms)
+  withMeasuredPitch — measure each voice once, never fail the job
+    √ replaces gender defaults with measured pitch and leaves unmeasurable voices marked unmeasured (2 ms)
+    √ uses the Firestore cache on a new instance and re-measures when the preview changed (2 ms)
+    √ survives cache and network failures (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+  console.warn
+    [MediaService] Demux worker skipped: DEMUX_WORKER_TOKEN not set
+
+    [0m [90m 1812 |[39m     [36mconst[39m workerRequest [33m=[39m demuxWorkerRequestConfig()[33m;[39m
+     [90m 1813 |[39m     [36mif[39m ([33m![39mworkerRequest) {
+    [31m[1m>[22m[39m[90m 1814 |[39m       console[33m.[39mwarn([32m"[MediaService] Demux worker skipped: DEMUX_WORKER_TOKEN not set"[39m)[33m;[39m
+     [90m      |[39m               [31m[1m^[22m[39m
+     [90m 1815 |[39m       [36mreturn[39m [36mnull[39m[33m;[39m
+     [90m 1816 |[39m     }
+     [90m 1817 |[39m     [36mtry[39m {[0m
+
+      at MediaService.separateWithDemuxWorker (src/pipeline/services/media.ts:1814:15)
+      at Object.<anonymous> (tests/pipeline/demux_worker_auth.test.ts:28:31)
+
+  console.warn
+    [MediaService] Self-hosted Demux worker note: Request failed with status code 401
+
+    [0m [90m 1885 |[39m       }
+     [90m 1886 |[39m     } [36mcatch[39m (err[33m:[39m any) {
+    [31m[1m>[22m[39m[90m 1887 |[39m       console[33m.[39mwarn([32m`[MediaService] Self-hosted Demux worker note: ${err?.message || err}`[39m)[33m;[39m
+     [90m      |[39m               [31m[1m^[22m[39m
+     [90m 1888 |[39m     }
+     [90m 1889 |[39m     [36mreturn[39m [36mnull[39m[33m;[39m
+     [90m 1890 |[39m   }[0m
+
+      at MediaService.separateWithDemuxWorker (src/pipeline/services/media.ts:1887:15)
+      at Object.<anonymous> (tests/pipeline/demux_worker_auth.test.ts:47:5)
+
+PASS tests/pipeline/demux_worker_auth.test.ts
+  demux worker auth
+    √ no token configured → the worker is not called at all (31 ms)
+    √ token configured → Bearer header, 300 s default timeout, signed GCS link, both stems returned (1 ms)
+    √ worker rejects (401) or reports degraded → null, caller falls back (20 ms)
+    √ DEMUX_TIMEOUT_MS overrides the timeout (3 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/diarization_utterance_split.test.ts
+  splitUtterancesBySegments
+    √ old behaviour (documents the bug): one merged utterance keeps one label (2 ms)
+    √ Joseph clip: a merged utterance is split so every corrected label has its own utterance (2 ms)
+    √ an utterance covered by one label behaves exactly like relabelByOverlap (1 ms)
+    √ without word timings, parts use the segments' times and text (1 ms)
+    √ words outside every segment join the nearest part; no words are lost (1 ms)
+    √ output stays in time order across utterances (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/emotion_transfer.test.ts
+  planDelivery on the Joseph clip
+    √ from the audio alone: the three emotional moments are intense, calm lines are untouched (15 ms)
+    √ with Gemini's emotion hints: Pharaoh shouts, the cupbearer cries, the demon stays intense (6 ms)
+    √ a character's baseline is never a raised voice (someone who shouts every line is still flagged) (5 ms)
+    √ an ordinary conversation produces no tags (2 ms)
+  stability
+    √ intense lines get 0.40 → 0.30, never below the intense floor (1 ms)
+    √ the 0.5 floor still holds for every non-intense non-English line; intense tags relax it to 0.3 (12 ms)
+  measureLineAcoustics
+    √ finds the pitch of a voiced tone up in the scream range, and its loudness (81 ms)
+    √ too short to judge → nothing measured (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/diarization_cast_list.test.ts
+  parseCastList
+    √ keeps valid entries and cleans them (6 ms)
+    √ non-lists and oversized lists are bounded (2 ms)
+  speaker count from the creator or the cast list
+    √ parseExpectedSpeakers accepts a number or {min,max} (1 ms)
+    √ Joseph clip: a 4-person cast sends AssemblyAI a floor of 4 (was: only a cap of 12) (1 ms)
+    √ an explicit count wins over the cast list (1 ms)
+  prompt with a cast list
+    √ cast ids C1..Cn are listed, and new people start after them (1 ms)
+    √ without a cast the prompt is unchanged in substance
+  anchors and reference clips
+    √ first confident turn of at least 0.8 s becomes the anchor, capped at 4 s
+    √ clips inside the window are not repeated; most-heard first; bounded (1 ms)
+  DiarizationCheckService on a long video
+    √ cast seeds the roster; window 2 is shown reference clips found in window 1 (3 ms)
+    √ a cast timestamp is a reference clip from the first window on (1 ms)
+    √ turn limit: default stops at MAX_TURNS; long-form jobs check further (15 ms)
+    √ maxTurnsForJob (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/diarization_check.test.ts
+  reconcileDiarization
+    √ Clip 2: Joseph ends up on one label, the prisoner on his own, the guard keeps A (2 ms)
+    √ merges two labels that are the same person (1 ms)
+    √ low-confidence turns keep AssemblyAI's label (1 ms)
+    √ too few confident verdicts → nothing changes (1 ms)
+    √ never collapses several AssemblyAI speakers into one voice (1 ms)
+    √ labels that already match → not applied, no changes (1 ms)
+    √ unknown turn ids and empty characters are ignored (1 ms)
+  relabelByOverlap
+    √ utterances take the corrected label of the segment they overlap most (1 ms)
+  DiarizationCheckService
+    √ end to end with a fake Gemini: Clip 2 is corrected to 3 voices (2 ms)
+    √ Gemini failure or unreadable video keeps AssemblyAI labels and never throws (1 ms)
+    √ garbage replies parse to no verdicts (1 ms)
+    √ prompt lists every turn with its time and current label, and asks Gemini to ignore the labels (1 ms)
+  diarization summary (what the check did, stored on the job)
+    √ a split of one AssemblyAI speaker into three is reported as 1 → 3 (2 ms)
+    √ an unsure Gemini answer leaves AssemblyAI's count and says why (2 ms)
+    √ reads labels from a cached (JSON) result as well as from a Map (1 ms)
+    √ the model can be overridden with GEMINI_MODEL_DIARIZATION; the default is unchanged (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/dubbing_launch_fixes.test.ts
+  A8: joining transcript lines
+    √ matches connecting words as whole words only (4 ms)
+    √ matches Hindi connectors only as separate words (1 ms)
+    √ joins a connector line with the next line of the same speaker across a short pause (1 ms)
+    √ never joins across a long pause
+    √ never joins different speakers
+    √ does not join a full line that merely ends in 'also' (1 ms)
+    √ is what stitchSegments uses (1 ms)
+  A15: friendly status messages
+    √ names the language and mentions the refund (1 ms)
+    √ explains a missing native voice and a busy voice service (2 ms)
+    √ handles unknown languages and empty errors (1 ms)
+    √ is used for every user-visible error field in the pipeline (1 ms)
+  A16: no American fallback voice under the native-voice policy
+    √ uses a native voice of the same gender, or fails the line (1 ms)
+    √ only uses the Sarah/Antoni presets when the native-voice policy is off (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/speaker_consistency.test.ts
+  lockVoiceSettingsPerSpeaker
+    √ every line of a speaker gets the same similarity boost (3 ms)
+    √ stability stays within ±0.05 of the speaker's median (2 ms)
+    √ speakers are locked independently (2 ms)
+    √ lines without Gemini values get explicit defaults, so the bus cannot vary them by emotion (2 ms)
+    √ lines with no speaker share the speaker_0 baseline, matching voiceMapping (1 ms)
+    √ other fields and order are preserved, input is not mutated (1 ms)
+  selectProfilingTurns
+    √ uses several turns of the speaker, in time order (3 ms)
+    √ caps turns, per-turn and total length (3 ms)
+    √ prefers turns that do not overlap another speaker (1 ms)
+    √ falls back to overlapping or short turns when nothing else exists (1 ms)
+  describeSpeakerTurns
+    √ gives Gemini the speaker's time ranges in mm:ss (AssemblyAI milliseconds) (2 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/elevenlabs_plan_limits.test.ts
+  ElevenLabs concurrency default
+    √ defaults to the Starter plan limit (3) (3 ms)
+    √ the env var raises it after an upgrade, without a code change (10 ms)
+    √ garbage or zero falls back to the default instead of NaN / unlimited (3 ms)
+  voice clone capacity
+    √ room left → can clone (1 ms)
+    √ all 10 Starter slots used → blocked with slots_full (2 ms)
+    √ 65 monthly operations used → blocked until reset (4 ms)
+    √ unlimited operations (null) are not treated as a limit (2 ms)
+    √ plan without instant cloning → blocked (1 ms)
+    √ missing fields never block (the clone attempt decides) (2 ms)
+    √ creator messages are friendly and contain no technical detail (2 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/dubbing_context_and_voices.test.ts
+  concise re-edit keeps conversation context
+    √ outside context lines reach Gemini as context and are not edited (4 ms)
+    √ the system prompt tells Gemini to resolve plural 'you' from context (2 ms)
+  voice matcher catalog has no mistyped presets
+    √ the one-character-off Indian presets are gone and Roger is labelled as Roger (1 ms)
+    √ no two presets differ only in their last character (copy-edit typos) (1 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/dubbing_economics.test.ts
+  revenue, profit floor and budget
+    √ $3 dub, GST inside the price, 2% gateway: $1 profit, about $1.48 to spend (2 ms)
+    √ if GST is charged on top, the budget is about $1.94 (1 ms)
+    √ the floor scales with price (per-minute pricing): a $0.30 one-minute dub keeps $0.10 (1 ms)
+    √ settings come from env, with bad values ignored (2 ms)
+  planDubBudget
+    √ typical 10-minute video (11K voiced characters) keeps the $1 with room for retries (1 ms)
+    √ talk-heavy 10-minute video (16K characters) cannot keep $1 at $3 with GST inside (1 ms)
+    √ shared per-video costs are split across languages, so extra languages are more profitable (1 ms)
+    √ a cheaper ElevenLabs plan rate widens the budget (1 ms)
+  RetryBudget
+    √ hands out characters until the limit, then refuses (2 ms)
+    √ a zero budget allows no regeneration (1 ms)
+  evaluateMargin
+    √ after the job: actual cost under budget meets the floor; over budget is flagged (2 ms)
+
+  console.error
+    ◇ injected env (1) from .env.test
+
+    [0m [90m 10 |[39m
+     [90m 11 |[39m [90m// Load .env.test before anything else[39m
+    [31m[1m>[22m[39m[90m 12 |[39m dotenv[33m.[39mconfig({ path[33m:[39m path[33m.[39mresolve(__dirname[33m,[39m [32m'../.env.test'[39m) })[33m;[39m
+     [90m    |[39m        [31m[1m^[22m[39m
+     [90m 13 |[39m
+     [90m 14 |[39m process[33m.[39menv[33m.[39m[33mNODE_ENV[39m [33m=[39m [32m'test'[39m[33m;[39m
+     [90m 15 |[39m process[33m.[39menv[33m.[39m[33mCASHFREE_ENV[39m [33m=[39m [32m'SANDBOX'[39m[33m;[39m[0m
+
+      at se (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ce [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1059)
+      at Object.ae (node_modules/dotenv/dist/index.cjs:7:1168)
+      at Object.<anonymous> (tests/setup.ts:12:8)
+
+PASS tests/pipeline/separation_policy.test.ts
+  speechGaps
+    √ gaps between, before and after speech, shrunk at the edges; short pauses ignored (3 ms)
+    √ overlapping and unsorted segments are merged; bad spans ignored (1 ms)
+    √ at most 80 gaps, keeping the longest, in time order (1 ms)
+    √ select expression in seconds
+  decideSeparation
+    √ quiet gaps far below the track → speech only ($0) (1 ms)
+    √ music under speech → Demucs
+    √ quiet but close to the overall level (quiet recording) → Demucs, to be safe
+    √ too little gap time or no measurement → Demucs
+    √ thresholds come from env (1 ms)
+  FFmpeg parsing
+    √ mean volume (5 ms)
+  cost
+    √ 10 minutes: speech only $0, Demucs about $0.05 (1 ms)
+
+Test Suites: 33 passed, 33 total
+Tests:       7 skipped, 460 passed, 467 total
+Snapshots:   0 total
+Time:        46.183 s
+Ran all test suites matching tests/pipeline/google_translation_v3.test.ts|tests/pipeline/elevenlabs_v4_dubbing.test.ts|
+tests/pipeline/dubbing_quality_gate.test.ts|tests/pipeline/dubbing_five_pillars.test.ts|tests/pipeline/elevenlabs_zero_
+credit_verification.test.ts|tests/pipeline/dubbing_guards.test.ts|tests/pipeline/dubbing_context_and_voices.test.ts|tes
+ts/pipeline/speaker_consistency.test.ts|tests/pipeline/diarization_check.test.ts|tests/pipeline/diarization_utterance_s
+plit.test.ts|tests/pipeline/diarization_cast_list.test.ts|tests/pipeline/dubbing_economics.test.ts|tests/pipeline/dubbi
+ng_pricing.test.ts|tests/pipeline/separation_policy.test.ts|tests/pipeline/separation_replicate_adapter.test.ts|tests/p
+ipeline/crowded_video_speakers.test.ts|tests/pipeline/voice_library.test.ts|tests/pipeline/elevenlabs_plan_limits.test.
+ts|tests/pipeline/native_voice_policy.test.ts|tests/pipeline/voice_closeness.test.ts|tests/pipeline/voice_match_closene
+ss.test.ts|tests/pipeline/stage4_address_forms.test.ts|tests/pipeline/stage4_joseph_sample.test.ts|tests/pipeline/deliv
+ery_audio_check.test.ts|tests/pipeline/emotion_transfer.test.ts|tests/pipeline/demux_worker_auth.test.ts|tests/pipeline
+/dubbing_gender_and_level.test.ts|tests/pipeline/dubbing_sync_check.test.ts|tests/pipeline/dubbing_launch_fixes.test.ts
+|tests/pipeline/dubbing_studio_order.test.ts|tests/pipeline/stem_bleed.test.ts|tests/pipeline/tts_voice_first_use.test.
+ts|tests/pipeline/library_voice_catalog_child_age.test.ts.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after 
+all tests finished?

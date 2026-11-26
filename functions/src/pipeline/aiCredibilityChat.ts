@@ -8,6 +8,7 @@ import { setCorsHeaders } from "../utils/auth";
 import { applySecurityHeaders } from "../utils/securityHeaders";
 import { isGenericHomepageUrl, urlVerificationService } from "./services/urlVerificationService";
 import { evidenceRetrievalService } from "./services/evidenceRetrievalService";
+import { StreamingClaimProcessor } from "./services/streamingClaimProcessor";
 
 function getActiveChatModel(): string {
   const base = PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-3.5-flash-lite";
@@ -1369,6 +1370,7 @@ export function synthesizeHeuristicResponse({
 export const chatWithCredibilityAi = onCall(
   {
     region: "asia-south1",
+    enforceAppCheck: true,
     cpu: 1,
     memory: "512MiB",
     timeoutSeconds: 60,
@@ -1395,6 +1397,11 @@ export const chatWithCredibilityAi = onCall(
     // 🔒 Auth Enforcement: Ask AI is restricted to signed-in accounts
     if (!request.auth || !request.auth.uid) {
       throw new HttpsError("unauthenticated", "Please sign in to access TruthWorld Ask AI.");
+    }
+
+    // 🛡️ App Check Enforcement: genuine client application verification
+    if (process.env.NODE_ENV !== "test" && !request.app) {
+      throw new HttpsError("failed-precondition", "A valid App Check token is required to access TruthWorld Ask AI.");
     }
     const uid = request.auth.uid;
 
@@ -1470,32 +1477,16 @@ export const chatWithCredibilityAi = onCall(
       : (request.rawRequest ? (request.rawRequest.ip || request.rawRequest.socket?.remoteAddress) : undefined);
     const clientId = request.auth?.uid || ip || "anon_chat_pool";
     const limit = (clientId === "anon_chat_pool") ? 60 : MAX_REQUESTS_PER_WINDOW;
-
     const isRateLimited = checkRateLimit(clientId, limit);
-    if (isRateLimited) {
-      logger.warn("[chatWithCredibilityAi] High-traffic limit active, serving verified ledger synthesis", { clientId, videoId });
-      const synth = synthesizeHeuristicResponse({
-        videoTitle: data.videoTitle || "Untitled Video",
-        videoChannel: data.channelName || "Creator",
-        existingClaims: Array.isArray(data.claims) ? data.claims : [],
-        existingSources: Array.isArray(data.sources) ? data.sources : [],
-        uiReport: null,
-        scope,
-        data,
-        userQuery,
-      });
-      synth.disclaimer = "High traffic protection active. Response synthesized from verified empirical ledger.";
-      return synth;
-    }
 
-    // Fetch video document and credibility data from Firestore (and client context fallback)
+    // Fetch video document and credibility data from Firestore
     let videoTitle = data.videoTitle || "Untitled Video";
     let videoChannel = data.channelName || "Creator";
     let videoCategory = (data as any).category || (data as any).videoCategory || "";
     let videoTopics: string[] = Array.isArray((data as any).topics) ? (data as any).topics : [];
     let uiReport: any = null;
-    let existingClaims: any[] = Array.isArray(data.claims) && data.claims.length > 0 ? data.claims : [];
-    let existingSources: any[] = Array.isArray(data.sources) && data.sources.length > 0 ? data.sources : [];
+    let existingClaims: any[] = [];
+    let existingSources: any[] = [];
     let relatedTruthWorldVideos: RelatedTruthWorldVideo[] = [];
 
     try {
@@ -1524,31 +1515,68 @@ export const chatWithCredibilityAi = onCall(
         videoTopics
       );
 
+      // 1. Authoritative credibility document takes highest precedence
       if (credDoc.exists) {
         const cData = credDoc.data() || {};
-        if (existingClaims.length === 0 && Array.isArray(cData.claims) && cData.claims.length > 0) {
+        if (Array.isArray(cData.claims) && cData.claims.length > 0) {
           existingClaims = cData.claims;
         }
-        if (existingSources.length === 0 && Array.isArray(cData.sources) && cData.sources.length > 0) {
+        if (Array.isArray(cData.sources) && cData.sources.length > 0) {
           existingSources = cData.sources;
         }
-        if (!uiReport && cData.uiReport) {
+        if (cData.uiReport) {
           uiReport = cData.uiReport;
         }
       }
 
-      // Fallback from uiReport if claims/sources still empty
-      if (existingClaims.length === 0 && uiReport?.keyClaims) {
+      // 2. Fallback from uiReport if claims/sources still empty
+      if (existingClaims.length === 0 && Array.isArray(uiReport?.keyClaims) && uiReport.keyClaims.length > 0) {
         existingClaims = uiReport.keyClaims;
       }
-      if (existingSources.length === 0 && uiReport?.sources) {
+      if (existingSources.length === 0 && Array.isArray(uiReport?.sources) && uiReport.sources.length > 0) {
         existingSources = uiReport.sources;
       }
+
+      // 3. Fallback from live claims subcollection via StreamingClaimProcessor
+      if (existingClaims.length === 0) {
+        existingClaims = await StreamingClaimProcessor.getLiveClaims(videoId, 50);
+      }
+
+      // 4. Derive sources from claims if sources array empty
+      if (existingSources.length === 0 && existingClaims.length > 0) {
+        for (const c of existingClaims) {
+          if (Array.isArray(c.richSources) && c.richSources.length > 0) {
+            existingSources.push(...c.richSources);
+          } else if (Array.isArray(c.sources) && c.sources.length > 0) {
+            existingSources.push(...c.sources);
+          }
+        }
+      }
+
+      // Epistemic Guard (Zero-Trust): Never accept claims or sources sent by client app payload!
+      // All claims and sources must strictly originate from authoritative Firestore records.
     } catch (fetchErr) {
-      logger.warn("[chatWithCredibilityAi] Unable to load full video metadata, proceeding with client context", {
+      logger.warn("[chatWithCredibilityAi] Unable to load full video metadata from Firestore", {
         videoId,
         error: String(fetchErr),
       });
+    }
+
+    if (isRateLimited) {
+      logger.warn("[chatWithCredibilityAi] High-traffic limit active, serving verified ledger synthesis", { clientId, videoId });
+      const synth = synthesizeHeuristicResponse({
+        videoTitle,
+        videoChannel,
+        existingClaims,
+        existingSources,
+        uiReport,
+        scope,
+        data,
+        userQuery,
+        relatedVideos: relatedTruthWorldVideos,
+      });
+      synth.disclaimer = "High traffic protection active. Response synthesized from verified empirical ledger.";
+      return synth;
     }
 
     // Build Closed-World Verified Evidence Catalog for this Chat Request
@@ -1608,18 +1636,26 @@ export const chatWithCredibilityAi = onCall(
 
     if (scope === "claim") {
       const claimIdx = data.claimIndex ?? 0;
-      let targetClaim = existingClaims[claimIdx] || null;
-      if (!targetClaim && data.claimText) {
-        targetClaim = {
-          statement: data.claimText,
-          verdict: data.verdict || "Under Review",
+      const targetClaim = existingClaims[claimIdx] || null;
+      if (!targetClaim) {
+        return {
+          answer: "TruthWorld has not indexed any stored claims for this video yet. Specialized claim analysis requires verified claims in the truth ledger.",
+          sources: [],
+          suggestedFollowups: [
+            "Why was this video not indexed yet?",
+            "What is the overall credibility of this video?",
+          ],
+          scope: "claim",
+          claimIndex: data.claimIndex,
+          disclaimer: "No stored claim records found.",
+          isOffTopicAbuse: false,
         };
       }
 
       contextPrompt += `\nUSER IS ASKING ABOUT SPECIFIC CLAIM (#${claimIdx + 1}):\n`;
       if (targetClaim) {
         const stmt = (targetClaim.statement || targetClaim.claim || targetClaim.claimText || data.claimText || "").substring(0, 300);
-        const verd = targetClaim.verdict || targetClaim.status || data.verdict || "Unspecified";
+        const verd = targetClaim.verdict || targetClaim.status || "Under Review";
         contextPrompt += `- Statement: "${stmt}"\n- Classification: "${verd}"\n`;
         const expl = targetClaim.explanation || targetClaim.reasoning || targetClaim.truthBreakdown;
         if (expl) {
@@ -1857,12 +1893,15 @@ CRITICAL INSTRUCTIONS:
         disclaimer: parsed.disclaimer || "AI Credibility Assistant analyzes independently cross-referenced evidence.",
       };
 
-      // ⚡ Store in memory cache
-      if (chatResponseCache.size >= MAX_CACHE_ENTRIES) {
-        const oldestKey = chatResponseCache.keys().next().value;
-        if (oldestKey) chatResponseCache.delete(oldestKey);
+      // ⚡ Store in memory cache ONLY when video has authoritative stored claims!
+      // Videos with zero stored claims are never cached to prevent cross-user contamination.
+      if (existingClaims.length > 0) {
+        if (chatResponseCache.size >= MAX_CACHE_ENTRIES) {
+          const oldestKey = chatResponseCache.keys().next().value;
+          if (oldestKey) chatResponseCache.delete(oldestKey);
+        }
+        chatResponseCache.set(cacheKey, { response, timestamp: Date.now() });
       }
-      chatResponseCache.set(cacheKey, { response, timestamp: Date.now() });
 
       return response;
     } catch (err: any) {
@@ -1972,7 +2011,7 @@ export const streamCredibilityAiChat = onRequest(
     if (allowedOrigin) {
       res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, X-Firebase-AppCheck");
       res.setHeader("Access-Control-Allow-Credentials", "true");
     }
 
@@ -2022,7 +2061,7 @@ export const streamCredibilityAiChat = onRequest(
       return;
     }
 
-    // 🔒 Auth Enforcement: Authenticated users get full quota; guests get rate-limited access
+    // 🔒 Auth Enforcement: streamCredibilityAiChat strictly requires a verified signed-in account
     const authHeader = req.headers["authorization"] || req.headers["Authorization"];
     let authenticatedUid: string | null = null;
     if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
@@ -2036,13 +2075,30 @@ export const streamCredibilityAiChat = onRequest(
     }
 
     if (!authenticatedUid) {
-      const forwardedHeader = req.headers["x-forwarded-for"];
-      const ip = typeof forwardedHeader === "string"
-        ? forwardedHeader.split(",")[0].trim()
-        : (req.ip || req.socket?.remoteAddress);
-      const isGuestLimited = checkRateLimit(`guest_stream_${ip || 'anon'}`, 20);
-      if (isGuestLimited) {
-        res.write(`data: ${JSON.stringify({ type: "error", message: "Guest inquiry limit reached. Please sign in to continue using TruthWorld Ask AI." })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "error", message: "Please sign in to access TruthWorld Ask AI." })}\n\n`);
+      (res as any).flush?.();
+      res.write("data: [DONE]\n\n");
+      (res as any).flush?.();
+      res.end();
+      return;
+    }
+
+    // 🛡️ App Check Enforcement: authentic client application verification
+    const appCheckToken = (req.headers["x-firebase-appcheck"] || req.headers["X-Firebase-AppCheck"]) as string | undefined;
+    if (process.env.NODE_ENV !== "test") {
+      if (!appCheckToken) {
+        res.write(`data: ${JSON.stringify({ type: "error", message: "A valid App Check token is required to access TruthWorld Ask AI." })}\n\n`);
+        (res as any).flush?.();
+        res.write("data: [DONE]\n\n");
+        (res as any).flush?.();
+        res.end();
+        return;
+      }
+      try {
+        await admin.appCheck().verifyToken(appCheckToken);
+      } catch (appCheckErr) {
+        logger.warn("[streamCredibilityAiChat] Invalid App Check token", { error: String(appCheckErr) });
+        res.write(`data: ${JSON.stringify({ type: "error", message: "App Check verification failed." })}\n\n`);
         (res as any).flush?.();
         res.write("data: [DONE]\n\n");
         (res as any).flush?.();
@@ -2137,14 +2193,14 @@ export const streamCredibilityAiChat = onRequest(
     const clientId = ip || "anon_stream_pool";
     const isRateLimited = checkRateLimit(clientId, 60);
 
-    // Fetch video document and credibility data from Firestore (and client context fallback)
+    // Fetch video document and credibility data from Firestore
     let videoTitle = data.videoTitle || "Untitled Video";
     let videoChannel = data.channelName || "Creator";
     let videoCategory = (data as any).category || (data as any).videoCategory || "";
     let videoTopics: string[] = Array.isArray((data as any).topics) ? (data as any).topics : [];
     let uiReport: any = null;
-    let existingClaims: any[] = Array.isArray(data.claims) && data.claims.length > 0 ? data.claims : [];
-    let existingSources: any[] = Array.isArray(data.sources) && data.sources.length > 0 ? data.sources : [];
+    let existingClaims: any[] = [];
+    let existingSources: any[] = [];
     let relatedTruthWorldVideos: RelatedTruthWorldVideo[] = [];
 
     try {
@@ -2172,25 +2228,46 @@ export const streamCredibilityAiChat = onRequest(
         videoTopics
       );
 
+      // 1. Authoritative credibility document takes highest precedence
       if (credDoc.exists) {
         const cData = credDoc.data() || {};
-        if (existingClaims.length === 0 && Array.isArray(cData.claims) && cData.claims.length > 0) {
+        if (Array.isArray(cData.claims) && cData.claims.length > 0) {
           existingClaims = cData.claims;
         }
-        if (existingSources.length === 0 && Array.isArray(cData.sources) && cData.sources.length > 0) {
+        if (Array.isArray(cData.sources) && cData.sources.length > 0) {
           existingSources = cData.sources;
         }
-        if (!uiReport && cData.uiReport) {
+        if (cData.uiReport) {
           uiReport = cData.uiReport;
         }
       }
 
-      if (existingClaims.length === 0 && uiReport?.keyClaims) {
+      // 2. Fallback from uiReport if claims/sources still empty
+      if (existingClaims.length === 0 && Array.isArray(uiReport?.keyClaims) && uiReport.keyClaims.length > 0) {
         existingClaims = uiReport.keyClaims;
       }
-      if (existingSources.length === 0 && uiReport?.sources) {
+      if (existingSources.length === 0 && Array.isArray(uiReport?.sources) && uiReport.sources.length > 0) {
         existingSources = uiReport.sources;
       }
+
+      // 3. Fallback from live claims subcollection via StreamingClaimProcessor
+      if (existingClaims.length === 0) {
+        existingClaims = await StreamingClaimProcessor.getLiveClaims(videoId, 50);
+      }
+
+      // 4. Derive sources from claims if sources array empty
+      if (existingSources.length === 0 && existingClaims.length > 0) {
+        for (const c of existingClaims) {
+          if (Array.isArray(c.richSources) && c.richSources.length > 0) {
+            existingSources.push(...c.richSources);
+          } else if (Array.isArray(c.sources) && c.sources.length > 0) {
+            existingSources.push(...c.sources);
+          }
+        }
+      }
+
+      // Epistemic Guard (Zero-Trust): Never accept claims or sources sent by client app payload!
+      // All claims and sources must strictly originate from authoritative Firestore records.
     } catch (fetchErr) {
       logger.warn("[streamCredibilityAiChat] Unable to load video metadata from Firestore", { videoId, error: String(fetchErr) });
     }
@@ -2234,17 +2311,27 @@ export const streamCredibilityAiChat = onRequest(
       const claimIdx = data.claimIndex ?? 0;
       if (existingClaims.length > claimIdx && existingClaims[claimIdx]) {
         targetClaim = existingClaims[claimIdx];
-      } else if (data.claimText) {
-        targetClaim = {
-          statement: data.claimText,
-          verdict: data.verdict || "Under Review",
-        };
+      }
+      if (!targetClaim) {
+        res.write(`data: ${JSON.stringify({
+          type: "metadata",
+          sources: [],
+          suggestedFollowups: ["Check back after credibility processing completes"],
+          scope: "claim",
+          claimIndex: data.claimIndex,
+          disclaimer: "No stored claim records found.",
+        })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "delta", text: "TruthWorld has not indexed any stored claims for this video yet. Specialized claim analysis requires verified claims in the truth ledger." })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
       }
 
       contextPrompt += `\nUSER IS ASKING ABOUT SPECIFIC CLAIM (#${claimIdx + 1}):\n`;
       if (targetClaim) {
         const stmt = (targetClaim.statement || targetClaim.claim || targetClaim.claimText || data.claimText || "").substring(0, 300);
-        const verd = targetClaim.verdict || targetClaim.status || data.verdict || "Unspecified";
+        const verd = targetClaim.verdict || targetClaim.status || "Under Review";
         contextPrompt += `- Statement: "${stmt}"\n- Classification: "${verd}"\n`;
         const expl = targetClaim.explanation || targetClaim.reasoning || targetClaim.truthBreakdown;
         if (expl) {
@@ -2412,8 +2499,9 @@ CRITICAL INSTRUCTIONS:
       }
 
       if (isClientConnected) {
-        // Cache completed stream response
-        if (streamedFullText.length > 0) {
+        // Cache completed stream response ONLY when video has authoritative stored claims!
+        // Videos with zero stored claims are never cached to prevent cross-user contamination.
+        if (streamedFullText.length > 0 && existingClaims.length > 0) {
           if (streamResponseCache.size >= MAX_CACHE_ENTRIES) {
             const oldestKey = streamResponseCache.keys().next().value;
             if (oldestKey) streamResponseCache.delete(oldestKey);

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_theme.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 

@@ -34,6 +34,7 @@ const TOPICS: Record<EventType, string> = {
   "transcription-complete": "transcription.completed",
   "fact-processing":        "factcheck.requested",
   "dubbing-processing":     "dubbing.requested",
+  "dubbing-prewarm":        "dubbing.prewarm.requested",
   "dubbing-reel-requested": "dubbing.reel.requested",
   "dubbing-reel-assemble":  "dubbing.reel.assemble",
   "fact-complete":          "factcheck.completed",
@@ -66,7 +67,18 @@ export class DistributionLayer {
   private get pubsub(): PubSub {
     if (!this._pubsub) {
       const { PubSub } = require("@google-cloud/pubsub");
-      this._pubsub = new PubSub();
+      const options: any = {};
+      const token = process.env.GCLOUD_ACCESS_TOKEN;
+      if (token) {
+        const { OAuth2Client } = require("google-auth-library");
+        const oauthClient = new OAuth2Client();
+        oauthClient.setCredentials({ access_token: token });
+        const qProject = process.env.GCP_PROJECT_ID || "truthworld-1";
+        (oauthClient as any).quotaProjectId = qProject;
+        options.authClient = oauthClient;
+        options.projectId = qProject;
+      }
+      this._pubsub = new PubSub(options);
     }
     return this._pubsub!;
   }

@@ -4,9 +4,15 @@ import { PIPELINE_CONFIG } from "../config";
 import { RichSource, VerifiedClaim } from "../types";
 import { logger } from "../utils/logger";
 import { hashClaimText } from "../utils/claim-normalization";
+import { safeMergeExistingVideo } from "../../utils/videosCollectionGuard";
 
 const BROKEN_REPORT_HEAL_COOLDOWN_MS = 5 * 60 * 1000;
 import { AnalysisRepository, getAnalysisRepository } from "./analysisRepository";
+import { ClaimReAdjudicator, StanceClassifierFn, reevaluateClaimOnEvidenceChange } from "./evidenceDrivenReevaluation";
+import { ClaimVerificationService } from "./claimVerification";
+import { ReportStore, gcsReportStore } from "./publishedReportStore";
+import { auditCredibilityReport } from "./reportQualityAudit";
+import { applyVerdictGateToReport } from "./verdictGate";
 import { EvidenceRetrievalService, evidenceRetrievalService } from "./evidenceRetrievalService";
 import {
   UrlVerificationService,
@@ -16,6 +22,7 @@ import {
   sanitizeReportPayloadForClosedWorld,
   urlVerificationService,
   validateSafeExternalUrl,
+  isLiveVerificationRecord,
 } from "./urlVerificationService";
 
 export interface VideoHealingSummary {
@@ -25,6 +32,12 @@ export interface VideoHealingSummary {
   brokenUrlsRemoved: number;
   urlsRepaired: number;
   remainingVerifiedUrls: number;
+  /** Claims whose verdict changed because their evidence changed. */
+  verdictsChanged?: number;
+  /** Claims re-judged by the model because new evidence was found. */
+  modelRechecks?: number;
+  /** Claims whose evidence changed but whose model re-reading was skipped (budget). */
+  modelRechecksSkipped?: number;
 }
 
 export interface ClaimCacheAuditSummary {
@@ -39,14 +52,31 @@ export class SourceHealingService {
   private evidenceRetrieval: EvidenceRetrievalService;
   private analysisRepository: AnalysisRepository;
 
+  private reAdjudicator?: ClaimReAdjudicator;
+  private reportStore: ReportStore;
+  private classifyStances?: StanceClassifierFn;
+
   constructor(deps?: {
     urlVerifier?: UrlVerificationService;
     evidenceRetrieval?: EvidenceRetrievalService;
     analysisRepository?: AnalysisRepository;
+    reAdjudicator?: ClaimReAdjudicator;
+    reportStore?: ReportStore;
+    classifyStances?: StanceClassifierFn;
   }) {
     this.urlVerifier = deps?.urlVerifier ?? urlVerificationService;
     this.evidenceRetrieval = deps?.evidenceRetrieval ?? evidenceRetrievalService;
     this.analysisRepository = deps?.analysisRepository ?? getAnalysisRepository();
+    this.reAdjudicator = deps?.reAdjudicator;
+    this.reportStore = deps?.reportStore ?? gcsReportStore;
+    this.classifyStances = deps?.classifyStances;
+  }
+
+  private getReAdjudicator(): ClaimReAdjudicator {
+    if (!this.reAdjudicator) {
+      this.reAdjudicator = new ClaimVerificationService(process.env.GEMINI_API_KEY || "", 0.6);
+    }
+    return this.reAdjudicator;
   }
 
   /**
@@ -56,11 +86,14 @@ export class SourceHealingService {
    */
   async healClaimSources(
     claim: VerifiedClaim,
-    options?: { repairWithRetrieval?: boolean; domainContext?: string }
+    options?: { repairWithRetrieval?: boolean; domainContext?: string; allowModelRecheck?: boolean }
   ): Promise<{
     claim: VerifiedClaim;
     brokenRemoved: number;
     repairedCount: number;
+    verdictChanged: boolean;
+    usedModel: boolean;
+    modelSkipped: boolean;
   }> {
     const rawSources: RichSource[] = Array.isArray(claim.richSources) ? [...claim.richSources] : [];
     const candidateUrls = rawSources
@@ -80,7 +113,7 @@ export class SourceHealingService {
     for (const src of rawSources) {
       const rawUrl = String(src?.url || src?.directUrl || "").trim();
       const uv = rawUrl ? verifications.get(rawUrl) : undefined;
-      if (uv && uv.status === "VERIFIED" && uv.httpStatus === 200 && !uv.isSoft404 && !isGenericHomepageUrl(uv.canonicalUrl)) {
+      if (uv && isLiveVerificationRecord(uv) && !isGenericHomepageUrl(uv.canonicalUrl)) {
         survivingSources.push({
           ...src,
           url: uv.canonicalUrl,
@@ -129,17 +162,41 @@ export class SourceHealingService {
       }
     }
 
-    const updatedClaim = enforceClosedWorldCitationFirewall({
+    const firewalled = enforceClosedWorldCitationFirewall({
       ...claim,
       richSources: survivingSources,
       quarantinedSources: newlyQuarantined,
       verifiedAcademicMetadata,
     });
 
+    // The verdict follows the evidence: if the live source set changed, re-evaluate it
+    // (model re-judgment when new sources were found; evidence rule only when sources
+    // were just removed). Previously sources were swapped but the verdict stayed fixed.
+    const reevaluated = await reevaluateClaimOnEvidenceChange({
+      claim,
+      newSources: firewalled.richSources || [],
+      trigger: "source_health",
+      reAdjudicator: options?.allowModelRecheck === false ? undefined : this.getReAdjudicator(),
+      domainContext: options?.domainContext,
+      classifyStances: this.classifyStances,
+    });
+
+    const updatedClaim = {
+      ...firewalled,
+      ...reevaluated.claim,
+      // Keep the stance-checked evidence set (off-topic / unreadable sources removed).
+      richSources: reevaluated.evidenceChanged ? reevaluated.claim.richSources : firewalled.richSources,
+      quarantinedSources: firewalled.quarantinedSources,
+      sourceStatus: reevaluated.evidenceChanged ? reevaluated.claim.sourceStatus : firewalled.sourceStatus,
+    } as VerifiedClaim;
+
     return {
       claim: updatedClaim,
       brokenRemoved,
       repairedCount,
+      verdictChanged: reevaluated.verdictChanged,
+      usedModel: reevaluated.usedModel,
+      modelSkipped: Boolean(reevaluated.modelSkipped),
     };
   }
 
@@ -149,9 +206,15 @@ export class SourceHealingService {
    */
   async auditAndHealVideoReport(
     videoId: string,
-    options?: { repairWithRetrieval?: boolean }
+    options?: { repairWithRetrieval?: boolean; maxModelRechecks?: number }
   ): Promise<VideoHealingSummary> {
-    const existing = await this.analysisRepository.loadAnalysis(videoId, "factChecks");
+    // Prefer the report viewers actually see (videos/{id}.factCheckUrl); fall back to the
+    // repository copy. Healing only the repository copy left viewers on stale verdicts.
+    const published = await this.reportStore.load(videoId).catch((err) => {
+      logger.warn("[SourceHealingService] Could not load published report; using repository copy", { videoId, err: String(err) });
+      return null;
+    });
+    const existing = published?.report ?? (await this.analysisRepository.loadAnalysis(videoId, "factChecks"));
     if (!existing || typeof existing !== "object") {
       return {
         videoId,
@@ -160,8 +223,15 @@ export class SourceHealingService {
         brokenUrlsRemoved: 0,
         urlsRepaired: 0,
         remainingVerifiedUrls: 0,
+        verdictsChanged: 0,
+        modelRechecks: 0,
       };
     }
+
+    const maxModelRechecks = options?.maxModelRechecks ?? 15;
+    let verdictsChanged = 0;
+    let modelRechecks = 0;
+    let modelRechecksSkipped = 0;
 
     const claimArrays: Array<{ key: string; list: any[] }> = [];
     for (const key of ["verifiedClaims", "claims", "claimsLedger"]) {
@@ -190,10 +260,13 @@ export class SourceHealingService {
           continue;
         }
         claimsAudited++;
-        const { claim: healedClaim, brokenRemoved, repairedCount } = await this.healClaimSources(
+        const { claim: healedClaim, brokenRemoved, repairedCount, verdictChanged, usedModel, modelSkipped } = await this.healClaimSources(
           rawClaim as VerifiedClaim,
-          { repairWithRetrieval: options?.repairWithRetrieval }
+          { repairWithRetrieval: options?.repairWithRetrieval, allowModelRecheck: modelRechecks < maxModelRechecks }
         );
+        if (verdictChanged) verdictsChanged++;
+        if (usedModel) modelRechecks++;
+        if (modelSkipped) modelRechecksSkipped++;
         brokenUrlsRemoved += brokenRemoved;
         urlsRepaired += repairedCount;
         remainingVerifiedUrls += (healedClaim.richSources || []).length;
@@ -239,18 +312,23 @@ export class SourceHealingService {
       });
     }
 
-    const sanitizedHealed = sanitizeReportPayloadForClosedWorld(healedPayload);
-    const changed = brokenUrlsRemoved > 0 || urlsRepaired > 0;
+    const sanitizedHealed: any = applyVerdictGateToReport(sanitizeReportPayloadForClosedWorld(healedPayload));
+    sanitizedHealed.qualityAudit = auditCredibilityReport(sanitizedHealed);
+    const changed = brokenUrlsRemoved > 0 || urlsRepaired > 0 || verdictsChanged > 0 || modelRechecks > 0;
 
     if (changed || existing.evidenceSchemaVersion !== PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION) {
       await this.analysisRepository.saveAnalysis(videoId, "factChecks", sanitizedHealed);
+      if (published?.paths?.length) {
+        await this.reportStore.save(published.paths, sanitizedHealed);
+      }
       try {
-        await admin.firestore().collection("videos").doc(videoId).set(
+        await safeMergeExistingVideo(
+          videoId,
           {
             evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
             lastSourceAuditAt: Date.now(),
           },
-          { merge: true }
+          "[SourceHealingService]"
         );
       } catch (err) {
         logger.warn("[SourceHealingService] Failed updating video audit timestamp", { videoId, err: String(err) });
@@ -264,6 +342,9 @@ export class SourceHealingService {
       brokenUrlsRemoved,
       urlsRepaired,
       remainingVerifiedUrls,
+      verdictsChanged,
+      modelRechecks,
+      modelRechecksSkipped,
     };
   }
 

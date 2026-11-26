@@ -141,6 +141,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                         (jobDocData?['variants'] as Map<String, dynamic>?) ??
                         (jobDocData?['resolutions'] as Map<String, dynamic>?) ??
                         {};
+                    final mediaData = videoDocData?['media'] as Map<String, dynamic>?;
+                    final transcodeFailed = video.transcodeFailed || (mediaData?['transcodeFailed'] == true);
+                    final transcodeError = video.transcodeError ?? (mediaData?['transcodeError'] as String?);
 
                     return Obx(() {
                       return Container(
@@ -318,6 +321,55 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     PipelineResolutionChips(
                                       variants: variants,
                                     ),
+                                    if (transcodeFailed) ...[
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.error.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: AppColors.error.withValues(alpha: 0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Icon(
+                                              Icons.info_outline_rounded,
+                                              size: 16,
+                                              color: AppColors.error,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Adaptive Transcoding Notice',
+                                                    style: AppTextStyles.labelMedium.copyWith(
+                                                      color: AppColors.error,
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    transcodeError?.isNotEmpty == true
+                                                        ? transcodeError!
+                                                        : 'Adaptive multi-resolution stream generation encountered an issue. Video remains playable via original source.',
+                                                    style: AppTextStyles.caption.copyWith(
+                                                      color: AppColors.textSecondary,
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
 
                                     const SizedBox(height: 16),
 
@@ -431,8 +483,6 @@ class VideoPipelineStatusWidget extends StatelessWidget {
         rawCredibilityStatus == 'processing';
     final isCredibilityFailed = rawCredibilityStatus == 'failed';
 
-    final jobOutputs =
-        (jobDocData?['outputs'] as Map<String, dynamic>?) ?? {};
     return StreamBuilder<VideoMediaCredibility>(
       stream: VideoMediaService().streamCredibility(video.id),
       builder: (context, credSnap) {

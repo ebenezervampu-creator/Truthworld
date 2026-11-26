@@ -3,7 +3,6 @@ import 'package:truthworld/features/video/presentation/controllers/create_conten
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/components/create_content_footer_actions.dart';
 import 'package:truthworld/features/video/presentation/views/upload/components/create_content_page_header.dart';
-import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_ai_section.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_category_visibility_sections.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_media_sections.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_metadata_sections.dart';
@@ -86,7 +85,7 @@ class CreateContentVideoLayout extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 32),
 
-                                  // Right Column (Sections 6-10: Category, Visibility, Playlist, Topic, AI Features & Intelligence)
+                                  // Right Column (Sections 6-9: Category, Visibility, Playlist, Topic)
                                   Expanded(
                                     flex: 5,
                                     child: Column(
@@ -109,10 +108,6 @@ class CreateContentVideoLayout extends StatelessWidget {
                                           uploadController: uploadController,
                                           onCreateNewTopic: (isDark) =>
                                               contentController.showCreateTopicModal(context, isDark),
-                                        ),
-                                        const SizedBox(height: 20),
-                                        CreateContentUnifiedAiSection(
-                                          uploadController: uploadController,
                                         ),
                                       ],
                                     ),
@@ -160,10 +155,6 @@ class CreateContentVideoLayout extends StatelessWidget {
                                     uploadController: uploadController,
                                     onCreateNewTopic: (isDark) =>
                                         contentController.showCreateTopicModal(context, isDark),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  CreateContentUnifiedAiSection(
-                                    uploadController: uploadController,
                                   ),
                                 ],
                               ),

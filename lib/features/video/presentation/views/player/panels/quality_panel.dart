@@ -6,7 +6,6 @@ import 'package:truthworld/features/channel/presentation/views/channel/widgets/c
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloads/download_resolution_manager.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/settings_tiles.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -46,6 +45,18 @@ class QualityPanel extends StatelessWidget {
       );
     }
     showPremiumDialog(context);
+  }
+
+  /// Badge for the Auto tile: the quality actually playing. With adaptive HLS the
+  /// native player picks it, so it's read from the decoded frame size.
+  String _autoBadge() {
+    final vc = ctrl.videoController;
+    if (vc != null && vc.isOnHlsAuto) {
+      final size = vc.videoPlayerController?.value.size;
+      final shortSide = size == null ? 0 : (size.width < size.height ? size.width : size.height).round();
+      return shortSide > 0 ? '${shortSide}p' : 'Auto';
+    }
+    return ctrl.abr.currentTier.height > 0 ? ctrl.abr.currentTier.label : 'Auto';
   }
 
   @override
@@ -179,10 +190,12 @@ class QualityPanel extends StatelessWidget {
       // Strictly exclude synthetic or unverified tiers above the authentic ceiling.
       final ladder = ctrl.abr.resolutionLadder;
 
-      // Filter out synthetic items
-      var realResolutions = avail.where((r) => !r.isSynthetic).toList();
+      // Filter out synthetic and fallback items so users aren't shown redundant menu items that all play 720p
+      final hasFallbackTiers = avail.any((r) => r.isSynthetic || r.isFallback);
+      var realResolutions = avail.where((r) => !r.isSynthetic && !r.isFallback).toList();
       if (realResolutions.isEmpty && avail.isNotEmpty) {
-        realResolutions = avail.toList();
+        // If all are backfilled, take only the single highest available tier to avoid duplicate rows
+        realResolutions = [avail.first];
       }
 
       // Check player's initialized native decoded height
@@ -236,9 +249,7 @@ class QualityPanel extends StatelessWidget {
                         ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value,
                     badge:
                         (ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value)
-                        ? (ctrl.abr.currentTier.height > 0
-                              ? ctrl.abr.currentTier.label
-                              : 'Auto')
+                        ? _autoBadge()
                         : null,
                     onTap: ctrl.selectAutoQuality,
                   ),
@@ -312,6 +323,30 @@ class QualityPanel extends StatelessWidget {
                       },
                     );
                   }),
+
+                  if (hasFallbackTiers && realResolutions.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.info_outline_rounded,
+                            size: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Lower data-saver qualities are currently unavailable for this video.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                   const SizedBox(height: 4),
                   SelectTile(

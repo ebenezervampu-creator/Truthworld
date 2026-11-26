@@ -23,21 +23,39 @@ import {
 } from "./tts";
 import {
   applyTeluguTheologicalLexiconGuard,
+  computeSyllableBudgetCompliance,
+  decodeHtmlEntities,
   normalizeScriptureCitationsForTts,
   sanitizeSpokenTranslationForTts,
+  translationService,
 } from "./translation";
+import {
+  permissibleWindowMs as computePermissibleWindowMs,
+} from "./speech-rate";
+import { SubtitleGuardrails } from "./subtitleGuardrails";
+import { conformCues } from "./netflixSubtitleConformer";
+import {
+  calculateMinInterCueGapMs,
+  getSubtitleProfile,
+} from "./subtitle_language_profiles";
+import type { LocalizedSubtitleCue } from "./subtitle_readability_validator";
 import { expressiveV4Bus } from "./expressiveV4Bus";
 import { estimateSpeechDurationMs } from "../layers/07-dubbing";
 import { mediaService, parseAnyStorageUrl } from "./media";
 import { audioIdentityService } from "./audio-identity";
 import { DubbingQualityGate } from "../layers/quality-gate";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
-import { filterVideoIds } from "../../utils/videosCollectionGuard";
+import {
+  filterVideoIds,
+  isVideoId,
+  safeMergeExistingVideo,
+} from "../../utils/videosCollectionGuard";
 import { logger } from "../utils/logger";
 import { TerminologyService } from "./terminology_glossary";
 import { hlsPackagerService } from "./hlsPackager";
 import { NumericalEntityGuard } from "./numericalEntityGuard";
 import { adaptiveMtDatasetService } from "./adaptiveMtDatasetService";
+import { saveDubbingReportArtifact, saveTranslationArtifact } from "./dubbing-report";
 
 const db = () => admin.firestore();
 
@@ -409,7 +427,8 @@ export class DubbingEditorService {
       jobId,
       normLang,
       updatedSegments,
-      manifest.subtitleUrl || undefined
+      manifest.subtitleUrl || undefined,
+      manifest.sourceLanguage || jobData?.sourceLanguage || "en"
     );
 
     const nextVersion = (manifest.version || 1) + 1;
@@ -478,22 +497,74 @@ export class DubbingEditorService {
     jobId: string,
     normLang: string,
     segments: DubbingEditableSegment[],
-    fallbackUrl?: string
+    fallbackUrl?: string,
+    sourceLanguage?: string
   ): Promise<string | undefined> {
     try {
+      const profile = getSubtitleProfile(normLang);
+      const minGapMs = calculateMinInterCueGapMs(30, profile);
+
+      const rawCues: LocalizedSubtitleCue[] = segments
+        .map((s, idx) => {
+          const rawText = stripAudioTagsForSubtitles(
+            s.editedText || (s as any).subtitleText || s.translatedText
+          );
+          const sanitizedText = SubtitleGuardrails.sanitize(rawText, {
+            targetLanguage: normLang,
+            sourceLanguage,
+          });
+          if (!sanitizedText) return null;
+
+          const startMs = Math.max(0, Math.round(s.startMs));
+          const actualDurMs =
+            s.actualSynthesizedDurationMs ||
+            s.durationMs ||
+            Math.max(300, s.endMs - s.startMs);
+          const nextSeg = idx < segments.length - 1 ? segments[idx + 1] : undefined;
+          const nextStart = nextSeg
+            ? nextSeg.startMs
+            : startMs + actualDurMs + 2000;
+          const snappedEnd = Math.min(
+            startMs + actualDurMs,
+            Math.max(startMs + 300, nextStart - minGapMs)
+          );
+
+          const endMs = Math.max(startMs + 300, snappedEnd);
+          const durationMs = Math.max(300, endMs - startMs);
+          const cps = Number((sanitizedText.length / (durationMs / 1000)).toFixed(2));
+          const cue: LocalizedSubtitleCue = {
+            id: idx + 1,
+            startMs,
+            endMs,
+            text: sanitizedText,
+            speaker: s.speaker,
+            sourceWordStartIndex: idx,
+            sourceWordEndIndex: idx,
+            alignmentConfidence: 1.0,
+            languageCode: normLang,
+            charactersPerSecond: cps,
+            charactersPerLine: sanitizedText.length,
+            durationMs,
+            validationStatus: "pass",
+          };
+          return cue;
+        })
+        .filter((c): c is LocalizedSubtitleCue => c !== null);
+
+      if (rawCues.length === 0) return fallbackUrl;
+
+      const { cues: conformedCues } = conformCues(rawCues, {
+        profile,
+        fps: 30,
+      });
+
       const subRes = await mediaService.generateAllSubtitles(
         jobId,
-        segments.map((s, idx) => {
-          const actualDurMs = s.actualSynthesizedDurationMs || s.durationMs || (s.endMs - s.startMs);
-          const nextSeg = idx < segments.length - 1 ? segments[idx + 1] : undefined;
-          const nextStart = nextSeg ? nextSeg.startMs : (s.startMs + actualDurMs + 2000);
-          const snappedEnd = Math.min(s.startMs + actualDurMs, Math.max(s.startMs + 300, nextStart - 50));
-          return {
-            start: s.startMs,
-            end: snappedEnd,
-            text: stripAudioTagsForSubtitles(s.editedText || s.translatedText),
-          };
-        }),
+        conformedCues.map((c) => ({
+          start: c.startMs,
+          end: c.endMs,
+          text: c.text,
+        })),
         normLang
       );
       return subRes.srtUrl;
@@ -505,6 +576,142 @@ export class DubbingEditorService {
       });
       return fallbackUrl;
     }
+  }
+
+  /**
+   * Auto-translates or fits a single segment's translation to its exact speech timeline window,
+   * preserving neighboring dialogue context, terminology compliance, and numerical parity.
+   */
+  public async retranslateSegment(params: {
+    jobId?: string;
+    videoId?: string;
+    language: string;
+    segmentIndex: number;
+    uid: string;
+    isAdmin?: boolean;
+    mode?: "fit" | "fresh";
+    draftText?: string;
+  }): Promise<{
+    segmentIndex: number;
+    translatedText: string;
+    subtitleText: string;
+    estimatedDurationMs: number;
+    permissibleWindowMs: number;
+    syllableBudgetCompliance: number;
+    numericalParityVerified: boolean;
+    terminologyWarning?: string;
+  }> {
+    const normLang = normalizeLanguageCode(params.language);
+    const { jobId, jobData } = await this.authorizeAndResolveJobId({
+      jobId: params.jobId,
+      videoId: params.videoId,
+      language: normLang,
+      uid: params.uid,
+      isAdmin: params.isAdmin,
+    });
+
+    const manifestRef = db()
+      .collection("video_jobs")
+      .doc(jobId)
+      .collection("dubbing_manifests")
+      .doc(normLang);
+
+    const snap = await manifestRef.get();
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Editable dubbing manifest not found.");
+    }
+
+    const manifest = snap.data() as DubbingEditableManifest;
+    const targetIdx = manifest.segments.findIndex((s) => s.index === params.segmentIndex);
+    if (targetIdx === -1) {
+      throw new HttpsError("invalid-argument", "Requested segment index does not exist in this track.");
+    }
+
+    const seg = manifest.segments[targetIdx];
+    const sourceLang = normalizeLanguageCode(
+      manifest.sourceLanguage || jobData?.sourceLanguage || "en"
+    );
+    const nextSeg = targetIdx < manifest.segments.length - 1 ? manifest.segments[targetIdx + 1] : undefined;
+    const windowMs = computePermissibleWindowMs(
+      seg.startMs,
+      seg.endMs,
+      nextSeg ? nextSeg.startMs : null,
+      manifest.totalDurationMs
+    );
+
+    const contextBefore = manifest.segments
+      .slice(Math.max(0, targetIdx - 3), targetIdx)
+      .map((s) => ({ source: s.originalText, speaker: s.speaker }));
+    const contextAfter = manifest.segments
+      .slice(targetIdx + 1, targetIdx + 4)
+      .map((s) => ({ source: s.originalText, speaker: s.speaker }));
+
+    const currentDraft =
+      params.mode === "fresh"
+        ? undefined
+        : (params.draftText?.trim() || seg.editedText || seg.translatedText);
+
+    const fitted = await translationService.retranslateConcise(
+      seg.originalText,
+      sourceLang,
+      normLang,
+      {
+        maxDurationMs: windowMs,
+        currentTranslation: currentDraft,
+        speaker: seg.speaker,
+        jobId,
+        userId: jobData.userId || params.uid,
+        contextBefore,
+        contextAfter,
+      }
+    );
+
+    const cleanTranslated = decodeHtmlEntities(fitted).trim();
+    const cleanSubtitle = SubtitleGuardrails.sanitize(
+      stripAudioTagsForSubtitles(cleanTranslated),
+      { targetLanguage: normLang, sourceLanguage: sourceLang }
+    );
+
+    const numParity = NumericalEntityGuard.verifyNumericalParity(
+      seg.originalText || "",
+      cleanTranslated,
+      normLang
+    );
+    const compCheck = TerminologyService.checkTerminologyCompliance(
+      seg.originalText || "",
+      cleanTranslated,
+      normLang
+    );
+
+    let terminologyWarning: string | undefined;
+    if (compCheck.violations.length > 0) {
+      const v = compCheck.violations[0];
+      terminologyWarning = `Non-compliant term "${v.disallowedFound}" detected. Recommended: "${v.suggested}".`;
+    }
+    if (!numParity.isParity) {
+      const numAlert = `Numerical discrepancy detected: The original stated "${seg.originalText}".`;
+      terminologyWarning = terminologyWarning ? `${terminologyWarning} ${numAlert}` : numAlert;
+    }
+
+    const estimatedDurationMs = estimateSpeechDurationMs(cleanTranslated, normLang);
+    const syllableBudgetCompliance = computeSyllableBudgetCompliance(
+      seg.originalText || "",
+      cleanTranslated,
+      sourceLang,
+      normLang,
+      windowMs
+    );
+
+    return {
+      segmentIndex: params.segmentIndex,
+      translatedText: cleanTranslated,
+      subtitleText: cleanSubtitle || cleanTranslated,
+      estimatedDurationMs,
+      permissibleWindowMs: windowMs,
+      syllableBudgetCompliance,
+      numericalParityVerified: numParity.isParity,
+      terminologyWarning,
+    };
   }
 
   /**
@@ -587,7 +794,8 @@ export class DubbingEditorService {
       jobId,
       normLang,
       updatedSegments,
-      manifest.subtitleUrl || undefined
+      manifest.subtitleUrl || undefined,
+      manifest.sourceLanguage || "en"
     );
 
     const nextVersion = (manifest.version || 1) + 1;
@@ -905,7 +1113,8 @@ export class DubbingEditorService {
       jobId,
       normLang,
       updatedSegments,
-      manifest.subtitleUrl || undefined
+      manifest.subtitleUrl || undefined,
+      manifest.sourceLanguage || jobData?.sourceLanguage || "en"
     );
 
     const sourceVideoUrl = jobData.videoUrl as string | undefined;
@@ -964,22 +1173,23 @@ export class DubbingEditorService {
 
     const linkedVideoIds = filterVideoIds(videoId ? [videoId] : [], "[DubbingEditor:remaster]");
     for (const vid of linkedVideoIds) {
-      await db()
-        .collection("videos")
-        .doc(vid)
-        .set(
-          {
-            audioTracks: { [normLang]: directAudioUrl },
-            media: { audioTracks: { [normLang]: directAudioUrl } },
-            ...(directVideoUrl ? { dubbedVideos: { [normLang]: directVideoUrl } } : {}),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
+      await safeMergeExistingVideo(
+        vid,
+        {
+          audioTracks: { [normLang]: directAudioUrl },
+          media: { audioTracks: { [normLang]: directAudioUrl } },
+          aiDubbedAudio: { [normLang]: directAudioUrl },
+          [`audioTracks.${normLang}`]: directAudioUrl,
+          ...(directVideoUrl ? { dubbedVideos: { [normLang]: directVideoUrl } } : {}),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        "[DubbingEditor:remaster]"
+      );
     }
 
     // 🎬 Package / Update Multilingual HLS Master Manifest (master.m3u8) with frame-aligned tracks
-    const targetVideoId = videoId || jobData.videoId || (linkedVideoIds.length > 0 ? linkedVideoIds[0] : jobId);
+    const candidateVideoId = videoId || jobData.videoId || (linkedVideoIds.length > 0 ? linkedVideoIds[0] : "");
+    const targetVideoId = isVideoId(candidateVideoId) ? candidateVideoId : "";
     if (targetVideoId) {
       try {
         const videoSnap = await db().collection("videos").doc(targetVideoId).get();
@@ -1048,6 +1258,11 @@ export class DubbingEditorService {
     language: string;
     videoUrl?: string;
     audioUrl?: string;
+    dialogueAudioUrl?: string;
+    vocalsStemUrl?: string;
+    backgroundStemUrl?: string;
+    translationJsonUrl?: string;
+    reportJsonUrl?: string;
     srtUrl?: string;
     vttUrl?: string;
     srtContent?: string;
@@ -1056,7 +1271,7 @@ export class DubbingEditorService {
     title?: string;
   }> {
     const normLang = normalizeLanguageCode(params.language);
-    const { jobId, jobData } = await this.authorizeAndResolveJobId({
+    const { jobId, videoId, jobData } = await this.authorizeAndResolveJobId({
       jobId: params.jobId,
       videoId: params.videoId,
       language: normLang,
@@ -1070,29 +1285,75 @@ export class DubbingEditorService {
       .collection("dubbing_manifests")
       .doc(normLang);
 
-    const snap = await manifestRef.get();
-    if (!snap.exists) {
+    const [snap, dubResultSnap, subResultSnap] = await Promise.all([
+      manifestRef.get(),
+      db().collection("dubbing_results").doc(`${jobId}_${normLang}`).get().catch(() => null),
+      db().collection("subtitle_results").doc(`${jobId}_${normLang}`).get().catch(() => null),
+    ]);
+
+    const dubResultData = dubResultSnap?.exists ? (dubResultSnap.data() || {}) : {};
+    const subResultData = subResultSnap?.exists ? (subResultSnap.data() || {}) : {};
+
+    if (!snap.exists && !dubResultSnap?.exists) {
       throw new HttpsError("not-found", "Dubbing manifest not found for export.");
     }
 
-    const manifest = snap.data() as DubbingEditableManifest;
+    const manifest = (snap.exists ? snap.data() : {}) as Partial<DubbingEditableManifest>;
     const segments = manifest.segments || [];
 
-    // Generate formatted SRT and VTT string representations
+    // Generate formatted SRT and VTT string representations when manifest segments exist
     const cleanSegments = segments.map((s) => ({
       start: s.startMs,
       end: s.endMs,
       text: stripAudioTagsForSubtitles(s.editedText || s.translatedText),
     }));
 
-    const srtContent = mediaService.generateSrt(cleanSegments);
-    const vttContent = mediaService.generateVtt(cleanSegments);
+    const srtContent = cleanSegments.length > 0 ? mediaService.generateSrt(cleanSegments) : undefined;
+    const vttContent = cleanSegments.length > 0 ? mediaService.generateVtt(cleanSegments) : undefined;
 
-    let resolvedVideoUrl = manifest.masterVideoUrl;
-    let resolvedAudioUrl = manifest.masterAudioUrl;
+    const bucket = admin.storage().bucket();
+    const bucketName = bucket.name;
+    const sourceVideoUrl = String(jobData.videoUrl || "");
+    const isGenuineDubVideo = (url?: string | null): url is string => {
+      if (!url || typeof url !== "string" || !url.trim()) return false;
+      const clean = url.trim().toLowerCase();
+      if (sourceVideoUrl && clean === sourceVideoUrl.trim().toLowerCase()) return false;
+      if (clean.endsWith("original.mp4") || clean.includes("/original.mp4") || clean.includes("%2foriginal.mp4")) {
+        return false;
+      }
+      return true;
+    };
 
-    // 🛡️ Guardrail 2: If cache was invalidated by segment edits, remaster automatically before packaging export
-    if (!resolvedVideoUrl || !resolvedAudioUrl) {
+    const storageExists = async (rawUrl?: string | null): Promise<boolean> => {
+      if (!rawUrl || typeof rawUrl !== "string" || !rawUrl.trim()) return false;
+      try {
+        const info = parseAnyStorageUrl(rawUrl.trim());
+        if (!info || !info.filePath) return false;
+        const targetBucket = info.bucketName ? admin.storage().bucket(info.bucketName) : bucket;
+        const [exists] = await targetBucket.file(info.filePath).exists();
+        return exists;
+      } catch {
+        return false;
+      }
+    };
+
+    const toAccessible = async (rawUrl?: string | null): Promise<string | undefined> => {
+      if (!rawUrl || typeof rawUrl !== "string" || !rawUrl.trim()) return undefined;
+      return await audioIdentityService.getAccessibleUrl(rawUrl.trim()).catch(() => rawUrl.trim());
+    };
+
+    let resolvedVideoUrl: string | undefined = isGenuineDubVideo(manifest.masterVideoUrl)
+      ? manifest.masterVideoUrl
+      : undefined;
+    let resolvedAudioUrl: string | undefined =
+      manifest.masterAudioUrl ||
+      jobData.outputs?.audioTracks?.[normLang] ||
+      jobData.outputs?.audioTracks?.[params.language] ||
+      dubResultData.audioUrl ||
+      undefined;
+
+    // 🛡️ Guardrail 2: If cache was invalidated by segment edits on a manifest, remaster automatically
+    if (snap.exists && (!resolvedVideoUrl || !resolvedAudioUrl)) {
       try {
         const remasterRes = await this.remasterTrack({
           jobId,
@@ -1102,32 +1363,155 @@ export class DubbingEditorService {
           mneGain: manifest.mneGain ?? 1.0,
           dialogueGain: manifest.dialogueGain ?? 1.0,
         });
-        resolvedVideoUrl = remasterRes.masterVideoUrl;
-        resolvedAudioUrl = remasterRes.masterAudioUrl;
+        if (isGenuineDubVideo(remasterRes.masterVideoUrl)) {
+          resolvedVideoUrl = remasterRes.masterVideoUrl;
+        }
+        resolvedAudioUrl = resolvedAudioUrl || remasterRes.masterAudioUrl;
       } catch (remasterErr) {
         logger.warn("[DubbingEditor:export] Auto-remaster on invalidated cache:", remasterErr);
       }
     }
 
-    if (resolvedVideoUrl) {
-      resolvedVideoUrl = await audioIdentityService.getAccessibleUrl(resolvedVideoUrl).catch(() => resolvedVideoUrl);
+    if (!resolvedVideoUrl) {
+      const candidateVideos = [
+        jobData.outputs?.dubbedVideos?.[normLang],
+        jobData.outputs?.dubbedVideos?.[params.language],
+        dubResultData.videoUrl,
+        `gs://${bucketName}/videos/${jobId}/${normLang}-dubbed.mp4`,
+      ];
+      for (const candidate of candidateVideos) {
+        if (isGenuineDubVideo(candidate) && (await storageExists(candidate))) {
+          resolvedVideoUrl = candidate;
+          break;
+        }
+      }
     }
-    if (resolvedAudioUrl) {
-      resolvedAudioUrl = await audioIdentityService.getAccessibleUrl(resolvedAudioUrl).catch(() => resolvedAudioUrl);
+
+    let rawDialogueUrl: string | undefined =
+      manifest.dialogueStemUrl ||
+      jobData.outputs?.dialogueTracks?.[normLang] ||
+      jobData.outputs?.dialogueTracks?.[params.language] ||
+      jobData.outputs?.stems?.dialogue?.[normLang] ||
+      dubResultData.stems?.dialogue ||
+      `gs://${bucketName}/audio/${jobId}/${normLang}/stitched.mp3`;
+    if (!(await storageExists(rawDialogueUrl))) {
+      rawDialogueUrl = undefined;
     }
-    let resolvedSrtUrl = manifest.subtitleUrl;
-    if (resolvedSrtUrl) {
-      resolvedSrtUrl = await audioIdentityService.getAccessibleUrl(resolvedSrtUrl).catch(() => manifest.subtitleUrl);
+
+    let rawVocalsStemUrl: string | undefined =
+      jobData.outputs?.stems?.vocals ||
+      dubResultData.stems?.vocals ||
+      `gs://${bucketName}/audio/${jobId}/vocals_demucs.mp3`;
+    if (!(await storageExists(rawVocalsStemUrl))) {
+      rawVocalsStemUrl = undefined;
     }
+
+    let rawBackgroundStemUrl: string | undefined =
+      manifest.mneStemUrl ||
+      jobData.outputs?.stems?.background ||
+      jobData.outputs?.stems?.mne ||
+      dubResultData.stems?.mne ||
+      `gs://${bucketName}/audio/${jobId}/m_and_e.mp3`;
+    if (!(await storageExists(rawBackgroundStemUrl))) {
+      rawBackgroundStemUrl = undefined;
+    }
+
+    let rawTranslationJsonUrl: string | undefined =
+      jobData.outputs?.translations?.[normLang] ||
+      jobData.outputs?.translations?.[params.language] ||
+      (typeof dubResultData.translationUrl === "string" && dubResultData.translationUrl.includes("/translations/")
+        ? dubResultData.translationUrl
+        : undefined) ||
+      `gs://${bucketName}/translations/${jobId}/translation_${normLang}.json`;
+    if (!(await storageExists(rawTranslationJsonUrl))) {
+      if (segments.length > 0) {
+        rawTranslationJsonUrl = await saveTranslationArtifact({
+          jobId,
+          videoId,
+          sourceLanguage: manifest.sourceLanguage || jobData.sourceLanguage || "en",
+          targetLanguage: normLang,
+          segments,
+        }).catch(() => undefined);
+      } else {
+        rawTranslationJsonUrl = undefined;
+      }
+    }
+
+    let rawReportJsonUrl: string | undefined =
+      jobData.outputs?.dubbingReportUrl ||
+      `gs://${bucketName}/dubbing/${jobId}/report.json`;
+    if (!(await storageExists(rawReportJsonUrl))) {
+      rawReportJsonUrl = (await saveDubbingReportArtifact({
+        jobId,
+        videoId,
+        sourceLanguage: manifest.sourceLanguage || jobData.sourceLanguage || "en",
+        targetLanguages: Array.isArray(jobData.executionPlan?.dubbingLanguages) && jobData.executionPlan.dubbingLanguages.length > 0
+          ? jobData.executionPlan.dubbingLanguages
+          : [normLang],
+        durationSeconds: Number(jobData.durationSeconds || jobData.duration || 0) || undefined,
+        vocalsStemUrl: rawVocalsStemUrl || null,
+        backgroundStemUrl: rawBackgroundStemUrl || null,
+        results: [
+          {
+            jobId,
+            language: normLang,
+            subtitleUrl: manifest.subtitleUrl || subResultData.srtPath || "",
+            subtitleFormat: "srt",
+            audioUrl: resolvedAudioUrl || "",
+            videoUrl: resolvedVideoUrl || "",
+            translationUrl: rawTranslationJsonUrl || "",
+            segments: segments.length,
+            processingTime: Number(dubResultData.processingTime || 0),
+            stems: {
+              dialogue: rawDialogueUrl,
+              master: resolvedAudioUrl,
+              vocals: rawVocalsStemUrl || null,
+              mne: rawBackgroundStemUrl || null,
+            },
+          },
+        ],
+        dialogueStems: rawDialogueUrl ? { [normLang]: rawDialogueUrl } : undefined,
+      })) || undefined;
+    }
+
+    const rawSrtUrl = manifest.subtitleUrl || subResultData.srtPath || subResultData.subtitleUrl;
+    const rawVttUrl = subResultData.vttPath || (rawSrtUrl ? String(rawSrtUrl).replace(/\.srt$/i, ".vtt") : undefined);
+
+    const [
+      accessibleVideoUrl,
+      accessibleAudioUrl,
+      accessibleDialogueUrl,
+      accessibleVocalsUrl,
+      accessibleBgUrl,
+      accessibleTranslationUrl,
+      accessibleReportUrl,
+      accessibleSrtUrl,
+      accessibleVttUrl,
+    ] = await Promise.all([
+      toAccessible(resolvedVideoUrl),
+      toAccessible(resolvedAudioUrl),
+      toAccessible(rawDialogueUrl),
+      toAccessible(rawVocalsStemUrl),
+      toAccessible(rawBackgroundStemUrl),
+      toAccessible(rawTranslationJsonUrl),
+      toAccessible(rawReportJsonUrl),
+      toAccessible(rawSrtUrl),
+      toAccessible(rawVttUrl),
+    ]);
 
     const videoTitle = (typeof jobData.title === "string" && jobData.title.trim()) || "truthworld_video";
 
     return {
       language: normLang,
-      videoUrl: resolvedVideoUrl || undefined,
-      audioUrl: resolvedAudioUrl || undefined,
-      srtUrl: resolvedSrtUrl || undefined,
-      vttUrl: resolvedSrtUrl ? resolvedSrtUrl.replace(/\.srt$/i, ".vtt") : undefined,
+      videoUrl: accessibleVideoUrl,
+      audioUrl: accessibleAudioUrl,
+      dialogueAudioUrl: accessibleDialogueUrl,
+      vocalsStemUrl: accessibleVocalsUrl,
+      backgroundStemUrl: accessibleBgUrl,
+      translationJsonUrl: accessibleTranslationUrl,
+      reportJsonUrl: accessibleReportUrl,
+      srtUrl: accessibleSrtUrl,
+      vttUrl: accessibleVttUrl,
       srtContent,
       vttContent,
       totalSegments: segments.length,

@@ -3,7 +3,8 @@ import { logger } from "../utils/logger";
 import { getVertexAI } from "../utils/ai-client";
 import { extractCandidateText } from "../utils/ai-utils";
 import { PIPELINE_CONFIG } from "../config";
-import { extractMedianPitchHz } from "./media";
+import { extractPitch } from "./media";
+import { pitchDistanceSemitones } from "./pitch-estimation";
 
 export type AgeBucket = "child" | "young" | "middle_aged" | "old";
 export type SpeakerGender = "male" | "female" | "neutral";
@@ -13,9 +14,11 @@ export interface DiarizedSpeakerProfile {
   estimatedAge: number;        // Continuous age estimate, e.g., 24, 46
   ageBucket: AgeBucket;        // Normalized bucket
   gender: SpeakerGender;
-  medianPitchHz: number;       // Extracted via FFmpeg
+  medianPitchHz: number;       // Measured F0 (YIN over the speaker's own turns); 0 = could not be measured
   timbreTags: string[];        // e.g., ["calm", "energetic", "authoritative", "raspy"]
   confidence: number;          // 0.0 - 1.0
+  archetype?: string;          // "menacing_antagonist" | "vulnerable_youth" | "calm_narrator" | "authoritative_leader"
+  vocalWeight?: string;        // "deep" | "medium" | "light"
 }
 
 export interface ElevenLabsVoiceCandidate {
@@ -27,7 +30,20 @@ export interface ElevenLabsVoiceCandidate {
   typicalPitchHz: number;      // Calibrated baseline F0 of the preset
   timbreTags: string[];
   indicVerified: boolean;      // True if validated on eleven_v4 for te/hi/ta/ml
+  /** Public preview audio, used to measure this voice's real pitch (voice-acoustics.ts). */
+  previewUrl?: string;
+  /**
+   * false = typicalPitchHz is only a gender default, so pitch must not decide the match.
+   * true = measured from the preview the same way the speaker was measured. Unset = hand-calibrated preset.
+   */
+  pitchMeasured?: boolean;
 }
+
+/** Below / above these the voice reads as deep / light for its gender (Hz). */
+const VOCAL_WEIGHT_HZ: Record<"male" | "female", { deep: number; light: number }> = {
+  male: { deep: 105, light: 140 },
+  female: { deep: 180, light: 230 },
+};
 
 // Map ElevenLabs API string labels ("young", "middle aged", "old") to numeric anchors
 export const AGE_BUCKET_ANCHORS: Record<AgeBucket, number> = {
@@ -36,6 +52,59 @@ export const AGE_BUCKET_ANCHORS: Record<AgeBucket, number> = {
   middle_aged: 42,
   old: 65,
 };
+
+// ── Gender decision (2026-11-24) ───────────────────────────────────────────────────────────────────
+// Gemini alone once cast a man as a woman: his longest turns were breathy, so no pitch was measured.
+// Pitch is now measured over all of a speaker's turns, and a RELIABLE reading decides: plenty of voiced
+// frames, a steady pitch, and a clearly male or clearly female value. Soft, whispered or creaky speech
+// gives scattered readings (Peggy Carter's lines read 107–202 Hz, median 139, spread 5 semitones), so
+// there Gemini decides. Gemini also decides for a child, and a creator's requested gender always wins.
+
+export const GENDER_PITCH = {
+  /** Reliable median F0 at or below this → male. */
+  maleMaxHz: 135,
+  /** Reliable median F0 at or above this → female. */
+  femaleMinHz: 200,
+  /** A reading is reliable with at least this many voiced frames… */
+  minVoicedFrames: 100,
+  /** …and an interquartile spread of at most this many semitones. */
+  maxSpreadSemitones: 3.5,
+  /** No Gemini answer: any reading above this → female. */
+  splitHz: 165,
+} as const;
+
+export type GenderBasis = "requested" | "pitch" | "gemini" | "pitch_split" | "default_male";
+
+export function isReliablePitch(voicedFrames?: number | null, spreadSemitones?: number | null): boolean {
+  return (
+    typeof voicedFrames === "number" && voicedFrames >= GENDER_PITCH.minVoicedFrames &&
+    typeof spreadSemitones === "number" && Number.isFinite(spreadSemitones) && spreadSemitones <= GENDER_PITCH.maxSpreadSemitones
+  );
+}
+
+export function decideSpeakerGender(params: {
+  preferredGender?: "auto" | "male" | "female";
+  medianPitchHz: number;
+  voicedFrames?: number | null;
+  spreadSemitones?: number | null;
+  geminiGender?: string | null;
+  geminiAge?: number | null;
+}): { gender: SpeakerGender; basis: GenderBasis } {
+  if (params.preferredGender === "male" || params.preferredGender === "female") {
+    return { gender: params.preferredGender, basis: "requested" };
+  }
+  const hz = Number.isFinite(params.medianPitchHz) ? params.medianPitchHz : 0;
+  const gem = String(params.geminiGender || "").toLowerCase();
+  const geminiSays: SpeakerGender | null = gem.startsWith("f") || gem.includes("fem") ? "female" : gem.startsWith("m") ? "male" : null;
+  const isChild = typeof params.geminiAge === "number" && params.geminiAge > 0 && params.geminiAge <= 16;
+  if (hz > 0 && !isChild && isReliablePitch(params.voicedFrames, params.spreadSemitones)) {
+    if (hz <= GENDER_PITCH.maleMaxHz) return { gender: "male", basis: "pitch" };
+    if (hz >= GENDER_PITCH.femaleMinHz) return { gender: "female", basis: "pitch" };
+  }
+  if (geminiSays) return { gender: geminiSays, basis: "gemini" };
+  if (hz > 0) return { gender: hz > GENDER_PITCH.splitHz ? "female" : "male", basis: "pitch_split" };
+  return { gender: "male", basis: "default_male" };
+}
 
 export function normalizeElevenLabsAgeLabel(rawAge?: string): AgeBucket {
   const val = (rawAge || "").toLowerCase().trim();
@@ -54,74 +123,108 @@ export function normalizeElevenLabsAgeLabel(rawAge?: string): AgeBucket {
  * 3. Computes weighted nearest-neighbor distance (Age, Bucket, F0 Pitch, Timbre)
  *    with a strict multi-speaker uniqueness lock to prevent single-voice collapse.
  */
+/** Name prefix of voices added from the ElevenLabs library by scripts/add_library_voices.js. */
+export const TW_LIBRARY_PREFIX = "TW Library · ";
+
+/** Safety bound when paging GET /v2/voices (100 per page). */
+const MAX_VOICE_PAGES = 20;
+
+const LANGUAGE_TAG: Record<string, string> = {
+  te: "telugu", hi: "hindi", ta: "tamil", kn: "kannada", ml: "malayalam",
+  bn: "bengali", mr: "marathi", gu: "gujarati", pa: "punjabi", ur: "urdu",
+};
+
+export function isTwLibraryVoice(name?: string): boolean {
+  return typeof name === "string" && name.startsWith(TW_LIBRARY_PREFIX);
+}
+
+/** "TW Library · te · Lakshmi" → "te". */
+export function twLibraryLanguage(name?: string): string | undefined {
+  if (!isTwLibraryVoice(name)) return undefined;
+  const lang = name!.slice(TW_LIBRARY_PREFIX.length).split(" · ")[0]?.trim().toLowerCase();
+  return lang || undefined;
+}
+
+// Calibrated pitch & Indic compatibility overrides for known studio presets
+export const VERIFIED_PRESET_CALIBRATIONS: Record<
+  string,
+  Partial<ElevenLabsVoiceCandidate>
+> = {
+  // ─── 1. BUILT-IN MALE STUDIO VOICES (Sorted Young -> Senior) ───
+  TX3LPaxmHKxFdv7VOQHJ: { name: "Liam", gender: "male", ageBucket: "young", representativeAge: 24, typicalPitchHz: 130, timbreTags: ["energetic", "conversational", "articulate", "creator", "vlog", "debate", "youthful", "vulnerable_youth", "sincere", "american"], indicVerified: true },
+  g5CIjZEefAph4nQFvHAz: { name: "Ethan", gender: "male", ageBucket: "young", representativeAge: 24, typicalPitchHz: 138, timbreTags: ["soft", "whisper", "asmr", "american"], indicVerified: true },
+  g5CIjZEefAph4nJUvZnz: { name: "Marcus", gender: "male", ageBucket: "young", representativeAge: 24, typicalPitchHz: 130, timbreTags: ["high", "youthful", "american"], indicVerified: true },
+  SOYHLrjzK2X1ezoPC6cr: { name: "Harry", gender: "male", ageBucket: "young", representativeAge: 30, typicalPitchHz: 110, timbreTags: ["fierce", "warrior", "menacing_antagonist", "aggressive", "raspy", "american"], indicVerified: true },
+  CYw3kZ02Hs0563khs1Fj: { name: "Dave", gender: "male", ageBucket: "young", representativeAge: 26, typicalPitchHz: 126, timbreTags: ["conversational", "casual", "british", "essex"], indicVerified: true },
+  yoZ06aMxZJJ28mfd3POQ: { name: "Sam", gender: "male", ageBucket: "young", representativeAge: 26, typicalPitchHz: 124, timbreTags: ["raspy", "dynamic", "narration", "american"], indicVerified: true },
+  GBv7mTt0atIp3Br8iCZE: { name: "Thomas", gender: "male", ageBucket: "young", representativeAge: 28, typicalPitchHz: 118, timbreTags: ["calm", "steady", "meditation", "explainer", "american"], indicVerified: true },
+  TxGEqnHWrfWFTfGW9XjX: { name: "Josh", gender: "male", ageBucket: "young", representativeAge: 29, typicalPitchHz: 108, timbreTags: ["deep", "resonant", "narration", "american"], indicVerified: true },
+  zcAOhNBS3c14rBihAFp1: { name: "Giovanni", gender: "male", ageBucket: "young", representativeAge: 30, typicalPitchHz: 120, timbreTags: ["warm", "accented", "audiobook", "english", "italian"], indicVerified: true },
+  ErXwobaYiN019PkySvjV: { name: "Antoni", gender: "male", ageBucket: "young", representativeAge: 32, typicalPitchHz: 122, timbreTags: ["calm", "well-rounded", "calm_narrator", "conversational", "american"], indicVerified: true },
+  bVMeCyTHy58xNoL34h3p: { name: "Jeremy", gender: "male", ageBucket: "young", representativeAge: 32, typicalPitchHz: 128, timbreTags: ["excited", "upbeat", "storytelling", "american", "irish"], indicVerified: true },
+  iP95p4xoKVk53GoZ742B: { name: "Chris", gender: "male", ageBucket: "middle_aged", representativeAge: 38, typicalPitchHz: 116, timbreTags: ["casual", "friendly", "conversational", "american"], indicVerified: true },
+  IKne3meq5aSn9XLyUdCD: { name: "Charlie", gender: "male", ageBucket: "middle_aged", representativeAge: 40, typicalPitchHz: 114, timbreTags: ["natural", "relaxed", "conversational", "australian"], indicVerified: true },
+  CwhRBWXzGAHq8TQ4Fs17: { name: "Roger", gender: "male", ageBucket: "middle_aged", representativeAge: 40, typicalPitchHz: 110, timbreTags: ["laid-back", "casual", "resonant", "classy", "american"], indicVerified: true },
+  "29vD33N1CtxCmqQRPOHJ": { name: "Drew", gender: "male", ageBucket: "middle_aged", representativeAge: 42, typicalPitchHz: 110, timbreTags: ["well-rounded", "news", "editorial", "american"], indicVerified: true },
+  N2lVS1w4EtoT3dr4eOWO: { name: "Callum", gender: "male", ageBucket: "middle_aged", representativeAge: 42, typicalPitchHz: 106, timbreTags: ["intense", "hoarse", "dramatic", "transatlantic"], indicVerified: true },
+  ODq5zmih8GrVes37Dizd: { name: "Patrick", gender: "male", ageBucket: "middle_aged", representativeAge: 43, typicalPitchHz: 125, timbreTags: ["high-energy", "shouty", "gaming", "american"], indicVerified: true },
+  Zlb1dXrM653N07WRdFW3: { name: "Joseph", gender: "male", ageBucket: "middle_aged", representativeAge: 44, typicalPitchHz: 105, timbreTags: ["grounded", "articulate", "broadcast", "news", "british"], indicVerified: true },
+  JBFqnCBsd6RMkjVDRZzb: { name: "George", gender: "male", ageBucket: "middle_aged", representativeAge: 45, typicalPitchHz: 104, timbreTags: ["warm", "raspy", "narration", "british"], indicVerified: true },
+  Yko7PKHZNXotIFUBG7I9: { name: "Matthew", gender: "male", ageBucket: "middle_aged", representativeAge: 45, typicalPitchHz: 102, timbreTags: ["calm", "measured", "audiobook", "british"], indicVerified: true },
+  pNInz6obpgDQGcFmaJgB: { name: "Adam", gender: "male", ageBucket: "middle_aged", representativeAge: 45, typicalPitchHz: 100, timbreTags: ["deep", "authoritative", "debate", "menacing_antagonist", "authoritative_leader", "gravelly", "american"], indicVerified: true },
+  onwK4e9ZLuTAKqWW03F9: { name: "Daniel", gender: "male", ageBucket: "middle_aged", representativeAge: 46, typicalPitchHz: 96, timbreTags: ["deep", "authoritative", "news", "presenter", "british"], indicVerified: true },
+  nPczCjzI2devNBz1zQrb: { name: "Brian", gender: "male", ageBucket: "middle_aged", representativeAge: 48, typicalPitchHz: 95, timbreTags: ["deep", "soothing", "long-form", "narration", "american"], indicVerified: true },
+  "5Q0t7uMcjvnagumLfvZi": { name: "Paul", gender: "male", ageBucket: "middle_aged", representativeAge: 50, typicalPitchHz: 98, timbreTags: ["authoritative", "ground-reporter", "news", "american"], indicVerified: true },
+  "2EiwWnXFnvU5JabPnv8n": { name: "Clyde", gender: "male", ageBucket: "middle_aged", representativeAge: 52, typicalPitchHz: 90, timbreTags: ["deep", "gravelly", "character", "american"], indicVerified: true },
+  VR6AewLTigWG4xSOukaG: { name: "Arnold", gender: "male", ageBucket: "old", representativeAge: 58, typicalPitchHz: 92, timbreTags: ["crisp", "gravelly", "authoritative", "american"], indicVerified: true },
+  pqHfZKP75CvOlQylNhV4: { name: "Bill", gender: "male", ageBucket: "old", representativeAge: 62, typicalPitchHz: 94, timbreTags: ["trustworthy", "warm", "documentary", "american"], indicVerified: true },
+  D38z5RcWu1voky8WS1ja: { name: "Fin", gender: "male", ageBucket: "old", representativeAge: 65, typicalPitchHz: 96, timbreTags: ["energetic", "sailor", "character", "irish"], indicVerified: true },
+  ZQe5CZNOzWyzPSCn5a3c: { name: "James", gender: "male", ageBucket: "old", representativeAge: 66, typicalPitchHz: 90, timbreTags: ["calm", "steady", "news", "documentary", "australian"], indicVerified: true },
+  flq6f7yk4E4fJM5XTYuZ: { name: "Michael", gender: "male", ageBucket: "old", representativeAge: 68, typicalPitchHz: 88, timbreTags: ["oratory", "resonant", "audiobook", "american"], indicVerified: true },
+  t0jbNlBVZ17f02VDIeMI: { name: "Jessie", gender: "male", ageBucket: "old", representativeAge: 70, typicalPitchHz: 92, timbreTags: ["raspy", "elderly", "character", "american"], indicVerified: true },
+
+  // ─── 2. BUILT-IN FEMALE STUDIO VOICES (Sorted Young -> Senior) ───
+  jBpfuIE2acCO8z3wKNLl: { name: "Gigi", gender: "female", ageBucket: "young", representativeAge: 18, typicalPitchHz: 242, timbreTags: ["childish", "animated", "character", "american"], indicVerified: true },
+  zrHiDhphv9ZnVXBqCLjz: { name: "Mimi", gender: "female", ageBucket: "young", representativeAge: 19, typicalPitchHz: 235, timbreTags: ["youthful", "bright", "animation", "swedish", "english"], indicVerified: true },
+  MF3mGyEYCl7XYWbV9V6O: { name: "Elli", gender: "female", ageBucket: "young", representativeAge: 21, typicalPitchHz: 228, timbreTags: ["youthful", "emotional", "creator", "social", "american"], indicVerified: true },
+  EXAVITQu4vr4xnSDxMaL: { name: "Bella / Sarah", gender: "female", ageBucket: "young", representativeAge: 25, typicalPitchHz: 215, timbreTags: ["soft", "natural", "conversational", "news", "american"], indicVerified: true },
+  hpp4J3VqNfWAUOO0d1Us: { name: "Bella", gender: "female", ageBucket: "young", representativeAge: 25, typicalPitchHz: 215, timbreTags: ["soft", "natural", "conversational", "news", "american"], indicVerified: true },
+  piTKgcLEGmPE4e6mEKli: { name: "Nicole", gender: "female", ageBucket: "young", representativeAge: 25, typicalPitchHz: 212, timbreTags: ["soft", "whisper", "asmr", "audiobook", "american"], indicVerified: true },
+  oWAxZDx7w5VEj9dCyTeq: { name: "Nicole", gender: "female", ageBucket: "young", representativeAge: 25, typicalPitchHz: 212, timbreTags: ["soft", "whisper", "asmr", "audiobook", "american"], indicVerified: true },
+  jsCqWAovK2LkecY7zXl4: { name: "Freya", gender: "female", ageBucket: "young", representativeAge: 26, typicalPitchHz: 222, timbreTags: ["expressive", "dynamic", "creator", "american"], indicVerified: true },
+  "21m00Tcm4TlvDq8ikWAM": { name: "Rachel", gender: "female", ageBucket: "young", representativeAge: 28, typicalPitchHz: 210, timbreTags: ["calm", "clear", "narration", "american"], indicVerified: true },
+  AZnzlk1XvdvUeBnXmlld: { name: "Domi", gender: "female", ageBucket: "young", representativeAge: 28, typicalPitchHz: 204, timbreTags: ["strong", "confident", "narration", "american"], indicVerified: true },
+  LcfcDJNUP1GQjkzn1xUU: { name: "Emily", gender: "female", ageBucket: "young", representativeAge: 29, typicalPitchHz: 206, timbreTags: ["calm", "gentle", "explainer", "american"], indicVerified: true },
+  XB0fDUnXU5powFXDhCwa: { name: "Charlotte", gender: "female", ageBucket: "middle_aged", representativeAge: 36, typicalPitchHz: 195, timbreTags: ["smooth", "expressive", "gaming", "drama", "swedish", "english"], indicVerified: true },
+  pMsXgVXv3BLzUgSXRplE: { name: "Serena", gender: "female", ageBucket: "middle_aged", representativeAge: 38, typicalPitchHz: 198, timbreTags: ["pleasant", "warm", "interactive", "assistant", "american"], indicVerified: true },
+  Xb7hH8MSUJpSbSDYk0k2: { name: "Alice", gender: "female", ageBucket: "middle_aged", representativeAge: 40, typicalPitchHz: 190, timbreTags: ["confident", "clear", "broadcast", "news", "british"], indicVerified: true },
+  XrExE9yKIg1WjnnlVkGX: { name: "Matilda", gender: "female", ageBucket: "middle_aged", representativeAge: 42, typicalPitchHz: 188, timbreTags: ["warm", "engaging", "narration", "american"], indicVerified: true },
+  ThT5KcBeYPX3keUQqHPh: { name: "Dorothy", gender: "female", ageBucket: "middle_aged", representativeAge: 44, typicalPitchHz: 192, timbreTags: ["pleasant", "calm", "storytelling", "british"], indicVerified: true },
+  pFZP5JQG7iQjIQuC4Bku: { name: "Lily", gender: "female", ageBucket: "middle_aged", representativeAge: 45, typicalPitchHz: 184, timbreTags: ["warm", "raspy", "narration", "british"], indicVerified: true },
+  z9fAnlkpzviPz146aGWa: { name: "Glinda", gender: "female", ageBucket: "middle_aged", representativeAge: 48, typicalPitchHz: 202, timbreTags: ["theatrical", "character", "witch", "american"], indicVerified: true },
+  oWAxZDx7w5VEj9dCyTzz: { name: "Grace", gender: "female", ageBucket: "old", representativeAge: 60, typicalPitchHz: 175, timbreTags: ["gentle", "authoritative", "mature", "southern", "american"], indicVerified: true },
+  // ─── 3. CURATED NATIVE INDIAN & INDIC VOICES (accent=indian, language=te/hi) ───
+  ge94MQm6fYaUCnxz1us6: { name: "Srinu", gender: "male", ageBucket: "young", representativeAge: 25, typicalPitchHz: 125, timbreTags: ["conversational", "creator", "casual", "energetic", "indian", "telugu"], indicVerified: true },
+  byBvnAtc0165IHbm4c7a: { name: "Maddy", gender: "male", ageBucket: "middle_aged", representativeAge: 38, typicalPitchHz: 118, timbreTags: ["professional", "authoritative", "news", "conversational", "indian", "telugu"], indicVerified: true },
+  zKyFQsLU8dHOrkAPfMav: { name: "Sai Datta", gender: "male", ageBucket: "middle_aged", representativeAge: 35, typicalPitchHz: 120, timbreTags: ["upbeat", "creator", "social_media", "indian", "telugu"], indicVerified: true },
+  Qt92oGfBBRFF5nma9WRM: { name: "Avani", gender: "female", ageBucket: "young", representativeAge: 24, typicalPitchHz: 218, timbreTags: ["warm", "pleasant", "conversational", "narrative", "indian"], indicVerified: true },
+  WAj8Ugk1Pv3yTcXaHHsn: { name: "Seeta", gender: "female", ageBucket: "middle_aged", representativeAge: 36, typicalPitchHz: 235, timbreTags: ["bold", "confident", "professional", "social_media", "indian", "telugu"], indicVerified: true },
+  // ─── 4. DEDICATED NATIVE INDIC CHILD & ANIMATION VOICES ───
+  VOGEEZj2Kly5dP9LrQy8: { name: "Munni", gender: "female", ageBucket: "child", representativeAge: 9, typicalPitchHz: 265, timbreTags: ["child", "kid", "girl", "animated", "cute", "indian"], indicVerified: true },
+  "4iqKdEXMW8NRF8USiS3Q": { name: "Bittu", gender: "male", ageBucket: "child", representativeAge: 10, typicalPitchHz: 245, timbreTags: ["child", "kid", "boy", "cartoon", "animated", "indian"], indicVerified: true },
+  "5krdMTA5HonvWAlY2vSx": { name: "Bholu", gender: "male", ageBucket: "child", representativeAge: 8, typicalPitchHz: 270, timbreTags: ["child", "kid", "boy", "innocent", "cute", "indian"], indicVerified: true },
+  CNKl99QEbWm8RQ4D8GfC: { name: "Chutki", gender: "female", ageBucket: "child", representativeAge: 8, typicalPitchHz: 280, timbreTags: ["child", "kid", "girl", "cute", "storyteller", "indian"], indicVerified: true },
+  psk8YLODv4ETdKheNwwz: { name: "Gappu", gender: "male", ageBucket: "child", representativeAge: 9, typicalPitchHz: 250, timbreTags: ["child", "kid", "boy", "cartoon", "indian"], indicVerified: true },
+  uyv82ARGSiPieXDxTMOc: { name: "Kavya", gender: "female", ageBucket: "child", representativeAge: 11, typicalPitchHz: 255, timbreTags: ["child", "kid", "girl", "expressive", "indian"], indicVerified: true },
+};
+
 export class ElevenLabsVoiceMatcher {
   private cachedCatalog: ElevenLabsVoiceCandidate[] = [];
   private lastFetchMs = 0;
   private readonly CACHE_TTL_MS = 60 * 60 * 1000;
 
   // Calibrated pitch & Indic compatibility overrides for known studio presets
-  public readonly VERIFIED_PRESET_CALIBRATIONS: Record<
-    string,
-    Partial<ElevenLabsVoiceCandidate>
-  > = {
-    // ─── 1. BUILT-IN MALE STUDIO VOICES (Sorted Young -> Senior) ───
-    TX3LPaxmHKxFdv7VOQHJ: { name: "Liam", gender: "male", ageBucket: "young", representativeAge: 24, typicalPitchHz: 132, timbreTags: ["energetic", "articulate", "creator", "vlog", "american"], indicVerified: true },
-    g5CIjZEefAph4nQFvHAz: { name: "Ethan", gender: "male", ageBucket: "young", representativeAge: 24, typicalPitchHz: 138, timbreTags: ["soft", "whisper", "asmr", "american"], indicVerified: true },
-    g5CIjZEefAph4nJUvZnz: { name: "Marcus", gender: "male", ageBucket: "young", representativeAge: 24, typicalPitchHz: 130, timbreTags: ["high", "youthful", "american"], indicVerified: true },
-    SOYHLrjzK2X1ezoPC6cr: { name: "Harry", gender: "male", ageBucket: "young", representativeAge: 25, typicalPitchHz: 135, timbreTags: ["anxious", "expressive", "character", "gaming", "american"], indicVerified: true },
-    CYw3kZ02Hs0563khs1Fj: { name: "Dave", gender: "male", ageBucket: "young", representativeAge: 26, typicalPitchHz: 126, timbreTags: ["conversational", "casual", "british", "essex"], indicVerified: true },
-    yoZ06aMxZJJ28mfd3POQ: { name: "Sam", gender: "male", ageBucket: "young", representativeAge: 26, typicalPitchHz: 124, timbreTags: ["raspy", "dynamic", "narration", "american"], indicVerified: true },
-    GBv7mTt0atIp3Br8iCZE: { name: "Thomas", gender: "male", ageBucket: "young", representativeAge: 28, typicalPitchHz: 118, timbreTags: ["calm", "steady", "meditation", "explainer", "american"], indicVerified: true },
-    TxGEqnHWrfWFTfGW9XjX: { name: "Josh", gender: "male", ageBucket: "young", representativeAge: 29, typicalPitchHz: 108, timbreTags: ["deep", "resonant", "narration", "american"], indicVerified: true },
-    zcAOhNBS3c14rBihAFp1: { name: "Giovanni", gender: "male", ageBucket: "young", representativeAge: 30, typicalPitchHz: 120, timbreTags: ["warm", "accented", "audiobook", "english", "italian"], indicVerified: true },
-    ErXwobaYiN019PkySvjV: { name: "Antoni", gender: "male", ageBucket: "young", representativeAge: 32, typicalPitchHz: 122, timbreTags: ["calm", "well-rounded", "conversational", "american"], indicVerified: true },
-    bVMeCyTHy58xNoL34h3p: { name: "Jeremy", gender: "male", ageBucket: "young", representativeAge: 32, typicalPitchHz: 128, timbreTags: ["excited", "upbeat", "storytelling", "american", "irish"], indicVerified: true },
-    iP95p4xoKVk53GoZ742B: { name: "Chris", gender: "male", ageBucket: "middle_aged", representativeAge: 38, typicalPitchHz: 116, timbreTags: ["casual", "friendly", "conversational", "american"], indicVerified: true },
-    IKne3meq5aSn9XLyUdCD: { name: "Charlie", gender: "male", ageBucket: "middle_aged", representativeAge: 40, typicalPitchHz: 114, timbreTags: ["natural", "relaxed", "conversational", "australian"], indicVerified: true },
-    "29vD33N1CtxCmqQRPOHJ": { name: "Drew", gender: "male", ageBucket: "middle_aged", representativeAge: 42, typicalPitchHz: 110, timbreTags: ["well-rounded", "news", "editorial", "american"], indicVerified: true },
-    N2lVS1w4EtoT3dr4eOWO: { name: "Callum", gender: "male", ageBucket: "middle_aged", representativeAge: 42, typicalPitchHz: 106, timbreTags: ["intense", "hoarse", "dramatic", "transatlantic"], indicVerified: true },
-    ODq5zmih8GrVes37Dizd: { name: "Patrick", gender: "male", ageBucket: "middle_aged", representativeAge: 43, typicalPitchHz: 125, timbreTags: ["high-energy", "shouty", "gaming", "american"], indicVerified: true },
-    Zlb1dXrM653N07WRdFW3: { name: "Joseph", gender: "male", ageBucket: "middle_aged", representativeAge: 44, typicalPitchHz: 105, timbreTags: ["grounded", "articulate", "broadcast", "news", "british"], indicVerified: true },
-    JBFqnCBsd6RMkjVDRZzb: { name: "George", gender: "male", ageBucket: "middle_aged", representativeAge: 45, typicalPitchHz: 104, timbreTags: ["warm", "raspy", "narration", "british"], indicVerified: true },
-    Yko7PKHZNXotIFUBG7I9: { name: "Matthew", gender: "male", ageBucket: "middle_aged", representativeAge: 45, typicalPitchHz: 102, timbreTags: ["calm", "measured", "audiobook", "british"], indicVerified: true },
-    pNInz6obpgDQGcFmaJgB: { name: "Adam", gender: "male", ageBucket: "middle_aged", representativeAge: 46, typicalPitchHz: 98, timbreTags: ["deep", "authoritative", "debate", "documentary", "american"], indicVerified: true },
-    onwK4e9ZLuTAKqWW03F9: { name: "Daniel", gender: "male", ageBucket: "middle_aged", representativeAge: 46, typicalPitchHz: 96, timbreTags: ["deep", "authoritative", "news", "presenter", "british"], indicVerified: true },
-    nPczCjzI2devNBz1zQrb: { name: "Brian", gender: "male", ageBucket: "middle_aged", representativeAge: 48, typicalPitchHz: 95, timbreTags: ["deep", "soothing", "long-form", "narration", "american"], indicVerified: true },
-    "5Q0t7uMcjvnagumLfvZi": { name: "Paul", gender: "male", ageBucket: "middle_aged", representativeAge: 50, typicalPitchHz: 98, timbreTags: ["authoritative", "ground-reporter", "news", "american"], indicVerified: true },
-    "2EiwWnXFnvU5JabPnv8n": { name: "Clyde", gender: "male", ageBucket: "middle_aged", representativeAge: 52, typicalPitchHz: 90, timbreTags: ["deep", "gravelly", "character", "american"], indicVerified: true },
-    VR6AewLTigWG4xSOukaG: { name: "Arnold", gender: "male", ageBucket: "old", representativeAge: 58, typicalPitchHz: 92, timbreTags: ["crisp", "gravelly", "authoritative", "american"], indicVerified: true },
-    pqHfZKP75CvOlQylNhV4: { name: "Bill", gender: "male", ageBucket: "old", representativeAge: 62, typicalPitchHz: 94, timbreTags: ["trustworthy", "warm", "documentary", "american"], indicVerified: true },
-    D38z5RcWu1voky8WS1ja: { name: "Fin", gender: "male", ageBucket: "old", representativeAge: 65, typicalPitchHz: 96, timbreTags: ["energetic", "sailor", "character", "irish"], indicVerified: true },
-    ZQe5CZNOzWyzPSCn5a3c: { name: "James", gender: "male", ageBucket: "old", representativeAge: 66, typicalPitchHz: 90, timbreTags: ["calm", "steady", "news", "documentary", "australian"], indicVerified: true },
-    flq6f7yk4E4fJM5XTYuZ: { name: "Michael", gender: "male", ageBucket: "old", representativeAge: 68, typicalPitchHz: 88, timbreTags: ["oratory", "resonant", "audiobook", "american"], indicVerified: true },
-    t0jbNlBVZ17f02VDIeMI: { name: "Jessie", gender: "male", ageBucket: "old", representativeAge: 70, typicalPitchHz: 92, timbreTags: ["raspy", "elderly", "character", "american"], indicVerified: true },
-
-    // ─── 2. BUILT-IN FEMALE STUDIO VOICES (Sorted Young -> Senior) ───
-    jBpfuIE2acCO8z3wKNLl: { name: "Gigi", gender: "female", ageBucket: "young", representativeAge: 18, typicalPitchHz: 242, timbreTags: ["childish", "animated", "character", "american"], indicVerified: true },
-    zrHiDhphv9ZnVXBqCLjz: { name: "Mimi", gender: "female", ageBucket: "young", representativeAge: 19, typicalPitchHz: 235, timbreTags: ["youthful", "bright", "animation", "swedish", "english"], indicVerified: true },
-    MF3mGyEYCl7XYWbV9V6O: { name: "Elli", gender: "female", ageBucket: "young", representativeAge: 21, typicalPitchHz: 228, timbreTags: ["youthful", "emotional", "creator", "social", "american"], indicVerified: true },
-    EXAVITQu4vr4xnSDxMaL: { name: "Bella / Sarah", gender: "female", ageBucket: "young", representativeAge: 25, typicalPitchHz: 215, timbreTags: ["soft", "natural", "conversational", "news", "american"], indicVerified: true },
-    hpp4J3VqNfWAUOO0d1Us: { name: "Bella", gender: "female", ageBucket: "young", representativeAge: 25, typicalPitchHz: 215, timbreTags: ["soft", "natural", "conversational", "news", "american"], indicVerified: true },
-    piTKgcLEGmPE4e6mEKli: { name: "Nicole", gender: "female", ageBucket: "young", representativeAge: 25, typicalPitchHz: 212, timbreTags: ["soft", "whisper", "asmr", "audiobook", "american"], indicVerified: true },
-    oWAxZDx7w5VEj9dCyTeq: { name: "Nicole", gender: "female", ageBucket: "young", representativeAge: 25, typicalPitchHz: 212, timbreTags: ["soft", "whisper", "asmr", "audiobook", "american"], indicVerified: true },
-    jsCqWAovK2LkecY7zXl4: { name: "Freya", gender: "female", ageBucket: "young", representativeAge: 26, typicalPitchHz: 222, timbreTags: ["expressive", "dynamic", "creator", "american"], indicVerified: true },
-    "21m00Tcm4TlvDq8ikWAM": { name: "Rachel", gender: "female", ageBucket: "young", representativeAge: 28, typicalPitchHz: 210, timbreTags: ["calm", "clear", "narration", "american"], indicVerified: true },
-    AZnzlk1XvdvUeBnXmlld: { name: "Domi", gender: "female", ageBucket: "young", representativeAge: 28, typicalPitchHz: 204, timbreTags: ["strong", "confident", "narration", "american"], indicVerified: true },
-    LcfcDJNUP1GQjkzn1xUU: { name: "Emily", gender: "female", ageBucket: "young", representativeAge: 29, typicalPitchHz: 206, timbreTags: ["calm", "gentle", "explainer", "american"], indicVerified: true },
-    XB0fDUnXU5powFXDhCwa: { name: "Charlotte", gender: "female", ageBucket: "middle_aged", representativeAge: 36, typicalPitchHz: 195, timbreTags: ["smooth", "expressive", "gaming", "drama", "swedish", "english"], indicVerified: true },
-    pMsXgVXv3BLzUgSXRplE: { name: "Serena", gender: "female", ageBucket: "middle_aged", representativeAge: 38, typicalPitchHz: 198, timbreTags: ["pleasant", "warm", "interactive", "assistant", "american"], indicVerified: true },
-    Xb7hH8MSUJpSbSDYk0k2: { name: "Alice", gender: "female", ageBucket: "middle_aged", representativeAge: 40, typicalPitchHz: 190, timbreTags: ["confident", "clear", "broadcast", "news", "british"], indicVerified: true },
-    XrExE9yKIg1WjnnlVkGX: { name: "Matilda", gender: "female", ageBucket: "middle_aged", representativeAge: 42, typicalPitchHz: 188, timbreTags: ["warm", "engaging", "narration", "american"], indicVerified: true },
-    ThT5KcBeYPX3keUQqHPh: { name: "Dorothy", gender: "female", ageBucket: "middle_aged", representativeAge: 44, typicalPitchHz: 192, timbreTags: ["pleasant", "calm", "storytelling", "british"], indicVerified: true },
-    pFZP5JQG7iQjIQuC4Bku: { name: "Lily", gender: "female", ageBucket: "middle_aged", representativeAge: 45, typicalPitchHz: 184, timbreTags: ["warm", "raspy", "narration", "british"], indicVerified: true },
-    z9fAnlkpzviPz146aGWa: { name: "Glinda", gender: "female", ageBucket: "middle_aged", representativeAge: 48, typicalPitchHz: 202, timbreTags: ["theatrical", "character", "witch", "american"], indicVerified: true },
-    oWAxZDx7w5VEj9dCyTzz: { name: "Grace", gender: "female", ageBucket: "old", representativeAge: 60, typicalPitchHz: 175, timbreTags: ["gentle", "authoritative", "mature", "southern", "american"], indicVerified: true },
-    // ─── 3. CURATED NATIVE INDIAN ACCENT VOICES (accent=indian) ───
-    s3PprVl6qK3x6V3a5nUq: { name: "Aarav", gender: "male", ageBucket: "young", representativeAge: 27, typicalPitchHz: 124, timbreTags: ["conversational", "creator", "indian"], indicVerified: true },
-    CwhRBWXzGAHq8TQ4Fs17: { name: "Rohan", gender: "male", ageBucket: "middle_aged", representativeAge: 40, typicalPitchHz: 110, timbreTags: ["professional", "authoritative", "news", "indian"], indicVerified: true },
-    z9fAnlkpzviPz146aGWb: { name: "Aditi", gender: "female", ageBucket: "young", representativeAge: 26, typicalPitchHz: 218, timbreTags: ["warm", "conversational", "indian"], indicVerified: true },
-    EXAVITQu4vr4xnSDxMaK: { name: "Kavita", gender: "female", ageBucket: "middle_aged", representativeAge: 38, typicalPitchHz: 196, timbreTags: ["articulate", "news", "narrative", "indian"], indicVerified: true },
-  };
+  public readonly VERIFIED_PRESET_CALIBRATIONS = VERIFIED_PRESET_CALIBRATIONS;
 
   /**
    * Builds the fallback candidate list from verified Indic preset calibrations.
@@ -161,35 +264,49 @@ export class ElevenLabsVoiceMatcher {
     }
 
     try {
-      const res = await fetch("https://api.elevenlabs.io/v1/voices", {
-        headers: { "xi-api-key": key },
-      });
-      if (!res.ok) {
-        logger.warn("[VoiceMatcher] ElevenLabs voices HTTP notice, using calibrated fallback:", { status: res.status });
-        this.cachedCatalog = this.buildCalibratedFallbackCatalog();
-        this.lastFetchMs = now;
-        return this.cachedCatalog;
+      // GET /v2/voices (v1 is deprecated) is paginated: follow has_more / next_page_token so large
+      // accounts are not silently truncated to the first page.
+      type AccountVoice = { voice_id: string; name: string; category?: string; labels?: Record<string, string>; preview_url?: string };
+      const allVoices: AccountVoice[] = [];
+      let pageToken: string | null = null;
+      for (let page = 0; page < MAX_VOICE_PAGES; page++) {
+        const qs = new URLSearchParams({ page_size: "100" });
+        if (pageToken) qs.set("next_page_token", pageToken);
+        const res = await fetch(`https://api.elevenlabs.io/v2/voices?${qs.toString()}`, {
+          headers: { "xi-api-key": key },
+        });
+        if (!res.ok) {
+          if (allVoices.length > 0) {
+            logger.warn("[VoiceMatcher] ElevenLabs voices page failed — using the pages already loaded", { status: res.status, loaded: allVoices.length });
+            break;
+          }
+          logger.warn("[VoiceMatcher] ElevenLabs voices HTTP notice, using calibrated fallback:", { status: res.status });
+          this.cachedCatalog = this.buildCalibratedFallbackCatalog();
+          this.lastFetchMs = now;
+          return this.cachedCatalog;
+        }
+        const body = (await res.json()) as { voices?: AccountVoice[]; has_more?: boolean; next_page_token?: string | null };
+        allVoices.push(...(body.voices || []));
+        if (!body.has_more || !body.next_page_token) break;
+        pageToken = body.next_page_token;
       }
 
-      const payload = (await res.json()) as {
-        voices: Array<{
-          voice_id: string;
-          name: string;
-          category?: string;
-          labels?: Record<string, string>;
-        }>;
-      };
+      const payload = { voices: allVoices };
 
       const candidates: ElevenLabsVoiceCandidate[] = payload.voices
-        .filter((voice) => !["cloned", "professional"].includes((voice.category || "").toLowerCase()))
+        // Cloned / professional voices are excluded so a creator's own voice clone is never given to
+        // another speaker — except voices added from the ElevenLabs library by
+        // scripts/add_library_voices.js, which are named "TW Library · <lang> · <name>".
+        .filter((voice) => isTwLibraryVoice(voice.name) || !["cloned", "professional"].includes((voice.category || "").toLowerCase()))
         .map((v) => {
           const override = this.VERIFIED_PRESET_CALIBRATIONS[v.voice_id];
+          const libraryLanguage = twLibraryLanguage(v.name);
           const bucket = override?.ageBucket ?? normalizeElevenLabsAgeLabel(v.labels?.age);
           const rawGender = (v.labels?.gender || "neutral").toLowerCase();
           const gender: SpeakerGender =
             rawGender === "male" || rawGender === "female" ? rawGender : "neutral";
 
-          const apiTags = [v.labels?.description, v.labels?.use_case, v.labels?.accent]
+          const apiTags = [v.labels?.description, v.labels?.use_case, v.labels?.accent, libraryLanguage ? LANGUAGE_TAG[libraryLanguage] : undefined]
             .filter(Boolean)
             .map((t) => t!.toLowerCase());
 
@@ -201,7 +318,11 @@ export class ElevenLabsVoiceMatcher {
             representativeAge: override?.representativeAge ?? AGE_BUCKET_ANCHORS[bucket],
             typicalPitchHz: override?.typicalPitchHz ?? (gender === "female" ? 205 : 118),
             timbreTags: override?.timbreTags ?? apiTags,
-            indicVerified: override?.indicVerified ?? false,
+            // Library voices added for an Indic language compete with the presets from the start.
+            indicVerified: override?.indicVerified ?? Boolean(libraryLanguage && LANGUAGE_TAG[libraryLanguage]),
+            previewUrl: v.preview_url || undefined,
+            // Uncalibrated account voices only have a gender default until their preview is measured.
+            pitchMeasured: override?.typicalPitchHz ? undefined : false,
           };
         });
 
@@ -237,8 +358,10 @@ export class ElevenLabsVoiceMatcher {
 
   /**
    * Weighs acoustic similarity more heavily than estimated age:
-   * D = 0.35 * Fundamental Pitch Distance + 0.30 * Timbre Distance
+   * D = 0.35 * Pitch Distance (semitones, one octave = 1) + 0.30 * Timbre Distance
    *   + 0.20 * Continuous Age Distance + 0.15 * Age Bucket Penalty.
+   * When either pitch is unknown (speaker not measurable, or a voice with only a gender default),
+   * the pitch term is a neutral 0.5 for every candidate, so it cannot favour one voice over another.
    */
   scoreCandidate(speaker: DiarizedSpeakerProfile, candidate: ElevenLabsVoiceCandidate): number {
     // A. Continuous Age Distance (normalized over a 60-year span, weight: 0.20)
@@ -247,8 +370,9 @@ export class ElevenLabsVoiceMatcher {
     // B. Discrete Age Bucket Penalty (0 if exact match, 0.6 if different, weight: 0.15)
     const bucketPenalty = speaker.ageBucket === candidate.ageBucket ? 0 : 0.6;
 
-    // C. Fundamental Pitch (F0) Register Distance (normalized over 120 Hz, weight: 0.35)
-    const pitchDiffNormalized = Math.min(1, Math.abs(speaker.medianPitchHz - candidate.typicalPitchHz) / 120);
+    // C. Fundamental Pitch (F0) distance on a perceptual scale (weight: 0.35)
+    const candidatePitch = candidate.pitchMeasured === false ? 0 : candidate.typicalPitchHz;
+    const pitchDiffNormalized = pitchDistanceSemitones(speaker.medianPitchHz, candidatePitch);
 
     // D. Timbre / Style Tag Distance (weight: 0.30)
     const speakerTags = (speaker.timbreTags || []).map((t) => t.toLowerCase());
@@ -266,12 +390,42 @@ export class ElevenLabsVoiceMatcher {
     const speakerWantsNiche = speakerTags.some((t) => nicheTags.some((n) => t.includes(n)));
     const nicheQuarantinePenalty = candidateHasNiche && !speakerWantsNiche ? 0.40 : 0;
 
+    // F. Structured Speaker Archetype Alignment (-0.35 bonus for matching character role)
+    let archetypeBonus = 0;
+    if (speaker.archetype) {
+      if (candidateTags.includes(speaker.archetype)) {
+        archetypeBonus = -0.35;
+      } else if (speaker.archetype === "menacing_antagonist" && (candidateTags.includes("menacing_antagonist") || candidateTags.includes("gravelly") || candidateTags.includes("fierce"))) {
+        archetypeBonus = -0.35;
+      } else if (speaker.archetype === "vulnerable_youth" && (candidateTags.includes("vulnerable_youth") || candidateTags.includes("youthful") || candidateTags.includes("sincere"))) {
+        archetypeBonus = -0.35;
+      } else if (speaker.archetype === "authoritative_leader" && (candidateTags.includes("authoritative_leader") || candidateTags.includes("authoritative"))) {
+        archetypeBonus = -0.30;
+      } else if (speaker.archetype === "calm_narrator" && (candidateTags.includes("calm_narrator") || candidateTags.includes("well-rounded"))) {
+        archetypeBonus = -0.25;
+      }
+    }
+
+    // G. Vocal Weight Alignment
+    // G. Vocal Weight Alignment, relative to the candidate's gender (a "deep" woman is not a 110 Hz voice).
+    let weightPenalty = 0;
+    const weightBands = candidate.gender === "female" ? VOCAL_WEIGHT_HZ.female : VOCAL_WEIGHT_HZ.male;
+    if (candidatePitch > 0) {
+      if (speaker.vocalWeight === "deep" && candidatePitch > weightBands.light) {
+        weightPenalty = 0.25;
+      } else if (speaker.vocalWeight === "light" && candidatePitch < weightBands.deep) {
+        weightPenalty = 0.25;
+      }
+    }
+
     return (
       0.20 * ageDiffNormalized +
       0.15 * bucketPenalty +
       0.35 * pitchDiffNormalized +
       0.30 * timbreDistance +
-      nicheQuarantinePenalty
+      nicheQuarantinePenalty +
+      archetypeBonus +
+      weightPenalty
     );
   }
 
@@ -341,25 +495,45 @@ export class ElevenLabsVoiceMatcher {
     videoFramePath?: string;
     transcriptSample?: string;
     preferredGender?: "auto" | "male" | "female";
+    archetype?: string;
+    vocalWeight?: string;
+    /** All of the speaker's turns (up to 30 s), for pitch. Falls back to audioClipPath. */
+    pitchClipPath?: string;
   }): Promise<DiarizedSpeakerProfile> {
-    const { speakerId, audioClipPath, videoFramePath, transcriptSample, preferredGender } = params;
+    const { speakerId, audioClipPath, videoFramePath, transcriptSample, preferredGender, archetype: inputArchetype, vocalWeight: inputWeight, pitchClipPath } = params;
 
-    // 1. Physical fundamental pitch extraction (F0 in Hz)
-    let medianPitchHz = 120;
-    try {
-      if (audioClipPath && fs.existsSync(audioClipPath)) {
-        medianPitchHz = await extractMedianPitchHz(audioClipPath);
+    // 1. Physical fundamental pitch extraction (F0 in Hz). 0 = not measurable (too little clean speech).
+    let medianPitchHz = 0;
+    let pitchVoicedFrames = 0;
+    let pitchSpreadSemitones: number | null = null;
+    for (const [source, clip] of [["all_turns", pitchClipPath], ["profiling_clip", audioClipPath]] as const) {
+      if (medianPitchHz > 0 || !clip || !fs.existsSync(clip)) continue;
+      try {
+        const estimate = await extractPitch(clip);
+        if (estimate) {
+          medianPitchHz = estimate.medianHz;
+          pitchVoicedFrames = estimate.voicedFrames ?? 0;
+          pitchSpreadSemitones = typeof estimate.spreadSemitones === "number" ? estimate.spreadSemitones : null;
+        }
+        logger.info("[VoiceMatcher] Speaker pitch measured", {
+          speakerId,
+          source,
+          medianPitchHz,
+          spreadSemitones: estimate?.spreadSemitones,
+          voicedFrames: estimate?.voicedFrames ?? 0,
+        });
+      } catch (pitchErr) {
+        logger.warn("[VoiceMatcher] Acoustic pitch extraction notice:", { speakerId, source, pitchErr });
       }
-    } catch (pitchErr) {
-      logger.warn("[VoiceMatcher] Acoustic pitch extraction notice:", { speakerId, pitchErr });
     }
 
     // 2. Grounded acoustic baseline defaults
-    const isHighPitch = medianPitchHz > 170;
-    const isDeepPitch = medianPitchHz < 105;
-    const defaultGender: SpeakerGender = preferredGender && preferredGender !== "auto"
-      ? (preferredGender === "female" ? "female" : "male")
-      : (isHighPitch ? "female" : "male");
+    const pitchKnown = medianPitchHz > 0;
+    const isHighPitch = pitchKnown && medianPitchHz > 170;
+    const isDeepPitch = pitchKnown && medianPitchHz < 105;
+    const pitchEvidence = { medianPitchHz, voicedFrames: pitchVoicedFrames, spreadSemitones: pitchSpreadSemitones };
+    const fallbackDecision = decideSpeakerGender({ preferredGender, ...pitchEvidence });
+    const defaultGender: SpeakerGender = fallbackDecision.gender;
     const defaultAgeBucket: AgeBucket = isDeepPitch ? "middle_aged" : "young";
     const defaultAge = isDeepPitch ? 46 : (isHighPitch ? 25 : 24);
     const defaultTimbre = isDeepPitch
@@ -370,7 +544,7 @@ export class ElevenLabsVoiceMatcher {
     try {
       const genAI = getVertexAI();
       const model = genAI.getGenerativeModel({
-        model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
+        model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.5-flash-lite",
         generationConfig: {
           responseMimeType: "application/json",
         },
@@ -397,17 +571,21 @@ export class ElevenLabsVoiceMatcher {
         });
       }
 
-      const prompt = `Analyze the primary speaker in this audio clip and video frame.
+      const prompt = `Analyze ONE speaker. The audio clip joins up to three separate turns spoken by this same person.
 Transcript sample: "${transcriptSample || ""}"
-Measured fundamental pitch F0: ${medianPitchHz} Hz.
+${pitchKnown && isReliablePitch(pitchVoicedFrames, pitchSpreadSemitones) ? `Measured fundamental pitch F0: ${medianPitchHz} Hz.` : "Fundamental pitch could not be measured reliably (soft, breathy or whispered speech reads too low); judge from the audio."}
 
 CRITICAL INSTRUCTIONS:
-- Evaluate the speaker's physical appearance in the video frame (apparent age, facial cues, presentation) and vocal characteristics in the audio (acoustic resonance, F0, speaking energy).
+- Judge gender, age, timbre, archetype and vocal weight from the VOICE in the audio (acoustic resonance, F0, speaking energy, delivery). The voice is the ground truth.
+- The video frame may show a listener or a cutaway rather than this speaker (dialogue scenes cut between faces). Use the frame only to break a tie when the audio is genuinely ambiguous, and never let it override what the voice clearly shows.
+- Judge the archetype from how this person speaks across all turns (gentle, threatening, commanding, pleading), not from the setting or from other people in the scene.
 - Adult male voices typically have lower fundamental frequency (F0 < 165Hz) and chest resonance; female voices typically have higher pitch (F0 > 175Hz).
 - Provide an estimated continuous age in years (e.g. 24, 46).
 - Assign an ageBucket: "child" (<=16), "young" (17-35), "middle_aged" (36-55), or "old" (56+).
 - Assign gender: "male" or "female".
 - Provide 2 to 4 tags describing audible timbre, speaking style, and accent/region when reliably identifiable (e.g., ["energetic", "conversational", "Indian accent"] or ["authoritative", "deep", "British accent"]). Avoid inferring vocal traits from appearance.
+- Assign character archetype: "menacing_antagonist" (brutal guard, villain, threatening aggressor), "vulnerable_youth" (pleading victim, humble sincere speaker), "authoritative_leader" (commander, king), "calm_narrator" (documentary host), or "neutral_speaker".
+- Assign vocal weight: "deep" (heavy baritone), "medium", or "light".
 
 Return a valid JSON object matching this schema:
 {
@@ -415,6 +593,8 @@ Return a valid JSON object matching this schema:
   "ageBucket": "child" | "young" | "middle_aged" | "old",
   "gender": "male" | "female",
   "timbreTags": string[],
+  "archetype": "menacing_antagonist" | "vulnerable_youth" | "authoritative_leader" | "calm_narrator" | "neutral_speaker",
+  "vocalWeight": "deep" | "medium" | "light",
   "confidence": number
 }
 Return ONLY valid JSON.`;
@@ -430,14 +610,23 @@ Return ONLY valid JSON.`;
         const bucket: AgeBucket = ["child", "young", "middle_aged", "old"].includes(parsed.ageBucket)
           ? parsed.ageBucket
           : (estimatedAge < 18 ? "child" : (estimatedAge <= 35 ? "young" : (estimatedAge <= 55 ? "middle_aged" : "old")));
-        const genStr = String(parsed.gender || "").toLowerCase();
-        const resolvedGender: SpeakerGender = preferredGender && preferredGender !== "auto"
-          ? (preferredGender === "female" ? "female" : "male")
-          : (genStr.includes("fem") ? "female" : "male");
+        const decision = decideSpeakerGender({ preferredGender, ...pitchEvidence, geminiGender: parsed.gender, geminiAge: estimatedAge });
+        const resolvedGender: SpeakerGender = decision.gender;
+        logger.info("[VoiceMatcher] Speaker gender decided", {
+          speakerId,
+          gender: resolvedGender,
+          basis: decision.basis,
+          medianPitchHz,
+          pitchReliable: isReliablePitch(pitchVoicedFrames, pitchSpreadSemitones),
+          geminiGender: parsed.gender ?? null,
+          geminiAge: estimatedAge,
+        });
         const tags = Array.isArray(parsed.timbreTags) && parsed.timbreTags.length > 0
           ? parsed.timbreTags.map((t: any) => String(t).toLowerCase())
           : defaultTimbre;
         const confidence = typeof parsed.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.85;
+        const resolvedArchetype = parsed.archetype || inputArchetype;
+        const resolvedWeight = parsed.vocalWeight || inputWeight;
 
         return {
           speakerId,
@@ -447,11 +636,14 @@ Return ONLY valid JSON.`;
           medianPitchHz,
           timbreTags: tags,
           confidence,
+          archetype: resolvedArchetype,
+          vocalWeight: resolvedWeight,
         };
       }
     } catch (llmErr) {
       logger.warn("[VoiceMatcher] Multimodal LLM speaker profiling notice, using acoustic heuristic fallback:", { speakerId, llmErr });
     }
+    logger.info("[VoiceMatcher] Speaker gender decided", { speakerId, gender: defaultGender, basis: fallbackDecision.basis, medianPitchHz });
 
     return {
       speakerId,
@@ -461,6 +653,8 @@ Return ONLY valid JSON.`;
       medianPitchHz,
       timbreTags: defaultTimbre,
       confidence: 0.75,
+      archetype: inputArchetype,
+      vocalWeight: inputWeight,
     };
   }
 }

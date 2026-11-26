@@ -12,6 +12,18 @@ class VideoAnalysisController extends BaseController {
   final RxBool isSearchOpen = false.obs;
   final RxString sortOrder = 'Video Order'.obs;
 
+  // AI Fact-Checking Disclaimer state
+  final RxBool isDisclaimerExpanded = false.obs;
+  final RxBool isDisclaimerDismissed = false.obs;
+
+  void toggleDisclaimerExpanded() {
+    isDisclaimerExpanded.value = !isDisclaimerExpanded.value;
+  }
+
+  void dismissDisclaimer() {
+    isDisclaimerDismissed.value = true;
+  }
+
   void toggleClaimExpanded(int index) {
     if (expandedClaimIndices.contains(index)) {
       expandedClaimIndices.remove(index);

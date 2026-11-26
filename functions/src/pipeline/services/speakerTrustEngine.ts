@@ -19,16 +19,18 @@ import { logger } from "../utils/logger";
 
 /** Status categories for speaker scoring */
 const POSITIVE_STATUSES: ClaimStatus[] = [
-  'verified_true', 'mostly_true',
+  'verified_true', 'mostly_true', 'correct', 'mostly_correct',
 ];
 const NEGATIVE_STATUSES: ClaimStatus[] = [
-  'false_claim', 'misleading',
+  'false_claim', 'incorrect', 'verified_false', 'historical_consensus_denial', 'incorrect_citation',
 ];
 const NEUTRAL_STATUSES: ClaimStatus[] = [
-  'inconclusive', 'limited_support', 'unverified', 'disputed',
+  'inconclusive', 'limited_support', 'unverified', 'disputed', 'misleading', 'needs_context',
+  'partially_true', 'rhetorical_exaggeration', 'unproven', 'unsupported', 'verification_timeout',
 ];
-const OPINION_STATUSES: ClaimStatus[] = [
-  'opinion_claim', 'religious_belief', 'satire_claim',
+const OPINION_STATUSES: (ClaimStatus | string)[] = [
+  'opinion_claim', 'religious_belief', 'satire_claim', 'opinion', 'faith_based_claim', 'faith_context',
+  'value_judgment', 'preference_statement', 'tradition_linked', 'historical_tradition', 'anecdotal_experience',
 ];
 
 export class SpeakerTrustEngine {
@@ -63,7 +65,8 @@ export class SpeakerTrustEngine {
 
       let trustIndex = 50; // Default neutral score
 
-      if (factualClaims.length > 0) {
+      const hasDecisiveVerdicts = factualClaims.some(c => POSITIVE_STATUSES.includes(c.status) || NEGATIVE_STATUSES.includes(c.status));
+      if (factualClaims.length > 0 && hasDecisiveVerdicts) {
         // Weight: correct claims add, incorrect subtract, neutral are partial
         let weightedSum = 0;
         let totalWeight = 0;
@@ -83,8 +86,8 @@ export class SpeakerTrustEngine {
 
         // Trust index: 0-100 scale
         trustIndex = Math.round((weightedSum / (totalWeight || 1)) * 100);
-      } else if (opinionClaims.length > 0) {
-        // Speaker only made opinion claims — neutral score
+      } else if (opinionClaims.length > 0 || factualClaims.length > 0) {
+        // Speaker only made opinion or unproven/neutral claims — neutral score
         trustIndex = 50;
       }
 

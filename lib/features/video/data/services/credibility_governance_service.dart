@@ -45,6 +45,7 @@ class CredibilityGovernanceService {
     List<String> additionalSources = const [],
     String? claimId,
     int? claimIndex,
+    String? claimText,
   }) async {
     try {
       final callable = _functions.httpsCallable('submitFactualDispute');
@@ -54,6 +55,7 @@ class CredibilityGovernanceService {
         'additionalSources': additionalSources,
         'claimId': ?claimId,
         'claimIndex': ?claimIndex,
+        'claimText': ?claimText,
       });
       return Map<String, dynamic>.from(response.data as Map);
     } catch (e) {

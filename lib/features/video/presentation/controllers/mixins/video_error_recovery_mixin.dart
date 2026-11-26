@@ -18,7 +18,7 @@ mixin VideoErrorRecoveryMixin on GetxController {
   RxList<VideoResolutionV2> get availableResolutions;
   Video get video;
 
-  Future<void> fetchAvailableResolutions();
+  Future<void> fetchAvailableResolutions({bool fromServer = false});
   Future<void> initializeVideoPlayer({String? overrideUrl});
 
   bool _isRecoveringFromFormatError = false;

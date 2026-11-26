@@ -6,15 +6,15 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Modal dialog for Super Admin to grant or update AI dubbing and subtitles discounts for a particular channel.
-/// Supports Free (100%), 50% discount, custom discount %, or reset to standard (0%).
+/// Modal dialog for Super Admin to directly configure special discounts,
+/// grant free Dubbing Studio credits, and configure upload duration limits for any channel.
 void showAdminChannelDiscountDialog({
   required BuildContext context,
   required AdminController controller,
   required Map<String, dynamic> channel,
 }) {
   if (!controller.isSuperAdmin) {
-    AppSnackbar.warning('Only Super Admins can configure channel discounts.');
+    AppSnackbar.warning('Only Super Admins can configure channel privileges and discounts.');
     return;
   }
 
@@ -22,7 +22,7 @@ void showAdminChannelDiscountDialog({
   final channelName = (channel['name'] ?? channel['channelName'] ?? 'Channel').toString();
   final channelHandle = (channel['handle'] ?? '').toString();
 
-  // Initial values from channel doc
+  // 1. Initial discount values from channel doc
   final currentDubType = (channel['dubbingDiscountType'] ?? 'none').toString();
   final currentDubPercent = (channel['dubbingDiscountPercent'] as num?)?.toDouble() ?? 0.0;
   final currentSubType = (channel['subtitlesDiscountType'] ?? 'none').toString();
@@ -38,6 +38,24 @@ void showAdminChannelDiscountDialog({
   final customSubPercent = (currentSubPercent > 0 ? currentSubPercent.round() : 25).obs;
   final subCustomCtrl = TextEditingController(
     text: currentSubPercent > 0 ? currentSubPercent.round().toString() : '25',
+  );
+
+  // 2. Initial Free Dubbing Studio Credits
+  final existingGrantedCredits = (channel['freeDubbingCredits'] as num?)?.toInt() ?? 0;
+  final selectedCreditGrant = 0.obs;
+  final customCreditsCtrl = TextEditingController(text: '0');
+
+  // 3. Initial Upload Limit Duration (minutes)
+  final currentSeconds = (channel['customDailyVideoDurationSeconds'] as num?)?.toInt() ??
+      (channel['maxDailyVideoDurationSeconds'] as num?)?.toInt() ??
+      600;
+  final currentMinutes = (currentSeconds / 60).round().clamp(10, 1440);
+  final selectedMinutes = currentMinutes.obs;
+  final customMinutesCtrl = TextEditingController(text: currentMinutes.toString());
+
+  // 4. Reason
+  final reasonCtrl = TextEditingController(
+    text: (channel['quotaIncreaseReason'] ?? channel['lastDubbingGrantReason'] ?? 'VIP Creator Partner').toString(),
   );
 
   final isSaving = false.obs;
@@ -75,7 +93,7 @@ void showAdminChannelDiscountDialog({
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
-                Icons.local_offer_rounded,
+                Icons.admin_panel_settings_rounded,
                 color: AppColors.warning,
                 size: 22,
               ),
@@ -85,18 +103,20 @@ void showAdminChannelDiscountDialog({
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Text(
-                        'Channel AI Discounts',
+                        'Channel Super Admin Privileges',
                         style: TextStyle(
                           fontFamily: TWTypography.brandFamily,
                           color: AppColors.textPrimary,
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
@@ -119,7 +139,7 @@ void showAdminChannelDiscountDialog({
                   ),
                   const SizedBox(height: 2),
                   const Text(
-                    'Provide free or discounted dubbing & subtitles for this channel',
+                    'Directly configure discounts, free Dubbing Studio credits, and upload duration limits for this channel',
                     style: TextStyle(
                       fontFamily: TWTypography.uiFamily,
                       color: AppColors.textTertiary,
@@ -132,7 +152,7 @@ void showAdminChannelDiscountDialog({
           ],
         ),
         content: SizedBox(
-          width: 520,
+          width: 540,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -169,7 +189,7 @@ void showAdminChannelDiscountDialog({
                             ),
                             if (channelHandle.isNotEmpty)
                               Text(
-                                channelHandle,
+                                '@$channelHandle',
                                 style: const TextStyle(
                                   fontFamily: TWTypography.uiFamily,
                                   color: AppColors.textTertiary,
@@ -179,6 +199,24 @@ void showAdminChannelDiscountDialog({
                           ],
                         ),
                       ),
+                      if (existingGrantedCredits > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            'Active: ${existingGrantedCredits.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} free chars',
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: Colors.amberAccent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -186,7 +224,7 @@ void showAdminChannelDiscountDialog({
 
                 // Quick presets row
                 const Text(
-                  'QUICK PRESETS',
+                  'QUICK BENEFIT PRESETS',
                   style: TextStyle(
                     fontFamily: TWTypography.brandFamily,
                     color: AppColors.textSecondary,
@@ -222,19 +260,25 @@ void showAdminChannelDiscountDialog({
                 ),
                 const SizedBox(height: 20),
 
-                // 1. Dubbing Discount Section
+                // ═════════════════════════════════════════════════════════════
+                // SECTION 1: AI Audio Dubbing & Subtitles Discounts
+                // ═════════════════════════════════════════════════════════════
+                _buildSectionHeader(
+                  title: '1. AI Dubbing & Subtitles Discounts',
+                  icon: Icons.local_offer_rounded,
+                  color: AppColors.warning,
+                ),
+                const SizedBox(height: 10),
                 _buildDiscountSection(
                   title: 'AI Audio Dubbing Discount',
-                  subtitle: 'Applies when this channel generates AI dubbing tracks',
+                  subtitle: 'Applies when this channel creates AI dubbed video tracks',
                   icon: Icons.record_voice_over_rounded,
                   accentColor: AppColors.info,
                   selectedType: selectedDubType,
                   customPercent: customDubPercent,
                   customCtrl: dubCustomCtrl,
                 ),
-                const SizedBox(height: 20),
-
-                // 2. Subtitles Discount Section
+                const SizedBox(height: 14),
                 _buildDiscountSection(
                   title: 'AI Subtitles Discount',
                   subtitle: 'Applies when this channel generates multilingual subtitles',
@@ -244,12 +288,222 @@ void showAdminChannelDiscountDialog({
                   customPercent: customSubPercent,
                   customCtrl: subCustomCtrl,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 22),
+
+                // ═════════════════════════════════════════════════════════════
+                // SECTION 2: Free Dubbing Studio Credits Grant
+                // ═════════════════════════════════════════════════════════════
+                _buildSectionHeader(
+                  title: '2. Grant Free Dubbing Studio Credits',
+                  icon: Icons.bolt_rounded,
+                  color: AppColors.info,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Add complimentary character credits to this channel directly (usable in Dubbing Studio & Video AI)',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textTertiary,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Obx(() {
+                  const creditOptions = [0, 5000, 10000, 25000, 50000, 100000];
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: creditOptions.map((amount) {
+                      final isSelected = selectedCreditGrant.value == amount;
+                      final label = amount == 0
+                          ? '+0 (No change)'
+                          : '+${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} chars';
+                      return _OptionChip(
+                        label: label,
+                        isSelected: isSelected,
+                        activeColor: AppColors.info,
+                        onTap: () {
+                          selectedCreditGrant.value = amount;
+                          customCreditsCtrl.text = amount.toString();
+                        },
+                      );
+                    }).toList(),
+                  );
+                }),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Text(
+                      'Custom Characters to Grant:',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 120,
+                      child: TextField(
+                        controller: customCreditsCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '0',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          filled: true,
+                          fillColor: AppColors.bgSurface,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                        ),
+                        onChanged: (val) {
+                          final parsed = int.tryParse(val) ?? 0;
+                          selectedCreditGrant.value = parsed.clamp(0, 10000000);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+
+                // ═════════════════════════════════════════════════════════════
+                // SECTION 3: Channel Daily Upload Duration Limit
+                // ═════════════════════════════════════════════════════════════
+                _buildSectionHeader(
+                  title: '3. Channel Daily Upload Limit Duration',
+                  icon: Icons.timer_outlined,
+                  color: AppColors.success,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Adjust the maximum daily video upload duration for this channel (Standard = 10 minutes)',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textTertiary,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Obx(() {
+                  const durationPresets = [10, 15, 20, 30, 45, 60, 120, 240];
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: durationPresets.map((mins) {
+                      final isSelected = selectedMinutes.value == mins;
+                      final label = mins == 10
+                          ? '10m (Standard)'
+                          : mins >= 60
+                              ? '${mins ~/ 60}h (${mins}m)'
+                              : '${mins}m';
+                      return _OptionChip(
+                        label: label,
+                        isSelected: isSelected,
+                        activeColor: AppColors.success,
+                        onTap: () {
+                          selectedMinutes.value = mins;
+                          customMinutesCtrl.text = mins.toString();
+                        },
+                      );
+                    }).toList(),
+                  );
+                }),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Text(
+                      'Custom Duration (Minutes):',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 90,
+                      child: TextField(
+                        controller: customMinutesCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '10',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          filled: true,
+                          fillColor: AppColors.bgSurface,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                        ),
+                        onChanged: (val) {
+                          final parsed = int.tryParse(val) ?? 10;
+                          selectedMinutes.value = parsed.clamp(10, 1440);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Reason input
+                const Text(
+                  'REASON / PARTNERSHIP JUSTIFICATION',
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: reasonCtrl,
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. VIP Creator Partner, Promotional Support, Onboarding Grant',
+                    hintStyle: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textTertiary,
+                      fontSize: 12,
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    filled: true,
+                    fillColor: AppColors.bgSurface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
 
                 // Live Summary Banner
                 Obx(() {
                   final dubLabel = _formatDiscountLabel(selectedDubType.value, customDubPercent.value);
                   final subLabel = _formatDiscountLabel(selectedSubType.value, customSubPercent.value);
+                  final granted = selectedCreditGrant.value;
+                  final mins = selectedMinutes.value;
 
                   return Container(
                     padding: const EdgeInsets.all(12),
@@ -269,7 +523,7 @@ void showAdminChannelDiscountDialog({
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Active Benefit for Creator: Dubbing is $dubLabel, Subtitles are $subLabel. This rate applies authoritatively in Creator Studio upload & localization.',
+                            'Active Benefit for Creator:\n• Dubbing: $dubLabel | Subtitles: $subLabel\n• Dubbing Credits: ${granted > 0 ? "+${granted.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} free chars" : "No grant added"}\n• Daily Upload Limit: $mins minutes/day',
                             style: const TextStyle(
                               fontFamily: TWTypography.uiFamily,
                               color: AppColors.warning,
@@ -323,12 +577,17 @@ void showAdminChannelDiscountDialog({
                                     ? 0.0
                                     : customSubPercent.value.toDouble().clamp(0.0, 100.0)));
 
-                        final success = await controller.updateChannelAiDiscounts(
+                        final success = await controller.updateChannelSuperAdminPrivileges(
                           channelId: channelId,
                           dubbingDiscountType: dubType,
                           dubbingDiscountPercent: dubPct,
                           subtitlesDiscountType: subType,
                           subtitlesDiscountPercent: subPct,
+                          dailyUploadDurationMinutes: selectedMinutes.value,
+                          freeCreditsToGrant: selectedCreditGrant.value,
+                          reason: reasonCtrl.text.trim().isNotEmpty
+                              ? reasonCtrl.text.trim()
+                              : 'Super Admin Channel Privileges',
                         );
 
                         if (success) {
@@ -349,7 +608,7 @@ void showAdminChannelDiscountDialog({
                     )
                   : const Icon(Icons.check_rounded, size: 16, color: Colors.black),
               label: Text(
-                isSaving.value ? 'Saving...' : 'Apply Discounts',
+                isSaving.value ? 'Applying...' : 'Apply Super Admin Privileges',
                 style: const TextStyle(
                   fontFamily: TWTypography.uiFamily,
                   color: Colors.black,
@@ -372,6 +631,28 @@ void showAdminChannelDiscountDialog({
   );
 }
 
+Widget _buildSectionHeader({
+  required String title,
+  required IconData icon,
+  required Color color,
+}) {
+  return Row(
+    children: [
+      Icon(icon, size: 16, color: color),
+      const SizedBox(width: 8),
+      Text(
+        title,
+        style: TextStyle(
+          fontFamily: TWTypography.brandFamily,
+          color: color,
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ],
+  );
+}
+
 Widget _buildDiscountSection({
   required String title,
   required String subtitle,
@@ -386,7 +667,7 @@ Widget _buildDiscountSection({
     children: [
       Row(
         children: [
-          Icon(icon, size: 16, color: accentColor),
+          Icon(icon, size: 15, color: accentColor),
           const SizedBox(width: 8),
           Text(
             title,
@@ -408,77 +689,77 @@ Widget _buildDiscountSection({
           fontSize: 11,
         ),
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: 8),
       Obx(() {
-        final current = selectedType.value;
+        final currentType = selectedType.value;
         return Wrap(
           spacing: 8,
-          runSpacing: 8,
+          runSpacing: 6,
           children: [
             _OptionChip(
               label: 'Standard (0%)',
-              isSelected: current == 'none',
+              isSelected: currentType == 'none',
+              activeColor: accentColor,
               onTap: () => selectedType.value = 'none',
             ),
             _OptionChip(
-              label: '50% Discount',
-              isSelected: current == '50%',
+              label: '50% Off',
+              isSelected: currentType == '50%',
+              activeColor: accentColor,
               onTap: () => selectedType.value = '50%',
             ),
             _OptionChip(
               label: '100% Free',
-              isSelected: current == 'free',
+              isSelected: currentType == 'free',
               activeColor: AppColors.success,
               onTap: () => selectedType.value = 'free',
             ),
             _OptionChip(
-              label: 'Custom %',
-              isSelected: current == 'custom',
+              label: currentType == 'custom'
+                  ? '${customPercent.value}% Custom'
+                  : 'Custom %',
+              isSelected: currentType == 'custom',
+              activeColor: accentColor,
               onTap: () => selectedType.value = 'custom',
             ),
           ],
         );
       }),
       Obx(() {
-        if (selectedType.value != 'custom') {
-          return const SizedBox.shrink();
-        }
+        if (selectedType.value != 'custom') return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.only(top: 8),
           child: Row(
             children: [
+              const Text(
+                'Discount %:',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(width: 8),
               SizedBox(
-                width: 90,
+                width: 70,
                 child: TextField(
                   controller: customCtrl,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(3),
-                  ],
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: const TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
                   decoration: InputDecoration(
-                    suffixText: '%',
-                    suffixStyle: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    hintText: '25',
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     filled: true,
                     fillColor: AppColors.bgSurface,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.bgElevated),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.brand),
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                     ),
                   ),
                   onChanged: (val) {
@@ -487,13 +768,25 @@ Widget _buildDiscountSection({
                   },
                 ),
               ),
-              const SizedBox(width: 10),
-              const Text(
-                'Enter discount percentage (0% to 100%)',
-                style: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
+              const SizedBox(width: 8),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: accentColor,
+                    thumbColor: accentColor,
+                    overlayColor: accentColor.withValues(alpha: 0.2),
+                    trackHeight: 2,
+                  ),
+                  child: Slider(
+                    value: customPercent.value.toDouble().clamp(0.0, 100.0),
+                    min: 0,
+                    max: 100,
+                    divisions: 20,
+                    onChanged: (val) {
+                      customPercent.value = val.round();
+                      customCtrl.text = val.round().toString();
+                    },
+                  ),
                 ),
               ),
             ],

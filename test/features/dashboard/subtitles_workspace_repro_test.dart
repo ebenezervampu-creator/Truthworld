@@ -4,13 +4,9 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_workspace_top_bar.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_language_ribbon.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_cues_editor.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles_page.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import '../../test_helpers/mock_firebase.dart';
-import '../../pages/page_test_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

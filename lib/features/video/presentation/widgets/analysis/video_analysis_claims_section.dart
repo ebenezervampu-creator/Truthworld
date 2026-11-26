@@ -178,9 +178,14 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
         }),
         const SizedBox(height: 12),
 
-        // 2. FILTER CAPSULE PILLS ROW (All, Verified, Caution, False)
+        // 2. FILTER CAPSULE PILLS ROW (All, Verified, Caution, False, No evidence yet)
         Obx(() {
           final current = analysisCtrl.selectedClaimFilter.value;
+          // Claims the server's verdict gate could not rate (no live evidence) are shown
+          // separately — they are never counted as Caution.
+          final unprovenCount = claims
+              .where((c) => ClaimVerdictHelper.resolveVerdict(c).isUnproven)
+              .length;
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -211,6 +216,15 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
                   dotColor: AppColors.error,
                   isSelected: current == 'False',
                 ),
+                if (unprovenCount > 0) ...[
+                  const SizedBox(width: 8),
+                  _buildFilterPill(
+                    filterKey: 'Unproven',
+                    label: 'No evidence yet ($unprovenCount)',
+                    dotColor: const Color(0xFF94A3B8),
+                    isSelected: current == 'Unproven',
+                  ),
+                ],
               ],
             ),
           );
@@ -230,6 +244,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
               if (filter == 'Verified' && !verdict.isVerified) return false;
               if (filter == 'False' && !verdict.isFalse) return false;
               if (filter == 'Caution' && !verdict.isCaution) return false;
+              if (filter == 'Unproven' && !verdict.isUnproven) return false;
             }
             if (search.isNotEmpty) {
               final text = (c['claim'] ?? c['text'] ?? c['statement'] ?? '').toString().toLowerCase();

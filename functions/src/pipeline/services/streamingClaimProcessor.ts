@@ -12,12 +12,17 @@
  * 4. Stable Occurrence Identity: Keyed by `claim_${hash(normalizedText)}_${Math.round(startMs)}` to prevent collisions.
  * 5. Bounded 200-Claim Ceiling: Respects TruthWorld's "No Claim Left Unchecked" system ceiling.
  * 6. Idempotent Resilience: Safe for concurrent worker retries and recovery sweeps.
+ * 7. Gated Verdicts: every verdict written to the public `claims` subcollection has passed
+ *    `applyVerdictGateToClaim` — the same evidence bar as the stored report. Raw model or
+ *    registry statuses are never published as FINALIZED.
  */
 
 import * as admin from "firebase-admin";
 import { logger } from "../utils/logger";
 import { hashClaimText, normalizeClaimText } from "../utils/claim-normalization";
 import { FusedGroundingService, FusedGroundingOptions } from "./fusedGroundingService";
+import { applyVerdictGateToClaim } from "./verdictGate";
+import { videoDocExists } from "../../utils/videosCollectionGuard";
 import {
   ClaimStatus,
   ExtractedClaim,
@@ -65,6 +70,30 @@ export class StreamingClaimProcessor {
   private static readonly MAX_CLAIMS_CEILING = 200;
 
   /**
+   * Runs the public verdict gate over one claim and returns the verdict fields to write to
+   * `videos/{videoId}/claims/{claimId}`. This is the only way a verdict reaches that collection,
+   * so the live stream can never show a verdict the stored report would not.
+   */
+  public static gatedVerdictFields(claim: Partial<VerifiedClaim> & Record<string, any>): Record<string, any> {
+    const gated = applyVerdictGateToClaim({ ...claim, status: claim.status || "unproven" });
+    const fields: Record<string, any> = {
+      status: gated.status,
+      verdict: gated.status,
+      publicVerdict: gated.publicVerdict,
+      verificationConfidence: Number.isFinite(Number(gated.verificationConfidence)) ? Number(gated.verificationConfidence) : 0,
+      reasoning: gated.reasoning || "",
+      richSources: Array.isArray(gated.richSources) ? gated.richSources : [],
+      verifiedFacts: Array.isArray(gated.verifiedFacts) ? gated.verifiedFacts : [],
+      missingEvidence: Array.isArray(gated.missingEvidence) ? gated.missingEvidence : [],
+      cautionType: gated.cautionType ?? admin.firestore.FieldValue.delete(),
+      gateDemotion: gated.gateDemotion ?? admin.firestore.FieldValue.delete(),
+    };
+    if (gated.displayLabel) fields.displayLabel = gated.displayLabel;
+    if (gated.opinionEvidence) fields.opinionEvidence = gated.opinionEvidence;
+    return fields;
+  }
+
+  /**
    * Generates a stable, collision-free occurrence ID for a claim.
    * Incorporates normalized text hash AND timestamp offset so duplicate phrases
    * spoken at different times in the video maintain separate, clean timeline identities.
@@ -74,6 +103,23 @@ export class StreamingClaimProcessor {
     const hash = hashClaimText(norm).slice(0, 16);
     const roundedStart = Math.max(0, Math.round(startMs || 0));
     return `claim_${hash}_${roundedStart}`;
+  }
+
+  /**
+   * Retrieves live claims from the subcollection for a given video.
+   * Centralizes all reads and writes to `videos/{videoId}/claims`.
+   */
+  public static async getLiveClaims(videoId: string, limitCount = 50): Promise<any[]> {
+    try {
+      const snap = await db().collection("videos").doc(videoId).collection("claims").limit(limitCount).get();
+      if (!snap || snap.empty) return [];
+      return snap.docs.map((d) => ({
+        claimId: d.id,
+        ...d.data(),
+      }));
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -87,6 +133,7 @@ export class StreamingClaimProcessor {
     claims: Array<ExtractedClaim | FilteredClaim>
   ): Promise<string[]> {
     if (!videoId || !Array.isArray(claims) || claims.length === 0) return [];
+    if (!(await videoDocExists(videoId, "[StreamingClaimProcessor:register]"))) return [];
 
     const effectiveClaims = claims.slice(0, this.MAX_CLAIMS_CEILING);
     const claimIds: string[] = [];
@@ -154,6 +201,7 @@ export class StreamingClaimProcessor {
     claimIds: string[]
   ): Promise<void> {
     if (!videoId || !Array.isArray(claimIds) || claimIds.length === 0) return;
+    if (!(await videoDocExists(videoId, "[StreamingClaimProcessor:markDeep]"))) return;
 
     const chunkSize = 400;
     const now = admin.firestore.FieldValue.serverTimestamp();
@@ -195,6 +243,7 @@ export class StreamingClaimProcessor {
     update: Partial<VerifiedClaim> & { stateLevel: ClaimStateLevel; isProvisional?: boolean }
   ): Promise<void> {
     if (!videoId || !claimId) return;
+    if (!(await videoDocExists(videoId, "[StreamingClaimProcessor:updateClaimProgress]"))) return;
 
     const claimRef = db().collection("videos").doc(videoId).collection("claims").doc(claimId);
 
@@ -220,9 +269,9 @@ export class StreamingClaimProcessor {
         };
 
         if (update.status) {
-          payload.verdict = update.status;
-        }
-        if (update.richSources) {
+          // A verdict is being written: it goes through the public gate like every other path.
+          Object.assign(payload, this.gatedVerdictFields({ ...(snap.exists ? snap.data() : {}), ...update }));
+        } else if (update.richSources) {
           payload.richSources = update.richSources;
         }
 
@@ -246,6 +295,7 @@ export class StreamingClaimProcessor {
     options: FusedGroundingOptions = {}
   ): Promise<VerifiedClaim[]> {
     if (claims.length === 0) return [];
+    if (!(await videoDocExists(videoId, "[StreamingClaimProcessor:processBatch]"))) return [];
 
     // 1. Mark batch as DEEP_VERIFYING in Firestore
     const batchMark = db().batch();
@@ -281,17 +331,11 @@ export class StreamingClaimProcessor {
           speaker: v.speaker || "Speaker",
           startMs: typeof v.start === "number" ? Math.round(v.start) : 0,
           endMs: typeof v.end === "number" ? Math.round(v.end) : 0,
-          status: v.status,
-          verdict: v.status,
           verificationMethod: v.verificationMethod,
-          verificationConfidence: v.verificationConfidence,
-          reasoning: v.reasoning,
-          richSources: v.richSources || [],
+          ...this.gatedVerdictFields(v),
           isProvisional: false,
           stateLevel: ClaimStateLevel.FINALIZED,
           evidenceLevel: v.evidenceLevel || "MODERATE",
-          verifiedFacts: v.verifiedFacts || [],
-          missingEvidence: v.missingEvidence || [],
           updatedAt: now,
         },
         { merge: true }
@@ -325,14 +369,16 @@ export class StreamingClaimProcessor {
   }
 
   /**
-   * Writes pre-resolved claims (e.g. Cache Hits, Registry Hits, Labeled Opinions) directly
-   * to Firestore as FINALIZED, ensuring zero viewer wait time.
+   * Writes pre-resolved claims (e.g. Cache Hits, Registry Hits, Labeled Opinions) to Firestore
+   * as FINALIZED, ensuring zero viewer wait time. Each verdict passes the public gate first.
+   * Also used after the report is stored, to replace streamed verdicts with the report's.
    */
   public static async publishResolvedClaims(
     videoId: string,
     claims: VerifiedClaim[]
   ): Promise<void> {
     if (!videoId || !Array.isArray(claims) || claims.length === 0) return;
+    if (!(await videoDocExists(videoId, "[StreamingClaimProcessor:publishResolved]"))) return;
 
     const chunkSize = 400;
     const now = admin.firestore.FieldValue.serverTimestamp();
@@ -344,8 +390,12 @@ export class StreamingClaimProcessor {
       for (const claim of chunk) {
         if (!claim.claimId) continue;
         const claimRef = db().collection("videos").doc(videoId).collection("claims").doc(claim.claimId);
-        const startMs = typeof claim.start === "number" ? Math.round(claim.start) : 0;
-        const endMs = typeof claim.end === "number" ? Math.round(claim.end) : startMs + 3000;
+        // Timing is written only when known, so a later sync never resets it to 0.
+        const timing: Record<string, number> = {};
+        if (typeof claim.start === "number") {
+          timing.startMs = Math.round(claim.start);
+          timing.endMs = typeof claim.end === "number" ? Math.round(claim.end) : timing.startMs + 3000;
+        }
 
         batch.set(
           claimRef,
@@ -354,19 +404,12 @@ export class StreamingClaimProcessor {
             videoId,
             text: claim.text,
             speaker: claim.speaker || "Speaker",
-            startMs,
-            endMs,
-            status: claim.status,
-            verdict: claim.status,
+            ...timing,
             verificationMethod: claim.verificationMethod || "deterministic",
-            verificationConfidence: claim.verificationConfidence || 0.85,
-            reasoning: claim.reasoning || "",
-            richSources: claim.richSources || [],
+            ...this.gatedVerdictFields(claim),
             isProvisional: false,
             stateLevel: ClaimStateLevel.FINALIZED,
             evidenceLevel: claim.evidenceLevel || "MODERATE",
-            verifiedFacts: claim.verifiedFacts || [],
-            missingEvidence: claim.missingEvidence || [],
             updatedAt: now,
           },
           { merge: true }

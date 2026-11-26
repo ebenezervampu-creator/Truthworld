@@ -57,7 +57,7 @@
       {
         "@type": "WebSite",
         "name": "Truthworld",
-        "alternateName": ["Truth World", "Truthworld.in", "Truthworld Studio", "Truthworld Ads"],
+        "alternateName": ["Truth World", "Truthworld.in", "Truthworld Studio", "Truthworld Dubbing Studio", "Truthworld Dubbing", "Truthworld Ads"],
         "url": "https://www.truthworld.in/",
         "potentialAction": {
           "@type": "SearchAction",
@@ -80,7 +80,7 @@
       {
         "@type": "Brand",
         "name": "Truthworld",
-        "alternateName": ["Truth World", "Truthworld Studio"],
+        "alternateName": ["Truth World", "Truthworld Studio", "Truthworld Dubbing Studio", "Truthworld Dubbing"],
         "url": "https://www.truthworld.in/",
         "logo": "https://www.truthworld.in/icons/Icon-192.png?v=2"
       },
@@ -98,20 +98,27 @@
           {
             "@type": "SiteNavigationElement",
             "position": 2,
+            "name": "Truthworld Dubbing Studio",
+            "description": "Standalone AI voice dubbing, speaker-matched voice cloning, multilingual subtitles, and waveform segment editor.",
+            "url": "https://www.truthworld.in/dubbing"
+          },
+          {
+            "@type": "SiteNavigationElement",
+            "position": 3,
             "name": "Truthworld Advertisements",
             "description": "Create, manage, and scale high-impact video advertisement campaigns on Truthworld.",
             "url": "https://www.truthworld.in/advertisements"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 3,
+            "position": 4,
             "name": "Truthworld Channels",
             "description": "Explore creator channels, topics, and community content on Truthworld.",
             "url": "https://www.truthworld.in/browse"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 4,
+            "position": 5,
             "name": "Trending & Playlists",
             "description": "Discover trending video stories, curated playlists, and top discussions on Truthworld.",
             "url": "https://www.truthworld.in/trending"
@@ -310,6 +317,68 @@
 
   <!-- ── Basic CSS -->
   <style>
+    /* ── Flagship Terracotta Aesthetic Design Tokens ── */
+    :root {
+      /* Surfaces */
+      --bg-page: #F7F5F0;
+      --bg-surface: #FFFFFF;
+      --bg-surface-alt: #FAF8F4;
+      --bg-nav: #FCFBF8;
+
+      /* Borders */
+      --border-subtle: #E5DFD5;
+      --border-dashed: #D8B49E;
+
+      /* Typography (Inter) */
+      --text-primary: #1A1614;
+      --text-secondary: #574E47;
+      --text-muted: #7D7269;
+
+      /* Brand & Interactive Accents */
+      --accent: #B83B0A;
+      --accent-hover: #962F07;
+      --accent-soft: #F8EBE4;
+      --accent-contrast: #FFFFFF;
+      --accent-secondary: #D97757;
+
+      /* Active Navigation Pills */
+      --bg-pill-active: #F6E7DF;
+      --text-pill-active: #9A3412;
+
+      /* Hero Banner (Whisper-Light Editorial Cream) */
+      --hero-from: #FDFCFA;
+      --hero-via: #FAF5EE;
+      --hero-to: #F4EADF;
+      --hero-pill-bg: #FFFFFF;
+      --hero-pill-text: #29221E;
+      --hero-pill-border: #E5DFD5;
+
+      /* Bottom Feature Cards */
+      --card-1-bg: #FCFAF7; --card-1-icon-bg: #F6E7DF; --card-1-icon: #B83B0A;
+      --card-2-bg: #F8FAF8; --card-2-icon-bg: #E2F1E7; --card-2-icon: #166534;
+      --card-3-bg: #FCFAF5; --card-3-icon-bg: #F7EBD2; --card-3-icon: #A16207;
+      --card-4-bg: #F8F9FA; --card-4-icon-bg: #E7E5E4; --card-4-icon: #44403C;
+
+      /* Radii & Shadows */
+      --radius-card: 12px;
+      --radius-btn: 8px;
+      --shadow-card: 0 4px 20px rgba(26, 22, 20, 0.05);
+      --shadow-float: 0 8px 24px rgba(26, 22, 20, 0.08);
+    }
+
+    /* Optional Dark Mode Twin (Carbon Cinema) */
+    .dark {
+      --bg-page: #0C0A09;
+      --bg-surface: #171412;
+      --bg-surface-alt: #1F1B18;
+      --bg-nav: #12100E;
+      --border-subtle: #292524;
+      --border-dashed: #B45309;
+      --text-primary: #FAFAF9;
+      --text-secondary: #D6D3D1;
+      --text-muted: #A8A29E;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
@@ -407,26 +476,65 @@
     (function() {
       // In local development, prime the debug token for Firebase App Check Web SDK
       var host = window.location.hostname;
-      var isLocalDev = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '[::1]' || host.endsWith('.local');
-      if (isLocalDev && typeof window.FIREBASE_APPCHECK_DEBUG_TOKEN === 'undefined') {
+      var isLocalDev = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '[::1]' || host.endsWith('.local') || /^192\.168\.\d+\.\d+$/.test(host) || /^10\.\d+\.\d+\.\d+$/.test(host);
+      if (isLocalDev) {
         window.FIREBASE_APPCHECK_DEBUG_TOKEN = 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
+        self.FIREBASE_APPCHECK_DEBUG_TOKEN = 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
       }
 
-      // Interoperability bridge: Ensure grecaptcha.ready exists so WebDebugProvider / ReCaptchaV3Provider 
-      // does not throw "NoSuchMethodError: 'r.ready'" when enterprise.js is used.
-      var g = window.grecaptcha = window.grecaptcha || {};
-      function ensureReady(target) {
-        if (target && typeof target.ready !== 'function') {
+      function patchRecaptcha(target) {
+        if (!target) return;
+        if (typeof target.render !== 'function') {
+          target.render = function(container, parameters) {
+            if (window.grecaptcha && window.grecaptcha.enterprise && typeof window.grecaptcha.enterprise.render === 'function') {
+              return window.grecaptcha.enterprise.render(container, parameters);
+            }
+            return 0;
+          };
+        }
+        if (typeof target.execute !== 'function') {
+          target.execute = function(siteKey, options) {
+            if (window.grecaptcha && window.grecaptcha.enterprise && typeof window.grecaptcha.enterprise.execute === 'function') {
+              return window.grecaptcha.enterprise.execute(siteKey, options);
+            }
+            return Promise.resolve('');
+          };
+        }
+        if (typeof target.ready !== 'function') {
           target.ready = function(cb) {
             if (window.grecaptcha && window.grecaptcha.enterprise && typeof window.grecaptcha.enterprise.ready === 'function') {
               window.grecaptcha.enterprise.ready(cb);
             } else if (typeof cb === 'function') {
-              setTimeout(cb, 0);
+              var attempts = 0;
+              var poll = setInterval(function() {
+                attempts++;
+                if (window.grecaptcha && window.grecaptcha.enterprise && typeof window.grecaptcha.enterprise.render === 'function') {
+                  clearInterval(poll);
+                  if (typeof window.grecaptcha.enterprise.ready === 'function') {
+                    window.grecaptcha.enterprise.ready(cb);
+                  } else {
+                    cb();
+                  }
+                } else if (attempts >= 40) {
+                  clearInterval(poll);
+                  try { cb(); } catch (e) {}
+                }
+              }, 50);
             }
           };
         }
+        if (typeof target.getResponse !== 'function') {
+          target.getResponse = function(opt_widget_id) {
+            if (window.grecaptcha && window.grecaptcha.enterprise && typeof window.grecaptcha.enterprise.getResponse === 'function') {
+              return window.grecaptcha.enterprise.getResponse(opt_widget_id);
+            }
+            return '';
+          };
+        }
       }
-      ensureReady(g);
+
+      var g = window.grecaptcha = window.grecaptcha || {};
+      patchRecaptcha(g);
       var _grecaptcha = g;
       try {
         Object.defineProperty(window, 'grecaptcha', {
@@ -435,7 +543,10 @@
           get: function() { return _grecaptcha; },
           set: function(val) {
             _grecaptcha = val;
-            ensureReady(_grecaptcha);
+            patchRecaptcha(_grecaptcha);
+            if (_grecaptcha && _grecaptcha.enterprise) {
+              patchRecaptcha(_grecaptcha.enterprise);
+            }
           }
         });
       } catch (e) {}

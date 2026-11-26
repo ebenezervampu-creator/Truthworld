@@ -23,7 +23,7 @@ import {
 
 const db = () => admin.firestore();
 const EMBEDDING_MODEL = "text-embedding-005";
-const VERTEX_PROJECT = "truthworld-1";
+const VERTEX_PROJECT = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || process.env.GCP_PROJECT || "truthworld-1";
 const VERTEX_LOCATION = "asia-south1";
 
 // ─── Embedding Generation ────────────────────────────────────────────────────

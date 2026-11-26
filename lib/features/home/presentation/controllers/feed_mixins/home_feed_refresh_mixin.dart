@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/features/home/data/services/feed_refresh_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/feed_mixins/home_feed_controller_base.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
 

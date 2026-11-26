@@ -157,8 +157,8 @@ describe("TruthWorld Dubbing — 10-Minute (600s) Zero-Credit Blueprint Stress T
       duration: end - start,
       speaker: idx % 2 === 0 ? "speaker_0" : "speaker_1",
       text: idx % 2 === 0
-        ? `Segment ${idx}: TruthWorld verified analysis point ${idx}.`
-        : `Segment ${idx}: Supporting multilingual evidence summary ${idx}.`,
+        ? `విభాగం ${idx}: ట్రూత్‌వరల్డ్ ధృవీకరించిన విశ్లేషణ పాయింట్ ${idx}.`
+        : `విభాగం ${idx}: మద్దతు ఇచ్చే బహుభాషా ఆధారాల సారాంశం ${idx}.`,
     };
   });
 

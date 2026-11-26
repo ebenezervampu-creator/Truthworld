@@ -1,36 +1,18 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
-import { 
-  ChannelV2, 
-  RANK_WEIGHTS, 
-  ChannelCategory, 
-  VALID_CATEGORIES 
+import {
+  ChannelV2,
+  ChannelCategory,
+  VALID_CATEGORIES
 } from "./types";
 import { applySecurityHeaders } from "../utils/securityHeaders";
 
 const db = () => admin.firestore();
 
 /**
- * Ã¢Å¡â€“Ã¯Â¸Â CALCULATE RANK SCORE
- * Internal helper to weight trust, scale, and momentum.
- */
-function calculateRankScore(channel: ChannelV2): number {
-  const { TRUST_INDEX, SUBSCRIBERS, TREND_30D, COVERAGE } = RANK_WEIGHTS;
-  
-  const ti = channel.reputation.channelRating ?? channel.reputation.avgTrustIndex;
-  const fol = Math.log10(Math.max(1, channel.stats.subscriberCount));
-  const trend = channel.reputation.trend30d;
-  const coverage = channel.reputation.totalVideos > 0 
-    ? (channel.reputation.factCheckedVideos / channel.reputation.totalVideos) * 10
-    : 0;
-  
-  return (ti * TRUST_INDEX) + (fol * SUBSCRIBERS) + (trend * TREND_30D) + (coverage * COVERAGE);
-}
-
-/**
  * Ã°Å¸Ââ€  GET LEADERBOARD (HTTPS)
- * Returns top creators by category or global.
+ * Returns the most-subscribed public creators, by category or global.
  */
 export const getLeaderboard = onRequest(
   { region: "asia-south1", cors: true, memory: "256MiB" },
@@ -46,20 +28,13 @@ export const getLeaderboard = onRequest(
         query = query.where("profile.category", "==", category);
       }
 
-      // We sort by avgTrustIndex in Firestore first to get the most relevant
       const snap = await query
-        .orderBy("reputation.avgTrustIndex", "desc")
-        .limit(limit * 2) // Fetch more to allow re-ranking by weighted score
+        .orderBy("stats.subscriberCount", "desc")
+        .limit(limit * 2) // Fetch extra to make up for hidden channels filtered below
         .get();
 
       const channels = snap.docs
-        .map((doc: admin.firestore.QueryDocumentSnapshot) => {
-          const data = doc.data() as ChannelV2;
-          return {
-            ...data,
-            discoveryScore: calculateRankScore(data)
-          };
-        })
+        .map((doc: admin.firestore.QueryDocumentSnapshot) => doc.data() as ChannelV2)
         .filter((c: any) => {
           const isSuspended = c.status === "suspended" || c.status === "banned" || c.status === "deleted" || c.status === "onHold" || c.status === "hold";
           const vis = (c.visibility || "").toLowerCase();
@@ -67,9 +42,7 @@ export const getLeaderboard = onRequest(
           return !isSuspended && !isPrivateOrUnlisted;
         });
 
-      // Re-rank by weighted discovery score
       const ranked = channels
-        .sort((a, b) => b.discoveryScore - a.discoveryScore)
         .slice(0, limit)
         .map(c => ({
           id: c.id,
@@ -77,8 +50,6 @@ export const getLeaderboard = onRequest(
           slug: c.handle,
           avatarUrl: c.profile.photoUrl,
           category: c.profile.category,
-          channelRating: c.reputation.channelRating ?? c.reputation.avgTrustIndex,
-          trend: c.reputation.trend30d,
           subscribers: c.stats.subscriberCount,
           verification: c.verification
         }));
@@ -87,64 +58,6 @@ export const getLeaderboard = onRequest(
     } catch (err) {
       logger.error("[getLeaderboard] Error:", err);
       res.status(500).json({ error: "Failed to fetch leaderboard" });
-    }
-  }
-);
-
-/**
- * 📈 GET RISING CREATORS (HTTPS)
- * Focuses on creators with high trend30d.
- */
-export const getRisingCreators = onRequest(
-  { region: "asia-south1", cors: true, memory: "256MiB" },
-  async (req, res) => {
-    applySecurityHeaders(res);
-    try {
-      const limit = Math.max(1, Math.min(Math.floor(Number(req.query.limit) || 10), 50));
-
-      const snap = await db().collection("channels")
-        .where("reputation.trend30d", ">", 0)
-        .orderBy("reputation.trend30d", "desc")
-        .limit(limit * 2)
-        .get();
-
-      const creators = snap.docs
-        .map((doc: admin.firestore.QueryDocumentSnapshot) => {
-          const data = doc.data() as ChannelV2;
-          return {
-            id: data.id,
-            status: (data as any).status,
-            name: data.displayName,
-            slug: data.handle,
-            avatarUrl: data.profile.photoUrl,
-            channelRating: data.reputation.channelRating ?? data.reputation.avgTrustIndex,
-            trend: data.reputation.trend30d,
-            visibility: (data as any).visibility,
-            isPublic: (data as any).isPublic,
-            subscribers: data.stats.subscriberCount
-          };
-        })
-        .filter(c => {
-          const isSuspended = c.status === "suspended" || c.status === "banned" || c.status === "deleted" || c.status === "onHold" || c.status === "hold";
-          const vis = (c.visibility || "").toLowerCase();
-          const isPrivateOrUnlisted = vis === "private" || vis === "unlisted" || c.isPublic === false;
-          return !isSuspended && !isPrivateOrUnlisted;
-        })
-        .slice(0, limit)
-        .map(c => ({
-          id: c.id,
-          name: c.name,
-          slug: c.slug,
-          avatarUrl: c.avatarUrl,
-          channelRating: c.channelRating,
-          trend: c.trend,
-          subscribers: c.subscribers
-        }));
-
-      res.status(200).json({ creators });
-    } catch (err) {
-      logger.error("[getRisingCreators] Error:", err);
-      res.status(500).json({ error: "Failed to fetch rising creators" });
     }
   }
 );

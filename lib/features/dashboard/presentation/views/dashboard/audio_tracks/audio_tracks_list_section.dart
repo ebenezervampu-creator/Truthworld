@@ -279,6 +279,59 @@ class AudioTracksListSection extends StatelessWidget {
 
           const SizedBox(height: 14),
 
+          // Creator Dubbing Notices (e.g. voice cloning capacity, fallback info)
+          Obx(() {
+            final generalNotices = controller.dubbingNotices.where((n) {
+              final lang = (n['language'] as String?)?.trim();
+              return lang == null || lang.isEmpty;
+            }).toList();
+
+            if (generalNotices.isEmpty) return const SizedBox.shrink();
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: generalNotices.map((notice) {
+                  final msg = notice['message']?.toString() ?? '';
+                  if (msg.isEmpty) return const SizedBox.shrink();
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.appBarSurface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.info.withOpacity(0.4),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          color: AppColors.info,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            msg,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textPrimary,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          }),
+
           // Audio track cards list
           if (audioList.isEmpty)
             EmptyTrackCard(
@@ -450,6 +503,8 @@ class AvailableAudioTrackCard extends StatelessWidget {
                       onUploadAudio();
                     case 'download':
                       controller.downloadAudioTrack(track);
+                    case 'artifacts':
+                      _openOutputArtifactsModal(context, langName);
                     case 'edit_segments':
                       final activeVid = controller.selectedVideo.value?.id ?? '';
                       if (activeVid.isNotEmpty) {
@@ -605,6 +660,23 @@ class AvailableAudioTrackCard extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (!track.isBaseTrack && track.audioUrl.isNotEmpty)
+                        const PopupMenuItem(
+                          value: 'artifacts',
+                          child: Row(
+                            children: [
+                              Icon(Icons.folder_zip_outlined, color: Colors.white, size: 16),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Output Artifacts (MP4, Stems, JSON, Report)',
+                                  style: TextStyle(color: Colors.white, fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       if (track.audioUrl.isNotEmpty)
                         const PopupMenuItem(
                           value: 'copy',
@@ -705,31 +777,78 @@ class AvailableAudioTrackCard extends StatelessWidget {
           if (isGenerating)
             _buildGeneratingProgressArea(context)
           else if (isNotAdded)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.bgPage,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.bgSurface),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, color: AppColors.textSecondary, size: 16),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Audio track not added yet. Click Add to synthesize or upload.',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            )
+            _buildNotAddedArea(context)
           else
             _buildVideoAudioActionRow(context, langName),
         ],
       ),
+    );
+  }
+
+  Widget _buildNotAddedArea(BuildContext context) {
+    return Obx(() {
+      final langNotice = controller.getNoticeForLanguage(track.languageCode);
+      final hasNotice = langNotice != null &&
+          (langNotice['message'] as String?)?.isNotEmpty == true;
+      final noticeMessage = hasNotice
+          ? (langNotice['message'] as String)
+          : 'Audio track not added yet. Click Add to synthesize or upload.';
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.bgPage,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: hasNotice
+                ? AppColors.info.withOpacity(0.4)
+                : AppColors.bgSurface,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.info_outline_rounded,
+              color: hasNotice ? AppColors.info : AppColors.textSecondary,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                noticeMessage,
+                style: TextStyle(
+                  color: hasNotice ? AppColors.textPrimary : AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _openOutputArtifactsModal(BuildContext context, String langName) {
+    final activeOpt = AudioTrackOption(
+      code: track.languageCode,
+      label: langName,
+      audioUrl: track.audioUrl,
+      videoUrl: video.dubbedVideos[track.languageCode] ?? '',
+      isEmbedded: track.isBaseTrack,
+    );
+    AudioTracksDialogs.showDubbedVideoDownloadModal(
+      context: context,
+      video: video,
+      track: activeOpt,
+      langLabel: langName,
+      cleanTitle:
+          video.title.replaceAll(RegExp(r'[^\w\s\-]'), '').trim().replaceAll(' ', '_'),
+      isBaseTrack: track.isBaseTrack,
+      dubbedVideoUrl: video.dubbedVideos[track.languageCode] ?? '',
+      audioUrl: track.audioUrl,
+      tracksController: controller,
     );
   }
 
@@ -876,6 +995,35 @@ class AvailableAudioTrackCard extends StatelessWidget {
                     fontSize: 11.5,
                   ),
                   overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+            if (!track.isBaseTrack && track.audioUrl.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _openOutputArtifactsModal(context, langName),
+                icon: const Icon(
+                  Icons.folder_zip_outlined,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  'Output Artifacts',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: AppColors.bgSurface,
+                  side: const BorderSide(color: AppColors.bgElevated),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ],

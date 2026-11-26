@@ -9,6 +9,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/constants/platform_limits.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -51,7 +52,7 @@ mixin ChannelCreationMixin on ChannelControllerBase {
           );
           isSubmitting.value = false;
           if (AppFlavor.isStudio) {
-            Get.offAllNamed('/studio', arguments: {'channel': existing});
+            RouteStackObserver.navigateToStudio(arguments: {'channel': existing});
           } else {
             final target = existing.channelRoute.isNotEmpty ? existing.channelRoute : '/';
             Get.offAllNamed(target, arguments: {'channel': existing});
@@ -87,7 +88,7 @@ mixin ChannelCreationMixin on ChannelControllerBase {
             );
             isSubmitting.value = false;
             if (AppFlavor.isStudio) {
-              Get.offAllNamed('/studio', arguments: {'channel': existingCh});
+              RouteStackObserver.navigateToStudio(arguments: {'channel': existingCh});
             } else {
               final target = existingCh.channelRoute.isNotEmpty ? existingCh.channelRoute : '/';
               Get.offAllNamed(target, arguments: {'channel': existingCh});
@@ -636,7 +637,7 @@ mixin ChannelCreationMixin on ChannelControllerBase {
 
       if (AppFlavor.isStudio) {
         showSuccessSnackbar('Channel "$channelNameText" created successfully!');
-        Get.offAllNamed('/studio', arguments: {
+        RouteStackObserver.navigateToStudio(arguments: {
           'channel': createdChannel,
         });
       } else {

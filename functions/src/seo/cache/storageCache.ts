@@ -20,8 +20,12 @@ export function computeEtag(content: string): string {
 }
 
 function getStorageBucket() {
+  const currentProject = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
+  const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.STORAGE_BUCKET || (currentProject !== "truthworld-1"
+    ? `${currentProject}.firebasestorage.app`
+    : "truthworld-1.firebasestorage.app");
   try {
-    return admin.storage().bucket("truthworld-1.firebasestorage.app");
+    return admin.storage().bucket(bucketName);
   } catch (_) {
     return admin.storage().bucket();
   }

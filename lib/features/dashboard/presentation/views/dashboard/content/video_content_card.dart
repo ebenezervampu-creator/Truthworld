@@ -196,6 +196,32 @@ class VideoContentCard extends StatelessWidget {
                         ],
                       ),
                     ],
+                    if (video.transcodeFailed) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.sync_problem_rounded, color: AppColors.error, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'Transcoding issue (Source fallback active)',
+                              style: TextStyle(
+                                color: AppColors.error,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     // Metadata wrap row with visibility badge and flexible text
                     Wrap(

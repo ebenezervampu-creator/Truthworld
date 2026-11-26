@@ -1,13 +1,13 @@
 import { ChannelType } from "../pipeline/types";
 
-// ─── Phase 2: Public Channel Profile + Reputation Layer ──────────────────────
+// ─── Phase 2: Public Channel Profile ─────────────────────────────────────────
 
 // ─── Verification ─────────────────────────────────────────────────────────────
 
 export type VerificationState =
   | "unverified"
   | "verified"       // identity confirmed
-  | "trusted"        // high trust index over time
+  | "trusted"        // legacy verification level
   | "institutional"  // org / media entity
   | "newsroom"       // official professional news entity
   | "suspended";
@@ -41,23 +41,6 @@ export interface SocialLink {
   url: string;
 }
 
-// ─── Reputation ───────────────────────────────────────────────────────────────
-
-export interface ChannelReputation {
-  channelRating?: number;     // 0.0 - 10.0, public reputation score
-  avgTrustIndex: number;      // 0.0 - 10.0, rolling weighted avg
-  trend30d: number;           // delta in last 30 days, e.g. +0.3 or -0.1
-  totalVideos: number;
-  factCheckedVideos: number;  // % = factCheckedVideos / totalVideos
-  appealRate: number;         // 0.0 – 1.0; lower = more credible
-  topCategoryScore: number;   // trust index within category
-  videosThisMonth: number;    // Count of videos processed in current month
-  inactiveMonths: number;     // Count of consecutive months with 0 uploads
-  weakMonths: number;         // Count of consecutive months below current tier threshold
-  recoveryStreak: number;     // Consecutive videos with TI >= 9.0 since last downgrade
-  lastUpdatedAt: number;      // epoch ms
-}
-
 // ─── Full Extended Channel Document ───────────────────────────────────────────
 
 export interface ChannelV2 {
@@ -75,8 +58,6 @@ export interface ChannelV2 {
 
   stats: {
     videoCount: number;
-    channelRating?: number;
-    avgTrustIndex: number;
     subscriberCount: number;
     viewCount: number;
   };
@@ -96,9 +77,22 @@ export interface ChannelV2 {
 
   // ── Phase 2 additions ──
   profile: ChannelProfile;
-  reputation: ChannelReputation;
   verification: VerificationState;
+  reputation?: {
+    avgTrustIndex: number;
+    score?: number;
+    badgeTier?: string;
+    totalEvaluations?: number;
+    [key: string]: any;
+  };
 }
+
+export const BADGE_TIERS = {
+  ELITE: { minTrust: 9.0, color: "#38bdf8", label: "Platinum" },
+  ADVANCED: { minTrust: 8.0, color: "#fbbf24", label: "Gold" },
+  CREATOR: { minTrust: 7.0, color: "#94a3b8", label: "Silver" },
+  BASIC: { minTrust: 0.0, color: "#64748b", label: "Standard" },
+};
 
 // ─── Type History ─────────────────────────────────────────────────────────────
 
@@ -122,18 +116,3 @@ export const VALID_CATEGORIES: ChannelCategory[] = [
 
 export const VALID_PLATFORMS = ["youtube", "twitter", "instagram", "website", "linkedin"];
 
-// ─── Phase 3: Discovery & Social Constants ───────────────────────────────────
-
-export const RANK_WEIGHTS = {
-  TRUST_INDEX: 0.60,
-  SUBSCRIBERS:   0.15, // log-scaled
-  TREND_30D:   0.15,
-  COVERAGE:    0.10, // fact-checked coverage percentage
-};
-
-export const BADGE_TIERS = {
-  ELITE:    { minTrust: 9.5, minVideos: 10, color: "#fbbf24", label: "Elite" },
-  ADVANCED: { minTrust: 9.0, minVideos: 5,  color: "#9333ea", label: "Advanced" },
-  CREATOR:  { minTrust: 8.0, minVideos: 3,  color: "#3b82f6", label: "Creator" },
-  BASIC:    { minTrust: 0.0, minVideos: 0,  color: "#10b981", label: "Basic" },
-};

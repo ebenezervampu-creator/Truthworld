@@ -34,6 +34,10 @@ const db = admin.firestore();
 const REGION = "asia-south1";
 const BUCKET_NAME = "truthworld-1.firebasestorage.app";
 
+function getBucketName(): string {
+  return "truthworld-1.firebasestorage.app";
+}
+
 /**
  * 🛡️ Storage Trigger — Moderate uploaded content before pipeline processing.
  *
@@ -652,7 +656,7 @@ export const moderateContentManual = onRequest(
         await db.collection("admin_review_queue").doc(videoId).delete().catch(() => {});
 
         // 3. Delete files from Storage (videos/{videoId}/ and thumbnails/{videoId}/)
-        const bucket = admin.storage().bucket(BUCKET_NAME);
+        const bucket = admin.storage().bucket(getBucketName());
         try {
           const [files] = await bucket.getFiles({ prefix: `videos/${videoId}/` });
           for (const file of files) {
@@ -741,7 +745,7 @@ export const scheduledContentModerationRetry = onSchedule(
         });
 
         try {
-          const videoGcsUri = `gs://${BUCKET_NAME}/${videoPath}`;
+          const videoGcsUri = `gs://${getBucketName()}/${videoPath}`;
           const retryData = doc.data();
           const retryTitle = retryData?.title || "";
           const retryDescription = retryData?.description || "";
@@ -938,7 +942,7 @@ export const resubmitVideoForModeration = onCall(
     try {
       const videoPath = videoData?.storage?.videoPath || `videos/${videoId}/original.mp4`;
       const contentType = videoData?.contentType || "video/mp4";
-      const videoGcsUri = `gs://${BUCKET_NAME}/${videoPath}`;
+      const videoGcsUri = `gs://${getBucketName()}/${videoPath}`;
       const title = videoData?.title || "";
       const description = videoData?.description || "";
       const tags = Array.isArray(videoData?.tags) ? videoData.tags : [];

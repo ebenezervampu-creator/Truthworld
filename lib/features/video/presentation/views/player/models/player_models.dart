@@ -107,11 +107,15 @@ class AudioTrack {
     required this.langCode,
     this.type = 'Original',
     this.url,
+    this.source = 'creator',
   });
   final String label;
   final String langCode;
   final String type;
   final String? url;
+  final String source;
+
+  bool get isAiDub => source == 'ai_dub';
 }
 
 class VideoTrack {

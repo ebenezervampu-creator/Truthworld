@@ -187,6 +187,7 @@
         <package android:name="com.truthworld.studio" />
         <package android:name="com.truthworld.admin" />
         <package android:name="com.truthworld.advertiser" />
+        <package android:name="com.truthworld.dubbing" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="truthworld" />

@@ -10,8 +10,22 @@ import { Utterance } from "../types";
 import { logger } from "../utils/logger";
 import { getVertexAI } from "../utils/ai-client";
 import { extractCandidateText, normalizeToGcsUri } from "../utils/ai-utils";
+import { describeSpeakerTurns } from "./speaker-turn-sampler";
+import { mapWithConcurrency, withRetry } from "./concurrency";
+
+/** Parallel Gemini profiling calls. Crowded videos (20–30 speakers) otherwise hit rate limits. */
+export const PROFILING_CONCURRENCY = 5;
 
 const genAI = getVertexAI();
+
+export type SpeakerArchetype =
+  | "menacing_antagonist"
+  | "vulnerable_youth"
+  | "calm_narrator"
+  | "authoritative_leader"
+  | "neutral_speaker";
+
+export type VocalWeight = "deep" | "medium" | "light";
 
 export interface SpeakerProfile {
   speakerId:   string;
@@ -21,6 +35,8 @@ export interface SpeakerProfile {
   energy:      "high" | "moderate" | "low";
   ageTone:     "youthful" | "adult" | "mature";
   role:        "host" | "guest" | "expert" | "caller" | "other"; // v5.3: Localization Role Awareness
+  archetype?:  SpeakerArchetype;
+  vocalWeight?: VocalWeight;
   wordCount:   number;
   segments:    number;
 }
@@ -62,16 +78,24 @@ export class SpeakerProfilingService {
 
     // 2. Sample and profile each speaker concurrently in parallel
     const entries = Array.from(speakerMap.entries());
-    const profiledList = await Promise.all(
-      entries.map(async ([id, speakerUtterances]) => {
+    const profiledList = await mapWithConcurrency(
+      entries,
+      PROFILING_CONCURRENCY,
+      async ([id, speakerUtterances]) => {
         const textSample = speakerUtterances.slice(0, 5).map(u => u.text).join(" ");
         const wordCount = speakerUtterances.reduce((sum, u) => sum + u.text.split(" ").length, 0);
 
         try {
+          // The whole recording is attached, so say which voice to describe; otherwise every
+          // speaker label gets a profile of whoever dominates the recording.
+          const turnWindows = describeSpeakerTurns(utterances, id);
           const prompt = `You are an expert audio and vocal intelligence engine.
 Analyze this speaker's voice, style, and vocal characteristics.
 Speech transcript sample: "${textSample}"
-
+${gcsUri && turnWindows ? `
+The attached recording contains several people. Describe ONLY the person speaking at these times (mm:ss): ${turnWindows}.
+Ignore every other voice in the recording, even if it is louder or speaks more.
+` : ""}
 CRITICAL GENDER DETECTION GUIDELINES:
 - Listen carefully to acoustic vocal pitch and resonance. Adult male voices typically have lower fundamental frequency (F0 < 165Hz) and chest resonance; female voices typically have higher pitch (F0 > 175Hz).
 - In music videos, songs, and sung vocals: evaluate the singer's vocal register. If the singer sings with a male chest voice, tenor, baritone, or bass register, strictly classify as "male". Only classify as "female" if the singer has a clearly feminine soprano/alto vocal timbre.
@@ -80,21 +104,31 @@ CRITICAL GENDER DETECTION GUIDELINES:
 
 Return a JSON object with:
 - gender: ["male", "female"] (Mandatory: Determine speaker gender accurately from acoustics, pitch resonance, and linguistic markers)
-- style: Short description of tone (e.g. "warm confident", "fast energetic")
+- style: Short description of tone (e.g. "warm confident", "fast energetic", "harsh commanding")
 - pitchBand: ["high", "mid", "deep"]
 - energy: ["high", "moderate", "low"]
 - ageTone: ["youthful", "adult", "mature"]
 - role: Detect their role in the conversation ["host", "guest", "expert", "caller", "other"]
+- archetype: ["menacing_antagonist", "vulnerable_youth", "calm_narrator", "authoritative_leader", "neutral_speaker"]
+  * "menacing_antagonist": brutal prison guard, villain, threatening interrogator, aggressive soldier
+  * "vulnerable_youth": pleading victim, sincere hero in distress, humble prayerful speaker
+  * "authoritative_leader": commander, king, general, judge
+  * "calm_narrator": documentary presenter, news anchor, educational speaker
+  * "neutral_speaker": standard conversational speaker
+- vocalWeight: ["deep", "medium", "light"]
+  * "deep": heavy gravelly baritone/bass, thick chest resonance
+  * "medium": balanced tenor/baritone
+  * "light": thin, whispery, or youthful
 
 Return ONLY valid JSON.`;
 
-          let result;
+          let result: any;
           if (gcsUri) {
             const mimeType = gcsUri.endsWith(".wav")
               ? "audio/wav"
               : (gcsUri.endsWith(".mp3") ? "audio/mp3" : "video/mp4");
 
-            result = await this.model.generateContent({
+            result = await withRetry(() => this.model.generateContent({
               contents: [
                 {
                   role: "user",
@@ -109,9 +143,9 @@ Return ONLY valid JSON.`;
                   ],
                 },
               ],
-            });
+            }));
           } else {
-            result = await this.model.generateContent(prompt);
+            result = await withRetry(() => this.model.generateContent(prompt));
           }
 
           const text = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -153,7 +187,7 @@ Return ONLY valid JSON.`;
             segments:  speakerUtterances.length,
           };
         }
-      })
+      }
     );
     profiles.push(...profiledList);
 

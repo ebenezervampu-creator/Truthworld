@@ -414,6 +414,9 @@ class Truthworld extends StatelessWidget {
     if (AppFlavor.isAdvertiser) {
       return '/advertiser';
     }
+    if (AppFlavor.isDubbing) {
+      return '/dubbing';
+    }
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
       final uriStr = Uri.base.toString().toLowerCase();
@@ -446,6 +449,19 @@ class Truthworld extends StatelessWidget {
           return path;
         }
         return '/studio';
+      }
+      if (host.startsWith('dubbing') ||
+          host.contains('dubbing') ||
+          uriStr.contains('dubbing') ||
+          Uri.base.queryParameters.containsKey('dubbing')) {
+        if (host.startsWith('dubbing') || host.contains('dubbing.truthworld.in')) {
+          final path = Uri.base.path.toLowerCase();
+          if (path == '/dubbing' || path == '/dubbing/' || path == '/' || path.isEmpty) {
+            return '/';
+          }
+          return path;
+        }
+        return '/dubbing';
       }
       final path = Uri.base.path;
       final query = Uri.base.hasQuery ? '?${Uri.base.query}' : '';

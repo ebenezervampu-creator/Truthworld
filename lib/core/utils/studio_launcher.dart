@@ -16,8 +16,16 @@ class StudioLauncher {
   static const String studioWebUrlProduction = 'https://studio.truthworld.in';
   static const String studioWebUrlAlternative =
       'https://www.truthworld.in/studio';
-  static const String studioWebUrlFallback =
-      'https://truthworld-1-studio.web.app/';
+  static const bool _isStaging =
+      String.fromEnvironment('FIREBASE_ENV') == 'staging';
+  static const String _stagingProjectId = String.fromEnvironment(
+    'STAGING_PROJECT_ID',
+    defaultValue: 'truthworld-staging',
+  );
+
+  static const String studioWebUrlFallback = _isStaging
+      ? 'https://$_stagingProjectId-studio.web.app/'
+      : 'https://truthworld-1-studio.web.app/';
   static const String playStoreMarketUrl =
       'market://details?id=com.truthworld.studio';
   static const String playStoreWebUrl =

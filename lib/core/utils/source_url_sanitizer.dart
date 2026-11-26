@@ -502,6 +502,9 @@ class SourceUrlSanitizer {
 
     if (source is Map) {
       title = (source['title'] ??
+              source['name'] ??
+              source['publisher'] ??
+              source['domain'] ??
               source['author'] ??
               source['bookTitle'] ??
               source['journalName'])
@@ -529,10 +532,16 @@ class SourceUrlSanitizer {
   static Map<dynamic, dynamic> sanitizeSourceMap(Map<dynamic, dynamic> source) {
     final rawMap = Map<dynamic, dynamic>.from(source);
     final title = (rawMap['title'] ??
+            rawMap['name'] ??
+            rawMap['publisher'] ??
+            rawMap['domain'] ??
             rawMap['author'] ??
             rawMap['bookTitle'] ??
             rawMap['journalName'])
         ?.toString();
+    if (rawMap['title'] == null && title != null) {
+      rawMap['title'] = title;
+    }
     var rawUrl =
         (rawMap['url'] ?? rawMap['directUrl'] ?? rawMap['link'])?.toString();
     final directUrl = rawMap['directUrl']?.toString();

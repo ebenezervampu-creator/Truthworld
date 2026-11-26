@@ -13,7 +13,10 @@
  *   7. Webhook-based architecture — returns immediately after submission
  */
 
+import { isDubbingSourceLanguage } from "../services/dubbing-launch-languages";
 import axios from "axios";
+import { assemblySpeakerOptions } from "../services/assembly-speaker-options";
+import { speakerHintFor } from "../services/cast-list";
 import * as admin from "firebase-admin";
 import {
   EnhancedTranscriptionResult,
@@ -29,8 +32,8 @@ import { EdgeLayer } from "./01-edge";
 import { aggregationLayer } from "./09-aggregation";
 import { refundDubbingFeeOnFailure } from "../services/refundService";
 import { logger } from "../utils/logger";
+import { emitDubbingTiming } from "../utils/dubbing-timing";
 import { costEngine } from "../services/cost-engine";
-import { reputationService } from "../services/reputationService"; // v7.3
 import { PIPELINE_CONFIG } from "../config";
 import { videoGatewayService } from "../services/videoGatewayService";
 import { copyrightDetectionService } from "../services/copyrightDetection";
@@ -41,7 +44,10 @@ import { extractCandidateText } from "../utils/ai-utils";
 import { notifyUser } from "../../notifications/notifications";
 import { normalizeLanguageCode, normalizeLanguageCodes, detectScriptsFromText, getLanguageDisplayName, isSummaryLanguageMismatch, getDefaultIntroductionTitle, sanitizeChaptersForLanguage } from "../../shared/language-normalizer";
 import { parseDurationToSeconds } from "../services/media";
+import { filterVideoIds, isVideoId, safeMergeExistingVideo } from "../../utils/videosCollectionGuard";
 import { generateHighQualityChapterThumbnailsForVideo } from "../../resolution/resolution";
+import { shouldPrewarmDubbing } from "../services/dubbing-prewarm-policy";
+import { syncStudioDubbingJobsForPipelineJob } from "../../dubbing/studio-job-sync";
 
 const ASSEMBLY_BASE = "https://api.assemblyai.com/v2";
 const db = () => admin.firestore();
@@ -123,8 +129,8 @@ export class TranscriptionLayer {
       // If the video was already evaluated and rejected by Google Cloud Content Moderation,
       // halt immediately and do NOT call speech transcription — saving 100% of speech-to-text fees.
       let preDetectedLanguage: string | undefined;
-      const preCheckVideoId = executionPlan.videoId || jobId;
-      try {
+      const preCheckVideoId = isVideoId(executionPlan.videoId) ? executionPlan.videoId : "";
+      if (preCheckVideoId) try {
         const videoDoc = await db().collection("videos").doc(preCheckVideoId).get();
         if (videoDoc.exists) {
           const modStatus = videoDoc.data()?.moderation?.status;
@@ -156,13 +162,16 @@ export class TranscriptionLayer {
       const apiKey = PIPELINE_CONFIG.ASSEMBLYAI_KEY;
 
       // 1. Extract audio
+      const tExtractAudioStart = Date.now();
       const extractResult = await this.extractAudio(jobId, videoUrl);
+      emitDubbingTiming("transcription.extract_audio", tExtractAudioStart, { jobId });
       const audioUrl = typeof extractResult === "string" ? extractResult : extractResult?.audioUrl ?? null;
       const hasAudioStream = typeof extractResult === "object" && extractResult !== null && "hasAudioStream" in extractResult
         ? Boolean(extractResult.hasAudioStream)
         : Boolean(audioUrl || extractResult !== null);
       const rawCandidateUrl = audioUrl ?? videoUrl;
       let accessibleUrl = rawCandidateUrl;
+      const tUrlResolveStart = Date.now();
       try {
         accessibleUrl = await this.getAccessibleUrl(rawCandidateUrl);
       } catch (urlSigningErr) {
@@ -171,6 +180,7 @@ export class TranscriptionLayer {
           error: String(urlSigningErr),
         });
       }
+      emitDubbingTiming("transcription.url_resolve", tUrlResolveStart, { jobId });
 
       let enhanced!: EnhancedTranscriptionResult;
       let transcriptId: string | null = null;
@@ -217,8 +227,9 @@ export class TranscriptionLayer {
       // Must reflect the actual audio/video spoken language, NEVER target dubbing languages!
       // Check video document and job data first, then executionPlan, then moderation pre-check
       let videoDocData: any = null;
-      try {
-        const vSnap = await db().collection("videos").doc(jobId).get();
+      const candidatePreVid = executionPlan.videoId || targetJobData?.videoId;
+      if (isVideoId(candidatePreVid)) try {
+        const vSnap = await db().collection("videos").doc(candidatePreVid).get();
         if (vSnap.exists) {
           videoDocData = vSnap.data();
         }
@@ -243,6 +254,7 @@ export class TranscriptionLayer {
         : normalizeLanguageCode(rawPre);
 
       // ── Step 0: Pre-Flight Industry-Standard Multilingual & Spoken Language Identification (SLID) ──
+      const tLangProbeStart = Date.now();
       const langProbe = await this.probeAudioSpokenLanguage(
         jobId,
         accessibleUrl,
@@ -250,6 +262,11 @@ export class TranscriptionLayer {
         preResolvedLang || preDetectedLanguage,
         hasAudioStream
       );
+      emitDubbingTiming("transcription.language_probe", tLangProbeStart, {
+        jobId,
+        detectionSource: langProbe.detectionSource,
+        primaryLanguage: langProbe.primaryLanguage,
+      });
 
       let resolvedSourceLang = langProbe.primaryLanguage;
       const allSpokenLangs = langProbe.spokenLanguages;
@@ -351,9 +368,13 @@ export class TranscriptionLayer {
         try {
           const headers = { authorization: apiKey, "content-type": "application/json" };
 
-          // 2. Adaptive Diarization Check
-          const shouldDiarize = await this.shouldEnableDiarization(jobId, userId, executionPlan);
-          logger.info("[Transcription] Diarization decision", { jobId, shouldDiarize });
+          // 2. Diarization: always on for dubbing, because each speaker needs their own voice
+          // and gender. A missed second speaker would be dubbed in the first speaker's voice.
+          // Subtitle-only jobs keep the adaptive cost-saving check.
+          const shouldDiarize = requestedDubbing
+            ? true
+            : await this.shouldEnableDiarization(jobId, userId, executionPlan);
+          logger.info("[Transcription] Diarization decision", { jobId, shouldDiarize, forcedForDubbing: requestedDubbing });
 
           // 3. Submit to AssemblyAI Universal 3.7 Pro
           const isAccuracyMode = executionPlan.priorityMode === "accuracy";
@@ -371,10 +392,28 @@ export class TranscriptionLayer {
             ),
             punctuate: true,
             format_text: true,
+            // Set explicitly (AssemblyAI-STT-3.7 changed defaults): leave out "um", "uh" and other
+            // fillers so they are not translated and spoken in the dub.
+            disfluencies: false,
             boost_param: isAccuracyMode ? "high" : "default",
             entity_detection: isAccuracyMode,
             content_safety: (executionPlan.sensitiveTopics?.length ?? 0) > 0,
           };
+          // Speaker count (see assembly-speaker-options.ts): creator's count when given, else the
+          // number of speaking characters on their cast list (cast-list.ts); for dubbing without
+          // either, only the cap is raised so crowded videos are not merged into a few voices.
+          // No floor is ever guessed — AssemblyAI treats it as a hard minimum.
+          if (shouldDiarize) {
+            const speakerOptions = assemblySpeakerOptions(
+              parseDurationToSeconds(executionPlan.duration || (executionPlan as any).durationSeconds),
+              speakerHintFor(executionPlan.expectedSpeakers, executionPlan.castList),
+              requestedDubbing
+            );
+            if (speakerOptions) {
+              payload.speaker_options = speakerOptions;
+              logger.info("[Transcription] Speaker options sent to AssemblyAI", { jobId, speakerOptions });
+            }
+          }
           if (resolvedSourceLang) {
             payload.language_code = resolvedSourceLang;
           } else {
@@ -396,11 +435,17 @@ export class TranscriptionLayer {
             }
           }
 
+          const tSubmitStart = Date.now();
           const sub = await axios.post(
             `${ASSEMBLY_BASE}/transcript`,
             payload,
             { headers }
           );
+          const tSubmitDone = Date.now();
+          emitDubbingTiming("transcription.assemblyai_submit", tSubmitStart, {
+            jobId,
+            webhookMode: Boolean(webhookUrl),
+          });
 
           transcriptId = sub.data.id;
           logger.info("[Transcription] Job submitted to AssemblyAI for Dubbing/Subtitles", { jobId, transcriptId, model: speechModels[0], webhookMode: Boolean(webhookUrl) });
@@ -439,14 +484,29 @@ export class TranscriptionLayer {
           // ── POLLING FALLBACK (when webhook not configured) ──────────────────
           attempts = 0;
           const maxAttempts = 160;
+          let tProcessingStart: number | null = null;
 
           while (attempts < maxAttempts) {
             attempts++;
             const poll = await axios.get(`${ASSEMBLY_BASE}/transcript/${transcriptId}`, { headers });
             const res = poll.data as AssemblyResult;
 
+            if (res.status !== "queued" && tProcessingStart === null) {
+              tProcessingStart = Date.now();
+              emitDubbingTiming("transcription.assemblyai_queue", tSubmitDone, {
+                jobId,
+                attempts,
+                firstNonQueuedStatus: res.status,
+              });
+            }
+
             if (res.status === "completed") {
               assemblyResult = res;
+              emitDubbingTiming("transcription.assemblyai_processing", tProcessingStart ?? tSubmitDone, {
+                jobId,
+                attempts,
+                audioDurationSec: res.audio_duration ?? null,
+              });
               break;
             } else if (res.status === "error") {
               throw new Error(`AssemblyAI job failed: ${res.error}`);
@@ -613,7 +673,7 @@ export class TranscriptionLayer {
       });
 
       // 5. Store & Propagate (Parallel Store + Native Subtitles)
-      const resolvedVideoId = executionPlan.videoId || jobId;
+      const resolvedVideoId = isVideoId(executionPlan.videoId) ? executionPlan.videoId : undefined;
       const isMultiSpeakerDiarized = (enhanced.speakers?.length || 0) > 1 ||
         (new Set(enhanced.segments?.map(s => s.speaker).filter(Boolean)).size > 1);
 
@@ -648,10 +708,16 @@ export class TranscriptionLayer {
         );
       })();
 
+      const tResultFetchStart = Date.now();
       const [, nativeSubtitlesStored] = await Promise.all([
         storeTranscriptPromise,
         storeSubtitlesPromise,
       ]);
+      emitDubbingTiming("transcription.result_fetch", tResultFetchStart, {
+        jobId,
+        nativeSubtitlesStored,
+        wordCount: enhanced.words.length,
+      });
 
       // Cost Tracking
       costEngine.recordTranscriptionCost(jobId, userId, enhanced.duration, usedProvider).catch(() => {});
@@ -663,6 +729,7 @@ export class TranscriptionLayer {
       });
 
       // 6. Gemini Video Moderation Gateway Check
+      const tModerationStart = Date.now();
       const gatewayDecision = await videoGatewayService.evaluateVideo(
         jobId,
         enhanced.text,
@@ -670,14 +737,22 @@ export class TranscriptionLayer {
         executionPlan,
         enhanced.detectedLanguage
       );
+      emitDubbingTiming("transcription.moderation", tModerationStart, {
+        jobId,
+        status: gatewayDecision?.status || "unknown",
+      });
 
-      // Resolve the canonical video document ID and existing metadata for Studio notifications
+      // Resolve the canonical video document ID and existing metadata for Studio notifications.
+      // Never fall back to jobId — non-video jobs (e.g. standalone Dubbing Studio or test jobs) must never write to `videos`.
       const jobSnap = await db().collection("video_jobs").doc(jobId).get();
       const jobData = jobSnap.data() as any;
-      const targetVideoId = executionPlan.videoId || jobData?.videoId || (jobData?.linkedVideoIds?.[0]) || jobId;
+      const rawTargetVideoId = executionPlan.videoId || jobData?.videoId || (jobData?.linkedVideoIds?.[0]);
+      const targetVideoId = isVideoId(rawTargetVideoId) ? rawTargetVideoId : "";
 
-      const existingVideoSnap = await db().collection("videos").doc(targetVideoId).get();
-      const existingVideoData = existingVideoSnap.data() || {};
+      const existingVideoSnap = targetVideoId
+        ? await db().collection("videos").doc(targetVideoId).get()
+        : null;
+      const existingVideoData = existingVideoSnap?.data() || {};
 
       const finalThumbnailUrl = existingVideoData.thumbnailUrl || (executionPlan as any).thumbnailUrl || (executionPlan as any).thumbnail || "";
       const finalChannelId = existingVideoData.channelId || jobData?.channelId || (executionPlan as any).channelId || `channel_${userId}`;
@@ -700,6 +775,10 @@ export class TranscriptionLayer {
         updatedAt: Date.now()
       }, { merge: true });
 
+      // Standalone Dubbing Studio / non-video localization jobs must not be halted by public-feed
+      // MANUAL_REVIEW or public-feed copyright holds.
+      const isStandaloneDubbingJob = !targetVideoId && !isCredibilityRequested && isDubbingOrSubtitles;
+
       // HALT DOWNSTREAM PROCESSING IF REJECTED
       if (gatewayDecision.status === "REJECTED") {
         const isLanguageRejection = (gatewayDecision.violatingPolicies || []).includes("UNSUPPORTED_LANGUAGE");
@@ -715,20 +794,26 @@ export class TranscriptionLayer {
           error: `Video rejected by Gateway: ${gatewayDecision.rejectionReason}`
         });
 
-        // Set video document in Firestore to status: "rejected"
-        await db().collection("videos").doc(targetVideoId).set({
-          status: "rejected",
-          rejectionReason: gatewayDecision.rejectionReason,
-          rejectionNotified: true,
-          moderation: {
-            status: "rejected",
-            reason: gatewayDecision.rejectionReason,
-            summary: gatewayDecision.summary || "",
-            detectedLanguage: enhanced.detectedLanguage || "unknown",
-            violatingPolicies: gatewayDecision.violatingPolicies || [],
-          },
-          updatedAt: Date.now()
-        }, { merge: true });
+        // Set video document in Firestore to status: "rejected" (only if an existing user upload video doc exists)
+        if (targetVideoId) {
+          await safeMergeExistingVideo(
+            targetVideoId,
+            {
+              status: "rejected",
+              rejectionReason: gatewayDecision.rejectionReason,
+              rejectionNotified: true,
+              moderation: {
+                status: "rejected",
+                reason: gatewayDecision.rejectionReason,
+                summary: gatewayDecision.summary || "",
+                detectedLanguage: enhanced.detectedLanguage || "unknown",
+                violatingPolicies: gatewayDecision.violatingPolicies || [],
+              },
+              updatedAt: Date.now(),
+            },
+            "[Transcription:Rejected]"
+          );
+        }
 
         // Update video_jobs document
         await db().collection("video_jobs").doc(jobId).set({
@@ -736,6 +821,24 @@ export class TranscriptionLayer {
           rejectionReason: gatewayDecision.rejectionReason,
           updatedAt: Date.now()
         }, { merge: true });
+
+        if (requestedDubbing) {
+          const failMsg = gatewayDecision.rejectionReason || "This content could not be processed under TruthWorld safety guidelines.";
+          await EdgeLayer.failStage(jobId, "dubbing", failMsg);
+          await EdgeLayer.upsertDubbingJob(jobId, { status: "failed", error: failMsg, completedAt: Date.now() });
+          await refundDubbingFeeOnFailure({
+            jobId,
+            userId,
+            failedLanguages: targetDubLangs,
+            totalLanguages: targetDubLangs,
+            reason: failMsg,
+          }).catch((refErr) => logger.error("[Transcription] Dubbing rejection refund error:", refErr));
+          await syncStudioDubbingJobsForPipelineJob(jobId, null, {
+            status: "failed",
+            currentStepMessage: failMsg,
+            error: failMsg,
+          });
+        }
 
         // Send priority notification to Creator Studio Notifications page
         await notifyUser({
@@ -767,8 +870,13 @@ export class TranscriptionLayer {
         return { submitted: true }; // HALT
       }
 
-      // HALT DOWNSTREAM PROCESSING IF MANUAL_REVIEW
-      if (gatewayDecision.status === "MANUAL_REVIEW") {
+      // HALT DOWNSTREAM PROCESSING IF MANUAL_REVIEW (public video uploads only — never block private Dubbing Studio jobs)
+      if (gatewayDecision.status === "MANUAL_REVIEW" && isStandaloneDubbingJob) {
+        logger.info("[Transcription Gateway] Standalone dubbing job — bypassing public-feed MANUAL_REVIEW hold", {
+          jobId,
+          reviewReason: gatewayDecision.reviewReason,
+        });
+      } else if (gatewayDecision.status === "MANUAL_REVIEW") {
         logger.warn("[Transcription Gateway] VIDEO SENT TO MANUAL REVIEW — queueing in Admin Portal & halting transcoding", {
           jobId,
           targetVideoId,
@@ -788,17 +896,25 @@ export class TranscriptionLayer {
             queuedAt: Date.now(),
             status: "pending"
           }),
-          db().collection("videos").doc(targetVideoId).set({
-            status: "manual_review",
-            reviewReason: gatewayDecision.reviewReason || "Queued for manual verification review.",
-            moderation: {
-              status: "manual_review",
-              reason: gatewayDecision.reviewReason || "Queued for manual verification review.",
-              sensitiveTopics: gatewayDecision.sensitiveTopics || [],
-              detectedLanguage: enhanced.detectedLanguage || "en",
-            },
-            updatedAt: Date.now()
-          }, { merge: true }),
+          ...(targetVideoId
+            ? [
+                safeMergeExistingVideo(
+                  targetVideoId,
+                  {
+                    status: "manual_review",
+                    reviewReason: gatewayDecision.reviewReason || "Queued for manual verification review.",
+                    moderation: {
+                      status: "manual_review",
+                      reason: gatewayDecision.reviewReason || "Queued for manual verification review.",
+                      sensitiveTopics: gatewayDecision.sensitiveTopics || [],
+                      detectedLanguage: enhanced.detectedLanguage || "en",
+                    },
+                    updatedAt: Date.now(),
+                  },
+                  "[Transcription:ManualReview]"
+                ),
+              ]
+            : []),
           EdgeLayer.updateStageSync(jobId, "transcription", {
             status: "completed",
             progress: 100
@@ -955,7 +1071,7 @@ export class TranscriptionLayer {
 
       // Industry standard: Generate discrete high-quality chapter thumbnails (640x360 qHD / 1280x720 HD)
       // directly from the authentic source video and AWAIT completion so chapters have real thumbnails
-      if (finalChapters && finalChapters.length > 0 && wantAutoChapters) {
+      if (targetVideoId && finalChapters && finalChapters.length > 0 && wantAutoChapters) {
         try {
           const chaptersWithThumbs = await generateHighQualityChapterThumbnailsForVideo(
             targetVideoId,
@@ -1144,7 +1260,6 @@ ${safeEnhancedText}
         gatewayStatus: "APPROVED",
         isFactChecked: existingVideoData.isFactChecked || false,
         isVerified: existingVideoData.isVerified || false,
-        trustLabel: isFactCheckingEnabled ? (existingVideoData.trustLabel || "Pending Verification") : null,
         status: "published",
         visibility: existingVideoData.visibility || (executionPlan as any).visibility || "public",
         isPublished: true,
@@ -1162,22 +1277,24 @@ ${safeEnhancedText}
         updatedAt: Date.now()
       };
 
-      // ── PARALLEL COPYRIGHT DETECTION AT STEP 4 ──
-      const copyrightMatchResult = await copyrightDetectionService.detectCopyright({
-        videoId: targetVideoId,
-        ownerId: userId,
-        channelId: (executionPlan as any).channelId || "unknown",
-        md5Hash: null,
-        transcript: enhanced.text,
-        summary: gatewayDecision.summary || "",
-        duration: enhanced.duration || 60,
-        summaryEmbedding: [],
-        transcriptHash: "",
-        chunks: []
-      }).catch((err: any) => {
-        logger.warn("[Transcription Gateway] Parallel copyright detection warning", { err });
-        return { hasMatch: false, matches: [] };
-      });
+      // ── PARALLEL COPYRIGHT DETECTION AT STEP 4 (skip public-feed hold for standalone Dubbing Studio jobs) ──
+      const copyrightMatchResult = isStandaloneDubbingJob
+        ? { hasMatch: false, matches: [] }
+        : await copyrightDetectionService.detectCopyright({
+            videoId: targetVideoId || jobId,
+            ownerId: userId,
+            channelId: (executionPlan as any).channelId || "unknown",
+            md5Hash: null,
+            transcript: enhanced.text,
+            summary: gatewayDecision.summary || "",
+            duration: enhanced.duration || 60,
+            summaryEmbedding: [],
+            transcriptHash: "",
+            chunks: []
+          }).catch((err: any) => {
+            logger.warn("[Transcription Gateway] Parallel copyright detection warning", { err });
+            return { hasMatch: false, matches: [] };
+          });
 
       if (copyrightMatchResult.hasMatch && copyrightMatchResult.matches.length > 0) {
         const topMatch = copyrightMatchResult.matches[0];
@@ -1213,29 +1330,38 @@ ${safeEnhancedText}
         }
       }
 
-      // Write & Await Firestore Publish Completion
-      await Promise.all([
-        db().collection("videos").doc(targetVideoId).set(publicationData, { merge: true }),
+      // Write & Await Firestore Publish Completion (NEVER create new docs in `videos`)
+      const [publishedToVideos] = await Promise.all([
+        targetVideoId
+          ? safeMergeExistingVideo(targetVideoId, publicationData, "[Transcription:Publish]")
+          : Promise.resolve(false),
         db().collection("video_jobs").doc(jobId).set({
           gatewayDecision,
-          status: "published",
+          status: targetVideoId ? "published" : ((requestedDubbing || requestedSubtitles) ? "processing" : "published"),
           metadataComplete: true,
           publishedAt: Date.now(),
           updatedAt: Date.now()
         }, { merge: true })
       ]);
 
-      // VERIFY Firestore Publication Succeeded Before Triggering Downstream Services
-      const verifySnap = await db().collection("videos").doc(targetVideoId).get();
-      if (!verifySnap.exists || !verifySnap.data()?.isPublished) {
-        throw new Error(`[Transcription Gateway] Firestore video publishing failed for videoId: ${targetVideoId}. Downstream jobs aborted.`);
-      }
+      // VERIFY Firestore Publication Succeeded Before Triggering Downstream Services (only when updating an existing video)
+      if (publishedToVideos) {
+        const verifySnap = await db().collection("videos").doc(targetVideoId).get();
+        if (!verifySnap.exists || !verifySnap.data()?.isPublished) {
+          throw new Error(`[Transcription Gateway] Firestore video publishing failed for videoId: ${targetVideoId}. Downstream jobs aborted.`);
+        }
 
-      logger.info(`[Transcription Gateway] Video, thumbnail & metadata SUCCESSFULLY PUBLISHED into Firestore for videoId: ${targetVideoId}. Now initiating downstream resolutions and AI feature services.`, {
-        videoId: targetVideoId,
-        category: gatewayDecision.category,
-        thumbnailUrl: finalThumbnailUrl
-      });
+        logger.info(`[Transcription Gateway] Video, thumbnail & metadata SUCCESSFULLY PUBLISHED into Firestore for videoId: ${targetVideoId}. Now initiating downstream resolutions and AI feature services.`, {
+          videoId: targetVideoId,
+          category: gatewayDecision.category,
+          thumbnailUrl: finalThumbnailUrl
+        });
+      } else {
+        logger.info(`[Transcription Gateway] Completed transcription for non-video job (skipped videos write)`, {
+          jobId,
+          targetVideoId: targetVideoId || null,
+        });
+      }
 
       // Industry Standard: Sync finalized Auto-Chapters and Named Entities to transcripts collection
       if (finalChapters.length > 0 || (gatewayDecision.entities && gatewayDecision.entities.length > 0)) {
@@ -1256,7 +1382,7 @@ ${safeEnhancedText}
 
       // Secondary validation: Ensure chapters in Firestore have discrete thumbnails if any were skipped
       const hasMissingThumbs = finalChapters && finalChapters.some((c: any) => !c.thumbnailUrl || c.thumbnailUrl === finalThumbnailUrl);
-      if (hasMissingThumbs) {
+      if (targetVideoId && hasMissingThumbs) {
         try {
           const repaired = await generateHighQualityChapterThumbnailsForVideo(targetVideoId, videoUrl, finalChapters, durationMs);
           if (repaired && repaired.length > 0) {
@@ -1308,7 +1434,7 @@ ${safeEnhancedText}
 
       // ── AFTER STEP 4: TRIGGER ONLY INDEPENDENT SYSTEMS REQUESTED BY THE CHANNEL ──
 
-      // 1. Independent Credibility System (Fact Checking & 3D Trust Score) - Available across all supported languages
+      // 1. Independent Credibility System (Fact Checking) - Available across all supported languages
       const shouldRunCredibility = isCredibilityRequested;
 
       if (shouldRunCredibility) {
@@ -1339,6 +1465,11 @@ ${safeEnhancedText}
           }
           fanoutTasks.push(
             EdgeLayer.upsertDubbingJob(jobId, { status: "failed", error: failReason, completedAt: Date.now() }),
+            syncStudioDubbingJobsForPipelineJob(jobId, null, {
+              status: "failed",
+              currentStepMessage: failReason,
+              error: failReason,
+            }),
             refundDubbingFeeOnFailure({
               jobId,
               userId,
@@ -1367,15 +1498,20 @@ ${safeEnhancedText}
           }).catch(() => {});
         } else {
           logger.info(`[Transcription Gateway] Manual Dubbing requested for job ${jobId} — launching independent dubbing-processing`);
-          fanoutTasks.push(this.distribution.publish("dubbing-processing", {
-            eventId: `dub_${jobId}`,
-            eventType: "dubbing-processing",
-            jobId, userId,
-            timestamp: Date.now(),
-            data: { videoUrl, executionPlan },
-            retryCount: 0,
-            source: "transcription-polling"
-          }));
+          const tDubPublishStart = Date.now();
+          fanoutTasks.push(
+            this.distribution.publish("dubbing-processing", {
+              eventId: `dub_${jobId}`,
+              eventType: "dubbing-processing",
+              jobId, userId,
+              timestamp: Date.now(),
+              data: { videoUrl, executionPlan },
+              retryCount: 0,
+              source: "transcription-polling"
+            }).then(() => {
+              emitDubbingTiming("transcription.publish", tDubPublishStart, { jobId });
+            })
+          );
         }
       } else {
         // ZERO AUTOMATIC DUBBING: Dubbing was not manually requested — mark dubbing as skipped
@@ -1387,6 +1523,11 @@ ${safeEnhancedText}
             completedAt: Date.now(),
           }).catch(() => {})
         );
+        // Not an order: prepares the language-independent analysis so a later order starts sooner
+        // (dubbing-prewarm-policy.ts). Never dubs anything.
+        if (!dubbingSttFailed) {
+          fanoutTasks.push(this.maybePrewarmDubbing(jobId, userId, videoUrl, executionPlan, resolvedVideoLang, "transcription-polling"));
+        }
 
         if (requestedSubtitles && localizationSttFailed) {
           fanoutTasks.push(EdgeLayer.failStage(
@@ -1442,6 +1583,11 @@ ${safeEnhancedText}
         if (requestedDubbing) {
           await EdgeLayer.failStage(jobId, "dubbing", msg);
           await EdgeLayer.upsertDubbingJob(jobId, { status: "failed", error: msg });
+          await syncStudioDubbingJobsForPipelineJob(jobId, null, {
+            status: "failed",
+            currentStepMessage: "We couldn't transcribe this video for dubbing. Any payment has been refunded.",
+            error: "We couldn't transcribe this video for dubbing. Any payment has been refunded.",
+          });
           await refundDubbingFeeOnFailure({
             jobId,
             userId,
@@ -1648,9 +1794,50 @@ ${safeEnhancedText}
         source: "assemblyai-webhook",
       }));
     }
+    const dubbingOrdered = executionPlan?.generateDubbing === true || executionPlan?.enableDubbing === true;
+    if (!dubbingOrdered) {
+      fanoutTasks.push(this.maybePrewarmDubbing(jobId, userId, videoUrl, executionPlan, normalizeLanguageCode(detectedLanguage || ""), "assemblyai-webhook"));
+    }
 
     await Promise.all(fanoutTasks);
     logger.info("[Transcription] Webhook fanout complete for downstream tasks", { jobId, fanoutCount: fanoutTasks.length });
+  }
+
+  /**
+   * Upload-time dubbing preparation for a video with no dubbing order (dubbing-prewarm-policy.ts).
+   * Best-effort: never throws, never delays or fails the transcription fan-out.
+   */
+  private async maybePrewarmDubbing(
+    jobId: string,
+    userId: string,
+    videoUrl: string,
+    executionPlan: ExecutionPlan,
+    sourceLang: string,
+    source: string
+  ): Promise<void> {
+    try {
+      const decision = await shouldPrewarmDubbing(userId, {
+        dubbingRequested: executionPlan?.generateDubbing === true || executionPlan?.enableDubbing === true,
+        sourceLanguageSupported: Boolean(sourceLang) && ASSEMBLYAI_UNIVERSAL_37_LANGUAGES.has(normalizeLanguageCode(sourceLang)) && isDubbingSourceLanguage(normalizeLanguageCode(sourceLang)),
+        durationSeconds: Number(executionPlan?.durationSeconds ?? executionPlan?.duration) || undefined,
+      });
+      if (!decision.prewarm) {
+        logger.info("[Transcription] Dubbing preparation not started", { jobId, reason: decision.reason });
+        return;
+      }
+      await this.distribution.publish("dubbing-prewarm", {
+        eventId: `dubprep_${jobId}`,
+        eventType: "dubbing-prewarm",
+        jobId, userId,
+        timestamp: Date.now(),
+        data: { videoUrl, executionPlan },
+        retryCount: 0,
+        source,
+      });
+      logger.info("[Transcription] Dubbing preparation queued", { jobId, reason: decision.reason });
+    } catch (err) {
+      logger.warn("[Transcription] Dubbing preparation not queued", { jobId, err: String(err) });
+    }
   }
 
   // Webhook handler removed as per polling migration logic (redundant)
@@ -1760,18 +1947,22 @@ ${safeEnhancedText}
         if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
           linkedVideoIds.push(jobData.videoId);
         }
-        for (const vid of linkedVideoIds) {
-          await db().collection("videos").doc(vid).set({
-            subtitles: {
-              [language]: directSrtUrl,
-            },
-            media: {
+        for (const vid of filterVideoIds(linkedVideoIds, "[Transcription:NativeSubtitles]")) {
+          await safeMergeExistingVideo(
+            vid,
+            {
               subtitles: {
                 [language]: directSrtUrl,
-              }
+              },
+              media: {
+                subtitles: {
+                  [language]: directSrtUrl,
+                }
+              },
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
+            "[Transcription:NativeSubtitles]"
+          );
         }
       } catch (propErr) {
         logger.warn("[Transcription] Failed to propagate native subtitles to video docs", { jobId, err: String(propErr) });
@@ -1923,17 +2114,20 @@ ${safeEnhancedText}
       updatedAt: Date.now(),
     });
 
-    // Sync detected language to video document so downstream layers & UI have the authentic language
-    const videoDocId = targetVideoId || jobId;
-    if (videoDocId) {
-      await db().collection("videos").doc(videoDocId).set({
-        language: result.detectedLanguage,
-        sourceLanguage: result.detectedLanguage,
-        spokenLanguages: result.spokenLanguages || [result.detectedLanguage],
-        isMultilingual: result.isMultilingual ?? false,
-        isCodeMixed: result.isCodeMixed ?? false,
-        updatedAt: Date.now(),
-      }, { merge: true }).catch((err) => {
+    // Sync detected language ONLY to an existing user-uploaded video document (never create a doc from jobId)
+    if (targetVideoId && isVideoId(targetVideoId)) {
+      await safeMergeExistingVideo(
+        targetVideoId,
+        {
+          language: result.detectedLanguage,
+          sourceLanguage: result.detectedLanguage,
+          spokenLanguages: result.spokenLanguages || [result.detectedLanguage],
+          isMultilingual: result.isMultilingual ?? false,
+          isCodeMixed: result.isCodeMixed ?? false,
+          updatedAt: Date.now(),
+        },
+        "[Transcription:storeTranscript]"
+      ).catch((err) => {
         logger.warn("[Transcription] Could not update video language:", { err: String(err) });
       });
     }
@@ -2111,16 +2305,11 @@ ${safeEnhancedText}
     const channelType = plan.channelType || "standard";
 
 
-    // v7.3: Fetch creator reputation for metadata threshold routing
-    const reputation = await reputationService.getReputation(userId);
-    const reliability = reputation?.metadataReliability?.overall ?? 0.8; // Default to 0.8 for new creators
-    const isHighTrust = reliability >= 0.9;
-
     // 0. NEW: Creator Intelligence Input (Primary Signal v7)
     if (plan.expectedSpeakerCount === "1") {
-      // Trust "1" implicitly if high trust or typical duration
-      if (isHighTrust || duration < 300) {
-        logger.info("[Transcription] High-trust solo routing", { jobId, reliability });
+      // Accept "1" for typical-length videos
+      if (duration < 300) {
+        logger.info("[Transcription] Solo-speaker routing", { jobId });
         return false;
       }
     }
@@ -2788,42 +2977,10 @@ Return STRICT JSON:
       }
     } catch (fallbackErr) {
       logger.error("[Transcription] Gemini fallback error", { jobId, err: String(fallbackErr) });
+      throw new Error(`[Transcription] Gemini fallback transcription failed for job ${jobId}: ${String(fallbackErr)}`);
     }
 
-    const fallbackLang = normLang || "en";
-    const fallbackAltLangs = normalizeLanguageCodes(alternativeLanguages || []);
-    const fallbackSpokenLangs = Array.from(new Set([fallbackLang, ...fallbackAltLangs])).filter(Boolean);
-    const fallbackText = executionPlan.description || executionPlan.title || "Spoken content";
-    const durSec = parseDurationToSeconds(executionPlan.duration) || 60;
-    return {
-      jobId,
-      language: fallbackLang,
-      detectedLanguage: fallbackLang,
-      spokenLanguages: fallbackSpokenLangs,
-      isMultilingual: fallbackSpokenLangs.length > 1,
-      isCodeMixed: fallbackSpokenLangs.length > 1 && fallbackSpokenLangs.includes("en"),
-      text: fallbackText,
-      confidence: 0.85,
-      speakerConfidence: 0.8,
-      words: [],
-      segments: [
-        {
-          index: 0,
-          start: 0,
-          end: durSec * 1000,
-          duration: durSec * 1000,
-          speaker: "speaker_0",
-          text: fallbackText,
-          language: fallbackLang,
-          words: [],
-        },
-      ],
-      speakers: [{ speakerId: "speaker_0", label: "Speaker 1", totalDuration: durSec * 1000, segments: [0] }],
-      chapters: [],
-      duration: durSec,
-      model: "gemini-3.5-flash-lite",
-      provider: "gemini",
-    };
+    throw new Error(`[Transcription] Gemini fallback transcription produced no usable output for job ${jobId}`);
   }
 
   private async generateAndStoreNativeSubtitlesFromSegments(
@@ -3000,12 +3157,16 @@ Return STRICT JSON:
       if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
         linkedVideoIds.push(jobData.videoId);
       }
-      for (const vid of linkedVideoIds) {
-        await db().collection("videos").doc(vid).set({
-          subtitles: { [language]: directSrtUrl },
-          media: { subtitles: { [language]: directSrtUrl } },
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+      for (const vid of filterVideoIds(linkedVideoIds, "[Transcription:SegmentSubtitles]")) {
+        await safeMergeExistingVideo(
+          vid,
+          {
+            subtitles: { [language]: directSrtUrl },
+            media: { subtitles: { [language]: directSrtUrl } },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          "[Transcription:SegmentSubtitles]"
+        );
       }
       return true;
     } catch (e) {

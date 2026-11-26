@@ -561,7 +561,7 @@ class DashboardController extends BaseController {
     }
     final isNew = id != _channelId;
     _channelId = id;
-    if (autoInitialize && (isNew || channelStats.isEmpty || recentVideos.isEmpty)) {
+    if (autoInitialize && (isNew || channelStats.isEmpty)) {
       _initializeData();
     }
   }
@@ -1207,9 +1207,14 @@ class DashboardController extends BaseController {
 
             final channel = Channel.fromDocumentSnapshot(snapshot);
             currentChannel.value = channel;
-            if (Get.isRegistered<AuthService>() &&
-                AuthService.to.userChannel?.id == channel.id) {
-              AuthService.to.setUserChannel(channel);
+            if (Get.isRegistered<AuthService>()) {
+              final authCh = AuthService.to.userChannel;
+              if (authCh == null ||
+                  authCh.id != channel.id ||
+                  authCh.updatedAt != channel.updatedAt ||
+                  authCh.status != channel.status) {
+                AuthService.to.setUserChannel(channel);
+              }
             }
 
             final isDismissedInDoc =

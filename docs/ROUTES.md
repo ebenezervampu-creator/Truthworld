@@ -64,8 +64,7 @@ graph TD
 | :--- | :--- | :--- | :--- | :--- |
 | `/upload` | `UploadSelectionScreen` | `AuthGuard` | `VideoFeatureBinding` | Content selection hub (Video, Subtitles, Dubbing, Community post, Playlist) |
 | `/upload/video` | `CreateContentScreen` | `AuthGuard` | `VideoFeatureBinding` | Multi-step video upload: metadata, thumbnail, HLS processing, language tags |
-| `/upload/subtitles`| `UploadSubtitlesPage` | `AuthGuard` | `VideoFeatureBinding` | Manual VTT/SRT upload or AI auto-transcription request |
-| `/upload/dubbing` | `UploadDubbingPage` | `AuthGuard` | `VideoFeatureBinding` | Request AI multi-lingual audio tracks (Telugu, Hindi, English) |
+| `/upload/dubbing` | `UploadAudioTrackDubbingPage` | `AuthGuard` | `VideoFeatureBinding` | Configure multi-lingual audio tracks & voice dubbing |
 | `/upload/community`| `CommunityPostUploadScreen`| `AuthGuard` | `CommunityPostUploadBinding` | Create text, poll, or image posts for subscribers |
 | `/create-playlist` | `CreatePlaylistScreen` | `AuthGuard` | `PlaylistBinding` | Build custom video playlists |
 | `/create-topic` | `CreateTopicScreen` | `AuthGuard` | `TopicsBinding` | Create community discussion topics for debate |

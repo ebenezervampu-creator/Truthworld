@@ -30,6 +30,8 @@ class FirestoreCollections {
   static const String channelLanguageRequests = 'channel_language_requests';
   static const String factCheckRequests = 'fact_check_requests';
   static const String videoJobs = 'video_jobs';
+  static const String dubbingProjects = 'dubbing_projects';
+  static const String studioDubbingJobs = 'studio_dubbing_jobs';
 
   // ── Video Subcollections ──────────────────────────────────────────
   static String videoComments(String videoId) => 'videos/$videoId/comments';

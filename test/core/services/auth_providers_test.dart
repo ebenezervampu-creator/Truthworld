@@ -140,6 +140,17 @@ void main() {
       expect(mapped.displayMessage, contains('SHA-1 fingerprint'));
     });
 
+    test('GoogleSignInExceptionHandler maps user cancellation to info severity and isCancelled', () {
+      const canceledEx = gsi.GoogleSignInException(
+        code: gsi.GoogleSignInExceptionCode.canceled,
+        description: 'Sign-in was cancelled',
+      );
+      final mapped = GoogleSignInExceptionHandler.from(canceledEx);
+      expect(mapped.code, equals('user-cancelled'));
+      expect(mapped.isCancelled, isTrue);
+      expect(mapped.severity, equals(ErrorSeverity.info));
+    });
+
     test('GoogleSignInExceptionHandler maps unauthorized-domain properly', () {
       final authEx = FirebaseAuthException(
         code: 'unauthorized-domain',

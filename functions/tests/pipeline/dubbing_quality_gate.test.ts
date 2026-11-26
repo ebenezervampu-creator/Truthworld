@@ -1,4 +1,4 @@
-import { DubbingQualityGate } from "../../src/pipeline/layers/quality-gate";
+import { DubbingQualityGate, isBlockingViolation } from "../../src/pipeline/layers/quality-gate";
 
 describe("Dubbing Automated Quality Gate", () => {
   const baseValidParams = {
@@ -120,5 +120,30 @@ describe("Dubbing Automated Quality Gate", () => {
         expect.stringContaining("Background music preservation was requested, but discrete stem isolation or ducking failed"),
       ])
     );
+  });
+
+  test("8. Fix 2.3: translationBlockedLines produces blocking violation controlled by DUBBING_BLOCK_ON_TRANSLATION_ERRORS", () => {
+    delete process.env.DUBBING_BLOCK_ON_TRANSLATION_ERRORS;
+    const result = DubbingQualityGate.evaluate({
+      ...baseValidParams,
+      translationBlockedLines: [
+        {
+          index: 2,
+          reason: "polarity_flip",
+          source: "He did not leave.",
+          text: "అతను వెళ్ళిపోయాడు.",
+        },
+      ],
+    });
+
+    expect(result.passed).toBe(false);
+    const violation = result.violations.find((v) => v.startsWith("Translation meaning error"));
+    expect(violation).toBeDefined();
+    expect(violation).toContain("line 3 (polarity_flip)");
+    expect(isBlockingViolation(violation!)).toBe(true);
+
+    process.env.DUBBING_BLOCK_ON_TRANSLATION_ERRORS = "false";
+    expect(isBlockingViolation(violation!)).toBe(false);
+    delete process.env.DUBBING_BLOCK_ON_TRANSLATION_ERRORS;
   });
 });

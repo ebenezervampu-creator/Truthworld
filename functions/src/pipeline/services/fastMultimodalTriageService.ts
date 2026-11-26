@@ -9,8 +9,8 @@
  * 2. Primary spoken factual claims
  * 3. Rapid cross-reference with Tier-0 authoritative knowledge
  *
- * Produces an instantaneous Provisional Trust Score in < 45-60 seconds,
- * updating Firestore immediately so users never see a "blank" fact-check slate.
+ * Produces a preliminary claim scan in < 45-60 seconds, updating Firestore
+ * immediately so users never see a "blank" fact-check slate.
  */
 
 import type { VertexAI } from "../utils/ai-client";
@@ -20,8 +20,7 @@ import { getVertexAI } from "../utils/ai-client";
 import { extractCandidateText } from "../utils/ai-utils";
 import { logger } from "../utils/logger";
 import { tier0KnowledgeService } from "./tier0Knowledge";
-
-const db = () => admin.firestore();
+import { safeMergeExistingVideo } from "../../utils/videosCollectionGuard";
 
 // @ts-ignore TS6133 - Used on lines 182-183 inside nested async scope
 const SENSATIONAL_CLICKBAIT_REGEX =
@@ -36,8 +35,6 @@ const FastTriageClaimSchema = z.object({
 });
 
 const FastTriageResponseSchema = z.object({
-  provisionalScore: z.number().min(0).max(100),
-  provisionalLabel: z.string(),
   provisionalViewerNote: z.string(),
   ocrExtractedText: z.array(z.string()).default([]),
   claims: z.array(FastTriageClaimSchema).default([]),
@@ -100,16 +97,12 @@ YOUR TASKS:
 3. SPEECH ANALYSIS: Identify the top 3 to 5 core empirical factual claims made by the speaker(s).
 4. RAPID VERIFICATION: Evaluate each claim's veracity based on established consensus facts.
    Allowed verdicts: "verified_true", "mostly_true", "false_claim", "misleading", "disputed", "opinion", "satire", "unverified".
-5. PROVISIONAL TRIAGE CLASSIFICATION: This is a fast preliminary triage prior to deep multi-source Google Search grounding.
-   - NEVER label any video "HIGH INTEGRITY" or assign a score > 75 during preliminary triage.
-   - For clean, low-risk, verifiable content with 0 false/misleading claims: label "PRELIMINARY SCAN" (score 65-75).
-   - For clickbait, sensationalism, or content with disputed/unverified claims: label "PRELIMINARY - SENSATIONAL / DISPUTED" or "PRELIMINARY - NEEDS CONTEXT" (score 30-50).
+5. PROVISIONAL TRIAGE: This is a fast preliminary scan prior to deep multi-source Google Search grounding.
+   - Do NOT rate, score or label the video as a whole. Report only the claims, OCR text and whether the content is clickbait or sensational.
 6. VIEWER ADVISORY: Write a crisp 1-2 sentence plain-language note explicitly stating this is a preliminary scan awaiting full multi-source grounding.
 
 Return ONLY a valid JSON object matching this schema:
 {
-  "provisionalScore": 70,
-  "provisionalLabel": "PRELIMINARY SCAN",
   "provisionalViewerNote": "Preliminary automated scan. Complete multi-source verification with Google Search grounding is currently processing in the background.",
   "ocrExtractedText": ["Ticker: Dow Jones drops 200 points", "Banner: Press Conference 2026"],
   "claims": [
@@ -199,23 +192,11 @@ Return ONLY a valid JSON object matching this schema:
 
       const isSensational = validated.isClickbaitOrSensational || hasTitlePattern || hasOcrPattern;
 
-      // Enforce strict policy: preliminary triage CANNOT be stamped "HIGH INTEGRITY"
       if (isSensational || hasNegativeClaims) {
-        validated.provisionalScore = Math.min(validated.provisionalScore, 45);
-        validated.provisionalLabel = hasNegativeClaims 
-          ? "PRELIMINARY - DISPUTED / UNGROUNDED" 
-          : "PRELIMINARY - SENSATIONAL / CLICKBAIT";
         validated.isClickbaitOrSensational = true;
         if (!validated.provisionalViewerNote.toLowerCase().includes("preliminary")) {
           validated.provisionalViewerNote = "Preliminary scan detected sensational claims or ungrounded assertions. Awaiting comprehensive multi-source grounding.";
         }
-      } else if (hasUnverifiedClaims) {
-        validated.provisionalScore = Math.min(validated.provisionalScore, 60);
-        validated.provisionalLabel = "PRELIMINARY - NEEDS CONTEXT";
-      } else {
-        // Clean baseline claims - capped at 75 max during provisional stage (never premature 100)
-        validated.provisionalScore = Math.min(validated.provisionalScore, 75);
-        validated.provisionalLabel = "PRELIMINARY SCAN";
       }
 
       // Ensure viewer note always clearly communicates provisional status
@@ -226,21 +207,18 @@ Return ONLY a valid JSON object matching this schema:
       const processingTimeMs = Date.now() - t0;
       logger.info("[FastTriage] Completed fast triage successfully", {
         videoId,
-        score: validated.provisionalScore,
-        label: validated.provisionalLabel,
+        hasUnverifiedClaims,
         isSensational,
         claimsCount: validated.claims.length,
         ocrCount: validated.ocrExtractedText.length,
         processingTimeMs,
       });
 
-      // Instantly write provisional data to Firestore video document
-      await db().collection("videos").doc(videoId).set(
+      // Instantly write provisional data to existing Firestore video document
+      await safeMergeExistingVideo(
+        videoId,
         {
-          trustLabel: validated.provisionalLabel,
           isProvisional: true,
-          provisionalScore: validated.provisionalScore,
-          provisionalLabel: validated.provisionalLabel,
           provisionalViewerNote: validated.provisionalViewerNote,
           isClickbaitOrSensational: validated.isClickbaitOrSensational,
           ocrTickerText: validated.ocrExtractedText,
@@ -248,7 +226,7 @@ Return ONLY a valid JSON object matching this schema:
           credibilityStatus: "provisional_ready",
           provisionalAt: admin.firestore.FieldValue.serverTimestamp(),
         },
-        { merge: true }
+        "[FastTriage]"
       );
 
       return {

@@ -5,7 +5,6 @@ import 'package:truthworld/core/services/algorithm/algorithm_engine.dart';
 import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
-import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/data/services/engine/search_result_ranker.dart';

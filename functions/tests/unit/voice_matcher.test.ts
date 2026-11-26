@@ -365,8 +365,8 @@ describe("Speaker-to-Voice Matching Layer (Expanded Studio Catalog)", () => {
         confidence: 0.95,
       };
       const match = voiceMatcher.selectNearestVoice(indianSpeaker, catalog);
-      expect(match.name).toBe("Aarav");
-      expect(match.voiceId).toBe("s3PprVl6qK3x6V3a5nUq");
+      expect(match.name).toBe("Srinu");
+      expect(match.voiceId).toBe("ge94MQm6fYaUCnxz1us6");
     });
   });
 });

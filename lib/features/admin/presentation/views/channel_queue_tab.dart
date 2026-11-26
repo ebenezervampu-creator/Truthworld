@@ -217,6 +217,8 @@ class ChannelQueueTab extends StatelessWidget {
                                         if (controller.isChannelTrusted(channel))
                                           _buildTrustedBadge(),
                                         _buildQuotaBadge(channel),
+                                        _buildChannelDubbingDiscountBadge(channel),
+                                        _buildChannelCreditsBadge(channel),
                                       ],
                                     ),
                                   ],
@@ -723,6 +725,70 @@ class ChannelQueueTab extends StatelessWidget {
     );
   }
 
+  Widget _buildChannelDubbingDiscountBadge(Map<String, dynamic> channel) {
+    final dubType = (channel['dubbingDiscountType'] ?? 'none').toString();
+    final dubPct = (channel['dubbingDiscountPercent'] as num?)?.toDouble() ?? 0.0;
+    final isDubFree = dubType == 'free' || dubPct >= 100.0;
+
+    if (!isDubFree && dubPct <= 0) return const SizedBox.shrink();
+
+    final label = isDubFree ? '100% Free Dubbing' : '${dubPct.round()}% Off Dubbing';
+    final color = isDubFree ? AppColors.success : AppColors.warning;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.local_offer_rounded, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChannelCreditsBadge(Map<String, dynamic> channel) {
+    final credits = (channel['freeDubbingCredits'] as num?)?.toInt() ?? 0;
+    if (credits <= 0) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.bolt_rounded, size: 10, color: AppColors.info),
+          const SizedBox(width: 3),
+          Text(
+            '+${credits.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} chars',
+            style: const TextStyle(
+              color: AppColors.info,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuotaBadge(Map<String, dynamic> channel) {
     final chType = (channel['channelType'] ?? channel['type'] ?? 'standard')
         .toString()
@@ -969,10 +1035,17 @@ class ChannelQueueTab extends StatelessWidget {
     AdminController controller,
     Map<String, dynamic> channel,
   ) {
+    final channelId = (channel['id'] ?? channel['channelId'] ?? '').toString();
     final dubType = (channel['dubbingDiscountType'] ?? 'none').toString();
     final dubPercent = (channel['dubbingDiscountPercent'] as num?)?.toDouble() ?? 0.0;
     final subType = (channel['subtitlesDiscountType'] ?? 'none').toString();
     final subPercent = (channel['subtitlesDiscountPercent'] as num?)?.toDouble() ?? 0.0;
+
+    final freeCredits = (channel['freeDubbingCredits'] as num?)?.toInt() ?? 0;
+    final dailySeconds = (channel['customDailyVideoDurationSeconds'] as num?)?.toInt() ??
+        (channel['maxDailyVideoDurationSeconds'] as num?)?.toInt() ??
+        600;
+    final dailyMinutes = (dailySeconds / 60).round();
 
     final isDubFree = dubType == 'free' || dubPercent >= 100.0;
     final isDub50 = dubType == '50%' || dubPercent == 50.0;
@@ -982,7 +1055,7 @@ class ChannelQueueTab extends StatelessWidget {
     final isSub50 = subType == '50%' || subPercent == 50.0;
     final isSubCustom = subType == 'custom' || (subPercent > 0 && !isSubFree && !isSub50);
 
-    final hasAnyDiscount = isDubFree || dubPercent > 0 || isSubFree || subPercent > 0;
+    final hasAnyBenefit = isDubFree || dubPercent > 0 || isSubFree || subPercent > 0 || freeCredits > 0 || dailyMinutes > 10;
 
     var dubLabel = 'Standard Rate (0%)';
     if (isDubFree) {
@@ -1002,13 +1075,20 @@ class ChannelQueueTab extends StatelessWidget {
       subLabel = '${subPercent.round()}% Custom Discount';
     }
 
+    final creditsLabel = freeCredits > 0
+        ? '+${freeCredits.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} free chars active'
+        : 'None granted (Standard)';
+    final quotaLabel = dailyMinutes > 10
+        ? '$dailyMinutes min/day (Custom High-Volume)'
+        : '10 min/day (Standard)';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: hasAnyDiscount
+          color: hasAnyBenefit
               ? AppColors.warning.withValues(alpha: 0.5)
               : Colors.white.withValues(alpha: 0.12),
         ),
@@ -1019,14 +1099,14 @@ class ChannelQueueTab extends StatelessWidget {
           Row(
             children: [
               const Icon(
-                Icons.local_offer_rounded,
+                Icons.admin_panel_settings_rounded,
                 color: AppColors.warning,
                 size: 20,
               ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'Channel AI Discounts (Dubbing & Subtitles)',
+                  'Super Admin Channel Privileges (Discounts & Credits)',
                   style: TextStyle(
                     fontFamily: TWTypography.brandFamily,
                     color: Colors.white,
@@ -1057,7 +1137,7 @@ class ChannelQueueTab extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Grant this particular channel free or discounted AI Dubbing & Subtitles. Creators are billed accordingly in Studio upload.',
+            'Directly give special discounts, free Dubbing Studio credits, and manage upload duration limits for this channel.',
             style: TextStyle(
               fontFamily: TWTypography.uiFamily,
               color: AppColors.textSecondary,
@@ -1066,7 +1146,7 @@ class ChannelQueueTab extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Dubbing and Subtitles discount rows
+          // Benefit summary rows
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1093,39 +1173,114 @@ class ChannelQueueTab extends StatelessWidget {
                   icon: Icons.subtitles_rounded,
                   iconColor: AppColors.textLink,
                 ),
+                const Divider(color: Colors.white10, height: 14),
+                _buildDiscountDetailRow(
+                  label: 'Free Dubbing Studio Credits:',
+                  value: creditsLabel,
+                  isFree: freeCredits > 0,
+                  hasDiscount: freeCredits > 0,
+                  icon: Icons.bolt_rounded,
+                  iconColor: AppColors.warning,
+                ),
+                const Divider(color: Colors.white10, height: 14),
+                _buildDiscountDetailRow(
+                  label: 'Channel Upload Limit Duration:',
+                  value: quotaLabel,
+                  isFree: dailyMinutes > 10,
+                  hasDiscount: dailyMinutes > 10,
+                  icon: Icons.timer_outlined,
+                  iconColor: AppColors.success,
+                ),
               ],
             ),
           ),
           const SizedBox(height: 14),
 
-          // Manage Discounts Button
-          Align(
-            alignment: Alignment.centerLeft,
-            child: ElevatedButton.icon(
-              onPressed: () => showAdminChannelDiscountDialog(
-                context: context,
-                controller: controller,
-                channel: channel,
-              ),
-              icon: const Icon(Icons.tune_rounded, size: 16, color: Colors.black),
-              label: const Text(
-                'Configure Channel Discounts',
-                style: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+          // Action Buttons Row
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () => showAdminChannelDiscountDialog(
+                  context: context,
+                  controller: controller,
+                  channel: channel,
+                ),
+                icon: const Icon(Icons.admin_panel_settings_rounded, size: 16, color: Colors.black),
+                label: const Text(
+                  'Configure Super Admin Privileges',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+              OutlinedButton.icon(
+                onPressed: controller.isActionSubmitting.value
+                    ? null
+                    : () async {
+                        await controller.grantChannelDubbingCredits(
+                          channelId: channelId,
+                          amountCredits: 10000,
+                          reason: 'Super Admin Quick Grant (+10,000 Chars)',
+                        );
+                      },
+                icon: const Icon(Icons.bolt_rounded, size: 16, color: AppColors.warning),
+                label: const Text(
+                  '+10,000 Free Credits',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  side: BorderSide(color: AppColors.warning.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-            ),
+              OutlinedButton.icon(
+                onPressed: () => showAdminChannelQuotaDialog(
+                  context: context,
+                  controller: controller,
+                  channel: channel,
+                ),
+                icon: const Icon(Icons.timer_outlined, size: 16, color: AppColors.success),
+                label: Text(
+                  'Upload Limit (${dailyMinutes}m)',
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  side: BorderSide(color: AppColors.success.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1144,41 +1299,49 @@ class ChannelQueueTab extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: iconColor),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: TWTypography.uiFamily,
-            color: AppColors.textSecondary,
-            fontSize: 12,
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: isFree
-                ? AppColors.success.withValues(alpha: 0.15)
-                : (hasDiscount
-                    ? AppColors.warning.withValues(alpha: 0.15)
-                    : Colors.white.withValues(alpha: 0.05)),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
+        const SizedBox(width: 8),
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
               color: isFree
-                  ? AppColors.success.withValues(alpha: 0.3)
+                  ? AppColors.success.withValues(alpha: 0.15)
                   : (hasDiscount
-                      ? AppColors.warning.withValues(alpha: 0.3)
-                      : Colors.white.withValues(alpha: 0.08)),
+                      ? AppColors.warning.withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.05)),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: isFree
+                    ? AppColors.success.withValues(alpha: 0.3)
+                    : (hasDiscount
+                        ? AppColors.warning.withValues(alpha: 0.3)
+                        : Colors.white.withValues(alpha: 0.08)),
+              ),
             ),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              color: isFree
-                  ? AppColors.success
-                  : (hasDiscount ? AppColors.warning : AppColors.textPrimary),
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: isFree
+                    ? AppColors.success
+                    : (hasDiscount ? AppColors.warning : AppColors.textPrimary),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),

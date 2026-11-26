@@ -1,4 +1,13 @@
 import * as admin from "firebase-admin";
+
+// The stance step is a model call; these tests are about URL handling, so every source
+// is judged as supporting the claim it was cited for.
+jest.mock("../../src/pipeline/services/stanceClassifier", () => ({
+  classifySourceStances: async (_claim: string, sources: any[]) =>
+    sources.map((s: any) => (s.claimStance ? s : { ...s, claimStance: "SUPPORTS", sourceKind: "INDEPENDENT_REPORTING" })),
+  isWeightedStance: (st: string) => st === "SUPPORTS" || st === "CONTRADICTS" || st === "MIXED",
+  sourceOwnText: () => "",
+}));
 import { PIPELINE_CONFIG } from "../../src/pipeline/config";
 import {
   ClaimNature,
@@ -34,6 +43,24 @@ import {
 } from "../../src/pipeline/services/sourceHealingService";
 import { tier0KnowledgeService } from "../../src/pipeline/services/tier0Knowledge";
 import { reportBrokenSourceUrl } from "../../src/pipeline/pipelineTriggers";
+
+// These tests exercise the Cite-by-ID mode, which is OFF by default in production
+// (config.ts ENFORCE_CITE_BY_ID). Turn it on — and turn off the live fused-grounding
+// cascade — for the duration of one test only.
+async function withCiteById<T>(fn: () => Promise<T>): Promise<T> {
+  const cfg: any = PIPELINE_CONFIG;
+  const prevCite = cfg.CLOSED_WORLD_CITATIONS?.ENFORCE_CITE_BY_ID;
+  const prevFused = cfg.ENABLE_FUSED_GROUNDING;
+  cfg.CLOSED_WORLD_CITATIONS = { ...(cfg.CLOSED_WORLD_CITATIONS || {}), ENFORCE_CITE_BY_ID: true };
+  cfg.ENABLE_FUSED_GROUNDING = false;
+  try {
+    return await fn();
+  } finally {
+    cfg.CLOSED_WORLD_CITATIONS = { ...cfg.CLOSED_WORLD_CITATIONS, ENFORCE_CITE_BY_ID: prevCite };
+    cfg.ENABLE_FUSED_GROUNDING = prevFused;
+  }
+}
+
 import { clearCache } from "../../src/pipeline/utils/memory-cache";
 
 describe("Unit: Closed-World Citation Firewall, Cite-by-ID & Claim #18 Healing", () => {
@@ -225,12 +252,12 @@ describe("Unit: Closed-World Citation Firewall, Cite-by-ID & Claim #18 Healing",
       }),
     };
 
-    const results = await svc.verifyClaimBatch([teluguClaim], "Health", {
+    const results = await withCiteById(() => svc.verifyClaimBatch([teluguClaim], "Health", {
       groundingMode: "always",
       forcePro: false,
       minSourcesRequired: 1,
       sourceDiversityRequired: false,
-    });
+    }));
 
     expect(results).toHaveLength(1);
     const verified = results[0];
@@ -340,7 +367,7 @@ describe("Unit: Closed-World Citation Firewall, Cite-by-ID & Claim #18 Healing",
       }),
     };
 
-    const results = await svc.verifyClaimBatch([claim], "Health");
+    const results = await withCiteById(() => svc.verifyClaimBatch([claim], "Health"));
     expect(results).toHaveLength(1);
     expect(results[0].richSources).toEqual([]);
     expect(results[0].sourceStatus).toBe("missing");

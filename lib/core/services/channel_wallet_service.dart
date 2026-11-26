@@ -14,6 +14,7 @@ import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/channel_wallet_pricing.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/infrastructure_metering_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/channel_wallet_models.dart';
 
@@ -1011,6 +1012,10 @@ class ChannelWalletService {
         // NOTE: Server-side fulfillOrder webhook handles the wallet balance increment.
         // We do NOT call topupChannelWalletDirect here to avoid duplicate credit.
         return true;
+      }
+      if (paymentResult.errorMessage != null &&
+          !paymentResult.errorMessage!.toLowerCase().contains('cancel')) {
+        AppSnackbar.warning(paymentResult.errorMessage!);
       }
       return false;
     } catch (e, stackTrace) {

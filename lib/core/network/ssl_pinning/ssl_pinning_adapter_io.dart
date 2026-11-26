@@ -26,6 +26,9 @@ class SslPinningAdapterIo implements SslPinningAdapter {
     'securetoken.googleapis.com',
     'cloudfunctions.net',
     'asia-south1-truthworld-1.cloudfunctions.net',
+    if (String.fromEnvironment('FIREBASE_ENV') == 'staging') ...[
+      'asia-south1-${String.fromEnvironment('STAGING_PROJECT_ID', defaultValue: 'truthworld-staging')}.cloudfunctions.net',
+    ],
   };
 
   /// Known SHA-256 fingerprints of authoritative Root, Intermediate, and Server Certificates.

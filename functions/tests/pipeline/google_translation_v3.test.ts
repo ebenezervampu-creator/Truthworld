@@ -18,6 +18,7 @@ import {
   LANG_SYLLABLE_RATIOS,
 } from "../../src/pipeline/services/translation";
 import { costEngine } from "../../src/pipeline/services/cost-engine";
+import { geminiDubbingEditor } from "../../src/pipeline/services/geminiDubbingEditor";
 
 describe("Google Cloud Translation API v3 Test Suite", () => {
   let service: TranslationService;
@@ -267,7 +268,8 @@ describe("Google Cloud Translation API v3 Test Suite", () => {
   });
 
   describe("4. Production Segment Pipeline (`translateSegments`)", () => {
-    test("translates dubbing/subtitle segments with the required v3 + Adaptive MT composite", async () => {
+    test("legacy mode: translates dubbing/subtitle segments with the v3 + Adaptive MT composite", async () => {
+      process.env.DUBBING_TRANSLATION_MODE = "legacy";
       mockTranslateText.mockResolvedValueOnce([
         {
           translations: [
@@ -338,6 +340,73 @@ describe("Google Cloud Translation API v3 Test Suite", () => {
       );
 
       spyCost.mockRestore();
+      delete process.env.DUBBING_TRANSLATION_MODE;
+    });
+
+    test("hybrid mode (default): Translation LLM drafts, Gemini edits in context, no Adaptive MT", async () => {
+      delete process.env.DUBBING_TRANSLATION_MODE;
+      mockTranslateText.mockResolvedValueOnce([
+        {
+          translations: [
+            { translatedText: "సత్యప్రపంచానికి స్వాగతం" },
+            { translatedText: "ఇది నిజమైన వాస్తవాల తనిఖీ వేదిక" },
+          ],
+        },
+      ]);
+      const editSpy = jest.spyOn(geminiDubbingEditor, "editSegments").mockImplementation(async (segs) =>
+        segs.map((seg) => ({
+          id: seg.id,
+          text: seg.id === "L2" ? "ఇది నిజమైన ఫ్యాక్ట్-చెక్ వేదిక" : seg.draft,
+          usedDraft: seg.id !== "L2",
+          syllables: 10,
+          maxSyllables: seg.maxSyllables,
+          overBudget: false,
+        }))
+      );
+
+      const result = await service.translateSegments(
+        "job_test_hybrid_1",
+        [
+          { start: 0, end: 3500, text: "Welcome to TruthWorld", speaker: "speaker_0" },
+          { start: 3600, end: 7000, text: "This is a real fact-checking platform", speaker: "speaker_1" },
+        ],
+        "en",
+        "te",
+        {
+          dubbingTier: "audio_track",
+          userId: "usr_truth_creator",
+          speakerProfiles: [{ speakerId: "speaker_1", gender: "female" } as any],
+        }
+      );
+
+      expect(mockAdaptiveMtTranslate).not.toHaveBeenCalled();
+      expect(editSpy).toHaveBeenCalledTimes(1);
+      const [editorSegs, editorOpts] = editSpy.mock.calls[0];
+      expect(editorSegs.map((s) => s.draft)).toEqual(["సత్యప్రపంచానికి స్వాగతం", "ఇది నిజమైన వాస్తవాల తనిఖీ వేదిక"]);
+      expect(editorSegs[1].speakerGender).toBe("female");
+      // Each line gets a syllable budget from its time window (ms in, ms out).
+      expect(editorSegs[0].maxSyllables).toBeGreaterThan(5);
+      expect(editorOpts.targetLanguage).toBe("te");
+      expect(result.segments[0].translated).toBe("సత్యప్రపంచానికి స్వాగతం");
+      expect(result.segments[1].translated).toBe("ఇది నిజమైన ఫ్యాక్ట్-చెక్ వేదిక");
+      editSpy.mockRestore();
+    });
+
+    test("hybrid mode keeps the drafts when the Gemini step throws", async () => {
+      delete process.env.DUBBING_TRANSLATION_MODE;
+      mockTranslateText.mockResolvedValueOnce([
+        { translations: [{ translatedText: "సత్యప్రపంచానికి స్వాగతం" }] },
+      ]);
+      const editSpy = jest.spyOn(geminiDubbingEditor, "editSegments").mockRejectedValue(new Error("vertex down"));
+      const result = await service.translateSegments(
+        "job_test_hybrid_2",
+        [{ start: 0, end: 2000, text: "Welcome to TruthWorld", speaker: "speaker_0" }],
+        "en",
+        "te",
+        { dubbingTier: "audio_track" }
+      );
+      expect(result.segments[0].translated).toBe("సత్యప్రపంచానికి స్వాగతం");
+      editSpy.mockRestore();
     });
   });
 
@@ -456,26 +525,46 @@ describe("Google Cloud Translation API v3 Test Suite", () => {
   });
 
   describe("8. Concise Retranslation for Dubbing Pacing", () => {
-    test("condenses rhetorical filler and uses the composite translation primary", async () => {
+    test("drafts with Translation LLM and asks Gemini to fit the syllable budget", async () => {
+      delete process.env.DUBBING_TRANSLATION_MODE;
       mockTranslateText.mockResolvedValueOnce([
-        {
-          translations: [{ translatedText: "సత్యంపై దృష్టి నిలపండి" }],
-        },
+        { translations: [{ translatedText: "వాస్తవానికి, మీరు సత్యంపై దృష్టి పెట్టాలని గమనించడం ముఖ్యం" }] },
       ]);
+      const editSpy = jest.spyOn(geminiDubbingEditor, "editSegments").mockImplementation(async (segs) =>
+        segs.map((seg) => ({ id: seg.id, text: "సత్యంపై దృష్టి నిలపండి", usedDraft: false, syllables: 9, maxSyllables: seg.maxSyllables, overBudget: false }))
+      );
 
       const concise = await service.retranslateConcise(
         "As a matter of fact, it is important to note that you should focus on the truth.",
         "en",
         "te",
-        { targetDurationRatio: 1.35 }
+        { targetDurationRatio: 1.35, maxDurationMs: 1500 }
       );
 
       expect(mockTranslateText).toHaveBeenCalledTimes(1);
-      const calledText = mockTranslateText.mock.calls[0][0].contents[0];
-      // Expect rhetorical preamble to be pruned
-      expect(calledText).not.toContain("As a matter of fact");
-      expect(calledText).not.toContain("it is important to note that");
+      expect(mockAdaptiveMtTranslate).not.toHaveBeenCalled();
+      // The source is sent unchanged; shortening is Gemini's job, not a regex's.
+      expect(mockTranslateText.mock.calls[0][0].contents[0]).toContain("As a matter of fact");
+      const [[seg]] = editSpy.mock.calls[0];
+      expect(seg.maxSyllables).toBe(7); // 1.5 s x 4.8 syl/s (measured) x 1.10 headroom
       expect(concise).toBe("సత్యంపై దృష్టి నిలపండి");
+      editSpy.mockRestore();
+    });
+
+    test("never replaces a Hindi line with hard-coded text", async () => {
+      delete process.env.DUBBING_TRANSLATION_MODE;
+      const draft = "भाई, यह किताब बहुत पुरानी है और इसमें कई कहानियाँ हैं जो लोगों को पसंद हैं";
+      mockTranslateText.mockResolvedValueOnce([{ translations: [{ translatedText: draft }] }]);
+      const editSpy = jest.spyOn(geminiDubbingEditor, "editSegments").mockRejectedValue(new Error("offline"));
+
+      const concise = await service.retranslateConcise(
+        "Brother, this book is very old and has many stories people like",
+        "en",
+        "hi",
+        { targetDurationRatio: 1.4, maxCharacters: 20 }
+      );
+      expect(concise).toBe(draft);
+      editSpy.mockRestore();
     });
   });
 
@@ -516,6 +605,159 @@ describe("Google Cloud Translation API v3 Test Suite", () => {
       );
       expect(resTa.isFullyCompliant).toBe(false);
       expect(resTa.violations[0].disallowedFound).toBe("மீண்டும் செய்யக்கூடிய ஆற்றல்");
+    });
+  });
+
+  describe("Fix 2.2 & 2.4: Gemini repair without Adaptive MT & non-English glossary", () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    test("Fix 2.2: adaptiveMtClient === null triggers Gemini repair and updates both spoken and subtitle tracks", async () => {
+      (service as any)._adaptiveMtClient = null;
+      jest.spyOn(service as any, "batchTranslateV3").mockResolvedValue(["ధరలు పెరిగాయి."]);
+
+      const editSpy = jest
+        .spyOn(geminiDubbingEditor, "editSegments")
+        .mockResolvedValueOnce([
+          {
+            id: "L1",
+            text: "ధరలు పెరిగాయి.", // missing 2024 & 12%
+            subtitleText: "ధరలు పెరిగాయి.",
+            usedDraft: false,
+            syllables: 6,
+            overBudget: false,
+            meaningAction: "kept",
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: "R1",
+            text: "2024లో ధరలు 12% పెరిగాయి.",
+            subtitleText: "2024లో ధరలు 12% పెరిగాయి.",
+            usedDraft: false,
+            syllables: 12,
+            overBudget: false,
+          },
+        ]);
+
+      const res = await service.translateSegments(
+        "job_repair_no_amt",
+        [{ start: 0, end: 3000, text: "Prices rose 12% in 2024." }],
+        "en",
+        "te",
+        { enableDualTrack: true, contextualEdit: true }
+      );
+
+      expect(editSpy).toHaveBeenCalledTimes(2);
+      expect(res.segments[0].translated).toBe("2024లో ధరలు 12% పెరిగాయి.");
+      expect(res.segments[0].subtitleText).toBe("2024లో ధరలు 12% పెరిగాయి.");
+      expect(res.segments[0].repairAttempted).toBe(true);
+      expect(res.segments[0].repairOutcome).toBe("repaired");
+      expect(res.segments[0].translationBlockReason).toBeUndefined();
+    });
+
+    test("Fix 2.2: failed repair keeps original and sets translationBlockReason: 'number_mismatch'", async () => {
+      (service as any)._adaptiveMtClient = null;
+      jest.spyOn(service as any, "batchTranslateV3").mockResolvedValue(["ధరలు పెరిగాయి."]);
+
+      jest
+        .spyOn(geminiDubbingEditor, "editSegments")
+        .mockResolvedValueOnce([
+          {
+            id: "L1",
+            text: "ధరలు పెరిగాయి.",
+            subtitleText: "ధరలు పెరిగాయి.",
+            usedDraft: false,
+            syllables: 6,
+            overBudget: false,
+            meaningAction: "kept",
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: "R1",
+            text: "ధరలు చాలా పెరిగాయి.", // still missing 12% and 2024
+            subtitleText: "ధరలు చాలా పెరిగాయి.",
+            usedDraft: false,
+            syllables: 8,
+            overBudget: false,
+          },
+        ]);
+
+      const res = await service.translateSegments(
+        "job_repair_fail",
+        [{ start: 0, end: 3000, text: "Prices rose 12% in 2024." }],
+        "en",
+        "te",
+        { enableDualTrack: true, contextualEdit: true }
+      );
+
+      expect(res.segments[0].translated).toBe("ధరలు పెరిగాయి.");
+      expect(res.segments[0].repairAttempted).toBe(true);
+      expect(res.segments[0].repairOutcome).toBe("failed");
+      expect(res.segments[0].translationBlockReason).toBe("number_mismatch");
+    });
+
+    test("Fix 2.4: Hindi-source line containing Hindi glossary term returns Telugu target term", () => {
+      const terms = (service as any).buildGlossaryTermsForEditor(
+        ["प्रभु ने उन्हें दासत्व से छुड़ाया।"],
+        "hi",
+        "te"
+      );
+      expect(terms.length).toBeGreaterThan(0);
+      expect(terms[0]).toEqual(
+        expect.objectContaining({
+          source: "प्रभु",
+          target: "ప్రభువా",
+        })
+      );
+    });
+
+    test("R4: repair reply that still flags meaningPolarityFlipped or unresolved is rejected and keeps segment blocked", async () => {
+      (service as any)._adaptiveMtClient = null;
+      jest.spyOn(service as any, "batchTranslateV3").mockResolvedValue(["అతను వెళ్ళాడు."]);
+
+      const editSpy = jest
+        .spyOn(geminiDubbingEditor, "editSegments")
+        .mockResolvedValueOnce([
+          {
+            id: "L1",
+            text: "అతను వెళ్ళాడు.",
+            subtitleText: "అతను వెళ్ళాడు.",
+            usedDraft: false,
+            syllables: 5,
+            overBudget: false,
+            meaningAction: "unresolved",
+            meaningPolarityFlipped: true,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: "R1",
+            text: "అతను వెళ్ళిపోయాడు.", // changed text, but meaning check STILL flags polarity flip!
+            subtitleText: "అతను వెళ్ళిపోయాడు.",
+            usedDraft: false,
+            syllables: 6,
+            overBudget: false,
+            meaningAction: "unresolved",
+            meaningPolarityFlipped: true,
+          },
+        ]);
+
+      const res = await service.translateSegments(
+        "job_r4_repair_meaning",
+        [{ start: 0, end: 3000, text: "He did not leave." }],
+        "en",
+        "te",
+        { enableDualTrack: true, contextualEdit: true }
+      );
+
+      expect(editSpy).toHaveBeenCalledTimes(2);
+      expect(res.segments[0].translated).toBe("అతను వెళ్ళాడు.");
+      expect(res.segments[0].repairAttempted).toBe(true);
+      expect(res.segments[0].repairOutcome).toBe("failed");
+      expect(res.segments[0].translationBlockReason).toBe("polarity_flip");
     });
   });
 });

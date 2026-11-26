@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../firebase";
+import CommunityEvidenceQueue from "./CommunityEvidenceQueue";
 
 // Helper to strictly validate safe web URLs and prevent XSS (javascript: / data: schemes)
 const isSafeWebUrl = (url) => {
@@ -263,6 +264,7 @@ export default function AppealsDeskTab({ user, formatDate }) {
 
   return (
     <div className="appeals-desk-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <CommunityEvidenceQueue formatDate={formatDate} />
       {/* Metrics Bar */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
         <div className="glass" style={{ padding: "16px", borderRadius: "12px", border: "1px solid var(--border)" }}>

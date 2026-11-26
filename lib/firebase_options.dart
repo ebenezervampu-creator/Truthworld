@@ -33,7 +33,67 @@ class DefaultFirebaseOptions {
     return defaultAuthDomain;
   }
 
+  static const bool isStaging =
+      String.fromEnvironment('FIREBASE_ENV') == 'staging';
+
+  static FirebaseOptions get webStaging {
+    const apiKey = String.fromEnvironment('STAGING_WEB_API_KEY');
+    if (apiKey.isEmpty) {
+      throw StateError(
+        'Missing required --dart-define=STAGING_WEB_API_KEY for staging build.',
+      );
+    }
+    const appId = String.fromEnvironment('STAGING_WEB_APP_ID');
+    if (appId.isEmpty) {
+      throw StateError(
+        'Missing required --dart-define=STAGING_WEB_APP_ID for staging build.',
+      );
+    }
+    const messagingSenderId =
+        String.fromEnvironment('STAGING_MESSAGING_SENDER_ID');
+    if (messagingSenderId.isEmpty) {
+      throw StateError(
+        'Missing required --dart-define=STAGING_MESSAGING_SENDER_ID for staging build.',
+      );
+    }
+    const projectId = String.fromEnvironment('STAGING_PROJECT_ID');
+    if (projectId.isEmpty) {
+      throw StateError(
+        'Missing required --dart-define=STAGING_PROJECT_ID for staging build.',
+      );
+    }
+    const storageBucket = String.fromEnvironment('STAGING_STORAGE_BUCKET');
+    if (storageBucket.isEmpty) {
+      throw StateError(
+        'Missing required --dart-define=STAGING_STORAGE_BUCKET for staging build.',
+      );
+    }
+    const authDomain = String.fromEnvironment('STAGING_AUTH_DOMAIN');
+    const databaseURL = String.fromEnvironment('STAGING_DATABASE_URL');
+    const measurementId = String.fromEnvironment('STAGING_MEASUREMENT_ID');
+
+    return FirebaseOptions(
+      apiKey: apiKey,
+      appId: appId,
+      messagingSenderId: messagingSenderId,
+      projectId: projectId,
+      authDomain:
+          authDomain.isNotEmpty ? authDomain : '$projectId.firebaseapp.com',
+      storageBucket: storageBucket,
+      databaseURL: databaseURL.isNotEmpty
+          ? databaseURL
+          : 'https://$projectId-default-rtdb.asia-southeast1.firebasedatabase.app',
+      measurementId: measurementId.isNotEmpty ? measurementId : null,
+    );
+  }
+
   static FirebaseOptions forFlavor([AppFlavor? flavor]) {
+    if (isStaging) {
+      if (!kIsWeb) {
+        throw UnsupportedError('Staging builds are web-only for now.');
+      }
+      return webStaging;
+    }
     final activeFlavor = flavor ?? AppFlavor.active;
     if (kIsWeb) {
       if (resolvedWebAuthDomain != defaultAuthDomain) {
@@ -59,6 +119,8 @@ class DefaultFirebaseOptions {
             return androidAdmin;
           case AppFlavor.advertiser:
             return androidAdvertiser;
+          case AppFlavor.dubbing:
+            return androidDubbing;
           case AppFlavor.app:
             return android;
         }
@@ -124,6 +186,16 @@ class DefaultFirebaseOptions {
   static const FirebaseOptions androidAdvertiser = FirebaseOptions(
     apiKey: 'AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50',
     appId: '1:768266102263:android:965d98e244225dc4143af2', // com.truthworld.advertiser
+    messagingSenderId: '768266102263',
+    projectId: 'truthworld-1',
+    authDomain: defaultAuthDomain,
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'truthworld-1.firebasestorage.app',
+  );
+
+  static const FirebaseOptions androidDubbing = FirebaseOptions(
+    apiKey: 'AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50',
+    appId: '1:768266102263:android:656b81ce67262393143af2', // com.truthworld.dubbing
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
     authDomain: defaultAuthDomain,

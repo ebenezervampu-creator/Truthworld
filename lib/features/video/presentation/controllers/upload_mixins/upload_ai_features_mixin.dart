@@ -57,12 +57,19 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
   /// Toggle subtitle language selection.
   /// Selecting in Subtitles does NOT select for Dubbing.
   void toggleSubtitleLanguage(String lang) {
+    final clean = lang.trim().toLowerCase();
     if (aiTranslationLanguages.contains(lang)) {
       aiTranslationLanguages.remove(lang);
       if (aiDubbingLanguages.contains(lang)) {
         aiDubbingLanguages.remove(lang);
       }
     } else {
+      // Collision guard: If device file already attached for this language, replace it cleanly
+      if (attachedSubtitleFiles.containsKey(clean) || attachedSubtitleFiles.containsKey(lang)) {
+        attachedSubtitleFiles.remove(clean);
+        attachedSubtitleFiles.remove(lang);
+        AppSnackbar.info('Replaced device subtitle file with AI-queued ${getLanguageName(lang)}.');
+      }
       aiTranslationLanguages.add(lang);
     }
   }
@@ -83,14 +90,149 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
       return;
     }
 
+    final clean = lang.trim().toLowerCase();
     if (aiDubbingLanguages.contains(lang)) {
       aiDubbingLanguages.remove(lang);
     } else {
+      // Collision guard: If device audio already attached for this language, replace it cleanly
+      if (attachedAudioFiles.containsKey(clean) || attachedAudioFiles.containsKey(lang)) {
+        attachedAudioFiles.remove(clean);
+        attachedAudioFiles.remove(lang);
+        attachedAudioRoles.remove(clean);
+        attachedAudioRoles.remove(lang);
+        AppSnackbar.info('Replaced device audio track with AI-queued ${getLanguageName(lang)}.');
+      }
       aiDubbingLanguages.add(lang);
       if (!aiTranslationLanguages.contains(lang)) {
         aiTranslationLanguages.add(lang);
       }
     }
+  }
+
+  /// Resolves language code to human-friendly display name.
+  @override
+  String getLanguageName(String code) {
+    final clean = code.trim().toLowerCase();
+    final match = supportedLanguages.firstWhereOrNull(
+      (l) => l.code.toLowerCase() == clean || l.name.toLowerCase() == clean,
+    );
+    if (match != null) {
+      return match.nativeName.isNotEmpty && match.nativeName != match.name
+          ? '${match.name} (${match.nativeName})'
+          : match.name;
+    }
+    return code.toUpperCase();
+  }
+
+  /// Consolidated list of all configured languages across base, AI queues, and attached files.
+  @override
+  List<String> get allConfiguredLanguages {
+    final result = <String>{};
+    final base = effectiveVideoLanguage.trim().toLowerCase();
+    if (base.isNotEmpty) result.add(base);
+
+    for (final l in aiTranslationLanguages) {
+      final c = l.trim().toLowerCase();
+      if (c.isNotEmpty) result.add(c);
+    }
+    for (final l in aiDubbingLanguages) {
+      final c = l.trim().toLowerCase();
+      if (c.isNotEmpty) result.add(c);
+    }
+    for (final l in attachedSubtitleFiles.keys) {
+      final c = l.trim().toLowerCase();
+      if (c.isNotEmpty) result.add(c);
+    }
+    for (final l in attachedAudioFiles.keys) {
+      final c = l.trim().toLowerCase();
+      if (c.isNotEmpty) result.add(c);
+    }
+    return result.toList();
+  }
+
+  /// Whether any extra subtitle, dubbing, or device track has been staged.
+  @override
+  bool get hasConfiguredLanguageTracks =>
+      attachedSubtitleFiles.isNotEmpty ||
+      attachedAudioFiles.isNotEmpty ||
+      aiTranslationLanguages.isNotEmpty ||
+      aiDubbingLanguages.isNotEmpty;
+
+  /// Attach a device subtitle file (.srt / .vtt) with collision cleanup.
+  @override
+  void attachDeviceSubtitle(String langCode, PlatformFile file) {
+    final clean = langCode.trim().toLowerCase();
+    // Collision guard: If this language was queued for AI translation, clear it
+    if (aiTranslationLanguages.contains(langCode) || aiTranslationLanguages.contains(clean)) {
+      aiTranslationLanguages.remove(langCode);
+      aiTranslationLanguages.remove(clean);
+      if (aiTranslationLanguages.isEmpty) {
+        aiGenerateSubtitles.value = false;
+      }
+      AppSnackbar.info('Replaced AI-queued ${getLanguageName(langCode)} with device subtitle upload.');
+    }
+    attachedSubtitleFiles[clean] = file;
+    AppSnackbar.success('Attached ${file.name} as ${getLanguageName(langCode)} subtitle track.');
+  }
+
+  /// Attach a device audio or video track (.mp3, .wav, .mp4, .mov) with collision cleanup.
+  @override
+  void attachDeviceAudioTrack(String langCode, PlatformFile file, String role) {
+    final clean = langCode.trim().toLowerCase();
+    // Collision guard: If this language was queued for AI dubbing, clear it
+    if (aiDubbingLanguages.contains(langCode) || aiDubbingLanguages.contains(clean)) {
+      aiDubbingLanguages.remove(langCode);
+      aiDubbingLanguages.remove(clean);
+      if (aiDubbingLanguages.isEmpty) {
+        aiGenerateDubbing.value = false;
+      }
+      AppSnackbar.info('Replaced AI-queued ${getLanguageName(langCode)} with device audio track.');
+    }
+    attachedAudioFiles[clean] = file;
+    attachedAudioRoles[clean] = role.isNotEmpty ? role : 'Dubbed Audio';
+    AppSnackbar.success('Attached ${file.name} as ${getLanguageName(langCode)} ($role).');
+  }
+
+  /// Remove a language track from AI queues and/or device attachments.
+  @override
+  void removeLanguageTrack(String langCode, {bool removeSubtitle = true, bool removeAudio = true}) {
+    final clean = langCode.trim().toLowerCase();
+    if (removeSubtitle) {
+      attachedSubtitleFiles.remove(clean);
+      attachedSubtitleFiles.remove(langCode);
+      aiTranslationLanguages.remove(clean);
+      aiTranslationLanguages.remove(langCode);
+      if (aiTranslationLanguages.isEmpty) {
+        aiGenerateSubtitles.value = false;
+      }
+    }
+    if (removeAudio) {
+      attachedAudioFiles.remove(clean);
+      attachedAudioFiles.remove(langCode);
+      attachedAudioRoles.remove(clean);
+      attachedAudioRoles.remove(langCode);
+      aiDubbingLanguages.remove(clean);
+      aiDubbingLanguages.remove(langCode);
+      if (aiDubbingLanguages.isEmpty) {
+        aiGenerateDubbing.value = false;
+      }
+    }
+    if (activePreviewLanguage.value == clean || activePreviewLanguage.value == langCode) {
+      activePreviewLanguage.value = '';
+    }
+    AppSnackbar.info('Removed ${getLanguageName(langCode)} track.');
+  }
+
+  /// Reset all staged AI and device language tracks (e.g. on video file replacement).
+  @override
+  void resetAllLanguageTracks() {
+    attachedSubtitleFiles.clear();
+    attachedAudioFiles.clear();
+    attachedAudioRoles.clear();
+    aiTranslationLanguages.clear();
+    aiDubbingLanguages.clear();
+    aiGenerateDubbing.value = false;
+    activePreviewLanguage.value = '';
   }
 
   /// Build the AI features map for Firestore.

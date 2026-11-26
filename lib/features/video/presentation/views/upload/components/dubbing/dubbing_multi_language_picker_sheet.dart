@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/channel_wizard_country_card.dart';
+import 'package:truthworld/features/dubbing/data/models/dubbing_language.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_dubbing_controller.dart';
@@ -169,9 +172,9 @@ void showDubbingMultiLanguagePicker({
                 iconBackgroundColor: const Color(0xFF7C3AED).withValues(alpha: 0.18),
                 title: 'Select Dubbing Languages',
                 selectedCount: () => controller.selectedLanguages.length,
-                emptySubtitle: 'Choose 1 or more target languages',
+                emptySubtitle: '80 Languages Supported • 5 Active (Telugu, Hindi, Marathi, Tamil, Malayalam)',
                 selectedSubtitleBuilder: (count) =>
-                    '$count languages selected for AI dubbing',
+                    '$count languages selected for AI dubbing (5 Active)',
                 onClose: () => Navigator.pop(ctx),
               ),
 
@@ -344,82 +347,115 @@ void showDubbingMultiLanguagePicker({
                     ),
                     itemBuilder: (c, i) {
                       final lang = list[i];
+                      final isClickable = UploadDubbingController.activeDubbingCodes.contains(lang.code.toLowerCase());
                       final isSource = controller.isSourceLanguage(lang);
                       final isSelected = controller.isLanguageSelected(lang);
+                      final isNotPlanned = kDubbingNotPlannedTargetCodes.contains(lang.code.toLowerCase());
+                      final semanticLabel = isSource
+                          ? '${lang.name}, source language'
+                          : (isClickable
+                              ? '${lang.name}, active'
+                              : (isNotPlanned
+                                  ? '${lang.name}, not yet supported'
+                                  : '${lang.name}, available soon'));
 
-                      return ListTile(
-                        onTap: isSource ? null : () => controller.toggleLanguage(lang),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-                        leading: buildLanguageFlag(lang.name),
-                        title: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                lang.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                  color: isSource ? Colors.white38 : Colors.white,
-                                ),
-                              ),
-                            ),
-                            if (isSource) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.white10,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.lock_outline, size: 10, color: Colors.white38),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      'SOURCE LANGUAGE',
-                                      style: TextStyle(
-                                        color: Colors.white38,
-                                        fontSize: 8.5,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        subtitle: Text(
-                          lang.nativeName.isNotEmpty ? lang.nativeName : lang.code.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isSource ? Colors.white24 : const Color(0xFFA1A1AA),
-                          ),
-                        ),
-                        trailing: isSource
-                            ? const Icon(Icons.lock, color: Colors.white24, size: 18)
-                            : Container(
-                                width: 22,
-                                height: 22,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: isSelected ? Colors.white : Colors.transparent,
-                                  border: Border.all(
-                                    color: isSelected ? Colors.white : const Color(0xFF3F3F46),
-                                    width: 1.5,
+                      return Semantics(
+                        enabled: isClickable && !isSource,
+                        label: semanticLabel,
+                        child: ListTile(
+                          onTap: isSource ? null : () => controller.toggleLanguage(lang),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                          leading: buildLanguageFlag(lang.name),
+                          title: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  lang.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                    color: isSource || !isClickable ? const Color(0xFFA1A1AA) : Colors.white,
                                   ),
                                 ),
-                                child: isSelected
-                                    ? const Icon(
-                                        Icons.check,
-                                        size: 15,
-                                        color: Colors.black,
-                                      )
-                                    : null,
                               ),
+                              if (isSource) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white10,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.lock_outline, size: 10, color: Color(0xFFA1A1AA)),
+                                      SizedBox(width: 3),
+                                      Text(
+                                        'SOURCE LANGUAGE',
+                                        style: TextStyle(
+                                          color: Color(0xFFA1A1AA),
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ] else if (!isClickable) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF27272A),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: const Color(0xFF3F3F46), width: 0.8),
+                                  ),
+                                  child: Text(
+                                    isNotPlanned ? 'Not yet supported' : 'Available soon',
+                                    style: const TextStyle(
+                                      color: Color(0xFFA1A1AA),
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: Text(
+                            lang.nativeName.isNotEmpty ? lang.nativeName : lang.code.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isSource || !isClickable ? const Color(0xFF71717A) : const Color(0xFFA1A1AA),
+                            ),
+                          ),
+                          trailing: isSource
+                              ? const Icon(Icons.lock, color: Color(0xFF71717A), size: 18)
+                              : (!isClickable
+                                  ? const Icon(Icons.schedule_rounded, color: Color(0xFF52525B), size: 18)
+                                  : Container(
+                                      width: 22,
+                                      height: 22,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isSelected ? Colors.white : Colors.transparent,
+                                        border: Border.all(
+                                          color: isSelected ? Colors.white : const Color(0xFF3F3F46),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: isSelected
+                                          ? const Icon(
+                                              Icons.check,
+                                              size: 15,
+                                              color: Colors.black,
+                                            )
+                                          : null,
+                                    )),
+                        ),
                       );
                     },
                   );
@@ -961,6 +997,7 @@ Widget _buildPresetButton({
 void showSpokenLanguagePicker({
   required BuildContext context,
   required UploadController controller,
+  bool dubbingSourceMode = false,
 }) {
   final searchController = TextEditingController();
   final activeSearch = ''.obs;
@@ -993,11 +1030,13 @@ void showSpokenLanguagePicker({
                 icon: Icons.record_voice_over_rounded,
                 iconColor: const Color(0xFF38BDF8),
                 iconBackgroundColor: const Color(0xFF0284C7).withValues(alpha: 0.18),
-                title: 'Select Spoken Video Language ("From")',
+                title: dubbingSourceMode ? 'Select Source Language ("From")' : 'Select Spoken Video Language ("From")',
                 selectedCount: () => controller.isMultilingualSpoken.value
                     ? controller.spokenLanguages.length
                     : (controller.primarySpokenLanguage.value == 'auto' ? 0 : 1),
-                emptySubtitle: '46+ languages supported via AssemblyAI Universal 3.7 Pro',
+                emptySubtitle: dubbingSourceMode
+                    ? '32 languages provided • English active (31 Available soon)'
+                    : '46+ languages supported via AssemblyAI Universal 3.7 Pro',
                 selectedSubtitleBuilder: (count) => controller.isMultilingualSpoken.value
                     ? '$count spoken languages selected (code-mixed)'
                     : '1 primary spoken language selected',
@@ -1067,7 +1106,16 @@ void showSpokenLanguagePicker({
               Expanded(
                 child: Obx(() {
                   final q = activeSearch.value.trim().toLowerCase();
-                  final filtered = allSpokenLanguages.where((l) {
+                  final sourceList = dubbingSourceMode
+                      ? DubbingLanguage.source32Languages.map((l) => SpokenLanguageInfo(
+                            code: l.code,
+                            name: l.name,
+                            nativeName: l.nativeName,
+                            region: l.region,
+                          )).toList()
+                      : allSpokenLanguages;
+
+                  final filtered = sourceList.where((l) {
                     if (q.isEmpty) return true;
                     return l.name.toLowerCase().contains(q) ||
                         l.nativeName.toLowerCase().contains(q) ||
@@ -1099,6 +1147,7 @@ void showSpokenLanguagePicker({
                       return Obx(() {
                         final isMultilingual = controller.isMultilingualSpoken.value;
                         final primaryCode = controller.primarySpokenLanguage.value;
+                        final isClickable = !dubbingSourceMode || item.code == 'en';
                         final isSelected = isMultilingual
                             ? controller.spokenLanguages.contains(item.code)
                             : (primaryCode == item.code || (primaryCode.isEmpty && item.code == 'auto'));
@@ -1108,26 +1157,32 @@ void showSpokenLanguagePicker({
                               ? const Color(0xFF0284C7).withValues(alpha: 0.12)
                               : Colors.transparent,
                           child: InkWell(
-                            onTap: () {
-                              if (isMultilingual) {
-                                if (controller.spokenLanguages.contains(item.code)) {
-                                  controller.spokenLanguages.remove(item.code);
-                                } else {
-                                  controller.spokenLanguages.add(item.code);
-                                  if (controller.primarySpokenLanguage.value == 'auto') {
-                                    controller.primarySpokenLanguage.value = item.code;
+                            onTap: !isClickable
+                                ? () {
+                                    AppSnackbar.info(
+                                      '${item.name} is available soon! Only English source audio is currently active.',
+                                    );
                                   }
-                                }
-                              } else {
-                                controller.primarySpokenLanguage.value = item.code;
-                                if (item.code != 'auto') {
-                                  controller.spokenLanguages.assignAll([item.code]);
-                                } else {
-                                  controller.spokenLanguages.clear();
-                                }
-                                Navigator.pop(ctx);
-                              }
-                            },
+                                : () {
+                                    if (isMultilingual) {
+                                      if (controller.spokenLanguages.contains(item.code)) {
+                                        controller.spokenLanguages.remove(item.code);
+                                      } else {
+                                        controller.spokenLanguages.add(item.code);
+                                        if (controller.primarySpokenLanguage.value == 'auto') {
+                                          controller.primarySpokenLanguage.value = item.code;
+                                        }
+                                      }
+                                    } else {
+                                      controller.primarySpokenLanguage.value = item.code;
+                                      if (item.code != 'auto') {
+                                        controller.spokenLanguages.assignAll([item.code]);
+                                      } else {
+                                        controller.spokenLanguages.clear();
+                                      }
+                                      Navigator.pop(ctx);
+                                    }
+                                  },
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                               child: Row(
@@ -1138,19 +1193,45 @@ void showSpokenLanguagePicker({
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          item.name,
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                          ),
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                item.name,
+                                                style: TextStyle(
+                                                  color: isClickable ? Colors.white : Colors.white38,
+                                                  fontSize: 14,
+                                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (!isClickable) ...[
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF27272A),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: const Color(0xFF3F3F46), width: 0.8),
+                                                ),
+                                                child: const Text(
+                                                  'Available soon',
+                                                  style: TextStyle(
+                                                    color: Color(0xFFA1A1AA),
+                                                    fontSize: 8.5,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                         if (item.nativeName != item.name)
                                           Text(
                                             item.nativeName,
-                                            style: const TextStyle(
-                                              color: Color(0xFFA1A1AA),
+                                            style: TextStyle(
+                                              color: isClickable ? const Color(0xFFA1A1AA) : Colors.white24,
                                               fontSize: 12,
                                             ),
                                           ),
@@ -1165,8 +1246,8 @@ void showSpokenLanguagePicker({
                                     ),
                                     child: Text(
                                       item.code.toUpperCase(),
-                                      style: const TextStyle(
-                                        color: Color(0xFFA1A1AA),
+                                      style: TextStyle(
+                                        color: isClickable ? const Color(0xFFA1A1AA) : Colors.white24,
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -1174,10 +1255,14 @@ void showSpokenLanguagePicker({
                                   ),
                                   const SizedBox(width: 10),
                                   Icon(
-                                    isSelected
-                                        ? (isMultilingual ? Icons.check_box_rounded : Icons.radio_button_checked)
-                                        : (isMultilingual ? Icons.check_box_outline_blank_rounded : Icons.radio_button_unchecked),
-                                    color: isSelected ? const Color(0xFF38BDF8) : const Color(0xFF52525B),
+                                    !isClickable
+                                        ? Icons.schedule_rounded
+                                        : (isSelected
+                                            ? (isMultilingual ? Icons.check_box_rounded : Icons.radio_button_checked)
+                                            : (isMultilingual ? Icons.check_box_outline_blank_rounded : Icons.radio_button_unchecked)),
+                                    color: !isClickable
+                                        ? const Color(0xFF52525B)
+                                        : (isSelected ? const Color(0xFF38BDF8) : const Color(0xFF52525B)),
                                     size: 20,
                                   ),
                                 ],

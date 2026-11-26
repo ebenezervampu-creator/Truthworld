@@ -181,13 +181,13 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         if (response.statusCode == 200) {
           pipelineTriggered = true;
           if (walletTx != null) {
-            await firestore.collection('videos').doc(video.id).set({
+            await firestore.collection('videos').doc(video.id).update({
               'subtitlesPaid': true,
               'subtitlesCostUSD': subtitleCost,
               'subtitlesDurationSeconds': durationSecs,
               'subtitlesWalletTxId': walletTx.id,
               'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
+            });
           }
           showSuccess(
             'Truthworld AI has started generating subtitles for ${targetLanguages.join(", ").toUpperCase()}!',
@@ -258,13 +258,13 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         }, SetOptions(merge: true));
 
         if (walletTx != null) {
-          await firestore.collection('videos').doc(video.id).set({
+          await firestore.collection('videos').doc(video.id).update({
             'subtitlesPaid': true,
             'subtitlesCostUSD': subtitleCost,
             'subtitlesDurationSeconds': durationSecs,
             'subtitlesWalletTxId': walletTx.id,
             'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          });
         }
 
         showSuccess(

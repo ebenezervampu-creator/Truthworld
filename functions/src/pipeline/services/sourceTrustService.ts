@@ -22,6 +22,66 @@ export interface SourceReputation {
   isRetracted?: boolean;
   retractionReason?: string;
   isProvisionallyDowngraded?: boolean;
+  /**
+   * True only when the tier comes from a curated entry (trust graph / registry) or a
+   * restricted government / academic suffix. Rule-based guesses (unknown domain → D,
+   * unknown .org → C, news-keyword → D, unresolved grounding redirect → D) are NOT vetted,
+   * so they never count toward the "two independent Tier C/D publishers" verdict bar.
+   */
+  isVetted?: boolean;
+}
+
+/** Social / UGC platforms. Matched on the exact host or a subdomain of it, never a substring. */
+const UGC_HOSTS = [
+  "reddit.com", "twitter.com", "x.com", "facebook.com", "fb.com", "youtube.com", "youtu.be",
+  "instagram.com", "medium.com", "quora.com", "scribd.com", "tiktok.com", "threads.net",
+  "substack.com", "linkedin.com", "pinterest.com",
+];
+
+/** Second-level labels that ccTLD registries reserve for government (gov.uk, go.jp, gob.mx …). */
+const GOV_SECOND_LEVEL = new Set(["gov", "gob", "gouv", "govt", "go", "mil"]);
+/** Second-level labels that ccTLD registries reserve for academia (ac.uk, edu.in, ac.jp …). */
+const EDU_SECOND_LEVEL = new Set(["edu", "ac"]);
+
+/** Lower-cased hostname without "www.", or "" when the input is not a URL/host. */
+export function hostOf(urlOrHost: string): string {
+  const raw = String(urlOrHost || "").trim();
+  if (!raw) return "";
+  try {
+    const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    return new URL(withScheme).hostname.toLowerCase().replace(/^www\./, "").replace(/\.$/, "");
+  } catch {
+    return "";
+  }
+}
+
+const hostIs = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`);
+
+/** Exact-host / subdomain match against the UGC list (so fox.com or netflix.com are not "x.com"). */
+export function isUgcHost(host: string): boolean {
+  return UGC_HOSTS.some((d) => hostIs(host, d));
+}
+
+/**
+ * Classifies a hostname by restricted suffix only:
+ *  - "gov": TLD .gov / .mil / .int, a reserved second level under a 2-letter ccTLD
+ *    (gov.uk, gov.in, go.jp, gob.mx …), or admin.ch.
+ *  - "edu": TLD .edu, or edu./ac. under a 2-letter ccTLD (ac.uk, edu.in, ac.jp …), or res.in.
+ * A domain merely NAMED like an institution (truthnews.ac, go.com, mil.com, int.com) is null.
+ */
+export function classifyInstitutionalHost(host: string): "gov" | "edu" | null {
+  const labels = host.split(".").filter(Boolean);
+  if (labels.length < 2) return null;
+  const tld = labels[labels.length - 1];
+  const second = labels[labels.length - 2];
+  const isCcTld = /^[a-z]{2}$/.test(tld);
+  if (["gov", "mil", "int"].includes(tld)) return "gov";
+  if (isCcTld && GOV_SECOND_LEVEL.has(second)) return "gov";
+  if (hostIs(host, "admin.ch")) return "gov";
+  if (tld === "edu") return "edu";
+  if (isCcTld && EDU_SECOND_LEVEL.has(second)) return "edu";
+  if (hostIs(host, "res.in")) return "edu";
+  return null;
 }
 
 export interface FormalRetractionRecord {
@@ -165,6 +225,9 @@ export class SourceTrustService {
     "ft.com": { domain: "ft.com", tier: "B", reputationScore: 0.95, verticals: ["finance", "economics"], isOfficial: false },
     "bbc.com": { domain: "bbc.com", tier: "B", reputationScore: 0.92, verticals: ["news", "geopolitics"], isOfficial: false },
     "nytimes.com": { domain: "nytimes.com", tier: "B", reputationScore: 0.92, verticals: ["news", "politics"], isOfficial: false },
+    "washingtonpost.com": { domain: "washingtonpost.com", tier: "B", reputationScore: 0.92, verticals: ["news", "politics", "investigative"], isOfficial: false },
+    "theguardian.com": { domain: "theguardian.com", tier: "B", reputationScore: 0.92, verticals: ["news", "politics", "investigative"], isOfficial: false },
+    "pbs.org": { domain: "pbs.org", tier: "B", reputationScore: 0.90, verticals: ["news", "educational"], isOfficial: false },
     "thehindu.com": { domain: "thehindu.com", tier: "B", reputationScore: 0.93, verticals: ["news", "politics"], isOfficial: false },
     "indianexpress.com": { domain: "indianexpress.com", tier: "B", reputationScore: 0.92, verticals: ["news", "investigative"], isOfficial: false },
     "aljazeera.com": { domain: "aljazeera.com", tier: "B", reputationScore: 0.91, verticals: ["news", "geopolitics"], isOfficial: false },
@@ -200,6 +263,36 @@ export class SourceTrustService {
     "deccanchronicle.com": { domain: "deccanchronicle.com", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
     "eenadu.net": { domain: "eenadu.net", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
     "sakshi.com": { domain: "sakshi.com", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
+    // Indian national & regional press and Indian IFCN fact-checkers. Before 2026-11-19 these
+    // fell through to the unknown-domain default (tier E = rejected), so Indian videos lost
+    // most of their sources at the citation firewall.
+    "theprint.in": { domain: "theprint.in", tier: "B", reputationScore: 0.88, verticals: ["news", "politics"], isOfficial: false },
+    "scroll.in": { domain: "scroll.in", tier: "B", reputationScore: 0.87, verticals: ["news", "culture"], isOfficial: false },
+    "thewire.in": { domain: "thewire.in", tier: "B", reputationScore: 0.86, verticals: ["news", "politics"], isOfficial: false },
+    "thequint.com": { domain: "thequint.com", tier: "B", reputationScore: 0.86, verticals: ["news", "fact_check"], isOfficial: false },
+    "firstpost.com": { domain: "firstpost.com", tier: "B", reputationScore: 0.86, verticals: ["news"], isOfficial: false },
+    "livemint.com": { domain: "livemint.com", tier: "B", reputationScore: 0.90, verticals: ["news", "finance", "economics"], isOfficial: false },
+    "business-standard.com": { domain: "business-standard.com", tier: "B", reputationScore: 0.90, verticals: ["news", "finance", "economics"], isOfficial: false },
+    "moneycontrol.com": { domain: "moneycontrol.com", tier: "C", reputationScore: 0.84, verticals: ["finance"], isOfficial: false },
+    "deccanherald.com": { domain: "deccanherald.com", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
+    "thenewsminute.com": { domain: "thenewsminute.com", tier: "B", reputationScore: 0.88, verticals: ["news", "south_india"], isOfficial: false },
+    "newindianexpress.com": { domain: "newindianexpress.com", tier: "B", reputationScore: 0.88, verticals: ["news", "south_india"], isOfficial: false },
+    "indiatoday.in": { domain: "indiatoday.in", tier: "B", reputationScore: 0.87, verticals: ["news"], isOfficial: false },
+    "news18.com": { domain: "news18.com", tier: "C", reputationScore: 0.82, verticals: ["news"], isOfficial: false },
+    "tribuneindia.com": { domain: "tribuneindia.com", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
+    "telegraphindia.com": { domain: "telegraphindia.com", tier: "B", reputationScore: 0.88, verticals: ["news"], isOfficial: false },
+    "outlookindia.com": { domain: "outlookindia.com", tier: "B", reputationScore: 0.86, verticals: ["news", "culture"], isOfficial: false },
+    "newslaundry.com": { domain: "newslaundry.com", tier: "B", reputationScore: 0.86, verticals: ["news", "media"], isOfficial: false },
+    "rediff.com": { domain: "rediff.com", tier: "C", reputationScore: 0.80, verticals: ["news", "entertainment"], isOfficial: false },
+    "andhrajyothy.com": { domain: "andhrajyothy.com", tier: "C", reputationScore: 0.82, verticals: ["news", "telugu"], isOfficial: false },
+    "ntnews.com": { domain: "ntnews.com", tier: "C", reputationScore: 0.80, verticals: ["news", "telugu"], isOfficial: false },
+    "tv9telugu.com": { domain: "tv9telugu.com", tier: "C", reputationScore: 0.80, verticals: ["news", "telugu"], isOfficial: false },
+    "altnews.in": { domain: "altnews.in", tier: "B", reputationScore: 0.92, verticals: ["fact_check"], isOfficial: false },
+    "factly.in": { domain: "factly.in", tier: "B", reputationScore: 0.92, verticals: ["fact_check"], isOfficial: false },
+    // Film & entertainment reference (release dates, cast, credits)
+    "imdb.com": { domain: "imdb.com", tier: "C", reputationScore: 0.82, verticals: ["entertainment", "film"], isOfficial: false },
+    "filmfare.com": { domain: "filmfare.com", tier: "C", reputationScore: 0.80, verticals: ["entertainment", "film"], isOfficial: false },
+    "bollywoodhungama.com": { domain: "bollywoodhungama.com", tier: "C", reputationScore: 0.78, verticals: ["entertainment", "film"], isOfficial: false },
 
     // Tier D: Mainstream Press
     "techcrunch.com": { domain: "techcrunch.com", tier: "D", reputationScore: 0.8, verticals: ["technology"], isOfficial: false },
@@ -702,13 +795,12 @@ export class SourceTrustService {
       (rawDomain === "google.com" && url.includes("grounding-api-redirect")) ||
       url.includes("/grounding-api-redirect");
 
-    let domain = rawDomain;
-    if (isGroundingRedirect) {
-      const inferred = this.inferDomainFromTitle(title);
-      if (inferred) {
-        domain = inferred;
-      }
-    }
+    // A page title is publisher-controlled text, so it never decides trust. Grounding
+    // redirects are tiered from the URL they resolve to (see claimVerification's live-check
+    // step); an unresolved redirect is an unknown publisher. `title` is accepted only for
+    // backward compatibility with existing callers.
+    void title;
+    const domain = rawDomain;
 
     // 1. Check if the specific URL or artifact is formally retracted
     if (this.isRetracted(url)) {
@@ -737,6 +829,19 @@ export class SourceTrustService {
       };
     }
     
+    // An unresolved Google Grounding redirect hides the real publisher: treat it as an
+    // unknown publisher (low-weight Tier D, not vetted), never as Tier B. This runs BEFORE the
+    // registry lookup: the redirect host itself reduces to google.com, a Tier B entry.
+    if (isGroundingRedirect) {
+      return {
+        domain,
+        tier: "D",
+        reputationScore: 0.45,
+        isOfficial: false,
+        isVetted: false,
+      };
+    }
+
     // Check dynamic registry first, fall back to static
     const rep = this.dbRegistry[domain] || SourceTrustService.TRUST_GRAPH[domain];
 
@@ -746,60 +851,43 @@ export class SourceTrustService {
       if (vertical && rep.verticals?.includes(vertical.toLowerCase())) {
         score = Math.min(1.0, score + 0.05);
       }
-      return { ...rep, reputationScore: score };
+      return { ...rep, reputationScore: score, isVetted: true };
     }
 
-    // If this was an authentic Google Grounding redirect and not explicitly in TRUST_GRAPH
-    if (isGroundingRedirect) {
-      return {
-        domain,
-        tier: "B",
-        reputationScore: 0.88,
-        isOfficial: false,
-      };
-    }
+    // Suffix checks use the FULL hostname, not the registrable domain, so they match
+    // restricted registry suffixes exactly instead of by regex/substring.
+    const host = hostOf(url) || domain;
 
     // Dynamic Rule-Based Fallback Engine
-    let tier: SourceTier = "E";
-    let reputationScore = 0.4; // Default base trust
+    // Unknown publishers default to tier D (admitted with low weight), NOT tier E (rejected).
+    // Tier E is reserved for UGC/blogs/retractions. The old "unknown = E" default silently
+    // discarded the long tail of legitimate regional and specialist publishers.
+    let tier: SourceTier = "D";
+    let reputationScore = 0.45; // Default base trust for unknown publishers
 
-    // 1. Social/Forum/UGC
-    const ugcPatterns = [
-      /reddit\.com/i, /twitter\.com/i, /x\.com/i, /facebook\.com/i, /youtube\.com/i,
-      /instagram\.com/i, /medium\.com/i, /quora\.com/i, /scribd\.com/i, /tiktok\.com/i,
-      /threads\.net/i, /substack\.com/i, /linkedin\.com/i, /pinterest\.com/i
-    ];
-    // 2. Blog check
+    // 1. Government / intergovernmental and academic hosts, by restricted registry suffix
+    //    only (gov.uk, go.jp, .gov, .int, ac.uk, edu.in, .edu …). Names that merely look
+    //    institutional (truthnews.ac, go.com, mil.com) fall through to the unknown default.
+    const institutional = classifyInstitutionalHost(host);
+    if (institutional === "gov") {
+      return { domain, tier: "A", reputationScore: 1.0, isOfficial: false, isVetted: true };
+    }
+    if (institutional === "edu") {
+      return { domain, tier: "B", reputationScore: 0.9, isOfficial: false, isVetted: true };
+    }
+
+    // 2. Social / forum / UGC platforms (exact host or subdomain) and blogs
     const isBlog = domain.includes("blog") || domain.includes("wordpress") || domain.includes("tumblr") || domain.includes("blogspot");
-
-    if (ugcPatterns.some(p => p.test(domain)) || isBlog) {
+    if (isUgcHost(host) || isBlog) {
       tier = "E";
       reputationScore = 0.2;
     }
-    // 3. International government & intergovernmental bodies (.gov, .gov.*, .gob.*, .gouv.*, .govt.*, .go.*, .mil, .int, etc.)
-    const isGov = /(?:^|\.)(?:gov|gob|gouv|govt|go|mil|int)(?:\.[a-z]{2,3})?$/i.test(domain) ||
-                  domain.endsWith(".gov") || domain.endsWith(".mil") || domain.endsWith(".int") ||
-                  domain.includes(".gov.") || domain.includes(".gob.") || domain.includes(".gouv.") ||
-                  domain.includes(".govt.") || domain.includes(".go.") || domain.endsWith(".admin.ch");
-
-    if (isGov) {
-      tier = "A";
-      reputationScore = 1.0;
-    }
-    // 4. International Academic / Educational institutions (.edu, .edu.*, .ac, .ac.*, etc.)
-    else if (/(?:^|\.)(?:edu|ac)(?:\.[a-z]{2,3})?$/i.test(domain) ||
-             domain.endsWith(".edu") || domain.includes(".edu.") || domain.includes(".ac.") ||
-             domain.endsWith(".ac.uk") || domain.endsWith(".edu.cn") || domain.endsWith(".edu.in") ||
-             domain.endsWith(".res.in")) {
-      tier = "B";
-      reputationScore = 0.9;
-    }
-    // 5. .org
+    // 3. Unvetted .org (anyone can register one): low-weight C, not vetted
     else if (domain.endsWith(".org")) {
       tier = "C";
       reputationScore = 0.70;
     }
-    // 6. News keywords
+    // 4. News keywords in the name: still an unknown publisher
     else if (["news", "times", "journal", "post", "press", "daily", "herald", "tribune"].some(kw => domain.includes(kw))) {
       tier = "D";
       reputationScore = 0.50;
@@ -809,8 +897,30 @@ export class SourceTrustService {
       domain,
       tier,
       reputationScore,
-      isOfficial: false
+      isOfficial: false,
+      isVetted: false,
     };
+  }
+
+  /**
+   * True when a source URL belongs to a curated publisher: a trust-graph / registry entry,
+   * an official publisher (including its verified social handles), or a restricted
+   * government / academic suffix. Rule-based guesses for unknown domains are not vetted.
+   */
+  isVettedPublisher(url: string): boolean {
+    if (!url) return false;
+    // An unresolved grounding redirect hides its publisher (its own host is google.com).
+    if (/grounding-api-redirect|vertexaisearch\.cloud\.google\.com/i.test(url)) return false;
+    const trust = this.resolveSourceTrust(url);
+    if (trust.tier === "E" || trust.isRetracted || trust.isProvisionallyDowngraded) return false;
+    if (trust.isVetted) return true;
+    const pub = this.resolvePublisher(url);
+    return Boolean(pub.publisher && pub.tier && pub.tier !== "E" && !pub.isRejectedUgc);
+  }
+
+  /** Registrable domain (eTLD+1) used to tell independent publishers apart. */
+  registrableDomain(url: string): string {
+    return this.extractDomain(url).toLowerCase();
   }
 
   /**
@@ -1089,6 +1199,8 @@ export class SourceTrustService {
     let supportMass = 0.0;
     let contradictMass = 0.0;
 
+    // Supporting PRIMARY RECORD (judgment, statute, dataset, original document) of tier A/B.
+    let hasPrimaryRecordSupport = false;
     let hasTierASupport = false;
     let hasTierBSupport = false;
     let hasTierAContradict = false;
@@ -1107,6 +1219,7 @@ export class SourceTrustService {
         supportMass += cap;
         if (s.tier === "A") hasTierASupport = true;
         if (s.tier === "B") hasTierBSupport = true;
+        if ((s.tier === "A" || s.tier === "B") && String(s.role || "").toLowerCase() === "primary_record") hasPrimaryRecordSupport = true;
       }
     }
 
@@ -1118,7 +1231,11 @@ export class SourceTrustService {
 
     // 1. Strict False Claim Invariant
     // Requires affirmative empirical contradiction mass >= 1.5 AND authoritative contradictor (Tier A or B)
-    if (contradictMass >= 1.5 && (hasTierAContradict || hasTierBContradict) && supportMass < 0.4) {
+    // A nuanced verdict ("misleading", "needs context", "disputed") is never hardened into
+    // "false" by source count alone; only undecided or already-negative verdicts are.
+    const NUANCED = new Set<string>(["misleading", "needs_context", "disputed", "mostly_true", "outdated", "partially_true"]);
+    const canDemoteToFalse = !proposedVerdict || !NUANCED.has(proposedVerdict);
+    if (canDemoteToFalse && contradictMass >= 1.5 && (hasTierAContradict || hasTierBContradict) && supportMass < 0.4) {
       return {
         invariantVerdict: "false_claim",
         supportMass,
@@ -1130,8 +1247,16 @@ export class SourceTrustService {
       };
     }
 
+    // Source COUNT may upgrade an undecided verdict, but must never flip a substantive
+    // adjudication (misleading, mostly-true-with-caveats, disputed, false, opinion…) into
+    // "verified_true": sources without an explicit stance are counted as supporting.
+    const PROMOTABLE_TO_TRUE = new Set<string>([
+      "verified_true", "correct", "unproven", "unsupported", "inconclusive", "unverified", "limited_support",
+    ]);
+    const canPromote = !proposedVerdict || PROMOTABLE_TO_TRUE.has(proposedVerdict);
+
     // 2. Strict Verified True Invariant
-    if (supportMass >= 1.5 && (hasTierASupport || hasTierBSupport) && contradictMass < 0.3) {
+    if (canPromote && supportMass >= 1.5 && (hasTierASupport || hasTierBSupport) && contradictMass < 0.3) {
       return {
         invariantVerdict: "verified_true",
         supportMass,
@@ -1144,7 +1269,7 @@ export class SourceTrustService {
     }
 
     // 3. Mostly True Invariant
-    if (supportMass >= 1.2 && contradictMass < 0.5) {
+    if (canPromote && supportMass >= 1.2 && contradictMass < 0.5) {
       return {
         invariantVerdict: "mostly_true",
         supportMass,
@@ -1157,7 +1282,12 @@ export class SourceTrustService {
     }
 
     // 4. Disputed Invariant (both sides have substantial mass)
-    if (supportMass >= 1.0 && contradictMass >= 1.0) {
+    // A primary (Tier A) confirmation is not turned into "disputed" by lower-tier pushback;
+    // only Tier A/B contradiction can contest it.
+    // Only a PRIMARY RECORD is protected; an official statement (even from a Tier A body)
+    // can be contested by credible reporting.
+    const primaryConfirmationStands = hasPrimaryRecordSupport && !hasTierAContradict && !hasTierBContradict;
+    if (!primaryConfirmationStands && supportMass >= 1.0 && contradictMass >= 1.0) {
       return {
         invariantVerdict: "disputed",
         supportMass,
@@ -1171,7 +1301,10 @@ export class SourceTrustService {
 
     // 5. Invariant Guard: Prevent absence-of-evidence being labeled as false_claim
     if (proposedVerdict === "false_claim" || proposedVerdict === "verified_false") {
-      if (contradictMass < 1.0 || (!hasTierAContradict && !hasTierBContradict)) {
+      // A FALSE verdict needs affirmative refutation. The tier/count requirement (one A/B/C
+      // source or two independent D sources) is enforced by verdictGate; here we only block
+      // a FALSE that has no contradicting evidence at all.
+      if (contradictMass < 0.4) {
         return {
           invariantVerdict: "unproven",
           supportMass,
@@ -1185,7 +1318,26 @@ export class SourceTrustService {
     }
 
     // 6. Default Epistemic Null State (Unproven)
-    if (supportMass < 0.8 && contradictMass < 0.8) {
+    // Only an AFFIRMATIVE verdict (true / false) with no admitted evidence at all is nulled.
+    // Previously any verdict with < 0.8 mass (i.e. fewer than ~2 sources) was forced to
+    // "unproven", which turned single-source confirmations, "misleading", "needs context"
+    // and rhetorical-exaggeration verdicts into Caution while keeping the model's
+    // "confirmed…" explanation — a self-contradicting report.
+    const AFFIRMATIVE_VERDICTS = new Set<string>([
+      "verified_true",
+      "mostly_true",
+      "correct",
+      "mostly_correct",
+      "false_claim",
+      "verified_false",
+      "incorrect",
+    ]);
+    const UNDECIDED_VERDICTS = new Set<string>(["unverified", "inconclusive", "unverifiable"]);
+    const hasNoEvidence = supportMass < 0.25 && contradictMass < 0.25;
+    const hasWeakEvidence = supportMass < 0.8 && contradictMass < 0.8;
+    const nullAffirmative = hasNoEvidence && (!proposedVerdict || AFFIRMATIVE_VERDICTS.has(proposedVerdict));
+    const nullUndecided = hasWeakEvidence && !!proposedVerdict && UNDECIDED_VERDICTS.has(proposedVerdict);
+    if (nullAffirmative || nullUndecided) {
       return {
         invariantVerdict: "unproven",
         supportMass,

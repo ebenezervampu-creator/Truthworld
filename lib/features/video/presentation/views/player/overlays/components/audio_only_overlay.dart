@@ -37,25 +37,49 @@ class AudioOnlyOverlay extends StatelessWidget {
         );
       }
 
-      // ── Active Music Theme Stage ─────────────────────────────────────
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        layoutBuilder: (currentChild, previousChildren) => Stack(
-          fit: StackFit.expand,
-          children: [
-            ...previousChildren,
-            ?currentChild,
-          ],
-        ),
-        child: KeyedSubtree(
-          key: ValueKey<AudioPlayerTheme>(activeTheme),
-          child: _buildThemeStage(
-            activeTheme: activeTheme,
-            analysisService: analysisService,
-            video: video,
-            currentSubtitle: currentSub,
+      // ── Active Music Theme Stage with Visual Evidence Pill ──────────
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            layoutBuilder: (currentChild, previousChildren) => Stack(
+              fit: StackFit.expand,
+              children: [
+                ...previousChildren,
+                ?currentChild,
+              ],
+            ),
+            child: KeyedSubtree(
+              key: ValueKey<AudioPlayerTheme>(activeTheme),
+              child: _buildThemeStage(
+                activeTheme: activeTheme,
+                analysisService: analysisService,
+                video: video,
+                currentSubtitle: currentSub,
+              ),
+            ),
           ),
-        ),
+
+          // ── High-Signal Visual Evidence Warning Pill ──────────────────────
+          Positioned(
+            top: 24,
+            left: 16,
+            right: 16,
+            child: Center(
+              child: Obx(() {
+                if (!ctrl.visualEvidencePillVisible.value) {
+                  return const SizedBox.shrink();
+                }
+                return VisualEvidenceWarningPill(
+                  text: ctrl.visualEvidencePillText.value,
+                  onTap: ctrl.onVisualEvidencePillTap,
+                  onDismiss: ctrl.dismissVisualEvidencePill,
+                );
+              }),
+            ),
+          ),
+        ],
       );
     });
   }
@@ -167,5 +191,89 @@ class AudioThemeSwitcherPill extends StatelessWidget {
         ),
       );
     });
+  }
+}
+
+/// High-Signal Visual Evidence Warning Pill
+/// Displayed transiently in Audio-Only mode when relevant visual proof (documents, charts) appears on screen.
+class VisualEvidenceWarningPill extends StatelessWidget {
+  const VisualEvidenceWarningPill({
+    required this.text,
+    required this.onTap,
+    required this.onDismiss,
+    super.key,
+  });
+
+  final String text;
+  final VoidCallback onTap;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 420),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.90),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.75),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.6),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.visibility_outlined,
+                  size: 16,
+                  color: Color(0xFFF59E0B),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: onDismiss,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: Icon(
+                      Icons.close,
+                      size: 14,
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

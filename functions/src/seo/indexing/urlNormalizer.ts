@@ -22,9 +22,12 @@ const TRACKING_PARAMS = new Set([
  */
 export function normalizeUrl(host: string, rawPath: string, query: Record<string, any> = {}): string {
   const isDedicatedStudioHost = host.startsWith("studio.") || (host.includes("studio") && !host.includes("truthworld.in"));
+  const isDedicatedDubbingHost = host.startsWith("dubbing.") || (host.includes("dubbing") && !host.includes("truthworld.in"));
   const base = isDedicatedStudioHost
     ? (host.includes("localhost") || host.includes("127.0.0.1") ? `http://${host}` : "https://studio.truthworld.in")
-    : DOMAIN;
+    : isDedicatedDubbingHost
+      ? (host.includes("localhost") || host.includes("127.0.0.1") ? `http://${host}` : "https://dubbing.truthworld.in")
+      : DOMAIN;
 
   // Clean path
   let path = rawPath.split("?")[0] || "/";
@@ -35,6 +38,21 @@ export function normalizeUrl(host: string, rawPath: string, query: Record<string
   }
   if (!isDedicatedStudioHost && (path === "/studio" || path === "/studio/")) {
     return `${DOMAIN}/studio`;
+  }
+
+  // Handle dubbing studio root & canonical /dubbing path
+  if (isDedicatedDubbingHost && (path === "/" || path === "/dubbing" || path === "/dubbing/" || path === "" || path === "/index.html")) {
+    return "https://dubbing.truthworld.in/";
+  }
+  const lowerDubbingPath = path.toLowerCase();
+  if (
+    !isDedicatedDubbingHost &&
+    (lowerDubbingPath === "/dubbing" ||
+      lowerDubbingPath === "/dubbing/" ||
+      lowerDubbingPath === "/dubbing-studio" ||
+      lowerDubbingPath === "/dubbing-studio/")
+  ) {
+    return `${DOMAIN}/dubbing`;
   }
 
   // Canonicalize home aliases (/home -> /)

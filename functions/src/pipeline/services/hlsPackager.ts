@@ -17,8 +17,8 @@ import { v4 as uuidv4 } from "uuid";
 import { logger } from "../utils/logger";
 import { getLanguageDisplayName, normalizeLanguageCode } from "../../shared/language-normalizer";
 import { getFfmpegPath, parseAnyStorageUrl, execFileAsync } from "./media";
+import { safeMergeExistingVideo } from "../../utils/videosCollectionGuard";
 
-const db = () => admin.firestore();
 const storage = () => admin.storage();
 
 export interface HlsAudioRendition {
@@ -473,7 +473,8 @@ export class HlsPackagerService {
       };
     }
 
-    await db().collection("videos").doc(videoId).set(
+    await safeMergeExistingVideo(
+      videoId,
       {
         hlsMasterUrl: masterPlaylistUrl,
         hlsUrl: masterPlaylistUrl,
@@ -482,7 +483,7 @@ export class HlsPackagerService {
         dubbedLanguages: Object.keys(audioTracksMap),
         updatedAt: Date.now(),
       },
-      { merge: true }
+      "[HlsPackager]"
     ).catch((err) => {
       logger.warn("[HlsPackager] Notice updating Firestore video record:", err);
     });

@@ -1,23 +1,34 @@
 /**
- * 🚀 FIREBASE CLOUD FUNCTIONS — ENTRY POINT
+ * 🚀 FIREBASE CLOUD FUNCTIONS (2nd Gen) — TRUTHWORLD BACKEND
  *
- * Modular deployment entry point for TruthWorld Cloud Functions (2nd Gen).
+ * Industry-standard modular entry point for TruthWorld Cloud Functions.
  *
- * Features exported:
- *   - Video Processing Pipeline (Ingestion, Transcription, Credibility, Dubbing, Aggregation)
- *   - Publish-Gated Job Scheduling & Shard Replication
- *   - Cloud Tasks SWR Cache Queues
- *   - Storage Lifecycle Maintenance & Cleanup
- *   - Moderation, Verification, Watchtime, Notifications, SEO, Admin, Economy
+ * Core architectural domains:
+ * 1.  AI Video Processing Pipeline (Ingestion, Transcription, Credibility, Dubbing, Aggregation)
+ * 2.  Video Resolution & Multi-Bitrate Transcoding (≤ 1040p / 60fps)
+ * 3.  Publish-Gated Job Scheduling & Shard Replication
+ * 4.  SWR Edge Cache Queues & Storage Maintenance
+ * 5.  Content Moderation & Safety Verification
+ * 6.  Watchtime, Viewers & Analytics Telemetry
+ * 7.  Creator Channels, Social Graph & Discovery
+ * 8.  User Notifications & Activity Signals
+ * 9.  Community Discussion & Nested Comments
+ * 10. Search Engine & Typesense Cluster Sync
+ * 11. Payments, Subscriptions & Creator Economy (Cashfree)
+ * 12. Automated SEO, Sitemaps & Dynamic Meta Rendering
+ * 13. Platform Administration, Unit Economics & Phase Quotas
+ * 14. Edge Feed CDN Distribution
+ * 15. IFCN Fact-Check Appeals Desk & Credibility AI
  *
- * ✅ minInstances: 0 (scale-to-zero) for cost optimization
- * ✅ Explicit maxInstances caps per function
- * ✅ Region: asia-south1
+ * Global Configuration:
+ * - Region: asia-south1
+ * - Scale-to-zero (minInstances: 0) for cost efficiency
+ * - Default maxInstances: 10
  */
 
 import * as admin from "firebase-admin";
 
-// Initialize Firebase Admin SDK first
+// ─── Initialize Firebase Admin SDK (Single Instance) ─────────────────────────
 if (!admin.apps.length) {
   admin.initializeApp({
     databaseURL: "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -28,20 +39,25 @@ admin.firestore().settings({ ignoreUndefinedProperties: true });
 
 import { setGlobalOptions } from "firebase-functions/v2";
 
-// ─── Global options ──────────────────────────────────────────────────────────
+// ─── Global Default Options for 2nd Gen Functions ────────────────────────────
 setGlobalOptions({
   region: "asia-south1",
   maxInstances: 10,
   cpu: "gcf_gen1",
 });
 
-// ─── Pipeline & Processing (Modularized) ──────────────────────────────────────
+// ─── Shared Infrastructure & Configuration ───────────────────────────────────
+export * from "./config";
+export * from "./shared";
+
+// ─── 1. AI Video Processing Pipeline ─────────────────────────────────────────
 export * from "./pipeline/pipelineTriggers";
 
-// ─── Video Resolution Processing (≤ 1040p) ───────────────────────────────────
+// ─── 2. Video Resolution & Chapter Thumbnails (≤ 1040p) ───────────────────────
 export {
   onVideoUploadedForResolution,
   handleResolution,
+  onTranscoderJobCompleted,
   getVideoResolutionStatus,
   getResolutionProfiles,
   captureChapterThumbnail,
@@ -50,16 +66,17 @@ export {
   reconcileVideoResolutionManual,
 } from "./resolution/resolution";
 
-// ─── Publish Gate & Fan-Out (Modularized) ─────────────────────────────────────
+// ─── 3. Video Publishing Gate & Fan-Out ──────────────────────────────────────
 export * from "./publishing/videoPublishTrigger";
 export * from "./publishing/videoDeletionTrigger";
 export * from "./publishing/shardSync";
 export { scheduledVideoPublisher } from "./publishing/scheduledPublishing";
 
-// ─── SWR Cache Queues & Storage Lifecycle Maintenance (Modularized) ──────────
+// ─── 4. SWR Edge Cache Queues & Storage Lifecycle Maintenance ────────────────
 export * from "./swr/swrQueues";
 export * from "./maintenance/storageCleanup";
 
+// ─── 5. Content Moderation & Image Verification ──────────────────────────────
 export {
   onContentUploadedForModeration,
   moderateVideoManual,
@@ -79,7 +96,7 @@ export {
   setModerationModesManual,
 } from "./verification/verification";
 
-// ─── Watchtime, Analytics & Live Viewers ──────────────────────────────────────
+// ─── 6. Watchtime, Analytics & Live Viewers ──────────────────────────────────
 export {
   trackWatchEvent,
   aggregateWatchStats,
@@ -106,7 +123,7 @@ export {
   setBigQueryAnalyticsService,
 } from "./analytics/bigqueryService";
 
-
+// ─── 7. Creator Channels, Social Graph & Discovery ───────────────────────────
 export {
   createChannel,
   getPlatformCapacity,
@@ -120,9 +137,14 @@ export {
   updateChannelNotificationSettings,
   getFollowingFeed,
 } from "./channels/social";
-export { onChannelWritten, onImageVerificationWritten, moderateChannelManual, setChannelModerationBypass, isChannelTrustedModerationBypassed } from "./channels/moderation";
-export { getLeaderboard, getRisingCreators } from "./channels/discovery";
-export { getTrustBadge } from "./channels/embeds";
+export {
+  onChannelWritten,
+  onImageVerificationWritten,
+  moderateChannelManual,
+  setChannelModerationBypass,
+  isChannelTrustedModerationBypassed,
+} from "./channels/moderation";
+export { getLeaderboard } from "./channels/discovery";
 export { onTopicWritten, moderateTopicManual } from "./topics/moderation";
 export { getHomeFeed } from "./channels/recommendations";
 export {
@@ -130,7 +152,7 @@ export {
   updateAlgorithmRemoteConfig,
 } from "./algorithm/remoteConfig";
 
-// ─── Notifications & User Signals ─────────────────────────────────────────────
+// ─── 8. User Notifications & Signals ─────────────────────────────────────────
 export {
   getNotifications,
   markNotificationRead,
@@ -164,6 +186,8 @@ export {
   purgeUserAccount,
   checkUserRegistrationCapacity,
 } from "./users/userLifecycle";
+
+// ─── 9. Platform Phase Administration & Capacity ─────────────────────────────
 export {
   PLATFORM_LIMITS,
   ACTIVE_PHASE,
@@ -178,7 +202,7 @@ export {
   admitWaitlistedUsers,
 } from "./admin/platformPhaseAdmin";
 
-// ─── Comments & Community ─────────────────────────────────────────────────────
+// ─── 10. Comments & Community Discussion ─────────────────────────────────────
 export {
   addCommentNested,
   addReplyNested,
@@ -191,10 +215,10 @@ export {
   reportCommentNested,
 } from "./community/comments";
 
-// ─── Infrastructure Idempotency ──────────────────────────────────────────────
+// ─── 11. Infrastructure Idempotency ──────────────────────────────────────────
 export { cleanupProcessedEvents } from "./shared/idempotency";
 
-// ─── SEO Server & Indexing ───────────────────────────────────────────────────
+// ─── 12. SEO Server, Dynamic Rendering & Sitemaps ────────────────────────────
 export { seoServer } from "./seo/seoServer";
 export { rebuildDirtySitemapsScheduler } from "./seo/sitemap/sitemapScheduler";
 export {
@@ -205,7 +229,7 @@ export {
   onPlaylistSeoWritten,
 } from "./seo/indexing/indexingTriggers";
 
-// ─── Monetization & Ads ───────────────────────────────────────────────────────
+// ─── 13. Monetization, Ads & Playlists ───────────────────────────────────────
 export { onAdCampaignWritten, triggerAdAIFeatures, generateAllVideoAdsAIFeatures } from "./ads/ads";
 export {
   recordAdImpression,
@@ -214,7 +238,7 @@ export {
 } from "./ads/adRevenueDistribution";
 export { onPublicPlaylistWritten, onPrivatePlaylistWritten } from "./moderation/playlistModeration";
 
-// ─── Admin Portal APIs ───────────────────────────────────────────────────────
+// ─── 14. Admin Portal APIs ───────────────────────────────────────────────────
 export * from "./admin/adminBulkModerate";
 export { moderateUser, consolidateUserAccounts } from "./admin/userManagement";
 export { getUnitEconomicsDashboard, getUnitEconomicsReport, getChannelSpendingsAndRevenue } from "./admin/unitEconomics";
@@ -228,7 +252,7 @@ export {
 } from "./admin/adminMemberEndpoints";
 export { sendBroadcastPushNotification } from "./admin/broadcastPushNotification";
 
-// ─── Search Assistant & In-House Vector Search ───────────────────────────────
+// ─── 15. Search Assistant & In-House Vector Search ───────────────────────────
 export { aiSearchAssistant } from "./search/aiSearch";
 export { searchTruthWorld, recordSearchClickthrough } from "./search/searchBackend";
 export {
@@ -238,7 +262,7 @@ export {
 } from "./search/typesense/typesenseTriggers";
 export { triggerTypesenseBackfill } from "./search/typesense/backfillTypesense";
 
-// ─── Payments & Creator Economy ───────────────────────────────────────────────
+// ─── 16. Payments & Creator Economy (Cashfree) ───────────────────────────────
 export {
   createCashfreeOrder,
   verifyCashfreePayment,
@@ -271,10 +295,35 @@ export {
   reconcileChannelSettlementCallable,
 } from "./economy/settlementService";
 
-// ─── Edge Feed CDN Server ───────────────────────────────────────────────────
+// ─── 17. Edge Feed CDN Server ────────────────────────────────────────────────
 export { publicFeedServer } from "./feed/publicFeedServer";
 
-// ─── IFCN Fact-Check Appeals Desk & AI Credibility Assistant ───────────────
-export { submitClaimAppeal, submitFactualDispute, resolveClaimAppeal, verifyGovernanceAuditChain, sweepPendingAppealsSla } from "./pipeline/appealsDeskEndpoints";
+// ─── 18. IFCN Fact-Check Appeals Desk & AI Credibility Assistant ────────────
+export {
+  submitClaimAppeal,
+  submitFactualDispute,
+  resolveClaimAppeal,
+  verifyGovernanceAuditChain,
+  reviewCommunityEvidence,
+  sweepPendingAppealsSla,
+} from "./pipeline/appealsDeskEndpoints";
 export { chatWithCredibilityAi, streamCredibilityAiChat } from "./pipeline/aiCredibilityChat";
+
+// ─── 19. Standalone Dubbing Studio & Multilingual Voice Cloning ───────────
+export {
+  claimFreeDubbingCredits,
+  getDubbingWallet,
+  createDubbingJob,
+  updateDubbingTranscription,
+  regenerateDubbingSegment,
+  exportDubbingAssets,
+  purchaseDubbingCreditsWithStudioWallet,
+} from "./dubbing/standaloneDubbing";
+export {
+  adminGrantDubbingCredits,
+  adminSetDubbingDiscount,
+  adminGetDubbingUserDetails,
+  adminListDubbingAccounts,
+  adminGrantChannelDubbingCredits,
+} from "./dubbing/adminDubbing";
 

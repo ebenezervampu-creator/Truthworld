@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/add_subtitle_track_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/generate_ai_subtitles_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_cues_editor.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_list_section.dart';
 import 'package:truthworld/theme/app_theme.dart';
 

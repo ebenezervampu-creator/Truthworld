@@ -12,8 +12,20 @@ import { MediaService } from '../../src/pipeline/services/media';
 import { SpeakerProfilingService } from '../../src/pipeline/services/speaker-profiling';
 import { Utterance } from '../../src/pipeline/types';
 
-// Mock storage
-const mockDownload = jest.fn().mockImplementation(() => Promise.resolve([Buffer.from('fake-chunk-audio')]));
+// Mock storage. Downloads write a real 0.3 s MP3 to the requested destination, so the stitcher
+// works on real audio (a chunk that "downloads" but leaves no file is a missing line, not a pass).
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { execFileSync } from 'child_process';
+const FIXTURE_MP3 = path.join(os.tmpdir(), `lowlat_fixture_${process.pid}.mp3`);
+const ffmpegBin: string = require('ffmpeg-static') || 'ffmpeg';
+execFileSync(ffmpegBin, ['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=0.3', '-ac', '2', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '128k', FIXTURE_MP3], { stdio: 'ignore' });
+const writeFixture = (opts?: { destination?: string }) => {
+  if (opts?.destination) fs.copyFileSync(FIXTURE_MP3, opts.destination);
+  return Promise.resolve([fs.readFileSync(FIXTURE_MP3)]);
+};
+const mockDownload = jest.fn().mockImplementation(writeFixture);
 const mockSave = jest.fn().mockResolvedValue(undefined);
 const mockFile = jest.fn((path: string) => ({
   download: mockDownload,
@@ -80,19 +92,35 @@ describe('⚡ Low-Latency Dubbing & Progressive Delivery Architecture', () => {
       expect(durationMs).toBeLessThan(3500);
     });
 
-    it('gracefully handles missing or failed chunk downloads and stitches remaining valid buffers', async () => {
-      mockDownload.mockImplementationOnce(() => Promise.reject(new Error('GCS 404 Not Found')));
-      mockDownload.mockImplementation(() => Promise.resolve([Buffer.from('valid-chunk')]));
+    it('retries a failed chunk download once and stitches every line', async () => {
+      mockDownload.mockImplementationOnce(() => Promise.reject(new Error('GCS 503 transient')));
+      mockDownload.mockImplementation(writeFixture);
 
       const chunks = [
-        'gs://truthworld-test-bucket/audio/job1/broken.mp3',
+        'gs://truthworld-test-bucket/audio/job1/flaky.mp3',
         'gs://truthworld-test-bucket/audio/job1/chunk1.mp3',
         'gs://truthworld-test-bucket/audio/job1/chunk2.mp3',
       ];
 
       const result = await mediaService.mergeAudioChunks('job1', chunks, 'te');
+      expect(mockDownload).toHaveBeenCalledTimes(4);
       expect(mockSave).toHaveBeenCalledTimes(1);
       expect(result).toBe('gs://truthworld-test-bucket/audio/job1/te/stitched.mp3');
+    });
+
+    it('fails the merge (instead of silently dropping a line) when a chunk cannot be downloaded', async () => {
+      // A4: a dub with a missing line must not ship; the language fails and is refunded.
+      mockDownload.mockImplementation((opts?: { destination?: string }) =>
+        opts?.destination?.endsWith('chunk_0.mp3') ? Promise.reject(new Error('GCS 404 Not Found')) : writeFixture(opts)
+      );
+      const chunks = [
+        'gs://truthworld-test-bucket/audio/job1/missing.mp3',
+        'gs://truthworld-test-bucket/audio/job1/chunk1.mp3',
+        'gs://truthworld-test-bucket/audio/job1/chunk2.mp3',
+      ];
+      await expect(mediaService.mergeAudioChunks('job1', chunks, 'te')).rejects.toThrow(/could not be downloaded/);
+      expect(mockSave).not.toHaveBeenCalled();
+      mockDownload.mockImplementation(writeFixture);
     });
   });
 

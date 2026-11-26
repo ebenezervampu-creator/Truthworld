@@ -210,6 +210,7 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
         <a href="${DOMAIN}/trending" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Trending</a>
         <a href="${DOMAIN}/browse" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Browse</a>
         <a href="${DOMAIN}/studio" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Studio</a>
+        <a href="${DOMAIN}/dubbing" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Dubbing Studio</a>
         <a href="${DOMAIN}/advertisements" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Advertisements</a>
       </nav>
     </div>
@@ -248,6 +249,7 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
         <h4 style="color: #f4f4f5; font-size: 14px; margin-bottom: 12px; font-weight: 600;">Creators & Brands</h4>
         <ul style="list-style: none; padding: 0; margin: 0; line-height: 2;">
           <li><a href="${DOMAIN}/studio" style="color: #a1a1aa; text-decoration: none;">Truthworld Studio</a></li>
+          <li><a href="${DOMAIN}/dubbing" style="color: #a1a1aa; text-decoration: none;">Truthworld Dubbing Studio</a></li>
           <li><a href="${DOMAIN}/advertisements" style="color: #a1a1aa; text-decoration: none;">Truthworld Advertisements</a></li>
           <li><a href="${DOMAIN}/feedback" style="color: #a1a1aa; text-decoration: none;">Creator Feedback</a></li>
         </ul>

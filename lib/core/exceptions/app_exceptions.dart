@@ -317,9 +317,17 @@ class GoogleSignInException extends AuthException {
     super.userMessage,
     super.code = 'GOOGLE_SIGNIN_ERROR',
     super.isRetryable = false,
+    super.severity = ErrorSeverity.error,
     super.originalException,
     super.stackTrace,
   });
+
+  /// Whether this exception represents an intentional user cancellation or dismiss
+  bool get isCancelled =>
+      code == 'user-cancelled' ||
+      code == 'popup-closed' ||
+      code == 'popup-closed-by-user' ||
+      code == 'redirecting';
 }
 
 /// Thrown when the user cancels the Google Sign-In flow

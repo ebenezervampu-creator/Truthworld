@@ -22,6 +22,7 @@ import { logger } from "../utils/logger";
 import { sourceTrustService } from "./sourceTrustService";
 import { CitationRetractionService } from "./citationRetractionService";
 import { validateSafeExternalUrl } from "./urlVerificationService";
+import { attributeGroundingChunks } from "./groundingAttribution";
 import {
   ClaimStatus,
   FilteredClaim,
@@ -247,6 +248,15 @@ Respond ONLY with valid JSON matching this schema:
         parsedResponse.verifications.map((v) => [v.claimId, v])
       );
 
+      // Attribution of live search results via groundingSupports offsets
+      const batchClaimIds = claims.map((c) => c.claimId);
+      const attributedChunks = attributeGroundingChunks(
+        textOutput,
+        groundingSupports,
+        batchClaimIds,
+        groundingChunks.length
+      );
+
       // ── Step 3: Process Grounding Chunks with Dynamic Trust & Retraction Filtering ──
       return claims.map((claim) => {
         const v = verificationsByClaimId.get(claim.claimId);
@@ -255,13 +265,23 @@ Respond ONLY with valid JSON matching this schema:
           return this.buildSingleFallbackVerification(claim, "Verification timed out or was incomplete.");
         }
 
+        const attributed = attributedChunks.get(claim.claimId) || [];
         let relevantIndices = Array.from(
-          new Set([...(v.supportingChunkIndices || []), ...(v.contradictingChunkIndices || [])])
+          new Set([
+            ...attributed,
+            ...(v.supportingChunkIndices || []),
+            ...(v.contradictingChunkIndices || []),
+          ])
         );
 
-        // Epistemic Guard (Anti-Poisoning): Never inherit chunks from other claims in the batch!
-        // If Gemini omitted explicit chunk indices for this claim, keep relevantIndices empty so that
-        // ungrounded claims cannot inherit unrelated citations from other batch propositions.
+        if (claims.length === 1 && relevantIndices.length === 0 && groundingChunks.length > 0) {
+          relevantIndices = groundingChunks.map((_, idx) => idx);
+        }
+
+        const stanceDirection = (v.verdict === "false_claim" || (v.verdict as string) === "verified_false" || (v.verdict as string) === "incorrect")
+          ? "CONTRADICTS"
+          : "SUPPORTS";
+        const nowIso = new Date().toISOString();
 
         const candidateSources: RichSource[] = [];
         const seenUrls = new Set<string>();
@@ -288,7 +308,11 @@ Respond ONLY with valid JSON matching this schema:
           }
 
           // 2. Real Domain Trust Classification (Never blind Tier B!)
-          const trust = sourceTrustService.resolveSourceTrust(validUrl, domainContext, chunk.web?.title);
+          const isGroundingRedirect = validUrl.includes("grounding-api-redirect") || validUrl.includes("vertexaisearch.cloud.google.com");
+          const inferredDomain = sourceTrustService.inferDomainFromTitle(chunk.web?.title);
+          const trust = isGroundingRedirect && inferredDomain
+            ? sourceTrustService.resolveSourceTrust(inferredDomain, domainContext)
+            : sourceTrustService.resolveSourceTrust(validUrl, domainContext, chunk.web?.title);
 
           // 3. Closed-World Citation Firewall: Reject Tier E & retracted sources
           if (trust.tier === "E" || trust.isRetracted) {
@@ -296,7 +320,9 @@ Respond ONLY with valid JSON matching this schema:
             continue;
           }
 
-          const targetDomain = trust.domain || sourceTrustService.inferDomainFromTitle(chunk.web?.title) || "google.com";
+          const targetDomain = (isGroundingRedirect && inferredDomain)
+            ? inferredDomain
+            : (trust.domain || inferredDomain || "google.com");
           const publisherName = chunk.web?.title
             ? chunk.web.title.split(/[-|–—]/).pop()?.trim() || targetDomain
             : targetDomain;
@@ -314,7 +340,9 @@ Respond ONLY with valid JSON matching this schema:
             status: "verified",
             retrievalMethod: "google_grounding",
             retrievalProvider: "Google Grounding (Fused)",
-            lastVerified: new Date().toISOString(),
+            claimStance: stanceDirection,
+            claimStanceReason: v.summary,
+            lastVerified: nowIso,
             urlVerification: {
               status: "VERIFIED",
               originalUrl: validUrl,
@@ -323,7 +351,7 @@ Respond ONLY with valid JSON matching this schema:
               httpStatus: 200,
               redirectHops: 0,
               isSoft404: false,
-              verifiedAtUtc: new Date().toISOString(),
+              verifiedAtUtc: nowIso,
               verifierMethod: "grounding_resolved",
               fetchStatus: "HTTP_200_OK",
             },
@@ -353,7 +381,9 @@ Respond ONLY with valid JSON matching this schema:
                   status: "verified",
                   retrievalMethod: "academic_pre_retrieval",
                   retrievalProvider: provider,
-                  lastVerified: new Date().toISOString(),
+                  claimStance: stanceDirection,
+                  claimStanceReason: v.summary,
+                  lastVerified: nowIso,
                   urlVerification: {
                     status: "VERIFIED",
                     originalUrl: sUrl,
@@ -362,7 +392,7 @@ Respond ONLY with valid JSON matching this schema:
                     httpStatus: 200,
                     redirectHops: 0,
                     isSoft404: false,
-                    verifiedAtUtc: new Date().toISOString(),
+                    verifiedAtUtc: nowIso,
                     verifierMethod: "api_record",
                     fetchStatus: "HTTP_200_OK",
                   },

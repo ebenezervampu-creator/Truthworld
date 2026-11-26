@@ -190,9 +190,17 @@ describe("World-Class Translation Test Suite", () => {
   });
 
   describe("Gap 7: Telugu Theological / Biblical Lexicon & Domain Glossary Guard", () => {
-    test("normalizes raw transliterated loanword 'లార్డ్' to authentic Telugu 'ప్రభువా'", () => {
-      const rawTurn = "నాతో ఉండండి లార్డ్.";
-      expect(applyTeluguTheologicalLexiconGuard(rawTurn)).toBe("నాతో ఉండండి ప్రభువా.");
+    test("does not rewrite 'లార్డ్' or first-person verbs without context", () => {
+      // These blanket rewrites changed meaning in unrelated videos (e.g. "Lord's" cricket ground,
+      // a speaker saying "I am correcting"). The glossary now applies "Lord" -> ప్రభువు/ప్రభువా
+      // in context through the Gemini edit step, and checkTerminologyCompliance still flags it.
+      expect(applyTeluguTheologicalLexiconGuard("లార్డ్స్ మైదానంలో మ్యాచ్.")).toBe("లార్డ్స్ మైదానంలో మ్యాచ్.");
+      expect(applyTeluguTheologicalLexiconGuard("నేను దీన్ని సరిచేస్తున్నాను.")).toBe("నేను దీన్ని సరిచేస్తున్నాను.");
+    });
+
+    test("still fixes the 'సారి' / 'సరి' spelling and 'మరియు కానీ' padding", () => {
+      expect(applyTeluguTheologicalLexiconGuard("ఇది సారి చేస్తుంది")).toBe("ఇది సరిచేస్తుంది");
+      expect(applyTeluguTheologicalLexiconGuard("మంచిది మరియు కానీ కష్టం")).toBe("మంచిది కానీ కష్టం");
     });
 
     test("flags disallowed 'లార్డ్' transliteration and enforces 'ప్రభువా' in terminology glossary", () => {

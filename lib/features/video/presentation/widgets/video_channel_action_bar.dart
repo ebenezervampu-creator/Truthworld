@@ -254,7 +254,6 @@ class VideoChannelActionBar {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Flexible(
                                   child: Text(
@@ -306,8 +305,7 @@ class VideoChannelActionBar {
               SizedBox(width: isUltraCompact ? 4 : 8),
 
               // Right: Subscribe Button (or Analytics if Owner) + Notification bell if subbed
-              Flexible(
-                child: Obx(() {
+              Obx(() {
                   final currentUid = AuthService.to.uid;
                   final userChannelId = AuthService.to.userChannel?.id;
                   final isOwner = currentUid.isNotEmpty &&
@@ -460,7 +458,6 @@ class VideoChannelActionBar {
                     ],
                   );
                 }),
-              ),
             ],
           ),
         );
@@ -647,7 +644,7 @@ class VideoChannelActionBar {
                           constraints: const BoxConstraints(maxWidth: 180),
                           child: Text(
                             channel.channelName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
                               color: Colors.white,
@@ -710,7 +707,7 @@ class VideoChannelActionBar {
                   size: 18,
                   color: Colors.white,
                 ),
-                label: Text(
+                label: const Text(
                   'Analytics',
                   style: TextStyle(
                     color: Colors.white,

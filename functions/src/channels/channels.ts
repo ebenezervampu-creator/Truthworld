@@ -299,7 +299,6 @@ Return strict JSON: {"approved": boolean, "reason": "string (empty if approved)"
           },
           stats: {
             videoCount: 0,
-            avgTrustIndex: 0,
             subscriberCount: 0,
             viewCount: 0,
           },

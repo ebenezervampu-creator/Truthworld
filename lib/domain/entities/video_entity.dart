@@ -37,6 +37,9 @@ class VideoEntity {
     this.enableComments = true,
     this.isMonetized = false,
     this.resubmitCount = 0,
+    this.playbackReady = false,
+    this.transcodeFailed = false,
+    this.transcodeError,
   });
   final String id;
   final String title;
@@ -83,6 +86,11 @@ class VideoEntity {
   bool get allowComments => enableComments;
   final bool isMonetized;
   final int resubmitCount;
+
+  // Playback & Transcoding Status
+  final bool playbackReady;
+  final bool transcodeFailed;
+  final String? transcodeError;
 
   bool get canResubmit => status == 'rejected' && resubmitCount < 2;
   int get remainingResubmissions => (2 - resubmitCount).clamp(0, 2);

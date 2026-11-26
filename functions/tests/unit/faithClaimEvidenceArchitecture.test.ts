@@ -1,6 +1,10 @@
 import { ClaimVerificationService } from '../../src/pipeline/services/claimVerification';
 import { UrlVerificationService } from '../../src/pipeline/services/urlVerificationService';
 import { ClaimNature, EvidenceCatalog, FramingStyle } from '../../src/pipeline/types';
+import { useCiteByIdMode } from "../helpers/citeByIdMode";
+
+// The stance step is a model call; these suites use a fixed judgment (see helper).
+jest.mock("../../src/pipeline/services/stanceClassifier", () => jest.requireActual("../helpers/citeByIdMode").fixedStanceModule);
 
 function createClosedWorldService(
   claimText: string,
@@ -73,6 +77,7 @@ function createClosedWorldService(
 }
 
 describe('Unit: Faith Claims & Evidence Architecture (Anti-Bias & Epistemic Fairness)', () => {
+  useCiteByIdMode();
   const verificationService = new ClaimVerificationService('test-key', 0.6);
 
   describe('Pillar A: Replace Ambiguous Credibility Rating with Evidence Categories', () => {

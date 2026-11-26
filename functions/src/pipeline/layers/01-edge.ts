@@ -78,6 +78,7 @@ export class EdgeLayer {
       const isValidGCSVideoUrl = (url: string): boolean => {
         if (!url || typeof url !== "string") return false;
         const normalized = url.trim();
+        const currentProject = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
         const allowedPrefixes = [
           "gs://truthworld-1.firebasestorage.app/videos/",
           "gs://truthworld-1.appspot.com/videos/",
@@ -86,6 +87,24 @@ export class EdgeLayer {
           "https://firebasestorage.googleapis.com/v0/b/truthworld-1.firebasestorage.app/o/videos",
           "https://firebasestorage.googleapis.com/v0/b/truthworld-1.appspot.com/o/videos",
         ];
+        if (currentProject && currentProject !== "truthworld-1") {
+          allowedPrefixes.push(
+            `gs://${currentProject}.firebasestorage.app/videos/`,
+            `gs://${currentProject}.appspot.com/videos/`,
+            `https://storage.googleapis.com/${currentProject}.firebasestorage.app/videos/`,
+            `https://storage.googleapis.com/${currentProject}.appspot.com/videos/`,
+            `https://firebasestorage.googleapis.com/v0/b/${currentProject}.firebasestorage.app/o/videos`,
+            `https://firebasestorage.googleapis.com/v0/b/${currentProject}.appspot.com/o/videos`
+          );
+        }
+        const customBucket = process.env.VIDEO_BUCKET || process.env.STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET;
+        if (customBucket && !customBucket.startsWith("truthworld-1")) {
+          allowedPrefixes.push(
+            `gs://${customBucket}/videos/`,
+            `https://storage.googleapis.com/${customBucket}/videos/`,
+            `https://firebasestorage.googleapis.com/v0/b/${customBucket}/o/videos`
+          );
+        }
         const hasPrefix = allowedPrefixes.some((prefix) => normalized.startsWith(prefix));
         return hasPrefix && !normalized.includes("..") && !normalized.toLowerCase().includes("%2e");
       };

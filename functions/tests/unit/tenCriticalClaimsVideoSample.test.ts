@@ -640,11 +640,8 @@ describe('End-to-End: Sample Video with 10 Critical Claims & Grounded Sources', 
 
     const rawResult: CredibilityResult = {
       analysisState: 'VERIFIED' as any,
-      scoreAvailable: false,
-      trustLabel: 'Not Scored' as any,
       confidence: 0,
       confidenceTier: 'low' as any,
-      factors: null,
       chapters: [],
       speakers: [],
       claims: SAMPLE_TEN_CRITICAL_CLAIMS.map((c, i) => ({

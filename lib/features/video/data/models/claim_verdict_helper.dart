@@ -64,14 +64,20 @@ class ClaimVerdictInfo {
       type == ClaimVerdictType.mostlyTrue ||
       type == ClaimVerdictType.novelHypothesis;
 
+  /// Server verdict gate result: no live evidence was found, so the claim is not rated.
+  /// Never counted as Caution.
+  bool get isUnproven => category == 'Unproven';
+
   bool get isFalse =>
       type == ClaimVerdictType.falseClaim ||
-      type == ClaimVerdictType.misleading;
+      (type == ClaimVerdictType.misleading && category == 'False');
 
   bool get isCaution =>
-      type == ClaimVerdictType.disputed ||
-      type == ClaimVerdictType.inconclusive ||
-      type == ClaimVerdictType.developingStory;
+      !isUnproven &&
+      (type == ClaimVerdictType.disputed ||
+          type == ClaimVerdictType.inconclusive ||
+          type == ClaimVerdictType.developingStory ||
+          (type == ClaimVerdictType.misleading && category == 'Caution'));
 
   bool get isContextual => type == ClaimVerdictType.contextual;
 
@@ -117,6 +123,19 @@ class ClaimVerdictHelper {
     final isVerifiedFlag = claim['isVerified'] == true;
     final confidence = _extractConfidence(claim);
 
+    // The server's verdict gate is authoritative when present: it has already checked
+    // that the verdict carries the evidence it requires.
+    final publicVerdict =
+        (claim['publicVerdict'] ?? '').toString().trim().toUpperCase();
+    if (publicVerdict.isNotEmpty) {
+      return _resolvePublicVerdict(
+        publicVerdict,
+        rawStatus: rawStatus,
+        cautionType: (claim['cautionType'] ?? '').toString().trim().toUpperCase(),
+        confidence: confidence,
+      );
+    }
+
     final nature = (claim['nature'] ?? claim['claimNature'] ?? '')
         .toString()
         .trim()
@@ -148,6 +167,91 @@ class ClaimVerdictHelper {
       isVerifiedFlag: false,
       confidence: confidence,
     );
+  }
+
+  static const Map<String, String> _cautionLabels = {
+    'MISLEADING': 'MISLEADING',
+    'MISSING_CONTEXT': 'MISSING CONTEXT',
+    'EXAGGERATED': 'EXAGGERATED',
+    'DISPUTED': 'DISPUTED',
+    'HALF_TRUE': 'HALF TRUE',
+    'OUTDATED': 'OUTDATED',
+  };
+
+  /// Maps the server's five public verdict classes to presentation data.
+  static ClaimVerdictInfo _resolvePublicVerdict(
+    String publicVerdict, {
+    required String rawStatus,
+    required String cautionType,
+    double? confidence,
+  }) {
+    final confStr = _formatConfidence(confidence);
+    final base = _resolveStatus(
+      rawStatus,
+      isVerifiedFlag: publicVerdict == 'VERIFIED',
+      confidence: confidence,
+    );
+    switch (publicVerdict) {
+      case 'VERIFIED':
+        if (base.category == 'Verified') return base;
+        return ClaimVerdictInfo(
+          type: ClaimVerdictType.verifiedTrue,
+          label: 'VERIFIED',
+          color: AppColors.success,
+          icon: Icons.verified_rounded,
+          category: 'Verified',
+          summaryTakeaway: 'Live sources confirm this.',
+          confidenceText: confStr,
+          confidenceVal: confidence,
+        );
+      case 'FALSE':
+        if (base.type == ClaimVerdictType.falseClaim) return base;
+        return ClaimVerdictInfo(
+          type: ClaimVerdictType.falseClaim,
+          label: 'FALSE',
+          color: AppColors.error,
+          icon: Icons.cancel_rounded,
+          category: 'False',
+          summaryTakeaway: 'Live sources show this is wrong.',
+          confidenceText: confStr,
+          confidenceVal: confidence,
+        );
+      case 'CAUTION':
+        return ClaimVerdictInfo(
+          type: cautionType == 'DISPUTED'
+              ? ClaimVerdictType.disputed
+              : ClaimVerdictType.misleading,
+          label: _cautionLabels[cautionType] ?? 'CAUTION',
+          color: AppColors.warning,
+          icon: Icons.warning_amber_rounded,
+          category: 'Caution',
+          summaryTakeaway: cautionType == 'DISPUTED'
+              ? 'Credible sources disagree about this.'
+              : 'Sources show this needs care: part of the picture is missing or off.',
+          confidenceText: confStr,
+          confidenceVal: confidence,
+        );
+      case 'OPINION_BELIEF':
+        if (base.category == 'Contextual') return base;
+        return const ClaimVerdictInfo(
+          type: ClaimVerdictType.contextual,
+          label: 'OPINION',
+          color: Color(0xFF8B5CF6),
+          icon: Icons.chat_bubble_outline_rounded,
+          category: 'Contextual',
+          summaryTakeaway: 'A personal view or belief, not a fact to rate.',
+        );
+      default:
+        return const ClaimVerdictInfo(
+          type: ClaimVerdictType.inconclusive,
+          label: 'NO EVIDENCE YET',
+          color: Color(0xFF94A3B8),
+          icon: Icons.search_off_rounded,
+          category: 'Unproven',
+          summaryTakeaway: 'No verifiable evidence found yet.',
+          microTakeaway: 'No verifiable evidence yet',
+        );
+    }
   }
 
   static ClaimVerdictInfo _unverifiedDefault() {

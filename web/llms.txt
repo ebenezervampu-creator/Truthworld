@@ -6,7 +6,7 @@ Truthworld empowers content creators and viewers through algorithmic transparenc
 
 ## Core Features
 - [AI Fact Checking](https://www.truthworld.in): Real-time multi-layered claim verification and credibility labels.
-- [Voice Dubbing & Localization](https://www.truthworld.in): Voice dubbing across 70+ languages with synchronized subtitles.
+- [Truthworld Dubbing Studio](https://www.truthworld.in/dubbing): Standalone AI voice dubbing, speaker-matched voice cloning, multilingual subtitles, and waveform segment editor ([dubbing.truthworld.in](https://dubbing.truthworld.in)).
 - [Creator Studio](https://www.truthworld.in/studio): Complete channel management, upload pipeline, and real-time revenue analytics.
 - [Advertisements Platform](https://www.truthworld.in/advertisements): Transparent video advertising campaigns with detailed performance tracking.
 - [Discover & Trending](https://www.truthworld.in/trending): Community-driven topic discussions, curated playlists, and trending verified video stories.
@@ -14,6 +14,7 @@ Truthworld empowers content creators and viewers through algorithmic transparenc
 ## Navigation & Resources
 - [Home](https://www.truthworld.in/): Main video feed and curated recommendations.
 - [Explore Topics](https://www.truthworld.in/browse): Browse categorized topics, channels, and verified content.
+- [Truthworld Dubbing Studio](https://www.truthworld.in/dubbing): AI voice dubbing, subtitle localization, and segment timeline editing.
 - [Creator Studio](https://www.truthworld.in/studio): Creator dashboard, video management, and channel customization.
 - [Advertiser Portal](https://www.truthworld.in/advertisements): Campaign management and advertising console.
 - [Trending](https://www.truthworld.in/trending): Most popular and trending videos across Truthworld.

@@ -508,15 +508,34 @@ class ChannelWizardCountryCard extends StatelessWidget {
         size: 20,
       );
     }
+    return buildCountryFlagByCode(code, width: width, height: height);
+  }
 
-    final flagUrl = 'https://flagcdn.com/w40/${code.toLowerCase()}.png';
-    final flagEmoji = countryCodeToEmoji(code);
+  /// Renders a rounded country flag using `flagcdn.com` with an emoji fallback.
+  /// Shared between Channel Creation and Dubbing Studio language cards.
+  static Widget buildCountryFlagByCode(
+    String countryCode, {
+    double width = 24,
+    double height = 16,
+    double borderRadius = 3,
+  }) {
+    final normalized = countryCode.trim().toUpperCase();
+    if (normalized.length != 2) {
+      return Icon(
+        Icons.public_rounded,
+        color: Colors.white70,
+        size: height,
+      );
+    }
+
+    final flagUrl = 'https://flagcdn.com/w40/${normalized.toLowerCase()}.png';
+    final flagEmoji = countryCodeToEmoji(normalized);
 
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(3),
+        borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(color: const Color(0xFF3F3F46), width: 0.5),
       ),
       clipBehavior: Clip.antiAlias,

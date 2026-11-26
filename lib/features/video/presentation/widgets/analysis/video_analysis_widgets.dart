@@ -13,6 +13,7 @@ export 'video_analysis_conclusion_card.dart';
 export 'video_analysis_confidence_bar.dart';
 export 'video_analysis_controller.dart';
 export 'video_analysis_desktop_layout.dart';
+export 'video_analysis_disclaimer_card.dart';
 export 'video_analysis_empty_fallback.dart';
 export 'video_analysis_factors_card.dart';
 export 'video_analysis_helpers.dart';

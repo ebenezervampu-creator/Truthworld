@@ -62,6 +62,13 @@ abstract class AppRoutes {
   static const uploadTopic = '/upload/topic';
   static const uploadscreen = '/uploadscreen';
 
+  // --- Standalone Dubbing Studio ---
+  static const dubbing = '/dubbing';
+  static const dubbingEditor = '/dubbing/editor';
+  static const dubbingEditorWithId = '/dubbing/editor/:jobId';
+  static const dubbingSubtitles = '/dubbing/subtitles';
+  static const dubbingWallet = '/dubbing/wallet';
+
   // --- Channels & Social ---
   static const channelDetails = '/channel-details';
   static const channelWithId = '/channel/:channelId';

@@ -60,8 +60,6 @@ export const addComment = onCall(
       if (!channelsSnap.empty) {
         channelData = channelsSnap.docs[0].data();
       }
-      const channelRating = channelData?.reputation?.channelRating ?? channelData?.reputation?.avgTrustIndex ?? 5.0;
-
       const commentId = db().collection("comments").doc().id;
       const comment: Comment = {
         id: commentId,
@@ -69,11 +67,9 @@ export const addComment = onCall(
         userId,
         userName: channelData?.name || "Anonymous",
         userAvatar: channelData?.avatarUrl || channelData?.profile?.photoUrl || channelData?.profile?.avatarUrl || "",
-        userTrustIndex: channelRating,
         text: sanitizeText(text.slice(0, 1000)),
         likes: 0,
         dislikes: 0,
-        authorRankScore: (channelRating * 0.3),
         createdAt: Date.now(),
         parentId: parentId || null
       };
@@ -104,7 +100,7 @@ export const getComments = onCall(
       const snap = await db().collection("comments")
         .where("videoId", "==", videoId)
         .where("parentId", "==", null)
-        .orderBy("authorRankScore", "desc")
+        .orderBy("createdAt", "desc")
         .limit(safeLimit)
         .get();
 

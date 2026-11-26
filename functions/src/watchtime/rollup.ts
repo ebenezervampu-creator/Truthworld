@@ -99,11 +99,13 @@ export const rollupDailyStats = onSchedule(
           ops = 0;
         }
 
-        batch.set(
-          db.collection("videos").doc(videoId).collection("dailyStats").doc(dateKey),
-          dailyData
-        );
-        ops++;
+        if (videoDoc.exists) {
+          batch.set(
+            db.collection("videos").doc(videoId).collection("dailyStats").doc(dateKey),
+            dailyData
+          );
+          ops++;
+        }
 
         // Also write to video_stats_daily for backward compatibility
         batch.set(

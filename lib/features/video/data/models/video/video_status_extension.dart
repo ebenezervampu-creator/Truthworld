@@ -134,4 +134,10 @@ extension VideoStatusExtension on Video {
     }
     return false;
   }
+
+  /// Returns true if video's adaptive HLS/resolution transcode failed.
+  bool get hasTranscodeFailed => transcodeFailed;
+
+  /// Returns true if video is verified ready for playback.
+  bool get isPlaybackReady => playbackReady;
 }

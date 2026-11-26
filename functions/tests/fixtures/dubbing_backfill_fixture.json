@@ -1,0 +1,76 @@
+{
+  "videos": [
+    {
+      "id": "video_legacy_001",
+      "jobId": "job_legacy_001",
+      "audioTracks": {
+        "te": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_legacy_001/te.mp3",
+        "hi": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_legacy_001/hi.mp3",
+        "fr": "https://storage.googleapis.com/truthworld-prod.appspot.com/creator_uploads/fr_my_voice.mp3"
+      },
+      "audioTrackSources": {
+        "te": "ai_dub",
+        "hi": "creator",
+        "fr": "creator"
+      },
+      "aiDubbedAudio": {},
+      "dubbingLanguages": ["te", "hi"]
+    },
+    {
+      "id": "video_tampered_002",
+      "jobId": "job_tampered_002",
+      "audioTracks": {
+        "mr": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_tampered_002/mr.mp3"
+      },
+      "audioTrackSources": {
+        "mr": "creator"
+      },
+      "aiDubbedAudio": {},
+      "dubbingLanguages": ["mr"]
+    },
+    {
+      "id": "video_already_updated_003",
+      "jobId": "job_updated_003",
+      "audioTracks": {
+        "ml": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_updated_003/ml.mp3"
+      },
+      "audioTrackSources": {
+        "ml": "ai_dub"
+      },
+      "aiDubbedAudio": {
+        "ml": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_updated_003/ml.mp3"
+      },
+      "dubbingLanguages": ["ml"]
+    }
+  ],
+  "dubbing_results": [
+    {
+      "id": "job_legacy_001_te",
+      "jobId": "job_legacy_001",
+      "language": "te",
+      "audioUrl": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_legacy_001/te.mp3",
+      "status": "completed"
+    },
+    {
+      "id": "job_legacy_001_hi",
+      "jobId": "job_legacy_001",
+      "language": "hi",
+      "audioUrl": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_legacy_001/hi.mp3",
+      "status": "completed"
+    },
+    {
+      "id": "job_tampered_002_mr",
+      "jobId": "job_tampered_002",
+      "language": "mr",
+      "audioUrl": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_tampered_002/mr.mp3",
+      "status": "completed"
+    },
+    {
+      "id": "job_updated_003_ml",
+      "jobId": "job_updated_003",
+      "language": "ml",
+      "audioUrl": "https://storage.googleapis.com/truthworld-prod.appspot.com/dubs/job_updated_003/ml.mp3",
+      "status": "completed"
+    }
+  ]
+}

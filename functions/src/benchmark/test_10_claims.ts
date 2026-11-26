@@ -1,4 +1,4 @@
-import { registryService } from '../pipeline/registry/RegistryService';
+import { DeterministicRegistryService } from '../pipeline/services/deterministicRegistry';
 import { tier0KnowledgeService } from '../pipeline/services/tier0Knowledge';
 import { ClaimVerificationService } from '../pipeline/services/claimVerification';
 import { sourceTrustService } from '../pipeline/services/sourceTrustService';
@@ -31,7 +31,7 @@ const TEN_CLAIMS: TestClaimInput[] = [
   },
   {
     id: 'claim_02',
-    text: 'Clinical research proves tobacco smoking causes lung cancer and heart disease.',
+    text: 'Smoking causes lung cancer and heart disease.',
     domain: 'Health',
     nature: ClaimNature.VERIFIABLE_FACT,
     framing: FramingStyle.BALANCED,
@@ -39,7 +39,7 @@ const TEN_CLAIMS: TestClaimInput[] = [
   },
   {
     id: 'claim_03',
-    text: 'Antibiotics are effective against viral infections and cure the common cold.',
+    text: 'Antibiotics cure the common cold.',
     domain: 'Health',
     nature: ClaimNature.VERIFIABLE_FACT,
     framing: FramingStyle.ABSOLUTE,
@@ -55,7 +55,7 @@ const TEN_CLAIMS: TestClaimInput[] = [
   },
   {
     id: 'claim_05',
-    text: 'Apollo 11 landed on the moon in 1969 with astronauts Neil Armstrong and Buzz Aldrin.',
+    text: 'Apollo 11 landed on the moon in 1969.',
     domain: 'History',
     nature: ClaimNature.VERIFIABLE_FACT,
     framing: FramingStyle.BALANCED,
@@ -63,7 +63,7 @@ const TEN_CLAIMS: TestClaimInput[] = [
   },
   {
     id: 'claim_06',
-    text: 'The Earth is flat and a flat disc stationary in space.',
+    text: 'The Earth is flat.',
     domain: 'Science',
     nature: ClaimNature.VERIFIABLE_FACT,
     framing: FramingStyle.ABSOLUTE,
@@ -71,7 +71,7 @@ const TEN_CLAIMS: TestClaimInput[] = [
   },
   {
     id: 'claim_07',
-    text: 'Earth\'s dry atmosphere is approximately 78% nitrogen and 21% oxygen.',
+    text: "Earth's atmosphere is 78% nitrogen and 21% oxygen.",
     domain: 'Earth Science',
     nature: ClaimNature.VERIFIABLE_FACT,
     framing: FramingStyle.BALANCED,
@@ -153,7 +153,7 @@ async function runTenClaimsEvaluation() {
     let publicNote: string | undefined;
 
     // 3. Layer 4: Deterministic Registry Check
-    const regMatch = registryService.resolveTruthCheck(item.text);
+    const detMatch = DeterministicRegistryService.resolveDeterministicFact(item.text);
     // 4. Tier-0 Pre-Indexed Canonical Corpus Check
     const t0Match = tier0KnowledgeService.lookupPreIndexedFact(item.text);
 
@@ -162,13 +162,13 @@ async function runTenClaimsEvaluation() {
       confidence = 1.0;
       reasoning = formatOpinionReasoning(item.text);
       verificationMethod = 'claim_router_opinion';
-    } else if (regMatch) {
-      status = regMatch.status === 'correct' ? 'verified_true' : ('false_claim' as ClaimStatus);
-      confidence = 1.0;
-      reasoning = regMatch.reasoning;
-      sourceTitle = regMatch.source;
-      sourceUrl = 'https://en.wikipedia.org/wiki/Paris';
-      sourceTier = 'A';
+    } else if (detMatch) {
+      status = detMatch.status;
+      confidence = detMatch.confidence;
+      reasoning = detMatch.reasoning;
+      sourceTitle = detMatch.source;
+      sourceUrl = detMatch.url;
+      sourceTier = detMatch.tier;
       verificationMethod = 'deterministic_registry';
     } else if (t0Match) {
       status = t0Match.status;

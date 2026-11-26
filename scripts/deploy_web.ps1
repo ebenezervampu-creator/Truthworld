@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 #  TruthWorld Web Deploy Script (WebAssembly Ready)
 #  Usage: .\scripts\deploy_web.ps1 [-Target web-app|studio-app|admin-portal|advertiser-app|all|web-app,studio-app] [-NoWasm]
 #         .\scripts\deploy_web.ps1          (defaults to all targets with Wasm enabled)
@@ -143,6 +143,8 @@ foreach ($t in $rawTargets) {
         "studio_app" { $targetList += "studio-app" }
         "admin"      { $targetList += "admin-portal" }
         "advertiser" { $targetList += "advertiser-app" }
+        "dubbing"    { $targetList += "dubbing-app" }
+        "dubbing_app" { $targetList += "dubbing-app" }
         default      { $targetList += $t }
     }
 }
@@ -151,6 +153,7 @@ $buildWebApp     = $isAll -or ($targetList -contains "web-app")
 $buildStudio     = $isAll -or ($targetList -contains "studio-app")
 $buildAdmin      = $isAll -or ($targetList -contains "admin-portal")
 $buildAdvertiser = $isAll -or ($targetList -contains "advertiser-app")
+$buildDubbing    = $isAll -or ($targetList -contains "dubbing-app")
 
 if ($buildWebApp) {
     Build-Flavor -EntryPoint "lib/main.dart" -OutputDir "build/web_app" -Label "Web App (Consumer)"
@@ -167,6 +170,10 @@ if ($buildAdvertiser) {
     $advertiserEntry = if (Test-Path (Join-Path $ROOT "lib/main_advertiser.dart")) { "lib/main_advertiser.dart" } else { "lib/main.dart" }
     Build-Flavor -EntryPoint $advertiserEntry -OutputDir "build/web_advertiser" -Label "Advertiser Portal"
 }
+if ($buildDubbing) {
+    $dubbingEntry = if (Test-Path (Join-Path $ROOT "lib/main_dubbing.dart")) { "lib/main_dubbing.dart" } else { "lib/main.dart" }
+    Build-Flavor -EntryPoint $dubbingEntry -OutputDir "build/web_dubbing" -Label "Dubbing Studio"
+}
 
 # ── 5. Synchronize SEO and Web assets ────────────────────────
 $copySeoScript = Join-Path $PSScriptRoot "copy-seo-files.ps1"
@@ -178,7 +185,7 @@ if (Test-Path $copySeoScript) {
 # ── 6. Deploy to Firebase Hosting ────────────────────────────
 Step "Deploying to Firebase Hosting"
 if ($isAll) {
-    firebase deploy --only "hosting:web-app,hosting:studio-app,hosting:admin-portal,hosting:advertiser-app" --force
+    firebase deploy --only "hosting:web-app,hosting:studio-app,hosting:admin-portal,hosting:advertiser-app,hosting:dubbing-app" --force
 } else {
     $deployTargets = ($targetList | ForEach-Object { "hosting:$_" }) -join ","
     firebase deploy --only $deployTargets --force

@@ -11,7 +11,7 @@
     "test": "jest --runInBand --forceExit",
     "test:pipeline": "jest tests/pipeline --runInBand --forceExit",
     "test:translation": "jest tests/pipeline/google_translation_v3.test.ts tests/pipeline/world_class_translation.test.ts --runInBand --forceExit",
-    "test:dubbing": "jest tests/pipeline/google_translation_v3.test.ts tests/pipeline/elevenlabs_v4_dubbing.test.ts tests/pipeline/dubbing_quality_gate.test.ts tests/pipeline/dubbing_five_pillars.test.ts tests/pipeline/elevenlabs_zero_credit_verification.test.ts --runInBand --forceExit",
+    "test:dubbing": "jest tests/pipeline/expressive_mode.test.ts tests/pipeline/speaker_clone_plan.test.ts tests/pipeline/reel_word_spans_and_untranscribed.test.ts tests/pipeline/dubbing_timeout_clone_cleanup.test.ts tests/pipeline/localization_bible_register.test.ts tests/pipeline/dubbing_meaning_check.test.ts tests/pipeline/listen_retake.test.ts tests/pipeline/segment_preroll.test.ts tests/pipeline/segment_preroll_stitch.test.ts tests/pipeline/google_translation_v3.test.ts tests/pipeline/elevenlabs_v4_dubbing.test.ts tests/pipeline/dubbing_quality_gate.test.ts tests/pipeline/dubbing_five_pillars.test.ts tests/pipeline/elevenlabs_zero_credit_verification.test.ts tests/pipeline/dubbing_guards.test.ts tests/pipeline/dubbing_context_and_voices.test.ts tests/pipeline/speaker_consistency.test.ts tests/pipeline/diarization_check.test.ts tests/pipeline/diarization_utterance_split.test.ts tests/pipeline/diarization_cast_list.test.ts tests/pipeline/dubbing_economics.test.ts tests/pipeline/dubbing_pricing.test.ts tests/pipeline/separation_policy.test.ts tests/pipeline/separation_replicate_adapter.test.ts tests/pipeline/crowded_video_speakers.test.ts tests/pipeline/voice_library.test.ts tests/pipeline/elevenlabs_plan_limits.test.ts tests/pipeline/native_voice_policy.test.ts tests/pipeline/voice_closeness.test.ts tests/pipeline/voice_match_closeness.test.ts tests/pipeline/stage4_address_forms.test.ts tests/pipeline/stage4_joseph_sample.test.ts tests/pipeline/delivery_audio_check.test.ts tests/pipeline/emotion_transfer.test.ts tests/pipeline/demux_worker_auth.test.ts tests/pipeline/dubbing_gender_and_level.test.ts tests/pipeline/dubbing_sync_check.test.ts tests/pipeline/dubbing_launch_fixes.test.ts tests/pipeline/dubbing_studio_order.test.ts tests/pipeline/stem_bleed.test.ts tests/pipeline/tts_voice_first_use.test.ts tests/pipeline/library_voice_catalog_child_age.test.ts tests/pipeline/translation_language_guidance.test.ts tests/pipeline/delivery_tag_guard.test.ts tests/pipeline/dubbing_faithful_mix.test.ts tests/pipeline/dubbing_real_line_lengths.test.ts tests/pipeline/elevenlabs_capacity_guard.test.ts tests/pipeline/dubbing_step_planner.test.ts tests/pipeline/dubbing_subtitles_from_dub_pass.test.ts tests/pipeline/dubbing_translation_block.test.ts tests/pipeline/speech_rate_unified.test.ts tests/pipeline/dubbing_editor_context.test.ts tests/pipeline/gemini_dubbing_editor.test.ts tests/pipeline/translation_quality_gate.test.ts --runInBand --forceExit",
     "test:unit": "jest tests/unit --runInBand --forceExit",
     "test:integration": "jest tests/api tests/auth tests/callable tests/database tests/payment --runInBand",
     "test:api": "jest tests/api --runInBand",
@@ -34,7 +34,8 @@
     "test:all": "npm run test && npm run test:legacy && npm run test:scalability && npm run test:p95-p99 && npm run test:load",
     "benchmark": "npx ts-node src/benchmark/index.ts",
     "benchmark:scalability": "npx ts-node src/benchmark/backend_scalability.test.ts",
-    "benchmark:dubbing": "npx ts-node src/benchmark/dubbing_live_benchmark.ts"
+    "benchmark:dubbing": "npx ts-node src/benchmark/dubbing_live_benchmark.ts",
+    "voices:library": "node scripts/build_voice_catalog.js"
   },
   "engines": {
     "node": "22"
@@ -48,6 +49,7 @@
     "@google-cloud/vision": "^4.1.0",
     "@google/genai": "^2.32.0",
     "axios": "^1.6.0",
+    "dotenv": "^18.0.5",
     "ffmpeg-static": "^5.3.0",
     "firebase-admin": "^12.0.0",
     "firebase-functions": "^7.2.5",
@@ -56,16 +58,17 @@
     "sharp": "^0.33.5",
     "typesense": "^3.2.0",
     "uuid": "^9.0.1",
-    "zod": "^4.3.6",
-    "dotenv": "^18.0.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/fluent-ffmpeg": "^2.1.28",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.10.0",
     "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^7.2.1",
     "@types/uuid": "^10.0.0",
+    "firebase": "^12.19.0",
     "jest": "^30.5.2",
     "supertest": "^7.3.1",
     "ts-jest": "^29.4.14",

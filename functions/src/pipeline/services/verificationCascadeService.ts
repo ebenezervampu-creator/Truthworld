@@ -26,7 +26,6 @@
 
 import { logger } from "../utils/logger";
 import {
-  ClaimStatus,
   EvidenceLevel,
   FilteredClaim,
   VerifiedClaim,
@@ -34,7 +33,6 @@ import {
 import { claimCacheService, isTimeSensitiveClaim } from "./claimCacheService";
 import { DeterministicRegistryService } from "./deterministicRegistry";
 import { tier0KnowledgeService } from "./tier0Knowledge";
-import { registryService } from "../registry/RegistryService";
 import { FastTrackLlmService } from "./fastTrackLlmService";
 import { FusedGroundingService, FusedGroundingOptions } from "./fusedGroundingService";
 import { StreamingClaimProcessor } from "./streamingClaimProcessor";
@@ -90,7 +88,9 @@ export class VerificationCascadeService {
 
     // 4. Medical / Clinical Claim Check
     const medical = /\b(vaccine|drug|cure|treatment|cancer|clinical trial|fda approval|approved yesterday)\b/i.test(lower);
-    const isCanonicalMedical = /\b(antibiotics|smoking|tobacco|turmeric)\b/i.test(lower);
+    // Only medical claims the deterministic registry can rule on in full are exempt from escalation.
+    // A claim that merely mentions smoking or antibiotics ("smoking prevents cancer") still escalates.
+    const isCanonicalMedical = medical && DeterministicRegistryService.resolveDeterministicFact(text) !== null;
     if (medical && !isCanonicalMedical) {
       escalationReasons.push("Medical/pharmacological claim requires live authoritative peer review");
     }
@@ -267,6 +267,10 @@ export class VerificationCascadeService {
       // 2. Canonical Tier-0 Pre-Indexed Facts (Physical constants & NASA/WHO baselines)
       const t0Match = tier0KnowledgeService.lookupPreIndexedFact(c.text);
       if (t0Match) {
+        const t0Stance = (t0Match.status as string) === "false_claim"
+          ? "CONTRADICTS"
+          : "SUPPORTS";
+        const nowIso = new Date().toISOString();
         const verified: VerifiedClaim = {
           ...c,
           status: t0Match.status,
@@ -281,40 +285,23 @@ export class VerificationCascadeService {
             domain: t0Match.domain,
             tier: "A",
             snippet: t0Match.reasoning,
+            status: "verified",
             retrievalMethod: "tier0_local_store",
-          }],
-          isGrounded: true,
-          verificationMethod: "deterministic",
-        };
-        finalResultsMap.set(c.claimId, verified);
-        resolvedTier2.push(verified);
-        continue;
-      }
-
-      // 3. Historical entity registry check
-      const regMatch = registryService.resolveTruthCheck(c.text);
-      if (regMatch) {
-        const statusMap: Record<string, ClaimStatus> = {
-          correct: "verified_true",
-          mostly_correct: "mostly_true",
-          incorrect: "false_claim",
-          disputed: "disputed",
-        };
-        const regUrl = "https://unstats.un.org/";
-        const verified: VerifiedClaim = {
-          ...c,
-          status: statusMap[regMatch.status] || "verified_true",
-          verificationConfidence: 1.0,
-          evidenceConfidence: 1.0,
-          reasoning: regMatch.reasoning,
-          sources: [regMatch.source],
-          richSources: [{
-            title: regMatch.source,
-            url: regUrl,
-            directUrl: regUrl,
-            domain: "unstats.un.org",
-            tier: "A",
-            snippet: regMatch.reasoning,
+            claimStance: t0Stance,
+            claimStanceReason: t0Match.reasoning,
+            lastVerified: nowIso,
+            urlVerification: {
+              status: "VERIFIED",
+              originalUrl: t0Match.url,
+              canonicalUrl: t0Match.url,
+              domain: t0Match.domain,
+              httpStatus: 200,
+              redirectHops: 0,
+              isSoft404: false,
+              verifiedAtUtc: nowIso,
+              verifierMethod: "api_record",
+              fetchStatus: "HTTP_200_OK",
+            },
           }],
           isGrounded: true,
           verificationMethod: "deterministic",

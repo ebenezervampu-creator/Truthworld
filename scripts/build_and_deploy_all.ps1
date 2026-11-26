@@ -34,7 +34,7 @@ param(
     [switch]$SkipAndroid,
     [switch]$SkipDeploy,
     [switch]$OnlyDeploy,
-    [ValidateSet('all', 'app', 'studio', 'admin', 'advertiser')]
+    [ValidateSet('all', 'app', 'studio', 'admin', 'advertiser', 'dubbing')]
     [string]$Target = 'all',
     [ValidateSet('apk', 'appbundle', 'both')]
     [string]$AndroidFormat = 'apk'
@@ -94,6 +94,17 @@ $apps = @(
         WebOutDir   = "build/web_advertiser"
         ApkOutput   = "build/app/outputs/flutter-apk/app-advertiser-release.apk"
         AabOutput   = "build/app/outputs/bundle/advertiserRelease/app-advertiser-release.aab"
+    },
+    @{
+        Name        = "Dubbing Studio"
+        Id          = "dubbing"
+        Entry       = "lib/main_dubbing.dart"
+        Flavor      = "dubbing"
+        PackageId   = "com.truthworld.dubbing"
+        WebTarget   = "dubbing-app"
+        WebOutDir   = "build/web_dubbing"
+        ApkOutput   = "build/app/outputs/flutter-apk/app-dubbing-release.apk"
+        AabOutput   = "build/app/outputs/bundle/dubbingRelease/app-dubbing-release.aab"
     }
 )
 

@@ -174,14 +174,9 @@ export class ScoringEngine {
       userId,
       transcript,
       analysisState: finalState,
-      scoreAvailable: false,
-      trustLabel: 'Not Scored' as any,
       confidence: 0,
       confidenceTier: 'low',
       scoringVersion: ScoringEngine.SCORING_VERSION,
-      
-      factors: null,
-      deductions: [],
       
       factCheckStats: {
         totalClaims: extractedCount,
@@ -215,7 +210,6 @@ export class ScoringEngine {
       language: "en",
       riskDomain: domain,
       domainRiskMultiplier: 1.0,
-      compositeRating: undefined,
       verificationState: finalState,
       chapters: [],
       speakers: [],
@@ -271,7 +265,7 @@ export class ScoringEngine {
         rating: null,
         honestyScore: null,
         rationalityScore: null,
-        label: data.trustLabel,
+        label: (data as any).trustLabel || "Not Scored",
         confidence: data.confidenceTier,
         confidenceInterpretation: data.confidenceInterpretation || "Standard analysis.",
         analysisState: data.verificationState,

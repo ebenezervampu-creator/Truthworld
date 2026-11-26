@@ -40,13 +40,23 @@ void main() {
       expect(content.contains('## Architecture & Overview'), isTrue);
     });
 
-    test('web/robots.txt allows AI agent crawlers to access llms files', () {
+    test('web/robots.txt allows AI agent crawlers and Dubbing Studio routes', () {
       final file = File('web/robots.txt');
       expect(file.existsSync(), isTrue);
 
       final content = file.readAsStringSync();
       expect(content.contains('Allow: /llms.txt'), isTrue);
       expect(content.contains('Allow: /llms-full.txt'), isTrue);
+      expect(content.contains('Allow: /dubbing'), isTrue);
+    });
+
+    test('web/sitemap-static.xml and web/index.html expose Truthworld Dubbing Studio for Google Search', () {
+      final sitemap = File('web/sitemap-static.xml').readAsStringSync();
+      expect(sitemap.contains('https://www.truthworld.in/dubbing'), isTrue);
+
+      final indexHtml = File('web/index.html').readAsStringSync();
+      expect(indexHtml.contains('Truthworld Dubbing Studio'), isTrue);
+      expect(indexHtml.contains('https://www.truthworld.in/dubbing'), isTrue);
     });
 
     test('web/index.html enforces accessible viewport scaling and font preloads', () {
@@ -84,15 +94,15 @@ void main() {
       expect(parsed['file'], equals('flutter.js'));
     });
 
-    test('firebase.json configures rewrites and headers across all 4 hosting targets', () {
+    test('firebase.json configures rewrites and headers across all 5 hosting targets', () {
       final file = File('firebase.json');
       expect(file.existsSync(), isTrue);
 
       final config = json.decode(file.readAsStringSync()) as Map<String, dynamic>;
       final hostingList = config['hosting'] as List<dynamic>;
-      expect(hostingList.length, equals(4));
+      expect(hostingList.length, equals(5));
 
-      final expectedTargets = ['web-app', 'admin-portal', 'studio-app', 'advertiser-app'];
+      final expectedTargets = ['web-app', 'admin-portal', 'studio-app', 'advertiser-app', 'dubbing-app'];
       for (final targetName in expectedTargets) {
         final targetConfig = hostingList.firstWhere(
           (h) => h['target'] == targetName,
@@ -116,6 +126,11 @@ void main() {
         expect(headerSources.contains('**/*.map'), isTrue,
             reason: '$targetName must have **/*.map headers');
       }
+
+      final webAppConfig = hostingList.firstWhere((h) => h['target'] == 'web-app') as Map<String, dynamic>;
+      final webAppRewriteSources = (webAppConfig['rewrites'] as List<dynamic>).map((r) => r['source']).toList();
+      expect(webAppRewriteSources.contains('/dubbing'), isTrue);
+      expect(webAppRewriteSources.contains('/dubbing/**'), isTrue);
     });
 
     test('All build targets contain synchronized SEO and source map assets', () {
@@ -125,6 +140,7 @@ void main() {
         'build/web_studio',
         'build/web_admin',
         'build/web_advertiser',
+        'build/web_dubbing',
       ];
       final requiredFiles = [
         'llms.txt',

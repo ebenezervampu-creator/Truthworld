@@ -267,8 +267,6 @@ function sanitizePublicChannelItem(data: Record<string, any>, id: string): Recor
     subscriberCount: Number(data.subscriberCount || data.stats?.subscriberCount) || 0,
     videoCount: Number(data.videoCount || data.stats?.videoCount) || 0,
     isVerified: Boolean(data.isVerified || data.verification?.isVerified),
-    channelRating: Number(data.reputation?.channelRating ?? data.reputation?.avgTrustIndex ?? 0),
-    trend30d: Number(data.reputation?.trend30d ?? 0),
   };
 }
 

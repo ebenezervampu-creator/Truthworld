@@ -317,7 +317,6 @@ function testTruthVerificationWiring() {
   assert(executionPlan.maxClaims === 100, "maxClaims allocated for fact checking analysis");
 
   const mockCredibility = {
-    trustLabel: "Verified",
     factCheckStats: { totalClaims: 5, correct: 4, incorrect: 1, unverifiable: 0 }
   };
   const videoUpdate = {

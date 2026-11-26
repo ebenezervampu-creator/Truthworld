@@ -77,6 +77,74 @@ mixin TowerPlayerModesMixin on GetxController {
   // ignore: cancel_subscriptions
   StreamSubscription? webFullscreenSub;
 
+  // ── Visual Evidence Warning Pill ─────────────────────────
+  final RxBool visualEvidencePillVisible = false.obs;
+  final RxString visualEvidencePillText = ''.obs;
+  DateTime _lastVisualEvidencePillTime = DateTime.fromMillisecondsSinceEpoch(0);
+  int _visualEvidencePillCount = 0;
+  Timer? _visualEvidencePillDismissTimer;
+
+  void evaluateVisualEvidenceSignals(Duration pos) {
+    if (!isAudioOnly.value || isPiP.value) {
+      if (visualEvidencePillVisible.value) {
+        visualEvidencePillVisible.value = false;
+      }
+      return;
+    }
+
+    if (_visualEvidencePillCount >= 3) return;
+
+    final now = DateTime.now();
+    if (now.difference(_lastVisualEvidencePillTime).inSeconds < 45) return;
+
+    if (this is TowerPlayerController) {
+      final tpc = this as TowerPlayerController;
+      final claims = tpc.availableClaims;
+      if (claims.isNotEmpty) {
+        final posSec = pos.inMilliseconds / 1000.0;
+        for (final claim in claims) {
+          if (claim.start != null) {
+            final s = claim.start!;
+            final e = claim.end ?? (s + 8.0);
+            if (posSec >= s && posSec <= e) {
+              final text = claim.text;
+              final isHighSignal = text.length >= 45 ||
+                  claim.verdict.toLowerCase().contains('supported') ||
+                  claim.verdict.toLowerCase().contains('contradicted');
+              if (isHighSignal) {
+                _triggerVisualEvidencePill('On-screen evidence presented · Tap to view');
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void _triggerVisualEvidencePill(String text) {
+    visualEvidencePillText.value = text;
+    visualEvidencePillVisible.value = true;
+    _visualEvidencePillCount++;
+    _lastVisualEvidencePillTime = DateTime.now();
+
+    _visualEvidencePillDismissTimer?.cancel();
+    _visualEvidencePillDismissTimer = Timer(const Duration(seconds: 6), () {
+      visualEvidencePillVisible.value = false;
+    });
+  }
+
+  void onVisualEvidencePillTap() {
+    visualEvidencePillVisible.value = false;
+    _visualEvidencePillDismissTimer?.cancel();
+    setAudioOnly(false);
+  }
+
+  void dismissVisualEvidencePill() {
+    visualEvidencePillVisible.value = false;
+    _visualEvidencePillDismissTimer?.cancel();
+  }
+
   Future<void> setAudioOnly(bool enabled) async {
     if (isAudioOnly.value == enabled) return;
     await toggleAudioOnly();
@@ -92,6 +160,8 @@ mixin TowerPlayerModesMixin on GetxController {
 
     try {
       if (playbackMode.value == PlaybackMode.audio || isAudioOnly.value) {
+        dismissVisualEvidencePill();
+        _visualEvidencePillCount = 0;
         playbackMode.value = PlaybackMode.video;
         isAudioOnly.value = false;
         TowerPlayerController.globalAudioOnly = false;
@@ -124,10 +194,24 @@ mixin TowerPlayerModesMixin on GetxController {
           if (vc != null) {
             vc.isAudioOnly.value = false;
             // Restore user's previous resolution if it was saved before switching to audio-only
-            if (_savedResolutionBeforeAudioOnly != null) {
+            if (_savedResolutionBeforeAudioOnly != null &&
+                _savedResolutionBeforeAudioOnly!.label.toLowerCase() != 'audio only') {
               final restoreRes = _savedResolutionBeforeAudioOnly!;
               _savedResolutionBeforeAudioOnly = null;
               await vc.setResolution(restoreRes, isManual: false);
+            } else {
+              _savedResolutionBeforeAudioOnly = null;
+              final defaultRes = vc.availableResolutions.firstWhereOrNull(
+                    (r) =>
+                        r.label.toLowerCase() != 'audio only' &&
+                        r.label.toLowerCase() != '144p',
+                  ) ??
+                  (vc.availableResolutions.isNotEmpty
+                      ? vc.availableResolutions.first
+                      : null);
+              if (defaultRes != null) {
+                await vc.setResolution(defaultRes, isManual: false);
+              }
             }
           }
         } catch (e, s) {
@@ -146,6 +230,8 @@ mixin TowerPlayerModesMixin on GetxController {
         }
         trackAnalytics(PlayerEvent('audio_only_off'));
       } else {
+        dismissVisualEvidencePill();
+        _visualEvidencePillCount = 0;
         playbackMode.value = PlaybackMode.audio;
         isAudioOnly.value = true;
         TowerPlayerController.globalAudioOnly = true;
@@ -171,13 +257,32 @@ mixin TowerPlayerModesMixin on GetxController {
             vc.isAudioOnly.value = true;
             _savedResolutionBeforeAudioOnly = vc.currentResolution.value;
 
-            // Low-bandwidth optimization: Immediately downscale the stream to 144p or the lowest
-            // available resolution tier so network bandwidth is minimized (< 150 kbps) and video decoding stops
-            final lowestRes = vc.availableResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p')
-                ?? (vc.availableResolutions.isNotEmpty ? vc.availableResolutions.last : null)
-                ?? vc.video.adaptiveResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p');
-            if (lowestRes != null && vc.currentResolution.value?.url != lowestRes.url) {
-              await vc.setResolution(lowestRes, isManual: false);
+            // Tier 1: True Demuxed HLS Audio Track (128 kbps AAC-LC)
+            final demuxedAudioUrl = vc.resolveAudioOnlyTargetUrl();
+            if (demuxedAudioUrl != null && demuxedAudioUrl.isNotEmpty) {
+              final audioRes = VideoResolutionV2(
+                label: 'Audio only',
+                url: demuxedAudioUrl,
+                width: 0,
+                height: 0,
+                bitrate: 128,
+              );
+              await vc.setResolution(audioRes, isManual: false);
+            } else {
+              // Tier 2: Low-bandwidth fallback: Immediately downscale the stream to 144p or lowest resolution tier
+              final lowestRes = vc.availableResolutions.firstWhereOrNull(
+                    (r) => r.label.toLowerCase() == '144p',
+                  ) ??
+                  (vc.availableResolutions.isNotEmpty
+                      ? vc.availableResolutions.last
+                      : null) ??
+                  vc.video.adaptiveResolutions.firstWhereOrNull(
+                    (r) => r.label.toLowerCase() == '144p',
+                  );
+              if (lowestRes != null &&
+                  vc.currentResolution.value?.url != lowestRes.url) {
+                await vc.setResolution(lowestRes, isManual: false);
+              }
             }
           }
         } catch (e, s) {

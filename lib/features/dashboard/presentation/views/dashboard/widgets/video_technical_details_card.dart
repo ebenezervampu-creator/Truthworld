@@ -118,6 +118,25 @@ class VideoTechnicalDetailsCard extends StatelessWidget {
                         ? AppColors.success
                         : AppColors.warning,
                   ),
+                  _buildMetaRow(
+                    label: 'Playback Readiness',
+                    value: video.playbackReady
+                        ? 'Adaptive Stream Ready'
+                        : (video.transcodeFailed
+                            ? 'Incomplete (Source Active)'
+                            : 'Transcoding In Progress'),
+                    badgeColor: video.playbackReady
+                        ? AppColors.success
+                        : (video.transcodeFailed ? AppColors.error : AppColors.warning),
+                  ),
+                  if (video.transcodeFailed)
+                    _buildMetaRow(
+                      label: 'Transcode Status',
+                      value: video.transcodeError?.isNotEmpty == true
+                          ? video.transcodeError!
+                          : 'Adaptive transcoding encountered an issue; playback is served via source fallback.',
+                      badgeColor: AppColors.error,
+                    ),
 
                   const SizedBox(height: 16),
                   const Divider(color: AppColors.bgDivider, height: 1),

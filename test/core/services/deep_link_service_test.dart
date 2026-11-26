@@ -143,6 +143,20 @@ void main() {
       expect(studioWeb.type, equals(TruthworldUrlType.studio));
     });
 
+    test('Parses /dubbing route and dubbing.truthworld.in host', () {
+      final dubbingSubdomain = DeepLinkService.parseUrl('https://dubbing.truthworld.in');
+      expect(dubbingSubdomain.type, equals(TruthworldUrlType.dubbing));
+
+      final dubbingWeb = DeepLinkService.parseUrl('https://www.truthworld.in/dubbing');
+      expect(dubbingWeb.type, equals(TruthworldUrlType.dubbing));
+
+      final dubbingAlias = DeepLinkService.parseUrl('https://www.truthworld.in/dubbing-studio');
+      expect(dubbingAlias.type, equals(TruthworldUrlType.dubbing));
+
+      final dubbingScheme = DeepLinkService.parseUrl('truthworlddubbing://dubbing');
+      expect(dubbingScheme.type, equals(TruthworldUrlType.dubbing));
+    });
+
     test('Parses /admin route', () {
       final admin = DeepLinkService.parseUrl('https://admin.truthworld.in');
       expect(admin.type, equals(TruthworldUrlType.admin));

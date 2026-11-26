@@ -90,7 +90,7 @@ export const PIPELINE_CONFIG = {
     return requireEnv("GOOGLE_TRANSLATION_API_KEY");
   },
   FFMPEG_SERVICE_URL: process.env.FFMPEG_SERVICE_URL || "",
-  DEMUX_SERVICE_URL: process.env.DEMUX_SERVICE_URL || "",
+  DEMUX_SERVICE_URL: process.env.DEMUX_SERVICE_URL || "https://ebenezervampu--truthworld-demux-worker-fastapi-app.us-east.modal.run",
   PUBLIC_FUNCTION_BASE_URL: "https://asia-south1-truthworld-1.cloudfunctions.net",
   VIDEO_BUCKET: "truthworld-1.firebasestorage.app",
 
@@ -168,12 +168,15 @@ export const PIPELINE_CONFIG = {
    * - LLM never generates URLs; cites only verified EvidenceCatalog IDs (E1, E2, ...)
    * - Newer Gemini model rollout remains behind GEMINI_ENABLE_NEXT_GEN_MODEL flag
    */
-  EVIDENCE_SCHEMA_VERSION: "v2_verified_urls",
+  // v3: bumped after the hybrid path stopped fabricating "VERIFIED/200" records and started
+  // attributing search results per claim. Every v2 cache entry may carry a mis-attributed or
+  // never-checked source, so they are invalidated by this version gate.
+  EVIDENCE_SCHEMA_VERSION: "v4_stance_checked", // v4: sources carry an explicit per-claim stance (stanceClassifier.ts); v3 entries lack it
   CLOSED_WORLD_CITATIONS: {
     ENFORCE_CITE_BY_ID: process.env.ENFORCE_CITE_BY_ID === "true", // Default false to enable native batch Google Search Grounding without rate-limit spikes
     ALLOW_UNVERIFIED_CACHE_SERVING: false,
     MAX_REDIRECT_HOPS: 5,
-    URL_FETCH_TIMEOUT_MS: 4000,
+    URL_FETCH_TIMEOUT_MS: 7500,
     MAX_HTML_BYTES: 65536,
     MIN_RELEVANCE_SCORE: 0.12,
   },

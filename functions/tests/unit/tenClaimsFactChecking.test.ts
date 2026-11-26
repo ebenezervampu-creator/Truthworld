@@ -1,4 +1,4 @@
-import { registryService } from '../../src/pipeline/registry/RegistryService';
+import { DeterministicRegistryService } from '../../src/pipeline/services/deterministicRegistry';
 import { tier0KnowledgeService } from '../../src/pipeline/services/tier0Knowledge';
 import { ClaimVerificationService } from '../../src/pipeline/services/claimVerification';
 import { sourceTrustService } from '../../src/pipeline/services/sourceTrustService';
@@ -27,7 +27,7 @@ describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verific
     },
     {
       id: 'claim_02',
-      text: 'Clinical research proves tobacco smoking causes lung cancer and heart disease.',
+      text: 'Smoking causes lung cancer and heart disease.',
       domain: 'Health',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.BALANCED,
@@ -36,7 +36,7 @@ describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verific
     },
     {
       id: 'claim_03',
-      text: 'Antibiotics are effective against viral infections and cure the common cold.',
+      text: 'Antibiotics cure the common cold.',
       domain: 'Health',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.ABSOLUTE,
@@ -54,7 +54,7 @@ describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verific
     },
     {
       id: 'claim_05',
-      text: 'Apollo 11 landed on the moon in 1969 with astronauts Neil Armstrong and Buzz Aldrin.',
+      text: 'Apollo 11 landed on the moon in 1969.',
       domain: 'History',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.BALANCED,
@@ -63,7 +63,7 @@ describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verific
     },
     {
       id: 'claim_06',
-      text: 'The Earth is flat and a flat disc stationary in space.',
+      text: 'The Earth is flat.',
       domain: 'Science',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.ABSOLUTE,
@@ -72,7 +72,7 @@ describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verific
     },
     {
       id: 'claim_07',
-      text: "Earth's dry atmosphere is approximately 78% nitrogen and 21% oxygen.",
+      text: "Earth's atmosphere is approximately 78% nitrogen and 21% oxygen.",
       domain: 'Earth Science',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.BALANCED,
@@ -144,20 +144,22 @@ describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verific
       let sourceUrl = 'N/A';
       let sourceTier = 'N/A';
 
-      const regMatch = registryService.resolveTruthCheck(item.text);
+      // Tier 2: the deterministic registry rules only on whole sentences it understands,
+      // comparing the stated value with the reference value.
+      const detMatch = DeterministicRegistryService.resolveDeterministicFact(item.text);
       const t0Match = tier0KnowledgeService.lookupPreIndexedFact(item.text);
 
       if (isOpinionRouted) {
         status = 'opinion_claim';
         confidence = 1.0;
         reasoning = formatOpinionReasoning(item.text);
-      } else if (regMatch) {
-        status = regMatch.status === 'correct' ? 'verified_true' : ('false_claim' as ClaimStatus);
-        confidence = 1.0;
-        reasoning = regMatch.reasoning;
-        sourceTitle = regMatch.source;
-        sourceUrl = 'https://en.wikipedia.org/wiki/Paris';
-        sourceTier = 'A';
+      } else if (detMatch) {
+        status = detMatch.status;
+        confidence = detMatch.confidence;
+        reasoning = detMatch.reasoning;
+        sourceTitle = detMatch.source;
+        sourceUrl = detMatch.url;
+        sourceTier = detMatch.tier;
       } else if (t0Match) {
         status = t0Match.status;
         confidence = t0Match.confidence;
@@ -270,5 +272,34 @@ describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verific
     expect(aggregateResult.factCheckStats.disputed).toBe(1);
     expect(aggregateResult.factCheckStats.religious_belief).toBe(1); // not_historically_verifiable bucket
     expect(aggregateResult.factCheckStats.opinion_claim).toBe(1);
+  });
+
+  // The earlier keyword lookup marked these as verified because they mention a known topic.
+  // The fast tiers must now leave them to grounded verification (or call out the wrong value).
+  it.each([
+    ['The capital of India is Kolkata', 'false_claim'],
+    ['The capital of Japan is Kyoto', 'false_claim'],
+    ['The speed of light in a vacuum is 100 kilometres per hour', 'false_claim'],
+    ['The boiling point of water at sea level is 50 degrees', 'false_claim'],
+    ['Water boils at 100 degrees on Mount Everest', 'false_claim'],
+    ['Apollo 11 landed on the moon in 1972', 'false_claim'],
+    ['The United Nations was founded in 1950', 'false_claim'],
+    ['Apollo 11 was faked in a studio in 1969', null],
+    ['Apollo 11 landed on Mars', null],
+    ['Smoking cigarettes prevents heart disease and cancer', null],
+    ['The United Nations was founded in 1945 by Hitler', null],
+    ['Antibiotics treat bacterial infections that follow the flu', null],
+    ['Turmeric does not cure cancer', null],
+    ['The flat earth theory is a myth', null],
+    ['Earth is a sphere that orbits the planet Mars', null],
+    ['DNA is a triple helix', null],
+    ['Delhi is the capital of India since 1600', null],
+    ['Clinical research proves tobacco smoking causes lung cancer and heart disease.', null],
+  ])('fast tiers do not verify "%s" (expected %s)', (text, expected) => {
+    const det = DeterministicRegistryService.resolveDeterministicFact(text);
+    expect(det?.status ?? null).toBe(expected);
+    expect(det?.status).not.toBe('verified_true');
+    const t0 = tier0KnowledgeService.lookupPreIndexedFact(text);
+    expect(t0?.status).not.toBe('verified_true');
   });
 });

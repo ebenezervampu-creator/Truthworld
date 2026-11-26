@@ -792,32 +792,24 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
         }
       }
       if (!launched) {
-        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        try {
+          launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } catch (_) {
+          launched = false;
+        }
       }
-      if (launched) {
-        _showExternalVerificationPrompt(orderId);
-      } else {
-        _resolveActivePayment(
-          CashfreePaymentResult(
-            success: false,
-            orderId: orderId,
-            errorMessage: 'Unable to open checkout window. Please check your browser settings.',
-          ),
-        );
-      }
+
+      // Even if the automated popup was blocked by browser security,
+      // show the verification prompt with the direct "Open Checkout Window" button
+      // so the user can open it with an explicit user gesture.
+      _showExternalVerificationPrompt(orderId, wasPopupBlocked: !launched);
     } catch (launchErr, s) {
       ErrorHandler.log(
         launchErr,
         stackTrace: s,
         tag: 'CashfreePaymentService.launchExternalCheckout',
       );
-      _resolveActivePayment(
-        CashfreePaymentResult(
-          success: false,
-          orderId: orderId,
-          errorMessage: 'Unable to open checkout page. Please try again.',
-        ),
-      );
+      _showExternalVerificationPrompt(orderId, wasPopupBlocked: true);
     }
   }
 
@@ -827,7 +819,7 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
   }
 
   /// For external/hosted browser checkout fallback: prompts user to confirm once done
-  void _showExternalVerificationPrompt(String orderId) {
+  void _showExternalVerificationPrompt(String orderId, {bool wasPopupBlocked = false}) {
     if (_isVerificationPromptOpen || (Get.isDialogOpen ?? false)) return;
     _isVerificationPromptOpen = true;
     Get.dialog(
@@ -873,16 +865,39 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Please complete the transaction in the checkout window, then confirm below.',
+                Text(
+                  wasPopupBlocked
+                      ? 'Your browser may have blocked the payment window. Click "Open Checkout Window" below to proceed on Cashfree.'
+                      : 'Please complete the transaction in the checkout window, then confirm below.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary,
                     height: 1.4,
                   ),
                 ),
                 const SizedBox(height: 24),
+                if (_activePaymentLink != null && _activePaymentLink!.isNotEmpty) ...[
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final uri = Uri.parse(_activePaymentLink!);
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16, color: Colors.white),
+                    label: const Text(
+                      'Open Checkout Window',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.searchBorder),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 ElevatedButton(
                   onPressed: () async {
                     final res = await verifyOrderOnServer(orderId);
@@ -995,6 +1010,27 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 24),
+                if (_activePaymentLink != null && _activePaymentLink!.isNotEmpty) ...[
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final uri = Uri.parse(_activePaymentLink!);
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16, color: Colors.white),
+                    label: const Text(
+                      'Open Checkout Window',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.searchBorder),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 ElevatedButton(
                   onPressed: () async {
                     final res = await verifySubscriptionOnServer(subscriptionId);

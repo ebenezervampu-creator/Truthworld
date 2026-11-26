@@ -580,6 +580,50 @@ class _SegmentCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Obx(() {
+                final fitting =
+                    controller.retranslatingSegmentIndex.value == segment.index;
+                final busy =
+                    controller.regeneratingSegmentIndex.value == segment.index;
+                return OutlinedButton.icon(
+                  onPressed: fitting || busy
+                      ? null
+                      : () => controller.autoFitSegmentTranslation(
+                            segment.index,
+                          ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: textColor,
+                    side: BorderSide(color: borderColor),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                  ),
+                  icon: fitting
+                      ? SizedBox(
+                          width: 13,
+                          height: 13,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: textColor,
+                          ),
+                        )
+                      : Icon(
+                          Icons.auto_fix_high_rounded,
+                          size: 14,
+                          color: textColor,
+                        ),
+                  label: Text(
+                    fitting ? 'Fitting...' : 'Auto-Fit',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(width: 8),
+              Obx(() {
                 final busy =
                     controller.regeneratingSegmentIndex.value == segment.index;
                 return ElevatedButton.icon(

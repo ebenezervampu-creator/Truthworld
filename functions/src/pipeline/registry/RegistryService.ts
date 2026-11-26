@@ -55,65 +55,10 @@ export class RegistryService {
     return null;
   }
 
-  /**
-   * 🛡 LAYER 4: Deterministic Truth Check
-   * Bypass LLM for high-consensus, fixed facts in the registry.
-   */
-  resolveTruthCheck(claim: string): { status: string; reasoning: string; source: string } | null {
-    if (!claim) return null;
-    // v13.0: Normalize claim text — strip emojis, smart quotes, leading punctuation
-    const normalizedClaim = claim
-      .replace(/[\u2018\u2019\u201C\u201D]/g, "'") // smart quotes → straight
-      .replace(/[❔✅❌⚠️🔍]/g, '')                 // strip status emojis
-      .replace(/^\s+/, '')                          // trim leading whitespace
-      .toLowerCase();
-
-    // Anti-Bias Gate: Do NOT deterministically verify negated or disputed assertions
-    const hasNegationOrDispute = /\b(?:not|never|neither|nor|cannot|can't|didn't|doesn't|don't|no|false|fake|untrue|myth|hoax|disputed|doubt|incorrect)\b/i.test(normalizedClaim);
-    if (hasNegationOrDispute) {
-      // Must be routed to multi-source dynamic verification engine
-      return null;
-    }
-
-    // === CANONICAL CONSENSUS REGISTRY ===
-    // Strictly limited to universal geographic, physical, and historical consensus constants
-    const canonicalPatterns = [
-      {
-        pattern: /capital of (france|germany|india|usa|japan|united kingdom|canada|australia|brazil|italy|south africa|mexico|egypt)/i,
-        resolve: (m: any) => ({
-          status: 'correct',
-          reasoning: `Official world maps and geography records show the capital of ${m[1]} is a well-established fact.`,
-          source: 'Official Geography Records'
-        })
-      },
-      {
-        pattern: /(speed of light in a vacuum|freezing point of pure water|boiling point of water at sea level)/i,
-        resolve: () => ({
-          status: 'correct',
-          reasoning: `Science textbooks and trusted physics agencies confirm this as a basic, proven science fact.`,
-          source: 'Standard Science Records'
-        })
-      },
-      {
-        pattern: /180th meridian (crosses|passes through) (alaska|the aleutian islands)/i,
-        resolve: () => ({
-          status: 'correct',
-          reasoning: `World maps and geography records show the 180th meridian line passes through the Aleutian Islands.`,
-          source: 'Official Geography Records'
-        })
-      }
-    ];
-
-    for (const p of canonicalPatterns) {
-      const match = normalizedClaim.match(p.pattern);
-      if (match) {
-        return p.resolve(match);
-      }
-    }
-
-    // All empirical and specific trivia claims proceed to live multi-source AI verification
-    return null;
-  }
+  // resolveTruthCheck() was removed (2026-11-20): it marked any claim that merely mentioned
+  // "capital of india" or "speed of light in a vacuum" as correct, whatever value it stated.
+  // Settled facts are now ruled on only by DeterministicRegistryService, which compares the
+  // stated value with the reference value.
 }
 
 // Export singleton

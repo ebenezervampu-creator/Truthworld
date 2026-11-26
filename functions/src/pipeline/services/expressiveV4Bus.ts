@@ -14,6 +14,7 @@
  */
 
 import { VALID_ELEVENLABS_AUDIO_TAGS, sanitizeTextForElevenLabsV4 } from "./tts";
+import { isDubbingWhisperGuardEnabled } from "./delivery-tag-guard";
 import { logger } from "../utils/logger";
 
 export interface SegmentAcousticTelemetry {
@@ -91,9 +92,13 @@ export class ExpressiveV4Bus {
 
     // ── 1. Contextual Inline Tag Resolution ──────────────────────────────────
     let resolvedTag: string | undefined = undefined;
+    const normEmotion = (t.emotionTag || "").toLowerCase().trim();
 
-    if (t.emotionTag && VALID_ELEVENLABS_AUDIO_TAGS.has(t.emotionTag.toLowerCase().trim())) {
-      resolvedTag = t.emotionTag.toLowerCase().trim();
+    if (t.emotionTag && VALID_ELEVENLABS_AUDIO_TAGS.has(normEmotion)) {
+      resolvedTag = normEmotion;
+    } else if (normEmotion === "soft") {
+      // Soft delivery: quiet, grounded, fully voiced speech. Maps to no tag for ElevenLabs v4 synthesis.
+      resolvedTag = undefined;
     } else {
       // Infer emotion tag from acoustic metrics if not explicitly set
       const energy = t.energyDb;
@@ -104,24 +109,34 @@ export class ExpressiveV4Bus {
       const surprise = emotions.surprise || 0;
       const delivery = (t.deliveryStyle || "").toLowerCase();
 
-      if (energy !== undefined && energy < -38 || t.voiceQuality === "breathy") {
-        resolvedTag = "whispers";
-      } else if (anger > 0.6 && energy !== undefined && energy > -15) {
-        resolvedTag = "shouts";
-      } else if (anger > 0.6 || (energy !== undefined && energy > -14)) {
-        resolvedTag = "said angrily";
-      } else if (delivery.includes("sarcastic") || delivery.includes("ironic")) {
-        resolvedTag = "sarcastic";
-      } else if (joy > 0.65 || delivery.includes("laugh") || delivery.includes("chuckle")) {
-        resolvedTag = "laughs";
-      } else if (sadness > 0.55 || t.voiceQuality === "creaky") {
-        resolvedTag = "sad";
-      } else if (delivery.includes("sigh") || t.breathingPattern === "suppressed") {
-        resolvedTag = "sighs";
-      } else if (anger > 0.45) {
-        resolvedTag = "said angrily";
-      } else if (joy > 0.5 && surprise > 0.4) {
-        resolvedTag = "excited";
+      if (!isDubbingWhisperGuardEnabled()) {
+        if (energy !== undefined && energy < -38 || t.voiceQuality === "breathy") {
+          resolvedTag = "whispers";
+        }
+      } else {
+        // Whisper guard enabled: quiet/breathy lines without explicit tag are soft (no tag)
+        if (t.voiceQuality === "breathy" || (energy !== undefined && energy < -38)) {
+          resolvedTag = undefined;
+        }
+      }
+      if (!resolvedTag) {
+        if (anger > 0.6 && energy !== undefined && energy > -15) {
+          resolvedTag = "shouts";
+        } else if (anger > 0.6 || (energy !== undefined && energy > -14)) {
+          resolvedTag = "said angrily";
+        } else if (delivery.includes("sarcastic") || delivery.includes("ironic")) {
+          resolvedTag = "sarcastic";
+        } else if (joy > 0.65 || delivery.includes("laugh") || delivery.includes("chuckle")) {
+          resolvedTag = "laughs";
+        } else if (sadness > 0.55 || t.voiceQuality === "creaky") {
+          resolvedTag = "sad";
+        } else if (delivery.includes("sigh") || t.breathingPattern === "suppressed") {
+          resolvedTag = "sighs";
+        } else if (anger > 0.45) {
+          resolvedTag = "said angrily";
+        } else if (joy > 0.5 && surprise > 0.4) {
+          resolvedTag = "excited";
+        }
       }
     }
 

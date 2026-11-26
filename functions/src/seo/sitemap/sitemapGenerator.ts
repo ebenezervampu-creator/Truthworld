@@ -29,6 +29,7 @@ export async function generateStaticSitemap(): Promise<string> {
   const pages = [
     { path: "", priority: "1.0" },
     { path: "/home", priority: "1.0" },
+    { path: "/dubbing", priority: "0.9" },
     { path: "/advertisements", priority: "0.9" },
     { path: "/browse", priority: "0.8" },
     { path: "/trending", priority: "0.8" },

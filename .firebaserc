@@ -16,6 +16,9 @@
         ],
         "advertiser-app": [
           "truthworld-1-advertiser"
+        ],
+        "dubbing-app": [
+          "truthworld-1-dubbing"
         ]
       }
     }

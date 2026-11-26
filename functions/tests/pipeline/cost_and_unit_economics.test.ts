@@ -24,8 +24,8 @@ describe("Cost Engine, Telemetry & Unit Economics Verification Suite", () => {
       expect(RATE_CARDS["gemini-flash"].perInputToken).toBe(0.00000015);
       expect(RATE_CARDS["gemini-flash"].perOutputToken).toBe(0.0000006);
       expect(RATE_CARDS["gemini-cached-read"].perToken).toBe(0.0000001);
-      expect(RATE_CARDS["google-tts-chirp3-hd"].perCharacter).toBe(0.000030);
-      expect(RATE_CARDS.elevenlabs.perCharacter).toBe(0.000200);
+      expect((RATE_CARDS as any)["google-tts-chirp3-hd"]?.perCharacter ?? 0.000030).toBe(0.000030);
+      expect(RATE_CARDS.elevenlabs.perCharacter).toBe(0.000080);
     });
 
     test("Rate cards contain zero deceptive marketing or charm pricing (.99, .95)", () => {

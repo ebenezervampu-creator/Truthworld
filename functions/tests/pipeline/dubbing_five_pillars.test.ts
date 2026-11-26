@@ -1,7 +1,7 @@
 /**
  * Comprehensive Zero-Credit Verification Suite for the 5 TruthWorld Dubbing Upgrades:
  *  1. Original Audio Emotion / Prosody Transfer + ElevenLabs eleven_v4 [audio tags] + subtitle stripping
- *  2. Hardened M&E Isolation (Demucs degraded fallback detection + ElevenLabs Isolation fallback + empirical bleed probe)
+ *  2. Hardened M&E Isolation (Demucs degraded fallback detection + empirical bleed probe)
  *  3. Long-Form Distributed 15-Minute Reel Orchestration (dispatch -> worker -> transactional assembly -> quality gate)
  *  4. Interactive Creator Dubbing Editor (manifest load, single-line resynthesis, pronunciation glossary, remaster)
  *  5. Live Dubbing Quality Benchmark Harness (dry-run local FFmpeg execution + Levenshtein WER & scoring math)
@@ -9,6 +9,7 @@
 
 import * as admin from "firebase-admin";
 import axios from "axios";
+import { PIPELINE_CONFIG } from "../../src/pipeline/config";
 import { testFirestore } from "../helpers/mockFirestore";
 import {
   applyPronunciationGlossary,
@@ -39,8 +40,10 @@ describe("TruthWorld 5-Pillar Dubbing Upgrade Verification (Zero Credits)", () =
   // ───────────────────────────────────────────────────────────────────────────
   describe("Pillar 1: Emotion, Prosody & ElevenLabs v4 Audio Tag Transfer", () => {
     test("maps vocal emotion & RMS energy to whitelisted ElevenLabs v4 Audio Tags and dynamic stability", () => {
-      const whisperCue = mapEmotionToElevenLabsCue("whispers", -34);
+      // A whisper needs measured evidence (delivery-tag-guard.ts, 2026-11-24): no pitch, voiced share < 0.2.
+      const whisperCue = mapEmotionToElevenLabsCue("whispers", -34, undefined, undefined, { f0Hz: null, voicedShare: 0.08 });
       expect(whisperCue.emotionTag).toBe("whispers");
+      expect(mapEmotionToElevenLabsCue("whispers", -34).emotionTag).toBe("soft");
       expect(whisperCue.stabilityOverride).toBeLessThanOrEqual(0.36);
 
       const shoutCue = mapEmotionToElevenLabsCue(undefined, -9);
@@ -88,7 +91,7 @@ describe("TruthWorld 5-Pillar Dubbing Upgrade Verification (Zero Credits)", () =
 
       const result = await tts.synthesize({
         jobId: "job_p1_v4",
-        language: "te",
+        language: "en",
         text: "TruthWorld rocks!",
         preferVoiceCloning: true,
         stability: 0.31,
@@ -97,7 +100,7 @@ describe("TruthWorld 5-Pillar Dubbing Upgrade Verification (Zero Credits)", () =
         pronunciationGlossary: [{ id: "g1", term: "TruthWorld", replacement: "Trooth-Wurld" }],
       });
 
-      expect(result.audioUrl).toContain("job_p1_v4/te");
+      expect(result.audioUrl).toContain("job_p1_v4/en");
       expect(postSpy).toHaveBeenCalledTimes(1);
       const body = postSpy.mock.calls[0][1] as any;
       expect(body.model_id).toBe("eleven_v4");
@@ -107,6 +110,39 @@ describe("TruthWorld 5-Pillar Dubbing Upgrade Verification (Zero Credits)", () =
       expect(body.voice_settings.style).toBeUndefined();
       expect(body.voice_settings.speed).toBeUndefined();
 
+      postSpy.mockRestore();
+    });
+
+    test("Telugu payload sends language_code 'te' and lifts low stability to the 0.5 dubbing floor", async () => {
+      const postSpy = jest.spyOn(axios, "post").mockResolvedValueOnce({
+        data: Buffer.from("fake-mp3-v4-telugu"),
+      } as any);
+
+      const service = new ElevenLabsTTSService("test-key-v4");
+      const tts = new TTSService(undefined, service);
+
+      await tts.synthesize({
+        jobId: "job_p1_v4_te",
+        language: "te",
+        text: "చింతించకండి. మిమ్మల్ని ఇక్కడ జాగ్రత్తగా చూసుకుంటాం.",
+        stability: 0.25,
+        similarityBoost: 0.85,
+      });
+
+      const body = postSpy.mock.calls[0][1] as any;
+      expect(body.language_code).toBe("te");
+      expect(body.voice_settings.stability).toBe(0.5);
+      postSpy.mockRestore();
+    });
+
+    test("romanized Telugu is rejected before ElevenLabs is called", async () => {
+      const postSpy = jest.spyOn(axios, "post");
+      const tts = new TTSService(undefined, new ElevenLabsTTSService("test-key-v4"));
+
+      await expect(
+        tts.synthesize({ jobId: "job_p1_v4_te_rom", language: "te", text: "Chintinchakandi. Mimmalni ikkada chusukuntam." })
+      ).rejects.toThrow(/native script/);
+      expect(postSpy).not.toHaveBeenCalled();
       postSpy.mockRestore();
     });
   });
@@ -130,15 +166,21 @@ describe("TruthWorld 5-Pillar Dubbing Upgrade Verification (Zero Credits)", () =
         },
       } as any);
 
-      const detailed = await mediaService.extractMneStemDetailed(jobId, origUrl, {
-        enableAutoVocalIsolation: false,
-      });
+      const prevDemuxUrl = PIPELINE_CONFIG.DEMUX_SERVICE_URL;
+      (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL = "https://demux.truthworld.internal";
+      const prevWorkerToken = process.env.DEMUX_WORKER_TOKEN;
+      process.env.DEMUX_WORKER_TOKEN = "test-worker-token-0123456789abcdef0123456789"; // the worker requires it
+      try {
+        const detailed = await mediaService.extractMneStemDetailed(jobId, origUrl);
 
-      expect(detailed.degraded).toBe(true);
-      expect(detailed.source).toBe("dsp_fallback");
-      expect(detailed.issues.length).toBeGreaterThan(0);
-
-      postSpy.mockRestore();
+        expect(detailed.degraded).toBe(true);
+        expect(detailed.source).toBe("dsp_fallback");
+        expect(detailed.issues.length).toBeGreaterThan(0);
+      } finally {
+        (PIPELINE_CONFIG as any).DEMUX_SERVICE_URL = prevDemuxUrl;
+        if (prevWorkerToken === undefined) delete process.env.DEMUX_WORKER_TOKEN; else process.env.DEMUX_WORKER_TOKEN = prevWorkerToken;
+        postSpy.mockRestore();
+      }
     });
 
     test("validateMneStem enforces degraded status when source is dsp_fallback even if duration matches", async () => {

@@ -114,6 +114,24 @@ describe("NumericalEntityGuard (Factual & Epistemic Parity)", () => {
       expect(parity.isParity).toBe(false);
       expect(parity.missingInTarget.length).toBe(2);
     });
+
+    it("does not treat pronoun/idiom 'one' ('no one', 'this one', 'one another', \"one's\") as a number", () => {
+      const srcEn = "Is there no one here who can interpret my dreams?";
+      const tgtTe = "నా కలలకు అర్థం చెప్పేవాళ్లు ఇక్కడ ఎవరూ లేరా?";
+
+      const parity = NumericalEntityGuard.verifyNumericalParity(srcEn, tgtTe, "te");
+      expect(parity.isParity).toBe(true);
+      expect(parity.sourceEntities).toEqual([]);
+
+      expect(
+        NumericalEntityGuard.extractNumericEntities("Love one another and take this one for one's journey.")
+      ).toEqual([]);
+    });
+
+    it("still extracts cardinal 'one' when used as an actual quantity", () => {
+      const entities = NumericalEntityGuard.extractNumericEntities("Only one person survived out of the one percent.");
+      expect(entities.map((e) => e.normalizedValue)).toEqual([1, 1]);
+    });
   });
 });
 
@@ -301,5 +319,59 @@ describe("AdaptiveMtDatasetService (Option 3 Quarantined Translation Memory)", (
     expect(hash1).toBe(hash2);
     expect(hash1).not.toBe(hashDiff);
     expect(hash1.length).toBe(24);
+  });
+
+  describe("Fix 2.1: clause-level negation & non-English source handling", () => {
+    it("handles 'not ... never' across clauses, \"isn't\", and 'nothing'", () => {
+      expect(
+        TranslationQualityGate.checkNegationPolarityFlip(
+          "I did not lie, never.",
+          "I lied, always."
+        )
+      ).toBe(true);
+
+      expect(
+        TranslationQualityGate.checkNegationPolarityFlip(
+          "I did not lie, never.",
+          "I did not lie, never."
+        )
+      ).toBe(false);
+
+      expect(
+        TranslationQualityGate.checkNegationPolarityFlip(
+          "This isn't proven.",
+          "This is proven."
+        )
+      ).toBe(true);
+
+      expect(
+        TranslationQualityGate.checkNegationPolarityFlip(
+          "Nothing changed in 2024.",
+          "Everything changed in 2024."
+        )
+      ).toBe(true);
+    });
+
+    it("skips English regex polarity and Dice score when sourceLang is non-English", async () => {
+      const results = await TranslationQualityGate.evaluateQualityGate(
+        [
+          {
+            index: 0,
+            original: "यहाँ कुछ नहीं बदला।",
+            translated: "ఇక్కడ ఏమీ మారలేదు.",
+            isClaim: true,
+          },
+        ],
+        "hi",
+        "te",
+        {
+          sampleRate: 1.0,
+          backTranslateCallback: async () => "यहाँ सब कुछ बदल गया।",
+        }
+      );
+
+      expect(results[0].polarityFlipped).toBeUndefined();
+      expect(results[0].semanticParityScore).toBeUndefined();
+    });
   });
 });
