@@ -12,6 +12,7 @@
  *   ASSEMBLYAI_WEBHOOK_SECRET = <random 32-char secret>
  */
 
+import { DUBBING_REGION } from "../../config/regions";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
@@ -34,7 +35,7 @@ function timingSafeSecretCheck(expected: string, provided?: string | string[]): 
 
 export const assemblyAiWebhook = onRequest(
   {
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 300,
     memory: "512MiB",
     minInstances: 0,
@@ -285,7 +286,7 @@ export const assemblyAiWebhook = onRequest(
 export const recoverWebhookOutboxLeases = onSchedule(
   {
     schedule: "every 2 minutes",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 120,
     memory: "512MiB",
   },

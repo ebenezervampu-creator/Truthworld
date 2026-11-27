@@ -183,6 +183,81 @@ export class DubbingEditorService {
     return this.toPlayableUrls(manifest);
   }
 
+  private async consumeEditorQuota(
+    manifestRef: FirebaseFirestore.DocumentReference,
+    params: {
+      kind: "regenerate" | "retranslate" | "remaster";
+      isAdmin?: boolean;
+      segmentIndex?: number;
+      originalText?: string;
+      editedText?: string;
+    }
+  ): Promise<void> {
+    if (params.isAdmin) return;
+
+    if (params.kind === "regenerate" && typeof params.editedText === "string") {
+      const maxLen = Math.max(120, (params.originalText || "").length * 3);
+      if (params.editedText.length > maxLen) {
+        throw new HttpsError(
+          "invalid-argument",
+          `Edited line is too long (${params.editedText.length} chars; maximum ${maxLen} chars allowed).`
+        );
+      }
+    }
+
+    await db().runTransaction(async (tx) => {
+      const snap = await tx.get(manifestRef);
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Editable dubbing manifest not found.");
+      }
+      const data = snap.data() || {};
+      if (params.kind === "regenerate") {
+        const total = Number(data.regenerationCount || 0);
+        if (total >= 50) {
+          throw new HttpsError(
+            "resource-exhausted",
+            "Maximum line regenerations (50) reached for this dubbed track."
+          );
+        }
+        const segKey = String(params.segmentIndex ?? 0);
+        const segCounts = (data.segmentRegenerationCounts || {}) as Record<string, number>;
+        const segCount = Number(segCounts[segKey] || 0);
+        if (segCount >= 5) {
+          throw new HttpsError(
+            "resource-exhausted",
+            "Maximum regenerations (5) reached for this line."
+          );
+        }
+        tx.update(manifestRef, {
+          regenerationCount: total + 1,
+          [`segmentRegenerationCounts.${segKey}`]: segCount + 1,
+        });
+      } else if (params.kind === "retranslate") {
+        const total = Number(data.retranslationCount || 0);
+        if (total >= 50) {
+          throw new HttpsError(
+            "resource-exhausted",
+            "Maximum AI retranslations (50) reached for this dubbed track."
+          );
+        }
+        tx.update(manifestRef, {
+          retranslationCount: total + 1,
+        });
+      } else if (params.kind === "remaster") {
+        const total = Number(data.remasterCount || 0);
+        if (total >= 10) {
+          throw new HttpsError(
+            "resource-exhausted",
+            "Maximum audio remasters (10) reached for this dubbed track."
+          );
+        }
+        tx.update(manifestRef, {
+          remasterCount: total + 1,
+        });
+      }
+    });
+  }
+
   public async updateSegmentAndResynthesize(params: {
     jobId: string;
     language: string;
@@ -194,6 +269,7 @@ export class DubbingEditorService {
     stabilityOverride?: number;
     similarityBoostOverride?: number;
     voiceId?: string;
+    speedMultiplier?: number;
   }): Promise<{
     segment: DubbingEditableSegment;
     version: number;
@@ -231,6 +307,14 @@ export class DubbingEditorService {
       typeof params.editedText === "string" && params.editedText.trim().length > 0
         ? params.editedText.trim()
         : (existingSeg.editedText || existingSeg.translatedText);
+
+    await this.consumeEditorQuota(manifestRef, {
+      kind: "regenerate",
+      isAdmin: params.isAdmin,
+      segmentIndex: params.segmentIndex,
+      originalText: existingSeg.originalText,
+      editedText: nextTextRaw,
+    });
 
     let nextEmotion = existingSeg.emotionTag;
     if (params.emotionTag === null || params.emotionTag === "") {
@@ -371,6 +455,11 @@ export class DubbingEditorService {
       nextText: gatedNextText,
     });
 
+    const nextSpeedMultiplier =
+      typeof params.speedMultiplier === "number" && Number.isFinite(params.speedMultiplier)
+        ? Number(Math.max(0.5, Math.min(2.0, params.speedMultiplier)).toFixed(2))
+        : 1.0;
+
     const synthResult = await ttsService.synthesize({
       jobId,
       language: normLang,
@@ -381,6 +470,7 @@ export class DubbingEditorService {
       preferVoiceCloning: isJobVoiceClone,
       ttsTier: "audio_track",
       voiceType,
+      speakingRate: nextSpeedMultiplier !== 1.0 ? nextSpeedMultiplier : undefined,
       stability: busPayload.voiceSettings.stability,
       similarityBoost: busPayload.voiceSettings.similarity_boost,
       style: busPayload.voiceSettings.style,
@@ -628,6 +718,11 @@ export class DubbingEditorService {
     }
 
     const seg = manifest.segments[targetIdx];
+    await this.consumeEditorQuota(manifestRef, {
+      kind: "retranslate",
+      isAdmin: params.isAdmin,
+      segmentIndex: params.segmentIndex,
+    });
     const sourceLang = normalizeLanguageCode(
       manifest.sourceLanguage || jobData?.sourceLanguage || "en"
     );
@@ -922,6 +1017,11 @@ export class DubbingEditorService {
     if (!manifest.segments || manifest.segments.length === 0) {
       throw new HttpsError("failed-precondition", "Manifest has no speech segments to remaster.");
     }
+
+    await this.consumeEditorQuota(manifestRef, {
+      kind: "remaster",
+      isAdmin: params.isAdmin,
+    });
 
     // Fill any missing segment audio before stitching
     const segmentUrls: string[] = [];

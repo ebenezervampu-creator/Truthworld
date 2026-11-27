@@ -132,6 +132,40 @@ describe("NumericalEntityGuard (Factual & Epistemic Parity)", () => {
       const entities = NumericalEntityGuard.extractNumericEntities("Only one person survived out of the one percent.");
       expect(entities.map((e) => e.normalizedValue)).toEqual([1, 1]);
     });
+
+    it("matches spelled numbers, scales, currency, and percentages across Hindi, Marathi, Tamil, and Malayalam", () => {
+      expect(
+        NumericalEntityGuard.verifyNumericalParity(
+          "5 people donated 10 million.",
+          "पांच लोगों ने एक करोड़ दान दिए।",
+          "hi"
+        ).isParity
+      ).toBe(true);
+
+      expect(
+        NumericalEntityGuard.verifyNumericalParity(
+          "Growth reached 15 percent with 2 crore users.",
+          "वाढ 15 टक्के झाली आणि दोन कोटी वापरकर्ते आहेत.",
+          "mr"
+        ).isParity
+      ).toBe(true);
+
+      expect(
+        NumericalEntityGuard.verifyNumericalParity(
+          "The project cost 10 million and reached 5 percent.",
+          "இந்தத் திட்டம் 1 கோடி செலவானது மற்றும் ஐந்து சதவீதம் எட்டியது.",
+          "ta"
+        ).isParity
+      ).toBe(true);
+
+      expect(
+        NumericalEntityGuard.verifyNumericalParity(
+          "Over 10 million people saw 20 percent growth.",
+          "1 കോടി ആളുകൾ 20 ശതമാനം വളർച്ച കണ്ടു.",
+          "ml"
+        ).isParity
+      ).toBe(true);
+    });
   });
 });
 

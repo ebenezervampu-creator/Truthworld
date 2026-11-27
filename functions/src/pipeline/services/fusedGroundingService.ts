@@ -21,13 +21,24 @@ import { extractCandidateText } from "../utils/ai-utils";
 import { logger } from "../utils/logger";
 import { sourceTrustService } from "./sourceTrustService";
 import { CitationRetractionService } from "./citationRetractionService";
-import { validateSafeExternalUrl } from "./urlVerificationService";
+import {
+  validateSafeExternalUrl,
+  urlVerificationService,
+  isLiveVerificationRecord,
+} from "./urlVerificationService";
 import { attributeGroundingChunks } from "./groundingAttribution";
+import {
+  classifySourceStances,
+  type StanceModelClient,
+} from "./stanceClassifier";
 import {
   ClaimStatus,
   FilteredClaim,
   RichSource,
+  SourceRole,
+  SourceStance,
   SourceTier,
+  UrlVerificationRecord,
   VerifiedClaim,
   EvidenceLevel,
   VerificationMethod,
@@ -84,6 +95,13 @@ export const FusedClaimVerdictSchema = z.object({
     if (Array.isArray(val)) return val.map((x) => Number(x)).filter((n) => !isNaN(n));
     return [];
   }, z.array(z.number()).default([])),
+  sourceKind: z.preprocess((val) => {
+    const s = String(val || "").toUpperCase().trim();
+    if (["PRIMARY_RECORD", "OFFICIAL_STATEMENT", "INDEPENDENT_REPORTING", "REFERENCE", "OTHER"].includes(s)) {
+      return s;
+    }
+    return undefined;
+  }, z.enum(["PRIMARY_RECORD", "OFFICIAL_STATEMENT", "INDEPENDENT_REPORTING", "REFERENCE", "OTHER"]).optional()),
 });
 
 /**
@@ -105,6 +123,10 @@ export interface FusedGroundingOptions {
   tier0Context?: string;
   signal?: AbortSignal;
   preRetrievedEvidence?: any[];
+  thinkingBudget?: number;
+  isSingleClaimRetry?: boolean;
+  englishCanonicalMap?: Map<string, string>;
+  stanceClient?: StanceModelClient;
 }
 
 export class FusedGroundingService {
@@ -144,7 +166,9 @@ export class FusedGroundingService {
         generationConfig: {
           temperature: 0.1, // Deterministic, low-variance fact evaluation
           maxOutputTokens: 2048,
-          thinkingConfig: { thinkingBudget: 0 },
+          thinkingConfig: {
+            thinkingBudget: typeof options.thinkingBudget === "number" ? options.thinkingBudget : 0,
+          },
         },
         safetySettings: [
           { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -194,7 +218,11 @@ RULES & EPISTEMIC STANDARDS:
 7. MULTILINGUAL SEARCH GROUNDING: For regional language claims (e.g. Telugu, Hindi, Tamil), search across English and the regional language to find authoritative documentation from official institutions (e.g., RBI, PIB, Government of India, World Bank, recognized news agencies, and academic repositories).
 
 CLAIMS TO VERIFY:
-${claims.map((c) => `[ID: ${c.claimId}] "${c.text}"`).join("\n\n")}
+${claims.map((c) => {
+  const canonical = options.englishCanonicalMap?.get(c.claimId);
+  const canonicalHint = canonical && canonical !== c.text ? `\nCanonical English reference: "${canonical}"` : "";
+  return `[ID: ${c.claimId}] "${c.text}"${canonicalHint}`;
+}).join("\n\n")}
 
 Respond ONLY with valid JSON matching this schema:
 {
@@ -257,13 +285,24 @@ Respond ONLY with valid JSON matching this schema:
         groundingChunks.length
       );
 
-      // ── Step 3: Process Grounding Chunks with Dynamic Trust & Retraction Filtering ──
-      return claims.map((claim) => {
-        const v = verificationsByClaimId.get(claim.claimId);
-        if (!v) {
-          logger.warn(`[FusedGrounding] Missing verdict for claim ${claim.claimId}`);
-          return this.buildSingleFallbackVerification(claim, "Verification timed out or was incomplete.");
+      // Map chunk index -> passage snippet from groundingSupports when available
+      const chunkSnippetMap = new Map<number, string>();
+      for (const sup of groundingSupports) {
+        const segText = String(sup?.segment?.text || "").trim();
+        if (!segText || !Array.isArray(sup?.groundingChunkIndices)) continue;
+        for (const idx of sup.groundingChunkIndices) {
+          if (typeof idx === "number" && !chunkSnippetMap.has(idx)) {
+            chunkSnippetMap.set(idx, segText);
+          }
         }
+      }
+
+      // ── Step 3: Collect candidate URLs across the batch & verify in ONE HTTP batch ──
+      const perClaimIndices = new Map<string, number[]>();
+      const batchCandidateUrls = new Set<string>();
+      for (const claim of claims) {
+        const v = verificationsByClaimId.get(claim.claimId);
+        if (!v) continue;
 
         const attributed = attributedChunks.get(claim.claimId) || [];
         let relevantIndices = Array.from(
@@ -273,115 +312,271 @@ Respond ONLY with valid JSON matching this schema:
             ...(v.contradictingChunkIndices || []),
           ])
         );
-
         if (claims.length === 1 && relevantIndices.length === 0 && groundingChunks.length > 0) {
           relevantIndices = groundingChunks.map((_, idx) => idx);
         }
-
-        const stanceDirection = (v.verdict === "false_claim" || (v.verdict as string) === "verified_false" || (v.verdict as string) === "incorrect")
-          ? "CONTRADICTS"
-          : "SUPPORTS";
-        const nowIso = new Date().toISOString();
-
-        const candidateSources: RichSource[] = [];
-        const seenUrls = new Set<string>();
-        const distinctDomains = new Set<string>();
+        perClaimIndices.set(claim.claimId, relevantIndices);
 
         for (const idx of relevantIndices) {
-          const chunk = groundingChunks[idx];
-          const rawUri = chunk?.web?.uri;
+          const rawUri = groundingChunks[idx]?.web?.uri;
           if (!rawUri || typeof rawUri !== "string" || !/^https?:\/\//i.test(rawUri)) continue;
-
-          // Normalize and validate URL structure
           const parsedUrl = validateSafeExternalUrl(rawUri);
-          if (!parsedUrl) continue;
-          const validUrl = parsedUrl.href;
-
-          const urlKey = validUrl.toLowerCase().split("#")[0];
-          if (seenUrls.has(urlKey)) continue;
-          seenUrls.add(urlKey);
-
-          // 1. Check Formal Scientific Retraction Registry
-          if (sourceTrustService.isRetracted(validUrl) || CitationRetractionService.lookupDoi(validUrl)?.status === "retracted") {
-            logger.info(`[FusedGrounding] Retracted source discarded: ${validUrl}`);
-            continue;
+          if (parsedUrl) {
+            batchCandidateUrls.add(parsedUrl.href);
           }
-
-          // 2. Real Domain Trust Classification (Never blind Tier B!)
-          const isGroundingRedirect = validUrl.includes("grounding-api-redirect") || validUrl.includes("vertexaisearch.cloud.google.com");
-          const inferredDomain = sourceTrustService.inferDomainFromTitle(chunk.web?.title);
-          const trust = isGroundingRedirect && inferredDomain
-            ? sourceTrustService.resolveSourceTrust(inferredDomain, domainContext)
-            : sourceTrustService.resolveSourceTrust(validUrl, domainContext, chunk.web?.title);
-
-          // 3. Closed-World Citation Firewall: Reject Tier E & retracted sources
-          if (trust.tier === "E" || trust.isRetracted) {
-            logger.debug(`[FusedGrounding] Source rejected by Tier E/retraction firewall: ${validUrl} (${trust.domain})`);
-            continue;
-          }
-
-          const targetDomain = (isGroundingRedirect && inferredDomain)
-            ? inferredDomain
-            : (trust.domain || inferredDomain || "google.com");
-          const publisherName = chunk.web?.title
-            ? chunk.web.title.split(/[-|–—]/).pop()?.trim() || targetDomain
-            : targetDomain;
-
-          distinctDomains.add(targetDomain);
-
-          candidateSources.push({
-            title: chunk.web?.title || targetDomain,
-            url: validUrl,
-            directUrl: validUrl,
-            domain: targetDomain,
-            publisher: publisherName,
-            tier: trust.tier,
-            snippet: v.summary,
-            status: "verified",
-            retrievalMethod: "google_grounding",
-            retrievalProvider: "Google Grounding (Fused)",
-            claimStance: stanceDirection,
-            claimStanceReason: v.summary,
-            lastVerified: nowIso,
-            urlVerification: {
-              status: "VERIFIED",
-              originalUrl: validUrl,
-              canonicalUrl: validUrl,
-              domain: targetDomain,
-              httpStatus: 200,
-              redirectHops: 0,
-              isSoft404: false,
-              verifiedAtUtc: nowIso,
-              verifierMethod: "grounding_resolved",
-              fetchStatus: "HTTP_200_OK",
-            },
-          });
         }
+      }
 
-        // Attach pre-retrieved scientific/academic literature (PubMed / Crossref) linked to this claim
-        if (options.preRetrievedEvidence && Array.isArray(options.preRetrievedEvidence)) {
-          for (const s of options.preRetrievedEvidence) {
-            if (s.claimIds && Array.isArray(s.claimIds) && s.claimIds.includes(claim.claimId)) {
-              const sUrl = s.uri;
-              if (!sUrl) continue;
-              const urlKey = sUrl.toLowerCase().split("#")[0];
-              if (!seenUrls.has(urlKey)) {
+      let verifiedUrlMap = new Map<string, UrlVerificationRecord>();
+      if (batchCandidateUrls.size > 0) {
+        const relevanceQueries = claims
+          .map((c) => options.englishCanonicalMap?.get(c.claimId) || c.text)
+          .filter(Boolean);
+        verifiedUrlMap = await urlVerificationService
+          .verifyBatch(Array.from(batchCandidateUrls), {
+            relevanceQueries,
+          })
+          .catch(() => new Map<string, UrlVerificationRecord>());
+      }
+
+      const nowIso = new Date().toISOString();
+      const canRunStanceModel = Boolean(options.stanceClient) || process.env.NODE_ENV !== "test";
+
+      // ── Step 4: Process Grounding Chunks with Real URL Verification, Trust & Stance ──
+      return await Promise.all(
+        claims.map(async (claim) => {
+          const v = verificationsByClaimId.get(claim.claimId);
+          if (!v) {
+            logger.warn(`[FusedGrounding] Missing verdict for claim ${claim.claimId}`);
+            return this.buildSingleFallbackVerification(claim, "Verification timed out or was incomplete.");
+          }
+
+          const relevantIndices = perClaimIndices.get(claim.claimId) || [];
+          const isContestedVerdict = v.verdict === "disputed" || v.verdict === "misleading";
+          const isFalseVerdict =
+            v.verdict === "false_claim" ||
+            (v.verdict as string) === "verified_false" ||
+            (v.verdict as string) === "incorrect";
+          const contradictingSet = new Set<number>(v.contradictingChunkIndices || []);
+
+          let candidateSources: RichSource[] = [];
+          const quarantinedSources: RichSource[] = [];
+          const stanceCheckIndices: number[] = [];
+          const seenUrls = new Set<string>();
+
+          for (const idx of relevantIndices) {
+            const chunk = groundingChunks[idx];
+            const rawUri = chunk?.web?.uri;
+            if (!rawUri || typeof rawUri !== "string" || !/^https?:\/\//i.test(rawUri)) continue;
+
+            const parsedUrl = validateSafeExternalUrl(rawUri);
+            if (!parsedUrl) continue;
+            const validUrl = parsedUrl.href;
+
+            const rawUrlKey = validUrl.toLowerCase().split("#")[0];
+            if (seenUrls.has(rawUrlKey)) continue;
+            seenUrls.add(rawUrlKey);
+
+            // Mandatory live HTTP/redirect unwrapping verification (zero synthetic HTTP 200 stamps)
+            const uv = verifiedUrlMap.get(validUrl) || verifiedUrlMap.get(rawUri);
+            if (!uv || !isLiveVerificationRecord(uv)) {
+              quarantinedSources.push({
+                title: chunk.web?.title || validUrl,
+                url: uv?.canonicalUrl || validUrl,
+                directUrl: validUrl,
+                domain: uv?.domain || sourceTrustService.registrableDomain(validUrl) || "unknown",
+                tier: "E",
+                snippet: chunkSnippetMap.get(idx) || uv?.excerpt || "",
+                status: "quarantined",
+                claimStanceReason: uv?.errorReason || uv?.fetchStatus || "URL failed live verification",
+                retrievalMethod: "google_grounding",
+                lastVerified: nowIso,
+                ...(uv ? { urlVerification: uv } : {}),
+              });
+              continue;
+            }
+
+            const canonicalParsed = validateSafeExternalUrl(uv.canonicalUrl || validUrl);
+            const resolvedUrl = canonicalParsed?.href || validUrl;
+            const resolvedUrlKey = resolvedUrl.toLowerCase().split("#")[0];
+            if (resolvedUrlKey !== rawUrlKey) {
+              if (seenUrls.has(resolvedUrlKey)) continue;
+              seenUrls.add(resolvedUrlKey);
+            }
+
+            // Formal retraction check on both raw & unwrapped URLs
+            if (
+              sourceTrustService.isRetracted(validUrl) ||
+              sourceTrustService.isRetracted(resolvedUrl) ||
+              CitationRetractionService.lookupDoi(validUrl)?.status === "retracted" ||
+              CitationRetractionService.lookupDoi(resolvedUrl)?.status === "retracted"
+            ) {
+              logger.info(`[FusedGrounding] Retracted source quarantined: ${resolvedUrl}`);
+              quarantinedSources.push({
+                title: uv.contentTitle || chunk.web?.title || resolvedUrl,
+                url: resolvedUrl,
+                directUrl: validUrl,
+                domain: uv.domain || sourceTrustService.registrableDomain(resolvedUrl) || "unknown",
+                tier: "E",
+                snippet: chunkSnippetMap.get(idx) || uv.excerpt || "",
+                status: "quarantined",
+                claimStanceReason: "Formally retracted source/DOI",
+                retrievalMethod: "google_grounding",
+                lastVerified: nowIso,
+                urlVerification: uv,
+              });
+              continue;
+            }
+
+            // Dynamic domain trust resolution using unwrapped canonical URL + verified domain + title
+            const isGroundingRedirect =
+              resolvedUrl.includes("grounding-api-redirect") ||
+              resolvedUrl.includes("vertexaisearch.cloud.google.com");
+            const titleHint = uv.contentTitle || chunk.web?.title;
+            const uvDomain =
+              uv.domain &&
+              !uv.domain.includes("vertexaisearch") &&
+              !uv.domain.includes("grounding-api-redirect")
+                ? uv.domain
+                : undefined;
+            const inferredDomain = uvDomain || sourceTrustService.inferDomainFromTitle(titleHint);
+            const trust =
+              isGroundingRedirect && inferredDomain
+                ? sourceTrustService.resolveSourceTrust(inferredDomain, domainContext, titleHint)
+                : sourceTrustService.resolveSourceTrust(resolvedUrl, domainContext, titleHint);
+            const pub = sourceTrustService.resolvePublisher(resolvedUrl);
+
+            // Closed-World Citation Firewall: Reject Tier E, retracted, or UGC platforms
+            if (trust.tier === "E" || trust.isRetracted || pub.isRejectedUgc || pub.isQuarantined) {
+              logger.debug(`[FusedGrounding] Source quarantined by Tier E/UGC firewall: ${resolvedUrl} (${trust.domain})`);
+              quarantinedSources.push({
+                title: titleHint || trust.domain || resolvedUrl,
+                url: resolvedUrl,
+                directUrl: validUrl,
+                domain: trust.domain || inferredDomain || "unknown",
+                tier: trust.tier,
+                snippet: chunkSnippetMap.get(idx) || uv.excerpt || "",
+                status: "quarantined",
+                claimStanceReason: pub.rejectionReason || "Tier E / UGC or unvetted source rejected",
+                retrievalMethod: "google_grounding",
+                lastVerified: nowIso,
+                urlVerification: uv,
+              });
+              continue;
+            }
+
+            const targetDomain =
+              (isGroundingRedirect && inferredDomain)
+                ? inferredDomain
+                : (trust.domain || inferredDomain || sourceTrustService.registrableDomain(resolvedUrl) || uvDomain || "");
+            const publisherName =
+              pub.publisher ||
+              (titleHint ? String(titleHint).split(/[-|–—]/).pop()?.trim() : undefined) ||
+              targetDomain;
+
+            // Preserve real passage snippet from groundingSupports or live fetched page (NEVER v.summary)
+            const realSnippet = chunkSnippetMap.get(idx) || uv.excerpt || uv.contentTitle || chunk.web?.title || "";
+
+            const isContradictingChunk = contradictingSet.has(idx);
+            const provisionalStance: SourceStance = isContradictingChunk
+              ? "CONTRADICTS"
+              : isContestedVerdict
+              ? "MIXED"
+              : isFalseVerdict
+              ? "CONTRADICTS"
+              : "SUPPORTS";
+
+            const ownTextLen = Math.max(
+              String(uv.evidenceText || "").trim().length,
+              String(uv.excerpt || "").trim().length
+            );
+            const shouldCheckStance =
+              canRunStanceModel &&
+              ownTextLen >= 200 &&
+              !isContradictingChunk &&
+              !isContestedVerdict;
+
+            const srcIdx = candidateSources.length;
+            candidateSources.push({
+              title: chunk.web?.title || uv.contentTitle || targetDomain,
+              url: resolvedUrl,
+              directUrl: resolvedUrl,
+              domain: targetDomain,
+              publisher: publisherName,
+              tier: trust.tier,
+              snippet: realSnippet,
+              status: "verified",
+              retrievalMethod: "google_grounding",
+              retrievalProvider: "Google Grounding (Fused)",
+              ...(shouldCheckStance ? {} : { claimStance: provisionalStance }),
+              ...(v.sourceKind ? { sourceKind: v.sourceKind as SourceRole } : {}),
+              claimStanceReason: v.summary,
+              lastVerified: nowIso,
+              urlVerification: uv,
+            });
+            if (shouldCheckStance) {
+              stanceCheckIndices.push(srcIdx);
+            }
+          }
+
+          // Attach pre-retrieved evidence (Wikipedia, Wikidata, PubMed, Crossref, World Bank, FRED) with dynamic trust tiers
+          if (options.preRetrievedEvidence && Array.isArray(options.preRetrievedEvidence)) {
+            for (const s of options.preRetrievedEvidence) {
+              if (s.claimIds && Array.isArray(s.claimIds) && s.claimIds.includes(claim.claimId)) {
+                const sUrl = String(s.uri || "").trim();
+                if (!sUrl) continue;
+                const urlKey = sUrl.toLowerCase().split("#")[0];
+                if (seenUrls.has(urlKey)) continue;
                 seenUrls.add(urlKey);
+
+                const trust = sourceTrustService.resolveSourceTrust(sUrl, domainContext, s.title);
+                const pub = sourceTrustService.resolvePublisher(sUrl);
+                if (
+                  trust.tier === "E" ||
+                  trust.isRetracted ||
+                  pub.isRejectedUgc ||
+                  pub.isQuarantined ||
+                  sourceTrustService.isRetracted(sUrl) ||
+                  CitationRetractionService.lookupDoi(sUrl)?.status === "retracted"
+                ) {
+                  continue;
+                }
+
                 const provider = s.sourceProvider || "Scientific Literature";
-                const domain = sUrl.includes("pubmed") ? "pubmed.ncbi.nlm.nih.gov" : sUrl.includes("crossref") || sUrl.includes("doi.org") ? "doi.org" : "wikipedia.org";
-                distinctDomains.add(domain);
+                const domain = trust.domain || sourceTrustService.registrableDomain(sUrl) || "";
+                const publisherName = pub.publisher || provider;
+                const passageText = String(s.snippet || s.passage || "").trim();
+                const preStance: SourceStance = isContestedVerdict
+                  ? "MIXED"
+                  : isFalseVerdict
+                  ? "CONTRADICTS"
+                  : "SUPPORTS";
+                const preKind: SourceRole | undefined =
+                  provider === "WORLDBANK" || provider === "FRED"
+                    ? "PRIMARY_RECORD"
+                    : provider === "WIKIPEDIA" || provider === "WIKIDATA" || provider === "PUBMED" || provider === "CROSSREF"
+                    ? "REFERENCE"
+                    : undefined;
+
+                const shouldCheckPreStance =
+                  canRunStanceModel &&
+                  passageText.length >= 200 &&
+                  !isContestedVerdict;
+
+                const srcIdx = candidateSources.length;
                 candidateSources.push({
                   title: s.title || provider,
                   url: sUrl,
                   directUrl: sUrl,
                   domain,
-                  publisher: provider,
-                  tier: "A",
-                  snippet: s.snippet || "",
+                  publisher: publisherName,
+                  tier: trust.tier,
+                  snippet: passageText,
                   status: "verified",
                   retrievalMethod: "academic_pre_retrieval",
                   retrievalProvider: provider,
-                  claimStance: stanceDirection,
+                  ...(shouldCheckPreStance ? {} : { claimStance: preStance }),
+                  ...(preKind ? { sourceKind: preKind } : {}),
                   claimStanceReason: v.summary,
                   lastVerified: nowIso,
                   urlVerification: {
@@ -392,80 +587,123 @@ Respond ONLY with valid JSON matching this schema:
                     httpStatus: 200,
                     redirectHops: 0,
                     isSoft404: false,
+                    excerpt: passageText,
+                    ...(passageText.length >= 200 ? { evidenceText: passageText } : {}),
                     verifiedAtUtc: nowIso,
                     verifierMethod: "api_record",
                     fetchStatus: "HTTP_200_OK",
                   },
                 });
+                if (shouldCheckPreStance) {
+                  stanceCheckIndices.push(srcIdx);
+                }
               }
             }
           }
-        }
 
-        // ── Step 4: Epistemic Invariants & Semantic Evidence Gating ──
-        let finalVerdict: ClaimStatus = v.verdict;
+          // Batched stance check over sources with already-fetched readable text (>= 200 chars)
+          if (stanceCheckIndices.length > 0 && canRunStanceModel) {
+            const subset = stanceCheckIndices.map((idx) => candidateSources[idx]);
+            const classified = await classifySourceStances(claim.text, subset, {
+              client: options.stanceClient,
+              model: PIPELINE_CONFIG.GEMINI_MODELS?.fastTier || "gemini-3.5-flash-lite",
+            }).catch(() => subset);
 
-        // If marked true or false, check evidence tiers
-        const verifiedSourcesCount = candidateSources.filter((s) => s.tier === "A" || s.tier === "B").length;
-        const tierCCount = candidateSources.filter((s) => s.tier === "C").length;
-        const tierDCount = candidateSources.filter((s) => s.tier === "D").length;
+            for (let j = 0; j < stanceCheckIndices.length; j++) {
+              const targetIdx = stanceCheckIndices[j];
+              candidateSources[targetIdx] = classified[j];
+            }
 
-        if (verifiedSourcesCount === 0) {
-          if ((tierCCount > 0 || tierDCount > 0) && finalVerdict === "verified_true") {
-            finalVerdict = "mostly_true";
-          } else if (candidateSources.length === 0 && (finalVerdict === "verified_true" || finalVerdict === "false_claim")) {
-            logger.info(`[FusedGrounding] Demoted ${claim.claimId} to 'unproven' due to lack of citations`);
-            finalVerdict = "unproven";
+            const filtered: RichSource[] = [];
+            for (const src of candidateSources) {
+              if (src.claimStance === "OFF_TOPIC" || src.claimStance === "UNREADABLE") {
+                quarantinedSources.push({
+                  ...src,
+                  status: "quarantined",
+                  claimStanceReason: src.claimStanceReason || `Stance check returned ${src.claimStance}`,
+                });
+              } else {
+                filtered.push(src);
+              }
+            }
+            candidateSources = filtered;
           }
-        }
 
-        // If contradicting chunks are cited alongside supporting chunks, check for dispute
-        if (v.contradictingChunkIndices.length > 0 && v.supportingChunkIndices.length > 0 && finalVerdict === "verified_true") {
-          finalVerdict = "disputed";
-        }
-
-        // ── Step 5: Principled Mathematical Confidence Formulation ──
-        const highestTier: SourceTier = candidateSources.some((s) => s.tier === "A")
-          ? "A"
-          : candidateSources.some((s) => s.tier === "B")
-          ? "B"
-          : "C";
-
-        const tierWeight = highestTier === "A" ? 1.0 : highestTier === "B" ? 0.85 : 0.65;
-        const semanticMultiplier = v.evidenceLevel === "STRONG" ? 1.0 : v.evidenceLevel === "MODERATE" ? 0.8 : 0.55;
-        const independenceMultiplier = Math.min(1.0, distinctDomains.size / 2);
-
-        let calculatedConfidence: number;
-        if (finalVerdict === "unproven") {
-          calculatedConfidence = candidateSources.length === 0 ? 0.0 : 0.50; // Epistemic neutrality (0.0 if zero evidence)
-        } else if (finalVerdict === "opinion_claim" || finalVerdict === "religious_belief" || finalVerdict === "satire_claim") {
-          calculatedConfidence = 1.00; // Certainty of subjective nature
-        } else {
-          calculatedConfidence = Number(
-            Math.min(0.98, Math.max(0.20, tierWeight * semanticMultiplier * (0.80 + 0.20 * independenceMultiplier))).toFixed(2)
+          const distinctDomains = new Set<string>(
+            candidateSources.map((s) => s.domain || "").filter(Boolean)
           );
-        }
 
-        const isGrounded = candidateSources.length > 0;
-        const method: VerificationMethod = isGrounded ? "grounded" : "deterministic";
-        const sourceStatus = candidateSources.length >= 2 ? "complete" : candidateSources.length === 1 ? "partial" : "missing";
+          // ── Step 5: Epistemic Invariants & Semantic Evidence Gating ──
+          let finalVerdict: ClaimStatus = v.verdict;
 
-        return {
-          ...claim,
-          status: finalVerdict,
-          verificationConfidence: calculatedConfidence,
-          reasoning: v.summary,
-          sources: candidateSources.map((s) => s.url),
-          richSources: candidateSources,
-          sourceStatus,
-          isGrounded,
-          isProvisional: false,
-          verificationMethod: method,
-          evidenceLevel: v.evidenceLevel as EvidenceLevel,
-          verifiedFacts: v.keyFacts,
-          missingEvidence: v.missingEvidence ? [v.missingEvidence] : [],
-        };
-      });
+          const verifiedSourcesCount = candidateSources.filter((s) => s.tier === "A" || s.tier === "B").length;
+          const tierCCount = candidateSources.filter((s) => s.tier === "C").length;
+          const tierDCount = candidateSources.filter((s) => s.tier === "D").length;
+
+          if (verifiedSourcesCount === 0) {
+            if ((tierCCount > 0 || tierDCount > 0) && finalVerdict === "verified_true") {
+              finalVerdict = "mostly_true";
+            } else if (
+              candidateSources.length === 0 &&
+              (finalVerdict === "verified_true" ||
+                finalVerdict === "mostly_true" ||
+                finalVerdict === "false_claim" ||
+                finalVerdict === "disputed")
+            ) {
+              logger.info(`[FusedGrounding] Demoted ${claim.claimId} to 'unproven' due to lack of live verified citations`);
+              finalVerdict = "unproven";
+            }
+          }
+
+          // If contradicting chunks are cited alongside supporting chunks, check for dispute
+          if (v.contradictingChunkIndices.length > 0 && v.supportingChunkIndices.length > 0 && finalVerdict === "verified_true") {
+            finalVerdict = "disputed";
+          }
+
+          // ── Step 6: Principled Mathematical Confidence Formulation ──
+          const highestTier: SourceTier = candidateSources.some((s) => s.tier === "A")
+            ? "A"
+            : candidateSources.some((s) => s.tier === "B")
+            ? "B"
+            : "C";
+
+          const tierWeight = highestTier === "A" ? 1.0 : highestTier === "B" ? 0.85 : 0.65;
+          const semanticMultiplier = v.evidenceLevel === "STRONG" ? 1.0 : v.evidenceLevel === "MODERATE" ? 0.8 : 0.55;
+          const independenceMultiplier = Math.min(1.0, distinctDomains.size / 2);
+
+          let calculatedConfidence: number;
+          if (finalVerdict === "unproven") {
+            calculatedConfidence = candidateSources.length === 0 ? 0.0 : 0.50;
+          } else if (finalVerdict === "opinion_claim" || finalVerdict === "religious_belief" || finalVerdict === "satire_claim") {
+            calculatedConfidence = 1.00;
+          } else {
+            calculatedConfidence = Number(
+              Math.min(0.98, Math.max(0.20, tierWeight * semanticMultiplier * (0.80 + 0.20 * independenceMultiplier))).toFixed(2)
+            );
+          }
+
+          const isGrounded = candidateSources.length > 0;
+          const method: VerificationMethod = isGrounded ? "grounded" : "deterministic";
+          const sourceStatus = candidateSources.length >= 2 ? "complete" : candidateSources.length === 1 ? "partial" : "missing";
+
+          return {
+            ...claim,
+            status: finalVerdict,
+            verificationConfidence: calculatedConfidence,
+            reasoning: v.summary,
+            sources: candidateSources.map((s) => s.url),
+            richSources: candidateSources,
+            quarantinedSources,
+            sourceStatus,
+            isGrounded,
+            isProvisional: false,
+            verificationMethod: method,
+            evidenceLevel: v.evidenceLevel as EvidenceLevel,
+            verifiedFacts: v.keyFacts,
+            missingEvidence: v.missingEvidence ? [v.missingEvidence] : [],
+          };
+        })
+      );
     } catch (err: any) {
       logger.error("[FusedGrounding] Batch execution failed, falling back safely", {
         err: err?.message,

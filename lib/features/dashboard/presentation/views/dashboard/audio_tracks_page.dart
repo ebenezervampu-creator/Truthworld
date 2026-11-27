@@ -158,31 +158,13 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                 const SizedBox(width: 8),
                 const Flexible(
                   child: Text(
-                    'Audio Tracks',
+                    'Dubs',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                     overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox.shrink(
-                  child: Text(
-                    'AudioTracks & VideoTracks',
-                    style: TextStyle(fontSize: 0, color: Colors.transparent),
-                  ),
-                ),
-                const SizedBox.shrink(
-                  child: Text(
-                    'AudioTracks',
-                    style: TextStyle(fontSize: 0, color: Colors.transparent),
-                  ),
-                ),
-                const SizedBox.shrink(
-                  child: Text(
-                    'Audio & Video',
-                    style: TextStyle(fontSize: 0, color: Colors.transparent),
                   ),
                 ),
               ],
@@ -279,7 +261,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
               ),
               SizedBox(height: 16),
               Text(
-                'No Videos Available for Audio Workspace',
+                'No Videos Available for Dubs Workspace',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -392,19 +374,13 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                 ),
                 const SizedBox(height: 14),
                 const Text(
-                  'Select a Video to Manage Audio Tracks',
+                  'Select a Video to Manage Dubs',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                   textAlign: TextAlign.center,
-                ),
-                const SizedBox.shrink(
-                  child: Text(
-                    'Select a Video to Manage AudioTracks & VideoTracks',
-                    style: TextStyle(fontSize: 0, color: Colors.transparent),
-                  ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -456,7 +432,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Underline Tab Bar (Audio Tracks)
+            // Underline Tab Bar (Dubs)
             AudioTracksUnderlineTabBar(controller: controller),
 
             const SizedBox(height: 8),

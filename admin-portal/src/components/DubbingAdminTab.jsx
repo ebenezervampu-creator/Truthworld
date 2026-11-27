@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { db, functions } from "../firebase";
+import { db, dubbingFunctions } from "../firebase";
 import { collection, query, limit, getDocs, doc, getDoc, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
@@ -146,7 +146,7 @@ export default function DubbingAdminTab({ adminUser, isSuperAdmin }) {
     setFeedbackMsg(null);
 
     try {
-      const callGrant = httpsCallable(functions, "adminGrantDubbingCredits");
+      const callGrant = httpsCallable(dubbingFunctions, "adminGrantDubbingCredits");
       const res = await callGrant({
         targetUserId: selectedUser.id,
         amountCredits: Number(creditAmount),
@@ -223,7 +223,7 @@ export default function DubbingAdminTab({ adminUser, isSuperAdmin }) {
     const isFree = discountType === "free" || percent >= 100;
 
     try {
-      const callDiscount = httpsCallable(functions, "adminSetDubbingDiscount");
+      const callDiscount = httpsCallable(dubbingFunctions, "adminSetDubbingDiscount");
       await callDiscount({
         targetUserId: selectedUser.id,
         discountPercent: percent,

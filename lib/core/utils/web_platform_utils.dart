@@ -30,6 +30,16 @@ class WebPlatformUtils {
   ]) =>
       WebPlatformUtilsImpl.getVideoDurationFromBytes(bytes, mimeType);
 
+  /// Fetch a JS Blob from an existing browser `blob:` URL without copying into Dart heap.
+  /// Returns null on native platforms or on error.
+  static Future<dynamic> fetchBlobFromObjectUrl(String blobUrl) =>
+      WebPlatformUtilsImpl.fetchBlobFromObjectUrl(blobUrl);
+
+  /// Probe media duration directly from a `blob:` or HTTPS URL on Web without revoking it.
+  /// Returns null on native platforms or on error.
+  static Future<Duration?> getVideoDurationFromUrl(String url) =>
+      WebPlatformUtilsImpl.getVideoDurationFromUrl(url);
+
   /// Check if document is currently in fullscreen on Web.
   static bool isFullscreen() => WebPlatformUtilsImpl.isFullscreen();
 

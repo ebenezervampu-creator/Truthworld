@@ -1,6 +1,6 @@
 {
   "mode": "dry_run",
-  "timestampIso": "2026-11-26T07:45:41.691Z",
+  "timestampIso": "2026-11-27T01:34:31.256Z",
   "sourceLanguage": "en",
   "targetLanguage": "te",
   "metrics": {
@@ -16,7 +16,7 @@
     "measuredIntegratedLufs": -14,
     "elevenLabsCharsBilled": 0,
     "estimatedCostUsd": 0,
-    "wallLatencyMs": 332
+    "wallLatencyMs": 446
   },
   "overallScore10": 10,
   "verdict": "CERTIFIED_DRY_RUN",

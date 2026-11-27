@@ -892,7 +892,7 @@ export class ClaimVerificationService {
   private evidenceRetrieval: EvidenceRetrievalService;
 
   constructor(
-    apiKey: string,
+    _apiKey?: string,
     confidenceThreshold: number = 0.6,
     deps?: {
       urlVerifier?: UrlVerificationService;

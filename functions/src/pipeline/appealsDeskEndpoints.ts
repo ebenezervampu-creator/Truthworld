@@ -1,3 +1,4 @@
+import { CREDIBILITY_REGION } from "../config/regions";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -39,7 +40,7 @@ async function isAccreditedReviewer(auth: { uid: string; token: any }): Promise<
 }
 
 const APPEALS_ENDPOINT_OPTIONS = {
-  region: "asia-south1",
+  region: CREDIBILITY_REGION,
   memory: "256MiB" as const,
   timeoutSeconds: 30,
 };
@@ -164,7 +165,7 @@ export const verifyGovernanceAuditChain = onCall(APPEALS_ENDPOINT_OPTIONS, async
 export const sweepPendingAppealsSla = onSchedule(
   {
     schedule: "every 6 hours",
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     timeoutSeconds: 120,
     memory: "256MiB",
     retryCount: 1,

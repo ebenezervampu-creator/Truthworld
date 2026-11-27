@@ -9,6 +9,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
@@ -677,7 +678,7 @@ class VideoTranscriptController extends BaseController {
 
       // 4. Synthesize genuine AI summary on demand via Cloud Function
       try {
-        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+        final callable = FirebaseFunctions.instanceFor(region: AppConfig.credibilityFunctionsRegion)
             .httpsCallable('getVideoAiSummary');
         final result = await callable.call<Map<String, dynamic>>({
           'videoId': video.id,

@@ -19,4 +19,8 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app, "asia-south1");
+// Dubbing, subtitles and transcription endpoints. Keep in step with DUBBING_REGION in functions/src/config/regions.ts.
+export const dubbingFunctions = getFunctions(app, "asia-south1");
+// Credibility, fact-checking and appeals endpoints. Keep in step with CREDIBILITY_REGION.
+export const credibilityFunctions = getFunctions(app, "asia-south1");
 export default app;

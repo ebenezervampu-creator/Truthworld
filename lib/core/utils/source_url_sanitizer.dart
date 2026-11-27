@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -440,6 +441,80 @@ class SourceUrlSanitizer {
     return url;
   }
 
+  static const Set<String> _nonDomainFileExtensions = {
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'webp',
+    'svg',
+    'bmp',
+    'ico',
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+    'ppt',
+    'pptx',
+    'mp4',
+    'webm',
+    'mov',
+    'mp3',
+    'wav',
+    'm4a',
+    'json',
+    'xml',
+    'html',
+    'htm',
+    'php',
+    'aspx',
+    'js',
+    'css',
+    'txt',
+    'csv',
+    'zip',
+  };
+
+  /// Extracts a genuine domain token (supporting 2+ letter gTLDs and ccTLDs like `.nz`, `.uk`, `.co.uk`)
+  /// from an arbitrary title/publisher string while rejecting file names (e.g. `photo.png`, `doc.pdf`)
+  /// and Google redirect hosts.
+  static String? extractDomainFromText(String? text) {
+    if (text == null || text.trim().isEmpty) return null;
+    final matches = RegExp(
+      r'\b((?:[a-zA-Z0-9-]{1,63}\.)+(?:[a-zA-Z]{2,24}|xn--[a-zA-Z0-9]+))\b',
+      caseSensitive: false,
+    ).allMatches(text);
+    for (final m in matches) {
+      final candidate = (m.group(1) ?? '').trim().toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
+      if (candidate.isEmpty) continue;
+      final tld = candidate.split('.').last;
+      if (_nonDomainFileExtensions.contains(tld)) continue;
+      if (candidate.contains('vertexaisearch') ||
+          candidate == 'google.com' ||
+          candidate.endsWith('.google.com')) {
+        continue;
+      }
+      if (isValidDomain(candidate) && !isDummyDomain(candidate)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  static bool _isGoogleOrGenericLabel(String? value) {
+    if (value == null || value.trim().isEmpty) return true;
+    final lower = value.trim().toLowerCase();
+    return lower == 'google' ||
+        lower == 'verified source' ||
+        lower == 'authoritative source' ||
+        lower == 'reference source' ||
+        lower == 'source citation' ||
+        lower.contains('vertexaisearch') ||
+        lower == 'google.com' ||
+        lower.endsWith('.google.com');
+  }
+
   /// Resolves the human-readable display domain, extracting the true publisher/organization
   /// even when the underlying link was a redirect or fallback.
   static String resolveDisplayDomain(
@@ -448,31 +523,36 @@ class SourceUrlSanitizer {
     String? explicitDomain,
     String? publisher,
   }) {
-    if (explicitDomain != null &&
-        explicitDomain.isNotEmpty &&
-        !explicitDomain.contains('vertexaisearch') &&
-        !explicitDomain.contains('google.com')) {
-      return explicitDomain.replaceFirst(RegExp(r'^www\.'), '');
+    if (!_isGoogleOrGenericLabel(explicitDomain)) {
+      return explicitDomain!.trim().replaceFirst(RegExp(r'^www\.'), '');
     }
 
-    if (publisher != null &&
-        publisher.isNotEmpty &&
-        publisher.toLowerCase() != 'google') {
-      return publisher;
+    final fromPublisherDomain = extractDomainFromText(publisher);
+    if (fromPublisherDomain != null) {
+      return fromPublisherDomain;
     }
 
-    // Extract domain or organization from title (e.g. "Title - NASA", "Title | Wikipedia")
-    if (title != null &&
-        title.isNotEmpty &&
-        title.toLowerCase() != 'source citation' &&
-        title.toLowerCase() != 'reference source') {
-      final parts = title.split(RegExp(r'\s+[-|–—]\s+'));
+    if (!_isGoogleOrGenericLabel(publisher)) {
+      final canonicalPub = resolveCanonicalDomain(publisher);
+      if (canonicalPub != null) return canonicalPub;
+      return publisher!.trim();
+    }
+
+    // Extract domain tokens directly from title (e.g. "Apollo 11 - spacecentre.nz")
+    final fromTitleDomain = extractDomainFromText(title);
+    if (fromTitleDomain != null) {
+      return fromTitleDomain;
+    }
+
+    // Extract organization from title suffix (e.g. "Title - NASA", "Title | Wikipedia")
+    if (!_isGoogleOrGenericLabel(title)) {
+      final parts = title!.trim().split(RegExp(r'\s+[-|–—]\s+'));
       if (parts.length > 1) {
         final lastPart = parts.last.trim();
         if (lastPart.isNotEmpty &&
-            lastPart.toLowerCase() != 'google' &&
+            !_isGoogleOrGenericLabel(lastPart) &&
             !lastPart.toLowerCase().contains('search')) {
-          return lastPart;
+          return resolveCanonicalDomain(lastPart) ?? lastPart;
         }
       }
     }
@@ -482,7 +562,7 @@ class SourceUrlSanitizer {
         rawUrl.startsWith('http') ? rawUrl : 'https://$rawUrl',
       );
       if (parsed != null && parsed.host.isNotEmpty) {
-        final host = parsed.host.replaceFirst(RegExp(r'^www\.'), '');
+        final host = parsed.host.replaceFirst(RegExp(r'^www\.'), '').toLowerCase();
         if (!host.contains('google.com') && !host.contains('vertexaisearch')) {
           return host;
         }
@@ -622,7 +702,7 @@ class SourceUrlSanitizer {
     }
 
     try {
-      final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+      final callable = FirebaseFunctions.instanceFor(region: AppConfig.credibilityFunctionsRegion)
           .httpsCallable(
             'reportBrokenSourceUrl',
             options: HttpsCallableOptions(timeout: const Duration(seconds: 5)),

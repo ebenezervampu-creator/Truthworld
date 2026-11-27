@@ -706,14 +706,15 @@ class ChannelWalletService {
     }
   }
 
-  /// Direct payment for AI Audio Dubbing via Cashfree PG (no wallet option)
-  Future<bool> payForDubbingWithCashfree({
-    required Channel channel,
+  /// Direct payment for AI Audio Dubbing via Cashfree PG, returning full order result.
+  Future<CashfreePaymentResult> payForDubbingOrderWithCashfree({
+    Channel? channel,
     required double amountUSD,
     required String languageCode,
-    required String videoId,
-    required String dubbingTier,
+    String videoId = '',
+    String dubbingTier = 'audio_track',
     List<String>? targetLanguages,
+    String purpose = 'ai_dubbing',
   }) async {
     try {
       unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
@@ -730,30 +731,56 @@ class ChannelWalletService {
           ? targetLanguages
           : [languageCode];
       final langSummary = resolvedLangs.join(',');
-      final paymentResult = await CashfreePaymentService.to.startPayment(
+      final isSubtitles = purpose == 'ai_subtitles';
+      return await CashfreePaymentService.to.startPayment(
         amount: chargeAmount,
         currency: currency,
-        purpose: 'ai_dubbing',
-        orderNote: 'AI Dubbing ($langSummary): \$$amountUSD',
+        purpose: purpose,
+        orderNote: '${isSubtitles ? 'AI Subtitles' : 'AI Dubbing'} ($langSummary): \$$amountUSD',
         metadata: {
-          'channelId': channel.id,
-          'videoId': videoId,
+          if (channel != null) 'channelId': channel.id,
+          'walletScope': channel != null ? 'channel' : 'personal',
+          'source': 'dubbing_studio',
+          if (videoId.isNotEmpty) 'videoId': videoId,
           'languageCode': languageCode,
           'targetLanguages': resolvedLangs,
           'dubbingTier': dubbingTier,
           'amountUSD': amountUSD,
           'currency': currency,
           'chargeAmount': chargeAmount,
-          'category': 'aiDubbing',
-          'description': 'Direct Payment for AI Dubbing ($langSummary) via Cashfree',
+          'category': isSubtitles ? 'aiSubtitles' : 'aiDubbing',
+          'description':
+              'Direct Payment for ${isSubtitles ? 'AI Subtitles' : 'AI Dubbing'} ($langSummary) via Cashfree',
         },
       );
-
-      return paymentResult.success;
     } catch (e, stackTrace) {
-      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ChannelWalletService.payForDubbingWithCashfree');
-      return false;
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ChannelWalletService.payForDubbingOrderWithCashfree');
+      return const CashfreePaymentResult(
+        success: false,
+        orderId: '',
+        errorMessage: 'Unable to initiate payment. Please try again.',
+      );
     }
+  }
+
+  /// Direct payment for AI Audio Dubbing via Cashfree PG (no wallet option)
+  Future<bool> payForDubbingWithCashfree({
+    Channel? channel,
+    required double amountUSD,
+    required String languageCode,
+    required String videoId,
+    required String dubbingTier,
+    List<String>? targetLanguages,
+  }) async {
+    final result = await payForDubbingOrderWithCashfree(
+      channel: channel,
+      amountUSD: amountUSD,
+      languageCode: languageCode,
+      videoId: videoId,
+      dubbingTier: dubbingTier,
+      targetLanguages: targetLanguages,
+    );
+    return result.success;
   }
 
   /// Direct payment for AI Subtitles via Cashfree PG (no wallet option)
@@ -1023,6 +1050,58 @@ class ChannelWalletService {
         e,
         stackTrace: stackTrace,
         tag: 'ChannelWalletService.topupChannelWalletWithCashfree',
+      );
+      return false;
+    }
+  }
+
+  /// Top up personal Standalone Dubbing Studio USD wallet via Cashfree PG
+  Future<bool> topupPersonalDubbingWalletWithCashfree({
+    required double amountUSD,
+    required String userId,
+  }) async {
+    try {
+      unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final amountINR = math.max(1.0, double.parse((amountUSD * rate).toStringAsFixed(2)));
+      final currency = isIndian ? 'INR' : 'USD';
+      final chargeAmount = isIndian ? amountINR : amountUSD;
+
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: chargeAmount,
+        currency: currency,
+        purpose: 'dubbing_wallet_topup',
+        orderNote: 'Dubbing Wallet Top-Up (\$${amountUSD.toStringAsFixed(2)} USD)',
+        metadata: {
+          'creatorId': userId,
+          'walletScope': 'personal',
+          'source': 'dubbing_studio',
+          'amountINR': amountINR,
+          'currency': currency,
+          'chargeAmount': chargeAmount,
+          'packType': 'balance',
+          'category': 'walletTopup',
+          'description': 'Personal Dubbing Wallet Deposit (+\$${amountUSD.toStringAsFixed(2)} USD)',
+        },
+      );
+
+      if (paymentResult.success) {
+        return true;
+      }
+      if (paymentResult.errorMessage != null &&
+          !paymentResult.errorMessage!.toLowerCase().contains('cancel')) {
+        AppSnackbar.warning(paymentResult.errorMessage!);
+      }
+      return false;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.topupPersonalDubbingWalletWithCashfree',
       );
       return false;
     }

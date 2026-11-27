@@ -24,7 +24,7 @@ export class BenchmarkEvaluationService {
   public verificationService: ClaimVerificationService;
 
   constructor(verificationService?: ClaimVerificationService) {
-    this.verificationService = verificationService || new ClaimVerificationService(process.env.GEMINI_API_KEY || "");
+    this.verificationService = verificationService || new ClaimVerificationService();
   }
 
   /**

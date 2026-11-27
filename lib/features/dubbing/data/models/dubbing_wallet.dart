@@ -69,8 +69,8 @@ class DubbingWallet {
     final txs = <DubbingWalletTx>[];
     if (map['transactions'] is List) {
       for (final item in map['transactions']) {
-        if (item is Map<String, dynamic>) {
-          txs.add(DubbingWalletTx.fromMap(item));
+        if (item is Map) {
+          txs.add(DubbingWalletTx.fromMap(Map<String, dynamic>.from(item)));
         }
       }
     }
@@ -98,6 +98,7 @@ class DubbingWallet {
   /// Helper to format balance for display.
   String get displayCreditString => '$balanceCredits characters';
   String get displayUsdString => '\$${balanceUsd.toStringAsFixed(2)}';
+  String get displayUsdOrFreeString => isDubbingFree ? '100% Free' : displayUsdString;
 
   /// Whether any active special discount or free waiver applies.
   bool get hasSpecialDiscount => isDubbingFree || specialDiscountPercent > 0;

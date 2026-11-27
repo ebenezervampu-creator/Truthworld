@@ -136,7 +136,11 @@ export function computeStudioJobUpdate(
   } else {
     // Transcription completed, dubbing running or pending
     const dubStatusStr = String(dubStage.status || "").toLowerCase();
-    if (dubStatusStr !== "running" && dubProgress <= 5) {
+    if (dubStatusStr === "awaiting_transcription_review") {
+      status = "awaiting_transcription_review";
+      progressPercent = Math.max(progressPercent, 45);
+      currentStepMessage = "Script review ready. Review or edit dialogue before voice synthesis.";
+    } else if (dubStatusStr !== "running" && dubProgress <= 5) {
       status = "translating";
       progressPercent = Math.max(progressPercent, 35);
       currentStepMessage = "Transcript ready. Preparing voices and translation...";
@@ -277,6 +281,22 @@ export function computeStudioJobUpdate(
     stages: syncedStages,
     updatedAt: now,
   };
+
+  const pendingSegs =
+    videoJobData?.pendingReviewSegmentsByLanguage &&
+    typeof videoJobData.pendingReviewSegmentsByLanguage === "object"
+      ? videoJobData.pendingReviewSegmentsByLanguage
+      : null;
+  if (
+    status === "awaiting_transcription_review" &&
+    pendingSegs &&
+    Object.keys(pendingSegs).length > 0
+  ) {
+    patch.segmentsByLanguage = {
+      ...(studioJob?.segmentsByLanguage || {}),
+      ...pendingSegs,
+    };
+  }
 
   if (isFailed && errorMessage) {
     patch.error = errorMessage;

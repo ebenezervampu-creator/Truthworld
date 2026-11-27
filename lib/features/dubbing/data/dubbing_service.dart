@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -19,9 +20,9 @@ class DubbingService {
   final FirebaseFirestore? _firestoreInstance;
 
   FirebaseFunctions get _functions =>
-      _functionsInstance ?? FirebaseFunctions.instanceFor(region: 'asia-south1');
+      _functionsInstance ?? FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion);
   FirebaseFunctions get _createJobFunctions =>
-      _functionsInstance ?? FirebaseFunctions.instanceFor(region: 'us-central1');
+      _functionsInstance ?? FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion);
   FirebaseFirestore get _firestore => _firestoreInstance ?? FirebaseFirestore.instance;
 
   /// Fetches the user's current Dubbing Wallet.
@@ -46,7 +47,7 @@ class DubbingService {
     return DubbingWallet(userId: uid);
   }
 
-  /// Claims free trial credits (1,000 free test characters).
+  /// Promotional creator trial credits are discontinued; proxies server notice cleanly.
   Future<Map<String, dynamic>> claimFreeTrial() async {
     try {
       final res = await _functions.httpsCallable('claimFreeDubbingCredits').call<dynamic>();
@@ -57,8 +58,8 @@ class DubbingService {
       logger.warning('Dubbing claim free trial notice: $e', tag: 'DubbingService');
     }
     return {
-      'success': true,
-      'message': '1,000 Free Characters are directly available in your wallet.',
+      'success': false,
+      'message': 'Promotional creator trial credits have been discontinued.',
     };
   }
 
@@ -80,6 +81,8 @@ class DubbingService {
     required List<Map<String, dynamic>> speakers,
     String? videoId,
     String? channelId,
+    String? cashfreeOrderId,
+    String? walletSource,
   }) async {
     try {
       final res = await _createJobFunctions.httpsCallable('createDubbingJob').call<dynamic>({
@@ -99,6 +102,8 @@ class DubbingService {
         'speakers': speakers,
         if (videoId != null) 'videoId': videoId,
         if (channelId != null) 'channelId': channelId,
+        if (cashfreeOrderId != null && cashfreeOrderId.isNotEmpty) 'cashfreeOrderId': cashfreeOrderId,
+        if (walletSource != null && walletSource.isNotEmpty) 'walletSource': walletSource,
       });
 
       if (res.data is Map) {
@@ -596,6 +601,29 @@ class DubbingService {
     } catch (e) {
       ErrorHandler.log(e);
       return false;
+    }
+  }
+
+  /// Generates or retrieves a synchronized dubbed MP4 for a specific language.
+  Future<String?> generateDubbedVideo({
+    String? jobId,
+    String? videoId,
+    required String language,
+  }) async {
+    try {
+      final res = await _functions.httpsCallable('generateDubbedVideo').call<dynamic>({
+        if (jobId != null && jobId.isNotEmpty) 'jobId': jobId,
+        if (videoId != null && videoId.isNotEmpty) 'videoId': videoId,
+        'language': language,
+      });
+      if (res.data is Map && res.data['success'] == true) {
+        final url = res.data['videoUrl']?.toString().trim() ?? '';
+        return url.isNotEmpty ? url : null;
+      }
+      return null;
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, context: 'DubbingService.generateDubbedVideo');
+      return null;
     }
   }
 

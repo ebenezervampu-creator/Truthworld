@@ -21,6 +21,27 @@ class ClaimCommentService {
     return _firestore.collection('videos').doc(videoId).collection('claim_comments');
   }
 
+  /// Checks whether the current user is temporarily restricted from AI Check
+  /// source submissions and Community Notes due to repeated invalid sources.
+  Future<DateTime?> getAiCheckRestrictionUntil() async {
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) return null;
+    try {
+      final snap = await _firestore
+          .collection('user_ai_check_restrictions')
+          .doc(uid)
+          .get();
+      if (!snap.exists) return null;
+      final untilMs = snap.data()?['restrictedUntilMs'];
+      if (untilMs is int && untilMs > DateTime.now().millisecondsSinceEpoch) {
+        return DateTime.fromMillisecondsSinceEpoch(untilMs);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Streams community deliberation notes for a video, optionally filtered by [claimIndex].
   Stream<List<ClaimComment>> streamClaimComments({
     required String videoId,
@@ -66,6 +87,15 @@ class ClaimCommentService {
     final uid = AuthService.to.uid;
     if (uid.isEmpty) {
       throw Exception('You must be signed in to submit a community note.');
+    }
+
+    final restrictedUntil = await getAiCheckRestrictionUntil();
+    if (restrictedUntil != null) {
+      final dateLabel =
+          '${restrictedUntil.year}-${restrictedUntil.month.toString().padLeft(2, '0')}-${restrictedUntil.day.toString().padLeft(2, '0')}';
+      throw Exception(
+        'Your AI Check and Community Notes access is temporarily restricted until $dateLabel due to repeated invalid source submissions.',
+      );
     }
 
     final trimmedText = text.trim();

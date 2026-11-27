@@ -71,7 +71,7 @@ void showVoiceGenderPicker(BuildContext context, DubbingOptionsState state) {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Choose the voice gender used for dubbed audio tracks.',
+                  'Choose the voice gender used for dubs.',
                   style: typography.bodySmall.copyWith(
                     fontSize: 12.5,
                     color: colors.textSecondary,

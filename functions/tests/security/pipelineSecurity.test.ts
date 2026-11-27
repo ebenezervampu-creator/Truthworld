@@ -61,14 +61,10 @@ describe('AI Video Fact-Checking & Dubbing Pipeline Security Tests (Surface 5)',
     });
   });
 
-  describe('TW-PIPE-02: API Key Leakage Prevention in REST Fallbacks (CWE-598)', () => {
-    it('guarantees that Google Gemini API REST fallback never appends ?key= in the URL', () => {
-      expect(aiCredibilityChatContent).not.toMatch(/generativelanguage\.googleapis\.com[^\n]*\?key=/);
-      expect(aiCredibilityChatContent).toContain('const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;');
-    });
-
-    it('transmits Google Gemini API key securely via x-goog-api-key HTTP header', () => {
-      expect(aiCredibilityChatContent).toMatch(/"x-goog-api-key":\s*apiKey/);
+  describe('TW-PIPE-02: Vertex AI IAM Enforcement (Zero Gemini API Key Fallback)', () => {
+    it('guarantees aiCredibilityChat uses Vertex AI IAM only without generativelanguage.googleapis.com or GEMINI_API_KEY', () => {
+      expect(aiCredibilityChatContent).not.toContain('generativelanguage.googleapis.com');
+      expect(aiCredibilityChatContent).not.toContain('GEMINI_API_KEY');
     });
   });
 

@@ -55,6 +55,20 @@ export function stepCachePath(jobId: string, step: CachedStep, key: string): str
   return `${STEP_CACHE_PREFIX}/${jobId}/${step}_${key}.json`;
 }
 
+/** Fast existence check in GCS for whether a given step already has a cached artifact for jobId. */
+export async function hasStepPrefixCached(jobId: string, step: CachedStep): Promise<boolean> {
+  if (!stepCacheEnabled() || !jobId) return false;
+  try {
+    const [files] = await storage().bucket().getFiles({
+      prefix: `${STEP_CACHE_PREFIX}/${jobId}/${step}_`,
+      maxResults: 1,
+    });
+    return files.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** JSON with Maps preserved (diarization labels, prosody cues). */
 export function encodeCached(value: unknown): string {
   return JSON.stringify(value, (_k, v) => (v instanceof Map ? { __map: [...v.entries()] } : v));

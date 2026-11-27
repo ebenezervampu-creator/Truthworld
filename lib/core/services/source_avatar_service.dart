@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 
 /// 🏛 SourceAvatarService
@@ -102,18 +103,40 @@ class SourceAvatarService {
     return domain.trim();
   }
 
+  static bool _isUnhelpfulHost(String host) {
+    final h = host.trim().toLowerCase();
+    return h.isEmpty ||
+        h.contains('vertexaisearch') ||
+        h == 'google.com' ||
+        h.endsWith('.google.com') ||
+        h == 'verified source' ||
+        h == 'reference source' ||
+        h == 'authoritative source';
+  }
+
   /// Resolves the authentic avatar URL synchronously.
   static String resolveAvatarUrl({
     String? domain,
     String? publisher,
     String? url,
     String? avatarUrl,
+    String? title,
   }) {
     if (avatarUrl != null && avatarUrl.trim().isNotEmpty && avatarUrl.startsWith('http')) {
       return avatarUrl.trim();
     }
 
-    final cleanedDomain = cleanDomain(domain ?? url);
+    var cleanedDomain = cleanDomain(domain);
+    if (_isUnhelpfulHost(cleanedDomain)) {
+      final rawUrlHost = cleanDomain(url);
+      cleanedDomain = _isUnhelpfulHost(rawUrlHost) ? '' : rawUrlHost;
+    }
+    if (cleanedDomain.isEmpty) {
+      cleanedDomain =
+          SourceUrlSanitizer.extractDomainFromText(publisher) ??
+          SourceUrlSanitizer.extractDomainFromText(title) ??
+          '';
+    }
 
     // 1. Check memory cache
     if (cleanedDomain.isNotEmpty && _memoryCache.containsKey(cleanedDomain)) {
@@ -231,7 +254,7 @@ class SourceAvatarService {
 
     // 2. Query backend Cloud Function with graceful fallback
     try {
-      final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+      final callable = FirebaseFunctions.instanceFor(region: AppConfig.credibilityFunctionsRegion)
           .httpsCallable('getSourceAvatars');
       final response = await callable.call<Map<String, dynamic>>({
         'domains': ?domains,
@@ -261,6 +284,7 @@ class SourceAvatarService {
     String? domain,
     String? publisher,
     String? url,
+    String? title,
     String? avatarUrl,
     IconData? fallbackIcon,
     double size = 48,
@@ -270,6 +294,7 @@ class SourceAvatarService {
       domain: domain,
       publisher: publisher,
       url: url,
+      title: title,
       avatarUrl: avatarUrl,
     );
 

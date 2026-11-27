@@ -38,8 +38,10 @@ export interface DubbingOrderRecord {
   jobId: string;
   videoId: string;
   userId: string;
-  /** Channel whose wallet was debited (and is credited on refund). */
+  /** Channel whose wallet was debited (empty string for personal / direct standalone orders). */
   channelId: string;
+  walletSource?: "channel" | "personal" | "cashfree_direct";
+  cashfreeOrderId?: string;
   paidUSD: number;
   dubbingUSD: number;
   subtitleUSD: number;
@@ -205,11 +207,28 @@ async function refundOrderLanguages(p: {
       return { refunded: false, refundAmountUSD: 0, channelId: order.channelId } as DubbingRefundResult;
     }
 
-    const channelRef = db().collection("channels").doc(order.channelId);
-    const chSnap = await t.get(channelRef);
-    if (!chSnap.exists) throw new Error(`Channel ${order.channelId} not found for wallet refund`);
-    const chData = chSnap.data() || {};
-    const currentBalance = Number(chData.walletBalanceUSD || chData.walletBalance || 0);
+    const usePersonalWallet =
+      order.walletSource === "personal" ||
+      order.walletSource === "cashfree_direct" ||
+      !order.channelId;
+
+    const channelRef = usePersonalWallet ? null : db().collection("channels").doc(order.channelId);
+    const personalWalletRef = usePersonalWallet
+      ? db().collection("dubbing_wallets").doc(order.userId || p.userId)
+      : null;
+
+    let currentBalance = 0;
+    let existingPersonalData: Record<string, any> = {};
+    if (channelRef) {
+      const chSnap = await t.get(channelRef);
+      if (!chSnap.exists) throw new Error(`Channel ${order.channelId} not found for wallet refund`);
+      const chData = chSnap.data() || {};
+      currentBalance = Number(chData.walletBalanceUSD || chData.walletBalance || 0);
+    } else if (personalWalletRef) {
+      const wSnap = await t.get(personalWalletRef);
+      existingPersonalData = wSnap.exists ? (wSnap.data() || {}) : {};
+      currentBalance = Number(existingPersonalData.balanceUsd || 0);
+    }
     const newBalance = Number((currentBalance + refund.totalUSD).toFixed(2));
 
     const validLinkedVids = p.jobData.currentDubbingOrderId === p.orderId
@@ -226,39 +245,89 @@ async function refundOrderLanguages(p: {
     }
 
     const refundedLanguages = Object.keys(refund.byLanguage);
-    const refundTxId = `tx_refund_${p.orderId}_${refundedLanguages.join("-")}_${Date.now()}`.slice(0, 1400);
-    const refundTxRef = db().collection("channel_wallet_transactions").doc(refundTxId);
+    const refundNow = Date.now();
+    const refundTxId = `tx_refund_${p.orderId}_${refundedLanguages.join("-")}_${refundNow}`.slice(0, 1400);
+    const refundTxRef = db().collection(
+      usePersonalWallet ? "dubbing_wallet_transactions" : "channel_wallet_transactions"
+    ).doc(refundTxId);
     const newRefunded: Record<string, number> = { ...(order.refundedByLanguage || {}) };
     for (const [l, a] of Object.entries(refund.byLanguage)) newRefunded[l] = usd(cents(newRefunded[l] ?? 0) + cents(a));
     const refundedUSD = usd(cents(order.refundedUSD || 0) + cents(refund.totalUSD));
     const fullyRefunded = cents(refundedUSD) >= cents(order.paidUSD);
 
-    t.update(channelRef, {
-      walletBalanceUSD: newBalance,
-      walletBalance: newBalance,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    t.set(refundTxRef, {
-      id: refundTxId,
-      channelId: order.channelId,
-      userId: p.userId,
-      amount: refund.totalUSD,
-      category: "aiRefund",
-      description: `Refund: dubbing could not be delivered for ${refundedLanguages.join(", ")}`,
-      balanceBefore: currentBalance,
-      balanceAfter: newBalance,
-      timestamp: Date.now(),
-      redeemed: true,
-      originalTransactionId: p.orderId,
-      metadata: {
+    if (channelRef) {
+      t.update(channelRef, {
+        walletBalanceUSD: newBalance,
+        walletBalance: newBalance,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      t.set(refundTxRef, {
+        id: refundTxId,
+        channelId: order.channelId,
+        userId: p.userId,
+        amount: refund.totalUSD,
+        category: "aiRefund",
+        description: `Refund: dubbing could not be delivered for ${refundedLanguages.join(", ")}`,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        timestamp: refundNow,
+        redeemed: true,
+        originalTransactionId: p.orderId,
+        metadata: {
+          jobId: p.jobId,
+          orderId: p.orderId,
+          refundByLanguage: refund.byLanguage,
+          originalAmountUSD: order.paidUSD,
+          refundAmountUSD: refund.totalUSD,
+          reason: p.reason,
+        },
+      });
+    } else if (personalWalletRef) {
+      const prevTxs = Array.isArray(existingPersonalData.transactions)
+        ? existingPersonalData.transactions
+        : [];
+      const refundDescription = `Refund: dubbing could not be delivered for ${refundedLanguages.join(", ")}`;
+      const walletTxEntry = {
+        id: refundTxId,
+        type: "refund",
+        amountCredits: 0,
+        amountUsd: refund.totalUSD,
+        description: refundDescription,
         jobId: p.jobId,
         orderId: p.orderId,
-        refundByLanguage: refund.byLanguage,
-        originalAmountUSD: order.paidUSD,
-        refundAmountUSD: refund.totalUSD,
-        reason: p.reason,
-      },
-    });
+        timestamp: refundNow,
+      };
+      t.set(
+        personalWalletRef,
+        {
+          userId: order.userId || p.userId,
+          balanceUsd: newBalance,
+          transactions: [walletTxEntry, ...prevTxs].slice(0, 100),
+          updatedAt: refundNow,
+        },
+        { merge: true }
+      );
+      t.set(refundTxRef, {
+        id: refundTxId,
+        orderId: p.orderId,
+        jobId: p.jobId,
+        userId: order.userId || p.userId,
+        type: "refund",
+        amountUsd: refund.totalUSD,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        description: refundDescription,
+        timestamp: refundNow,
+        metadata: {
+          jobId: p.jobId,
+          orderId: p.orderId,
+          refundByLanguage: refund.byLanguage,
+          originalAmountUSD: order.paidUSD,
+          refundAmountUSD: refund.totalUSD,
+          reason: p.reason,
+        },
+      });
+    }
     t.update(orderRef, {
       refundedByLanguage: newRefunded,
       refundedUSD,

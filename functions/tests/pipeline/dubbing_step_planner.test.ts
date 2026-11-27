@@ -1,6 +1,9 @@
 import {
   STEP_BUDGET_SECONDS,
   CLOUD_FUNCTION_EVENT_MAX_SECONDS,
+  DEFAULT_REEL_THRESHOLD_MS,
+  DEFAULT_REEL_DURATION_MS,
+  computePerWorkerTtsConcurrency,
   planDubbingSteps,
   nextRunnableSteps,
   shouldSkipChargeOnRetry,
@@ -10,8 +13,10 @@ describe("Dubbing step planner & resume safety", () => {
   test("every planned step fits under the 480s budget (60s below 540s CF limit)", () => {
     expect(STEP_BUDGET_SECONDS).toBeLessThanOrEqual(480);
     expect(STEP_BUDGET_SECONDS).toBeLessThan(CLOUD_FUNCTION_EVENT_MAX_SECONDS);
+    expect(DEFAULT_REEL_THRESHOLD_MS).toBe(180_000);
+    expect(DEFAULT_REEL_DURATION_MS).toBe(150_000);
 
-    for (const durationMs of [25_000, 195_000, 720_000, 5_400_000]) {
+    for (const durationMs of [25_000, 175_000, 600_000, 720_000, 5_400_000]) {
       const plan = planDubbingSteps({
         jobId: `job_${durationMs}`,
         durationMs,
@@ -24,10 +29,10 @@ describe("Dubbing step planner & resume safety", () => {
     }
   });
 
-  test("short-form (<= 8m) chains prep_analysis -> prep_voices -> translate_lang -> synthesize_and_mix", () => {
+  test("short-form (<= 3m) chains prep_analysis -> prep_voices -> translate_lang -> synthesize_and_mix", () => {
     const plan = planDubbingSteps({
       jobId: "short_1",
-      durationMs: 195_000,
+      durationMs: 175_000,
       languages: ["en", "te", "hi"],
       sourceLanguage: "en",
     });
@@ -43,25 +48,45 @@ describe("Dubbing step planner & resume safety", () => {
     ]);
   });
 
-  test("long-form (> 8m) fans out reel workers after prepare_reels and converges on assemble_reels", () => {
+  test("long-form (> 3m, e.g. 10m = 600s) fans out 2.5m reel workers after prepare_reels and converges on assemble_reels", () => {
     const plan = planDubbingSteps({
-      jobId: "long_1",
-      durationMs: 720_000, // 12 min
+      jobId: "long_10m",
+      durationMs: 600_000, // 10 min
       languages: ["te"],
       sourceLanguage: "en",
     });
     expect(plan.mode).toBe("long_form");
-    expect(plan.totalReels).toBe(3);
+    expect(plan.totalReels).toBe(4);
     const reels = plan.steps.filter((s) => s.step === "reel_worker");
-    expect(reels).toHaveLength(3);
+    expect(reels).toHaveLength(4);
     const asm = plan.steps.find((s) => s.step === "assemble_reels")!;
-    expect(asm.dependsOn).toEqual(["long_1:reel:0", "long_1:reel:1", "long_1:reel:2"]);
+    expect(asm.dependsOn).toEqual(["long_10m:reel:0", "long_10m:reel:1", "long_10m:reel:2", "long_10m:reel:3"]);
+  });
+
+  test("long-form with twoStageReviewPending gates prepare_reels behind per-language translate_lang -> await_review", () => {
+    const plan = planDubbingSteps({
+      jobId: "long_rev",
+      durationMs: 600_000,
+      languages: ["te", "hi"],
+      sourceLanguage: "en",
+      twoStageReviewPending: true,
+    });
+    expect(plan.mode).toBe("long_form");
+    const prepReels = plan.steps.find((s) => s.step === "prepare_reels")!;
+    expect(prepReels.dependsOn).toEqual(["long_rev:await_review:te", "long_rev:await_review:hi"]);
+  });
+
+  test("computePerWorkerTtsConcurrency clamps total parallel ElevenLabs requests to plan ceiling", () => {
+    expect(computePerWorkerTtsConcurrency(3, 3)).toBe(1); // Starter: 3 instances x 1 slot = 3
+    expect(computePerWorkerTtsConcurrency(5, 3)).toBe(1); // Creator: <= 5
+    expect(computePerWorkerTtsConcurrency(10, 3)).toBe(3); // Pro: 3 instances x 3 = 9 <= 10
+    expect(computePerWorkerTtsConcurrency(15, 3)).toBe(5); // Scale: 3 instances x 5 = 15
   });
 
   test("resume skips completed steps, completed languages, and completed reels", () => {
     const plan = planDubbingSteps({
       jobId: "long_resume",
-      durationMs: 720_000,
+      durationMs: 450_000, // 7.5m -> 3 reels at 2.5m
       languages: ["te"],
       sourceLanguage: "en",
     });

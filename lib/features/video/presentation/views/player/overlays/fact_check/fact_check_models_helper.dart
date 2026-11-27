@@ -37,14 +37,14 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
     return {'title': rawSource.toString()};
   }
 
-  int normalizeTimestampToMs(dynamic raw) {
+  int normalizeTimestampToMs(dynamic raw, {bool isSecondsUnit = false}) {
     if (raw == null) return 0;
     if (raw is String) {
-      final parsed = double.tryParse(raw);
+      final parsed = double.tryParse(raw.trim());
       if (parsed != null) {
-        return normalizeTimestampToMs(parsed);
+        return normalizeTimestampToMs(parsed, isSecondsUnit: isSecondsUnit);
       }
-      final parts = raw.split(':');
+      final parts = raw.trim().split(':');
       if (parts.length == 2) {
         final m = double.tryParse(parts[0]) ?? 0;
         final s = double.tryParse(parts[1]) ?? 0;
@@ -60,7 +60,10 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
     if (raw is num) {
       final val = raw.toDouble();
       if (val <= 0) return 0;
-      if (val > 10000) {
+      if (isSecondsUnit) {
+        return (val * 1000).toInt();
+      }
+      if (val >= 1000) {
         return val.toInt();
       }
       return (val * 1000).toInt();
@@ -68,55 +71,42 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
     return 0;
   }
 
-  double? extractTimestamp(dynamic val) {
-    if (val == null) return null;
-    if (val is num) return val.toDouble();
-    if (val is String) {
-      final parsed = double.tryParse(val);
-      if (parsed != null) return parsed;
-      final parts = val.split(':');
-      if (parts.length == 2) {
-        final m = double.tryParse(parts[0]) ?? 0;
-        final s = double.tryParse(parts[1]) ?? 0;
-        return m * 60 + s;
-      } else if (parts.length == 3) {
-        final h = double.tryParse(parts[0]) ?? 0;
-        final m = double.tryParse(parts[1]) ?? 0;
-        final s = double.tryParse(parts[2]) ?? 0;
-        return h * 3600 + m * 60 + s;
+  double? _resolveFieldSeconds(Map<String, dynamic> claim, List<String> msKeys, List<String> mixedKeys, List<String> secKeys) {
+    for (final k in msKeys) {
+      final v = claim[k];
+      if (v is num) return v.toDouble() / 1000.0;
+    }
+    for (final k in secKeys) {
+      final v = claim[k];
+      if (v is num) return v.toDouble();
+    }
+    for (final k in mixedKeys) {
+      final v = claim[k];
+      if (v != null) {
+        final ms = normalizeTimestampToMs(v);
+        return ms / 1000.0;
       }
     }
     return null;
   }
 
   double? getClaimStartSeconds(Map<String, dynamic> claim) {
-    if (claim.containsKey('startMs') && claim['startMs'] is num) {
-      return (claim['startMs'] as num).toDouble() / 1000.0;
-    }
-    if (claim.containsKey('startTimeMs') && claim['startTimeMs'] is num) {
-      return (claim['startTimeMs'] as num).toDouble() / 1000.0;
-    }
-    final raw = claim['start'] ?? claim['timestampStart'] ?? claim['startTime'];
-    final sec = extractTimestamp(raw);
-    if (sec != null && sec > 10000 && !claim.containsKey('start')) {
-      return sec / 1000.0;
-    }
-    return sec;
+    return _resolveFieldSeconds(
+      claim,
+      const ['startMs', 'startTimeMs'],
+      const ['start', 'timestampStart', 'startTime'],
+      const ['startSeconds', 'startSec'],
+    );
   }
 
   double? getClaimEndSeconds(Map<String, dynamic> claim, [double? startSec]) {
-    if (claim.containsKey('endMs') && claim['endMs'] is num) {
-      return (claim['endMs'] as num).toDouble() / 1000.0;
-    }
-    if (claim.containsKey('endTimeMs') && claim['endTimeMs'] is num) {
-      return (claim['endTimeMs'] as num).toDouble() / 1000.0;
-    }
-    final raw = claim['end'] ?? claim['timestampEnd'] ?? claim['endTime'];
-    final sec = extractTimestamp(raw);
-    if (sec != null && sec > 10000 && !claim.containsKey('end')) {
-      return sec / 1000.0;
-    }
-    if (sec != null) return sec;
+    final endSec = _resolveFieldSeconds(
+      claim,
+      const ['endMs', 'endTimeMs'],
+      const ['end', 'timestampEnd', 'endTime'],
+      const ['endSeconds', 'endSec'],
+    );
+    if (endSec != null) return endSec;
     if (startSec != null) return startSec + 8.0;
     return null;
   }

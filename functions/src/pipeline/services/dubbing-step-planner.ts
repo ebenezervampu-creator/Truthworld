@@ -12,13 +12,16 @@
 
 export const CLOUD_FUNCTION_EVENT_MAX_SECONDS = 540;
 export const STEP_BUDGET_SECONDS = 480;
-export const DEFAULT_REEL_THRESHOLD_MS = 8 * 60 * 1000;
-export const DEFAULT_REEL_DURATION_MS = 5 * 60 * 1000;
+export const STEP_HANDOFF_MS = 360_000;
+export const DEFAULT_REEL_THRESHOLD_MS = 3 * 60 * 1000;
+export const DEFAULT_REEL_DURATION_MS = 150_000;
+export const DEFAULT_REEL_WORKER_MAX_INSTANCES = 3;
 
 export type DubbingChainStep =
   | "prep_analysis"
   | "prep_voices"
   | "translate_lang"
+  | "await_review"
   | "synthesize_and_mix"
   | "prepare_reels"
   | "reel_worker"
@@ -41,6 +44,7 @@ export interface StepPlanInput {
   sourceLanguage: string;
   reelThresholdMs?: number;
   reelDurationMs?: number;
+  twoStageReviewPending?: boolean;
 }
 
 export interface StepPlan {
@@ -58,6 +62,19 @@ export interface ResumeState {
   orderAlreadyCharged?: boolean;
 }
 
+/**
+ * Computes per-worker ElevenLabs TTS concurrency so parallel Cloud Function instances
+ * never exceed the account-wide plan ceiling (e.g. Starter = 3, maxInstances = 3 -> 1/worker).
+ */
+export function computePerWorkerTtsConcurrency(
+  accountMaxConcurrency: number,
+  workerMaxInstances: number = DEFAULT_REEL_WORKER_MAX_INSTANCES
+): number {
+  const ceiling = Math.max(1, Math.floor(accountMaxConcurrency || 1));
+  const instances = Math.max(1, Math.floor(workerMaxInstances || 1));
+  return Math.max(1, Math.floor(ceiling / instances));
+}
+
 export function planDubbingSteps(input: StepPlanInput): StepPlan {
   const thresholdMs = input.reelThresholdMs ?? DEFAULT_REEL_THRESHOLD_MS;
   const reelDurationMs = Math.max(60_000, input.reelDurationMs ?? DEFAULT_REEL_DURATION_MS);
@@ -70,16 +87,16 @@ export function planDubbingSteps(input: StepPlanInput): StepPlan {
   const steps: PlannedStep[] = [
     {
       step: "prep_analysis",
-      topic: "dubbing.step.prep_analysis",
+      topic: "dubbing.step.prep",
       key: `${input.jobId}:prep_analysis`,
       estimatedMaxSeconds: 240,
       dependsOn: [],
     },
     {
       step: "prep_voices",
-      topic: "dubbing.step.prep_voices",
+      topic: "dubbing.requested",
       key: `${input.jobId}:prep_voices`,
-      estimatedMaxSeconds: 180,
+      estimatedMaxSeconds: 120,
       dependsOn: [`${input.jobId}:prep_analysis`],
     },
   ];
@@ -95,14 +112,34 @@ export function planDubbingSteps(input: StepPlanInput): StepPlan {
         estimatedMaxSeconds: 120,
         dependsOn: [`${input.jobId}:prep_voices`],
       });
-      steps.push({
-        step: "synthesize_and_mix",
-        topic: "dubbing.step.synthesize",
-        key: `${input.jobId}:synthesize:${lang}`,
-        language: lang,
-        estimatedMaxSeconds: 300,
-        dependsOn: [translateKey],
-      });
+      if (input.twoStageReviewPending) {
+        const reviewKey = `${input.jobId}:await_review:${lang}`;
+        steps.push({
+          step: "await_review",
+          topic: "dubbing.requested",
+          key: reviewKey,
+          language: lang,
+          estimatedMaxSeconds: 10,
+          dependsOn: [translateKey],
+        });
+        steps.push({
+          step: "synthesize_and_mix",
+          topic: "dubbing.requested",
+          key: `${input.jobId}:synthesize:${lang}`,
+          language: lang,
+          estimatedMaxSeconds: 300,
+          dependsOn: [reviewKey],
+        });
+      } else {
+        steps.push({
+          step: "synthesize_and_mix",
+          topic: "dubbing.requested",
+          key: `${input.jobId}:synthesize:${lang}`,
+          language: lang,
+          estimatedMaxSeconds: 300,
+          dependsOn: [translateKey],
+        });
+      }
     }
     return {
       jobId: input.jobId,
@@ -113,14 +150,41 @@ export function planDubbingSteps(input: StepPlanInput): StepPlan {
     };
   }
 
+  let preReelDeps: string[] = [`${input.jobId}:prep_voices`];
+  if (input.twoStageReviewPending && langs.length > 0) {
+    const reviewKeys: string[] = [];
+    for (const lang of langs) {
+      const translateKey = `${input.jobId}:translate:${lang}`;
+      const reviewKey = `${input.jobId}:await_review:${lang}`;
+      steps.push({
+        step: "translate_lang",
+        topic: "dubbing.step.translate",
+        key: translateKey,
+        language: lang,
+        estimatedMaxSeconds: 180,
+        dependsOn: [`${input.jobId}:prep_voices`],
+      });
+      steps.push({
+        step: "await_review",
+        topic: "dubbing.requested",
+        key: reviewKey,
+        language: lang,
+        estimatedMaxSeconds: 10,
+        dependsOn: [translateKey],
+      });
+      reviewKeys.push(reviewKey);
+    }
+    preReelDeps = reviewKeys;
+  }
+
   const totalReels = Math.max(1, Math.ceil(input.durationMs / reelDurationMs));
   const prepReelsKey = `${input.jobId}:prepare_reels`;
   steps.push({
     step: "prepare_reels",
-    topic: "dubbing.step.prepare_reels",
+    topic: "dubbing.requested",
     key: prepReelsKey,
-    estimatedMaxSeconds: 60,
-    dependsOn: [`${input.jobId}:prep_voices`],
+    estimatedMaxSeconds: 120,
+    dependsOn: preReelDeps,
   });
 
   const reelKeys: string[] = [];
@@ -132,8 +196,7 @@ export function planDubbingSteps(input: StepPlanInput): StepPlan {
       topic: "dubbing.reel.requested",
       key: rk,
       reelIndex: i,
-      // Translates only this 5-min reel + synthesizes + stitches
-      estimatedMaxSeconds: 300,
+      estimatedMaxSeconds: 240,
       dependsOn: [prepReelsKey],
     });
   }

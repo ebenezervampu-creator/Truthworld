@@ -207,6 +207,39 @@ void main() {
       expect(controller.selectedTab.value, equals(1));
     });
 
+    testWidgets('DashboardCommentsVideosListView does not overflow on narrow mobile viewport with long metadata', (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      controller.videosWithComments.value = [
+        CreatorVideoWithComments(
+          videoId: 'v_long_1',
+          title: 'A very long video title that should ellipsize cleanly without overflowing',
+          thumbnail: '',
+          duration: '12:34',
+          viewCount: 987654321,
+          commentCount: 123456,
+          createdAt: DateTime.now().subtract(const Duration(days: 35)),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DashboardCommentsVideosListView(
+              controller: controller,
+              isMobile: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('DashboardCommentsEmptyState renders context-aware empty state', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(

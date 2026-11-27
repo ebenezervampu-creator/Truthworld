@@ -108,17 +108,11 @@ class AudioTracksDialogs {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Add Audio Track',
+                      'Add Dub',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox.shrink(
-                      child: Text(
-                        'Add AudioTracks & VideoTracks Dubbing',
-                        style: TextStyle(fontSize: 0, color: Colors.transparent),
                       ),
                     ),
                     IconButton(
@@ -129,7 +123,7 @@ class AudioTracksDialogs {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Choose how you would like to create or add audio tracks.',
+                  'Choose how you would like to create or add dubs.',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -139,14 +133,14 @@ class AudioTracksDialogs {
                 const Divider(color: AppColors.bgSurface, height: 1),
                 const SizedBox(height: 16),
 
-                // Option 1: Generate Audio tracks
+                // Option 1: Generate Dubs
                 _buildAddOptionCard(
                   icon: Icons.auto_awesome_rounded,
                   iconBg: AppColors.brand.withValues(alpha: 0.15),
                   iconColor: Colors.white,
-                  title: 'Generate Audio tracks',
+                  title: 'Generate Dubs',
                   subtitle:
-                      'Auto-generate multi-language audio track & voiceover with AI',
+                      'Auto-generate multi-language dubs & voiceovers with AI',
                   onTap: () {
                     Get.back<void>();
                     showAddAudioTrackWithOptionsModal(
@@ -158,12 +152,12 @@ class AudioTracksDialogs {
                 ),
                 const SizedBox(height: 12),
 
-                // Option 2: Upload Audio track from device video/Audio
+                // Option 2: Upload Dub from device video/Audio
                 _buildAddOptionCard(
                   icon: Icons.upload_file_rounded,
                   iconBg: AppColors.bgSurface,
                   iconColor: Colors.white,
-                  title: 'Upload Audio track from device video/Audio',
+                  title: 'Upload Dub from device video/Audio',
                   subtitle:
                       'Upload existing audio or video files (.mp3, .wav, .m4a, .mp4, .mov) from your device',
                   onTap: () {

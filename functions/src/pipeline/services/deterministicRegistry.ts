@@ -16,7 +16,7 @@
  *    "verified_true".
  */
 
-import { ClaimStatus, RichSource } from "../types";
+import { ClaimStatus, RichSource, SourceRole } from "../types";
 
 export interface DeterministicFactMatch {
   matched: boolean;
@@ -37,6 +37,7 @@ interface ReferenceSource {
   url: string;
   domain: string;
   snippet: string;
+  sourceKind?: SourceRole;
 }
 
 const SOURCES = {
@@ -95,6 +96,15 @@ const SOURCES = {
     url: "https://www.nasa.gov/mission/apollo-11/",
     domain: "nasa.gov",
     snippet: "On July 20, 1969, Apollo 11 landed on the lunar surface.",
+    sourceKind: "REFERENCE" as SourceRole,
+  },
+  nasaMoonFacts: {
+    source: "NASA Solar System Exploration — Moon Facts",
+    title: "NASA Moon Facts: Earth-Moon Distance & Orbital Metrics",
+    url: "https://science.nasa.gov/moon/facts/",
+    domain: "nasa.gov",
+    snippet: "The average distance between the Earth and the Moon is about 384,400 km (238,855 miles).",
+    sourceKind: "REFERENCE" as SourceRole,
   },
   unHistory: {
     source: "United Nations Historical Treaty Archives",
@@ -269,6 +279,7 @@ function match(
     retrievalMethod: "deterministic",
     claimStance: stanceDirection,
     claimStanceReason: reasoning,
+    sourceKind: r.sourceKind || "REFERENCE",
     lastVerified: nowIso,
     urlVerification: {
       status: "VERIFIED",
@@ -392,6 +403,7 @@ export class DeterministicRegistryService {
       this.resolveDna(n) ??
       this.resolveCapital(n) ??
       this.resolveApollo11(n) ??
+      this.resolveEarthMoonDistance(n) ??
       this.resolveUnitedNations(n) ??
       this.resolveAntibiotics(n) ??
       this.resolveSmoking(n) ??
@@ -610,27 +622,133 @@ export class DeterministicRegistryService {
 
   // ── Apollo 11 ────────────────────────────────────────────────────────────────
   private static resolveApollo11(n: string): DeterministicFactMatch | null {
-    const when = "(?: in (?:july )?(\\d{4})| on july (?:20|21),? (\\d{4}))?";
+    // Reject obvious conspiracy / non-moon tampering tokens explicitly (even if phrased similarly)
+    if (/\b(hoax|fake[d]?|studio|staged|did not|didnt|never|mars|venus)\b/.test(n)) {
+      return null;
+    }
+
+    // 1. Landing date / mission first landing
+    const when = "(?: in (?:july )?(\\d{4})| on ([a-z]+) (\\d{1,2}),? (\\d{4}))?";
     const crew = "(?:humans|astronauts|men|people|the first humans|the first astronauts|neil armstrong and buzz aldrin)";
-    const patterns = [
+    const landingPatterns = [
       new RegExp(`^(?:nasas )?apollo 11 (?:successfully )?landed(?: ${crew})? on the moon${when}$`),
       new RegExp(`^(?:nasas )?apollo 11 (?:put|carried|took) ${crew} (?:on|to) the moon${when}$`),
       new RegExp(`^(?:nasas )?apollo 11 was the first (?:crewed |manned )?(?:mission|spaceflight) to land (?:humans |astronauts )?on the moon${when}$`),
       new RegExp(`^(?:neil armstrong(?: and buzz aldrin)?|humans|astronauts) (?:first )?(?:walked|landed|set foot) on the moon${when}(?: (?:during|on|aboard) apollo 11)?$`),
       new RegExp(`^(?:the )?apollo 11 moon landing (?:took place|happened|was)${when}$`),
     ];
-    for (const re of patterns) {
+    for (const re of landingPatterns) {
       const m = re.exec(n);
       if (!m) continue;
-      const year = m[1] || m[2];
-      if (year && year !== "1969") {
+      const inYear = m[1];
+      const onMonth = m[2];
+      const onDay = m[3];
+      const onYear = m[4];
+      if (onYear) {
+        const isCorrectDate = onMonth === "july" && (onDay === "20" || onDay === "21") && onYear === "1969";
+        if (!isCorrectDate) {
+          return match("false_claim", 1.0,
+            `The Apollo 11 Moon landing took place on July 20, 1969, not on ${onMonth} ${onDay}, ${onYear}.`,
+            SOURCES.nasaApollo);
+        }
+      } else if (inYear && inYear !== "1969") {
         return match("false_claim", 1.0,
-          `The Apollo 11 Moon landing took place on July 20, 1969, not in ${year}.`,
+          `The Apollo 11 Moon landing took place on July 20, 1969, not in ${inYear}.`,
           SOURCES.nasaApollo);
       }
       return match("verified_true", 1.0,
         "NASA astronauts Neil Armstrong and Buzz Aldrin landed the Apollo 11 Lunar Module on the Moon on July 20, 1969.",
         SOURCES.nasaApollo);
+    }
+
+    // 2. Launch date (July 16, 1969)
+    const launchPatterns = [
+      /^(?:nasas |the )?apollo 11 (?:spacecraft |rocket |mission )?(?:was )?(?:launched|blasted off|lifted off|took off)(?: (?:to|for|toward|towards) the moon)?(?: from (?:earth|kennedy space center|cape canaveral|florida))?(?: on ([a-z]+) (\d{1,2}),? (\d{4})| in (?:([a-z]+) )?(\d{4}))?$/,
+      /^(?:the )?apollo 11 launch (?:date )?(?:was|took place|happened)(?: on ([a-z]+) (\d{1,2}),? (\d{4})| in (?:([a-z]+) )?(\d{4}))$/,
+    ];
+    for (const re of launchPatterns) {
+      const m = re.exec(n);
+      if (!m) continue;
+      const onMonth = m[1];
+      const onDay = m[2];
+      const onYear = m[3];
+      const inMonth = m[4];
+      const inYear = m[5];
+
+      if (onYear) {
+        if (onMonth === "july" && onDay === "16" && onYear === "1969") {
+          return match("verified_true", 1.0,
+            "Apollo 11 launched aboard a Saturn V rocket from Kennedy Space Center on July 16, 1969.",
+            SOURCES.nasaApollo);
+        }
+        return match("false_claim", 1.0,
+          `Apollo 11 launched on July 16, 1969, not on ${onMonth} ${onDay}, ${onYear}.`,
+          SOURCES.nasaApollo);
+      }
+      if (inYear) {
+        if (inYear === "1969" && (!inMonth || inMonth === "july")) {
+          return match("verified_true", 1.0,
+            "Apollo 11 launched aboard a Saturn V rocket from Kennedy Space Center on July 16, 1969.",
+            SOURCES.nasaApollo);
+        }
+        return match("false_claim", 1.0,
+          `Apollo 11 launched in July 1969, not ${inMonth ? `${inMonth} ` : ""}${inYear}.`,
+          SOURCES.nasaApollo);
+      }
+      return match("verified_true", 1.0,
+        "Apollo 11 launched aboard a Saturn V rocket from Kennedy Space Center on July 16, 1969.",
+        SOURCES.nasaApollo);
+    }
+
+    // 3. Mission duration (~8 days: 8 days, 3 hours, 18 minutes)
+    const durationRe = new RegExp(`^(?:the )?apollo 11 (?:mission |spaceflight |flight )?(?:lasted|took|duration was) ${APPROX}${NUM} days?$`);
+    const dm = durationRe.exec(n);
+    if (dm) {
+      const days = toNumber(dm[1]);
+      if (days >= 7.5 && days <= 9.0) {
+        return match("verified_true", 0.99,
+          "The Apollo 11 mission lasted approximately 8 days (8 days, 3 hours, and 18 minutes from launch to splashdown).",
+          SOURCES.nasaApollo);
+      }
+      return match("false_claim", 0.99,
+        `The Apollo 11 mission lasted approximately 8 days (8 days, 3 hours, 18 minutes), not ${dm[1]} days.`,
+        SOURCES.nasaApollo);
+    }
+
+    return null;
+  }
+
+  // ── Earth-Moon Distance ──────────────────────────────────────────────────────
+  private static resolveEarthMoonDistance(n: string): DeterministicFactMatch | null {
+    const unit = "(km|kilometers?|kilometres?|miles?|mi)";
+    const patterns = [
+      new RegExp(`^(?:the )?(?:average )?distance (?:from|between) (?:the )?earth (?:to|and) (?:the )?moon is ${APPROX}${NUM} ${unit}$`),
+      new RegExp(`^(?:the )?moon is ${APPROX}${NUM} ${unit} (?:away )?from (?:the )?earth$`),
+    ];
+    for (const re of patterns) {
+      const m = re.exec(n);
+      if (!m) continue;
+      const val = toNumber(m[1]);
+      const rawUnit = m[2];
+      const isMiles = /^mi(les?)?$/.test(rawUnit);
+      if (isMiles) {
+        if (val >= 220_000 && val <= 255_000) {
+          return match("verified_true", 0.99,
+            "The average distance between Earth and the Moon is approximately 238,855 miles (384,400 km).",
+            SOURCES.nasaMoonFacts);
+        }
+        return match("false_claim", 0.99,
+          `The average distance from Earth to the Moon is approximately 238,855 miles (384,400 km), not ${val.toLocaleString("en-US")} miles.`,
+          SOURCES.nasaMoonFacts);
+      }
+      if (val >= 350_000 && val <= 415_000) {
+        return match("verified_true", 0.99,
+          "The average distance from Earth to the Moon is approximately 384,400 km (varying between ~363,300 km at perigee and ~405,500 km at apogee).",
+          SOURCES.nasaMoonFacts);
+      }
+      return match("false_claim", 0.99,
+        `The average distance from Earth to the Moon is approximately 384,400 km, not ${val.toLocaleString("en-US")} km.`,
+        SOURCES.nasaMoonFacts);
     }
     return null;
   }

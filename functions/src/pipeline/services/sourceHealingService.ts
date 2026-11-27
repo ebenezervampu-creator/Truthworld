@@ -74,7 +74,7 @@ export class SourceHealingService {
 
   private getReAdjudicator(): ClaimReAdjudicator {
     if (!this.reAdjudicator) {
-      this.reAdjudicator = new ClaimVerificationService(process.env.GEMINI_API_KEY || "", 0.6);
+      this.reAdjudicator = new ClaimVerificationService(undefined, 0.6);
     }
     return this.reAdjudicator;
   }

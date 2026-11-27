@@ -59,8 +59,16 @@ export const rollupDailyStats = onSchedule(
         const subViews = stats.subscriberViews ?? stats.totalSubscribers ?? 0;
         const totalV = Number(videoData.viewCount || videoData.views || stats.totalViews || 0);
         const totalWatchSec = Number(videoData.totalWatchTimeSeconds ?? stats.totalWatchSeconds ?? 0);
-        const nonSubViews = stats.nonSubscriberViews ?? Math.max(0, totalV - subViews);
-        const returningViewers = stats.returningViewers ?? Math.max(0, totalV - (stats.uniqueUsers ?? totalV));
+
+        // YouTube-standard daily delta: subtract previously rolled-up cumulative totals
+        // so each dailyStats doc stores ONLY the views & watchtime earned on that day.
+        const prevRolledViews = Number(stats.lastDailyRollupViews ?? 0);
+        const prevRolledWatch = Number(stats.lastDailyRollupWatchSeconds ?? 0);
+        const dailyViews = Math.max(0, totalV - prevRolledViews);
+        const dailyWatchSec = Math.max(0, totalWatchSec - prevRolledWatch);
+
+        const nonSubViews = stats.nonSubscriberViews ?? Math.max(0, dailyViews - subViews);
+        const returningViewers = stats.returningViewers ?? Math.max(0, dailyViews - (stats.uniqueUsers ?? dailyViews));
         const urbanViewers = stats.urbanViewers ?? 0;
         const ruralViewers = stats.ruralViewers ?? 0;
         const stateTraffic = (stats.stateTraffic && typeof stats.stateTraffic === "object") ? stats.stateTraffic : {};
@@ -70,12 +78,14 @@ export const rollupDailyStats = onSchedule(
         const dailyData = {
           date: dateKey,
           dateKey: dateKeyUnderscored,
-          views: totalV,
-          totalViews: totalV,
-          totalWatchSeconds: totalWatchSec,
-          totalWatchTimeSeconds: totalWatchSec,
+          views: dailyViews,
+          totalViews: dailyViews,
+          totalWatchSeconds: dailyWatchSec,
+          totalWatchTimeSeconds: dailyWatchSec,
+          cumulativeViews: totalV,
+          cumulativeWatchTimeSeconds: totalWatchSec,
           uniqueUsers: stats.uniqueUsers ?? 0,
-          avgWatchSeconds: stats.avgWatchSeconds ?? 0,
+          avgWatchSeconds: dailyViews > 0 ? Math.round(dailyWatchSec / dailyViews) : (stats.avgWatchSeconds ?? 0),
           completionRate: stats.completionRate ?? 0,
           retentionCurve: stats.retentionCurve ?? [],
           retention: videoData.retention ?? {},
@@ -91,6 +101,18 @@ export const rollupDailyStats = onSchedule(
           countryTraffic,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         };
+
+        // Update rollup cursor on video_stats so tomorrow's delta is accurate
+        batch.set(
+          doc.ref,
+          {
+            lastDailyRollupViews: totalV,
+            lastDailyRollupWatchSeconds: totalWatchSec,
+            lastDailyRollupDate: dateKeyUnderscored,
+          },
+          { merge: true }
+        );
+        ops++;
 
         // Write video daily stats
         if (ops >= 490) {
@@ -128,8 +150,8 @@ export const rollupDailyStats = onSchedule(
             cityTraffic: {},
             countryTraffic: {},
           };
-          existing.views += totalV;
-          existing.watchSeconds += totalWatchSec;
+          existing.views += dailyViews;
+          existing.watchSeconds += dailyWatchSec;
           existing.subscriberViews += subViews;
           existing.nonSubscriberViews += nonSubViews;
           existing.returningViewers += returningViewers;
@@ -156,16 +178,8 @@ export const rollupDailyStats = onSchedule(
           ops = 0;
         }
 
-        let channelWatch = acc.watchSeconds;
-        let channelViews = acc.views;
-        try {
-          const chSnap = await db.collection("channels").doc(channelId).get();
-          if (chSnap.exists) {
-            const chData = chSnap.data() ?? {};
-            channelWatch = Math.max(channelWatch, Number(chData.totalWatchTimeSeconds || 0));
-            channelViews = Math.max(channelViews, Number(chData.viewCount || chData.metrics?.totalViews || 0));
-          }
-        } catch (_) {}
+        const channelWatch = acc.watchSeconds;
+        const channelViews = acc.views;
 
         batch.set(
           db.collection("channels").doc(channelId).collection("dailyStats").doc(dateKeyUnderscored),

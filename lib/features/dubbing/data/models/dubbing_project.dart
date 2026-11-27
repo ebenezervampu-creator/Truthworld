@@ -30,6 +30,7 @@ class DubbingProject {
   final List<String> subtitledLanguages;
   final String? latestJobId;
   final String latestStatus; // 'draft' | 'processing' | 'completed' | 'failed'
+  final bool isDeleted;
   final int createdAt;
   final int updatedAt;
 
@@ -61,6 +62,7 @@ class DubbingProject {
     this.subtitledLanguages = const [],
     this.latestJobId,
     this.latestStatus = 'draft',
+    this.isDeleted = false,
   });
 
   factory DubbingProject.fromMap(Map<String, dynamic> map, {String? docId}) {
@@ -118,6 +120,7 @@ class DubbingProject {
       latestStatus: (map['latestStatus']?.toString().trim().isNotEmpty == true)
           ? map['latestStatus'].toString().trim()
           : 'draft',
+      isDeleted: map['isDeleted'] == true,
       createdAt: (map['createdAt'] as num?)?.toInt() ?? nowMs,
       updatedAt: (map['updatedAt'] as num?)?.toInt() ?? nowMs,
     );
@@ -186,6 +189,7 @@ class DubbingProject {
       'subtitledLanguages': subtitledLanguages,
       if (latestJobId != null) 'latestJobId': latestJobId,
       'latestStatus': latestStatus,
+      if (isDeleted) 'isDeleted': true,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -218,6 +222,7 @@ class DubbingProject {
     List<String>? subtitledLanguages,
     String? latestJobId,
     String? latestStatus,
+    bool? isDeleted,
     int? createdAt,
     int? updatedAt,
   }) {
@@ -247,6 +252,7 @@ class DubbingProject {
       subtitledLanguages: subtitledLanguages ?? this.subtitledLanguages,
       latestJobId: latestJobId ?? this.latestJobId,
       latestStatus: latestStatus ?? this.latestStatus,
+      isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

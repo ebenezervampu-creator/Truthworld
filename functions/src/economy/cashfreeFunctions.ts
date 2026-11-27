@@ -48,8 +48,13 @@ async function fulfillOrder(
     let userMembershipRef: admin.firestore.DocumentReference | null = null;
     let legacyMembershipRef: admin.firestore.DocumentReference | null = null;
     let receiptRef: admin.firestore.DocumentReference | null = null;
+    let dubbingWalletRef: admin.firestore.DocumentReference | null = null;
+    let dubbingWalletSnap: admin.firestore.DocumentSnapshot | null = null;
 
-    if (purpose === "channel_membership") {
+    if (purpose === "dubbing_wallet_topup") {
+      dubbingWalletRef = firestore.collection("dubbing_wallets").doc(userId);
+      dubbingWalletSnap = await transaction.get(dubbingWalletRef);
+    } else if (purpose === "channel_membership") {
       const { channelId, tierId } = metadata;
       if (channelId && tierId) {
         memberRef = firestore
@@ -96,14 +101,81 @@ async function fulfillOrder(
     // -------------------------------------------------------------
     // 2. ALL WRITES COMMENCE AFTER ALL READS ARE COMPLETE
     // -------------------------------------------------------------
+    const verifiedUsdForOrder =
+      purpose === "dubbing_wallet_topup" || purpose === "ai_dubbing" || purpose === "ai_subtitles"
+        ? (orderCurrency === "USD"
+            ? Number(amount.toFixed(2))
+            : (amount > 0 ? Number((amount / 84.0).toFixed(2)) : 0))
+        : undefined;
+
     transaction.update(orderRef, {
       status: "FULFILLED",
       fulfilledAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...(verifiedUsdForOrder !== undefined ? { verifiedAmountUSD: verifiedUsdForOrder } : {}),
     });
 
     const now = Date.now();
 
-    if (purpose === "premium_subscription") {
+    if (purpose === "dubbing_wallet_topup" && dubbingWalletRef) {
+      const amountUSD = verifiedUsdForOrder ?? 0;
+      const existingData = dubbingWalletSnap?.exists ? dubbingWalletSnap.data() || {} : {};
+      const existingTxs: any[] = Array.isArray(existingData.transactions)
+        ? existingData.transactions
+        : [];
+      const alreadyRecorded = existingTxs.some(
+        (t: any) => t?.id === orderId || t?.orderId === orderId
+      );
+
+      if (!alreadyRecorded && amountUSD > 0) {
+        const currentUsd = Number(existingData.balanceUsd || 0);
+        const nextUsd = Number((currentUsd + amountUSD).toFixed(2));
+        const topupDescription =
+          metadata.description ||
+          `Dubbing Wallet Top-Up (+$${amountUSD.toFixed(2)}) via Cashfree`;
+        const topupTx = {
+          id: orderId,
+          orderId,
+          type: "topup",
+          amountCredits: 0,
+          amountUsd: amountUSD,
+          description: topupDescription,
+          timestamp: now,
+        };
+
+        transaction.set(
+          dubbingWalletRef,
+          {
+            userId,
+            balanceCredits: Number(existingData.balanceCredits || 0),
+            balanceUsd: nextUsd,
+            trialClaimed: Boolean(existingData.trialClaimed),
+            totalCharactersUsed: Number(existingData.totalCharactersUsed || 0),
+            totalSpentUsd: Number(existingData.totalSpentUsd || 0),
+            transactions: [topupTx, ...existingTxs].slice(0, 100),
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+
+        const walletTxRef = firestore.collection("dubbing_wallet_transactions").doc(orderId);
+        transaction.set(walletTxRef, {
+          id: orderId,
+          orderId,
+          userId,
+          type: "topup",
+          amountUsd: amountUSD,
+          currency: orderCurrency,
+          paidAmount: amount,
+          description: topupDescription,
+          timestamp: now,
+          paymentGateway: "cashfree",
+          metadata: {
+            ...metadata,
+            verifiedAmountUSD: amountUSD,
+          },
+        });
+      }
+    } else if (purpose === "premium_subscription") {
       const planId = metadata.planId || "individual_monthly";
       const isYearly = planId.includes("yearly");
       const durationDays = isYearly ? 365 : 30;
@@ -336,11 +408,11 @@ async function fulfillOrder(
       }
     } else if (purpose === "ai_dubbing" || purpose === "ai_subtitles") {
       const channelId = metadata.channelId;
-      if (channelId) {
-        const amountUSD = orderCurrency === "USD"
-          ? Number(amount.toFixed(2))
-          : (amount > 0 ? Number((amount / 84.0).toFixed(2)) : 0);
+      const amountUSD = verifiedUsdForOrder ?? (orderCurrency === "USD"
+        ? Number(amount.toFixed(2))
+        : (amount > 0 ? Number((amount / 84.0).toFixed(2)) : 0));
 
+      if (channelId) {
         const txRef = firestore.collection("channel_wallet_transactions").doc(orderId);
         transaction.set(txRef, {
           id: orderId,
@@ -357,6 +429,27 @@ async function fulfillOrder(
           metadata: {
             ...metadata,
             inrAmount: amount,
+            verifiedAmountUSD: amountUSD,
+            paidDirectly: true,
+          },
+        });
+      } else {
+        const walletTxRef = firestore.collection("dubbing_wallet_transactions").doc(orderId);
+        transaction.set(walletTxRef, {
+          id: orderId,
+          orderId,
+          userId,
+          type: "direct_payment",
+          category: purpose === "ai_dubbing" ? "aiDubbing" : "aiSubtitles",
+          amountUsd: amountUSD,
+          currency: orderCurrency,
+          paidAmount: amount,
+          description: metadata.description || `Direct Payment for ${purpose === "ai_dubbing" ? "AI Dubbing" : "AI Subtitles"} via Cashfree`,
+          timestamp: now,
+          paymentGateway: "cashfree",
+          metadata: {
+            ...metadata,
+            verifiedAmountUSD: amountUSD,
             paidDirectly: true,
           },
         });
@@ -596,6 +689,7 @@ export const createCashfreeOrder = onCall(
       "advertiser_campaign",
       "channel_topup",
       "channel_wallet_topup",
+      "dubbing_wallet_topup",
       "superchat",
       "super_thanks",
       "custom_channel_plan",
@@ -689,6 +783,11 @@ export const createCashfreeOrder = onCall(
       "channelName",
       "tierName",
       "planTier",
+      "walletScope",
+      "source",
+      "languageCode",
+      "targetLanguages",
+      "dubbingTier",
     ];
     const safeMetadata: Record<string, any> = {};
     if (metadata && typeof metadata === "object") {
@@ -1374,6 +1473,8 @@ export const cashfreeHostedCheckout = onRequest(
     cors: [
       "https://www.truthworld.in",
       "https://truthworld.in",
+      "https://dubbing.truthworld.in",
+      "https://studio.truthworld.in",
       "https://www.truthworld.app",
       "https://truthworld.app",
     ],

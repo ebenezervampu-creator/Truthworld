@@ -170,11 +170,23 @@ describe("#1 deterministic tiers compare the stated value, not the topic", () =>
 // ── #2 Live claim stream is gated ──────────────────────────────────────────────
 
 describe("#2 every verdict in videos/{id}/claims passes the verdict gate", () => {
+  const VID_GATE_1 = "11111111-1111-4111-8111-111111111111";
+  const VID_GATE_2 = "22222222-2222-4222-8222-222222222222";
+  const VID_GATE_3 = "33333333-3333-4333-8333-333333333333";
+
+  const seedVideoDoc = async (videoId: string) => {
+    await admin.firestore().collection("videos").doc(videoId).set({
+      id: videoId,
+      title: `Gate test video ${videoId}`,
+    });
+  };
+
   const readClaim = async (videoId: string, claimId: string) =>
     (await admin.firestore().collection("videos").doc(videoId).collection("claims").doc(claimId).get()).data() as any;
 
   it("an ungrounded 'verified_true' from a fast tier is published as UNPROVEN with the fixed message", async () => {
-    await StreamingClaimProcessor.publishResolvedClaims("vid_gate_1", [{
+    await seedVideoDoc(VID_GATE_1);
+    await StreamingClaimProcessor.publishResolvedClaims(VID_GATE_1, [{
       claimId: "c1",
       text: "Apollo 11 was faked in a studio in 1969",
       status: "verified_true",
@@ -184,7 +196,7 @@ describe("#2 every verdict in videos/{id}/claims passes the verdict gate", () =>
       start: 12000,
     } as any]);
 
-    const doc = await readClaim("vid_gate_1", "c1");
+    const doc = await readClaim(VID_GATE_1, "c1");
     expect(doc.status).toBe("unproven");
     expect(doc.verdict).toBe("unproven");
     expect(doc.publicVerdict).toBe("UNPROVEN");
@@ -196,7 +208,8 @@ describe("#2 every verdict in videos/{id}/claims passes the verdict gate", () =>
   });
 
   it("a verdict backed by a live, on-point Tier A source is published as VERIFIED", async () => {
-    await StreamingClaimProcessor.publishResolvedClaims("vid_gate_2", [{
+    await seedVideoDoc(VID_GATE_2);
+    await StreamingClaimProcessor.publishResolvedClaims(VID_GATE_2, [{
       claimId: "c2",
       text: "Apollo 11 landed on the moon in 1969",
       status: "verified_true",
@@ -208,16 +221,17 @@ describe("#2 every verdict in videos/{id}/claims passes the verdict gate", () =>
       start: 5000,
     } as any]);
 
-    const doc = await readClaim("vid_gate_2", "c2");
+    const doc = await readClaim(VID_GATE_2, "c2");
     expect(doc.status).toBe("verified_true");
     expect(doc.publicVerdict).toBe("VERIFIED");
   });
 
   it("re-publishing without timing keeps the stored timestamps", async () => {
+    await seedVideoDoc(VID_GATE_3);
     const claim: any = { claimId: "c3", text: "x claim text", status: "unproven", start: 42000, end: 45000 };
-    await StreamingClaimProcessor.publishResolvedClaims("vid_gate_3", [claim]);
-    await StreamingClaimProcessor.publishResolvedClaims("vid_gate_3", [{ ...claim, start: undefined, end: undefined }]);
-    const doc = await readClaim("vid_gate_3", "c3");
+    await StreamingClaimProcessor.publishResolvedClaims(VID_GATE_3, [claim]);
+    await StreamingClaimProcessor.publishResolvedClaims(VID_GATE_3, [{ ...claim, start: undefined, end: undefined }]);
+    const doc = await readClaim(VID_GATE_3, "c3");
     expect(doc.startMs).toBe(42000);
     expect(doc.endMs).toBe(45000);
   });
@@ -371,8 +385,8 @@ describe("#5 Video owners are blocked from writing to media/credibility in fires
     const rulesPath = path.join(ROOT_DIR, "firestore.rules");
     const rulesContent = fs.readFileSync(rulesPath, "utf8");
 
-    // Must match: allow write: if isVideoOwner(videoId) && docId != 'credibility';
-    expect(rulesContent).toMatch(/match\s*\/media\/\{docId\}\s*\{[\s\S]*?allow write:\s*if\s*isVideoOwner\(videoId\)\s*&&\s*docId\s*!=\s*['"]credibility['"];/);
+    // Must match: allow write: if videoExists(videoId) && isVideoOwner(videoId) && docId != 'credibility';
+    expect(rulesContent).toMatch(/match\s*\/media\/\{docId\}\s*\{[\s\S]*?allow write:\s*if\s*videoExists\(videoId\)\s*&&\s*isVideoOwner\(videoId\)\s*&&\s*docId\s*!=\s*['"]credibility['"];/);
   });
 });
 

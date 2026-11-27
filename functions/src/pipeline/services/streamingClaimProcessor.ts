@@ -94,6 +94,40 @@ export class StreamingClaimProcessor {
   }
 
   /**
+   * Syncs a single post-publication claim update (e.g. Community Note re-evaluation
+   * or source healing) into `videos/{videoId}/claims/{claimId}` if the doc exists,
+   * preserving the single-writer + verdict-gate invariant.
+   */
+  public static async syncUpdatedClaim(
+    videoId: string,
+    updatedClaim: Partial<VerifiedClaim> & Record<string, any>
+  ): Promise<void> {
+    const claimId = String(updatedClaim?.claimId || "").trim();
+    if (!videoId || !claimId) return;
+    try {
+      const ref = db().collection("videos").doc(videoId).collection("claims").doc(claimId);
+      const snap = await ref.get();
+      if (!snap.exists) return;
+      const gated = StreamingClaimProcessor.gatedVerdictFields(updatedClaim);
+      await ref.set(
+        {
+          ...gated,
+          ...(Array.isArray((updatedClaim as any).sources) ? { sources: (updatedClaim as any).sources } : {}),
+          ...(Array.isArray((updatedClaim as any).verdictHistory)
+            ? { verdictHistory: (updatedClaim as any).verdictHistory }
+            : {}),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      logger.warn(`[StreamingClaimProcessor] Failed syncing updated claim ${claimId} for ${videoId}`, {
+        err: String(err),
+      });
+    }
+  }
+
+  /**
    * Generates a stable, collision-free occurrence ID for a claim.
    * Incorporates normalized text hash AND timestamp offset so duplicate phrases
    * spoken at different times in the video maintain separate, clean timeline identities.

@@ -2122,6 +2122,17 @@ class VideoController extends BaseController
 
 
   void onClose() {
+    flushRemainingWatchTime();
+    if (AuthService.to.isAuthenticated.value &&
+        AuthService.to.uid.isNotEmpty &&
+        watchStopwatch.elapsed.inSeconds > 0 &&
+        !isAlreadyWatchedVideo) {
+      final totalDur = videoPlayerController?.value.duration.inSeconds ??
+          video.durationSeconds;
+      if (totalDur > 0) {
+        fireMilestoneEvent('exit', watchStopwatch.elapsed.inSeconds, totalDur);
+      }
+    }
     disposeClaimStream();
 
     handoffToMiniplayerOrDispose();

@@ -80,7 +80,7 @@ class DubbingModeSwitcher extends StatelessWidget {
               child: _ModeTabPill(
                 isActive: activeTab == 1,
                 icon: Icons.graphic_eq_rounded,
-                label: 'Direct Audio Track',
+                label: 'Direct Dub',
                 onTap: () => state.selectedTab.value = 1,
               ),
             ),

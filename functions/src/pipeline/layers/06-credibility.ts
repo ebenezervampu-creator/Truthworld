@@ -38,10 +38,12 @@ import { sourceTrustService } from "../services/sourceTrustService";
 import { tier0KnowledgeService } from "../services/tier0Knowledge";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
 import {
+  canonicalizeUrl,
   enforceClosedWorldCitationFirewall,
   isVerifiedRichSource,
   sanitizeReportPayloadForClosedWorld,
 } from "../services/urlVerificationService";
+import { getBigQueryAnalyticsService } from "../../analytics/bigqueryService";
 import { costEngine } from "../services/cost-engine";
 import { isVideoId, safeMergeExistingVideo } from "../../utils/videosCollectionGuard";
 import { JobTokenTracker, normalizeToGcsUri, extractCandidateText } from "../utils/ai-utils";
@@ -374,6 +376,139 @@ function attachTranscriptExcerpts<T extends { start?: number; end?: number }>(cl
   });
 }
 
+const GENERIC_SOURCE_TITLES = new Set([
+  "",
+  "verified source",
+  "authoritative source",
+  "reference source",
+  "source",
+]);
+
+function isGenericSourceTitle(title: unknown, source?: any): boolean {
+  const t = String(title || "").trim().toLowerCase();
+  if (GENERIC_SOURCE_TITLES.has(t)) return true;
+  if (/^https?:\/\//i.test(t)) return true;
+  const domain = String(source?.domain || source?.urlVerification?.domain || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, "");
+  if (domain && t.replace(/^www\./, "") === domain) return true;
+  return false;
+}
+
+/**
+ * Computes a canonical deduplication key for a source entry using its resolved
+ * canonical URL (stripping tracking query params, fragments, `www.`, and trailing slashes).
+ */
+export function canonicalSourceDedupKey(rawSource: any): string {
+  if (!rawSource) return "";
+  const rawUrl = typeof rawSource === "string"
+    ? rawSource
+    : String(
+        rawSource?.urlVerification?.canonicalUrl ||
+        rawSource?.canonicalUrl ||
+        rawSource?.url ||
+        rawSource?.directUrl ||
+        ""
+      );
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    const title = typeof rawSource === "object" ? String(rawSource?.title || "").trim().toLowerCase() : "";
+    return title ? `title:${title}` : "";
+  }
+  try {
+    const strippedHash = trimmed.split("#")[0];
+    const canon = canonicalizeUrl(strippedHash);
+    const parsed = new URL(canon);
+    parsed.hostname = parsed.hostname.replace(/^www\./, "");
+    const normPath = parsed.pathname.replace(/\/+$/, "") || "/";
+    return `${parsed.protocol}//${parsed.hostname}${normPath}${parsed.search}`.toLowerCase();
+  } catch {
+    return trimmed.split("#")[0].replace(/\/+$/, "").toLowerCase();
+  }
+}
+
+function mergeDistinctSourceSnippet(existingRaw: unknown, incomingRaw: unknown): string {
+  const existing = String(existingRaw || "").trim();
+  const incoming = String(incomingRaw || "").trim();
+  if (!existing) return incoming;
+  if (!incoming) return existing;
+  const exLow = existing.toLowerCase();
+  const inLow = incoming.toLowerCase();
+  if (exLow === inLow || exLow.includes(inLow)) return existing;
+  if (inLow.includes(exLow)) return incoming;
+  const combined = `${existing} ... ${incoming}`;
+  if (combined.length <= MAX_SNIPPET_CHARS) return combined;
+  return incoming.length > existing.length ? incoming : existing;
+}
+
+/**
+ * Deduplicates video-level aggregated sources by canonical URL while cloning entries
+ * and preserving distinct titles and excerpts across unique pages.
+ */
+export function deduplicateAggregatedSources(sources: any[]): any[] {
+  if (!Array.isArray(sources) || sources.length === 0) return [];
+  const byKey = new Map<string, any>();
+
+  for (const raw of sources) {
+    if (!raw) continue;
+    const normalizedObj = typeof raw === "string"
+      ? { title: raw, url: raw, directUrl: raw }
+      : { ...raw };
+    const key = canonicalSourceDedupKey(normalizedObj);
+    if (!key) continue;
+
+    const existing = byKey.get(key);
+    if (!existing) {
+      const preferredUrl =
+        normalizedObj.urlVerification?.canonicalUrl ||
+        normalizedObj.canonicalUrl ||
+        normalizedObj.url ||
+        normalizedObj.directUrl ||
+        "";
+      if (
+        preferredUrl &&
+        (!normalizedObj.url || String(normalizedObj.url).includes("vertexaisearch.cloud.google.com"))
+      ) {
+        normalizedObj.url = preferredUrl;
+      }
+      if (preferredUrl && !normalizedObj.directUrl) {
+        normalizedObj.directUrl = preferredUrl;
+      }
+      byKey.set(key, normalizedObj);
+      continue;
+    }
+
+    if (isGenericSourceTitle(existing.title, existing) && !isGenericSourceTitle(normalizedObj.title, normalizedObj)) {
+      existing.title = normalizedObj.title;
+    }
+    const mergedSnippet = mergeDistinctSourceSnippet(existing.snippet, normalizedObj.snippet);
+    if (mergedSnippet) {
+      existing.snippet = mergedSnippet;
+      if ("provenance" in existing || "provenance" in normalizedObj) {
+        existing.provenance = mergedSnippet;
+      }
+    }
+    if (!existing.urlVerification && normalizedObj.urlVerification) {
+      existing.urlVerification = normalizedObj.urlVerification;
+    }
+    if (!existing.publisher && normalizedObj.publisher) {
+      existing.publisher = normalizedObj.publisher;
+    }
+    if (!existing.domain && normalizedObj.domain) {
+      existing.domain = normalizedObj.domain;
+    }
+    if (!existing.tier && normalizedObj.tier) {
+      existing.tier = normalizedObj.tier;
+    }
+    if (!existing.avatarUrl && normalizedObj.avatarUrl) {
+      existing.avatarUrl = normalizedObj.avatarUrl;
+    }
+  }
+
+  return Array.from(byKey.values());
+}
+
 /**
  * Grades a finished report and records the outcome. Never throws and never blocks
  * publishing: a quality problem must be visible to the team, not hide the report.
@@ -381,7 +516,7 @@ function attachTranscriptExcerpts<T extends { start?: number; end?: number }>(cl
  *    on jsonPayload.grade / jsonPayload.checkIds and alert when FAIL rate rises.
  *  - Firestore `credibility_quality_audits/{jobId}` → review queue for FAIL/WARN reports.
  */
-async function recordReportQualityAudit(
+export async function recordReportQualityAudit(
   jobId: string,
   videoId: string | undefined,
   report: any
@@ -401,15 +536,23 @@ async function recordReportQualityAudit(
     } else {
       logger.info("[CredibilityQuality] Report output quality audit", logPayload);
     }
+    // C3: Mark FAIL audits caused by missing or unverified sources with lastEvidenceCheckAt: 0
+    // so evidenceFreshnessSweep repairs them in priority order without Pub/Sub retry storms.
+    const needsPriorityEvidenceHeal =
+      audit.grade === "FAIL" &&
+      audit.checks.some(
+        (c) =>
+          c.severity === "FAIL" &&
+          (c.id === "ZERO_SOURCE_FACTS" || c.id === "UNVERIFIED_SOURCE")
+      );
+    const nowMs = Date.now();
     await db().collection("credibility_quality_audits").doc(jobId).set({
       ...audit,
       jobId,
       videoId: videoId || null,
       reviewStatus: audit.grade === "PASS" ? "not_required" : "pending",
-      updatedAt: Date.now(),
-      // A freshly published report has freshly checked evidence; the daily
-      // evidenceFreshnessSweep re-checks the oldest ones first.
-      lastEvidenceCheckAt: Date.now(),
+      updatedAt: nowMs,
+      lastEvidenceCheckAt: needsPriorityEvidenceHeal ? 0 : nowMs,
     }, { merge: true }).catch((err) => {
       logger.warn("[CredibilityQuality] Could not persist quality audit (non-fatal)", { jobId, err: String(err) });
     });
@@ -529,9 +672,9 @@ export class CredibilityEngine {
   private readonly speakerRegistry:     SpeakerRegistryService;   // v7
   private readonly analysisRepository:  AnalysisRepository;
 
-  constructor(geminiApiKey: string, analysisRepository?: AnalysisRepository) {
-    this.extractionService   = new FactExtractionService(geminiApiKey);
-    this.verificationService = new ClaimVerificationService(geminiApiKey, 0.6);
+  constructor(_geminiApiKey?: string, analysisRepository?: AnalysisRepository) {
+    this.extractionService   = new FactExtractionService();
+    this.verificationService = new ClaimVerificationService(undefined, 0.6);
     this.distribution        = new DistributionLayer();
     this.performanceLayer    = new PerformanceLayer();
     this.speakerRegistry     = new SpeakerRegistryService();
@@ -1428,22 +1571,16 @@ export class CredibilityEngine {
     const durationSeconds = transcript.duration ?? 0;
     const tFinal = Date.now();
 
-    const distinctSourcesMap = new Map<string, any>();
+    const candidateSources: any[] = [];
     for (const c of explainableResults) {
       for (const s of (c.sources || [])) {
-        const key = (s.url || s.title || "").toLowerCase();
-        if (key && !distinctSourcesMap.has(key)) {
-          distinctSourcesMap.set(key, s);
-        }
+        if (s) candidateSources.push(s);
       }
     }
     for (const s of (synthesis.conclusion?.sources || [])) {
-      const key = (typeof s === "string" ? s : s?.url || s?.title || "").toLowerCase();
-      if (key && !distinctSourcesMap.has(key)) {
-        distinctSourcesMap.set(key, typeof s === "string" ? { title: s, url: s, directUrl: s } : s);
-      }
+      if (s) candidateSources.push(typeof s === "string" ? { title: s, url: s, directUrl: s } : s);
     }
-    const aggregatedSources = Array.from(distinctSourcesMap.values());
+    const aggregatedSources = deduplicateAggregatedSources(candidateSources);
     if (synthesis.conclusion && (!synthesis.conclusion.sources || synthesis.conclusion.sources.length === 0)) {
       synthesis.conclusion.sources = aggregatedSources.slice(0, 5);
     }
@@ -2255,6 +2392,11 @@ export class CredibilityEngine {
     // The live claim list (videos/{id}/claims) now shows exactly the stored report's verdicts.
     await this.syncLiveClaimsWithReport(targetVideoId, sanitizedResult, jobId);
 
+    // Ensure queued verified claims (Tier 2 & Tier 4) flush to BigQuery raw_claims_verified before completion.
+    await getBigQueryAnalyticsService().flush().catch((err: any) => {
+      logger.warn("[Credibility] Non-fatal BigQuery analytics flush failed", { jobId, err: String(err) });
+    });
+
     // Skip Firestore factChecks write to comply with storage-only verification results policy
     logger.info("[Credibility] Skipped Firestore factChecks write, result saved to Storage only", { jobId });
 
@@ -2543,7 +2685,7 @@ export class CredibilityEngine {
             stage: FactcheckStage.STAGE_11_ASYNC_SYNTHESIS,
             component: "SynthesisService / GeminiLLM",
             originalError: err,
-            suggestedRemedy: "Verify GEMINI_API_KEY quota, check draft claims validity in credibility_drafts, or review synthesis timeout limits.",
+            suggestedRemedy: "Verify Vertex AI Gemini quota, check draft claims validity in credibility_drafts, or review synthesis timeout limits.",
             context: { jobId, userId, eventId },
           });
 

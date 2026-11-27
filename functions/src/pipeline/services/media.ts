@@ -11,6 +11,8 @@ import { estimatePitch, f32leToSamples, type PitchEstimate } from "./pitch-estim
 import { checkDubSpeech, dialogueExtents, voiceGenderMismatch, type DubSyncReport } from "./dub-sync-check";
 import { BLEED_ANALYSIS_RATE, coherentVoiceSuppressionDb } from "./stem-bleed";
 import { parseMeanVolumeDb, selectExpression, speechGaps } from "./separation-policy";
+import { sharedJobMedia } from "./shared-job-media";
+import { fastSeparationProbeEnabled, sharedTmpEnabled } from "./latency-flags";
 import {
   FAITHFUL_MIX,
   MAX_EQ_BRANCHES,
@@ -469,6 +471,7 @@ export interface MixDubOptions {
   roomTone?: RoomToneEnvelope;
   mneGain?: number;          // DAW M&E stem fader multiplier (default: 1.0 -> 1.1 mix weight)
   dialogueGain?: number;     // DAW Dialogue stem fader multiplier (default: 1.0)
+  bgmDuckLevelPercent?: number; // Studio BGM ducking slider (0..50% lower under speech)
   spokenSegments?: Array<{ start: number; end: number }>; // For speech vs pause energy safety verification
   isDegradedMne?: boolean;   // Caps makeup gain to +3 dB when stem comes from fallback separation
   mneValidation?: MneValidationResult;
@@ -580,6 +583,47 @@ export function demuxWorkerRequestConfig(): { headers: Record<string, string>; t
   };
 }
 
+/**
+ * Pure PCM equivalent of FFmpeg `volumedetect` `mean_volume` across overall track and gap windows.
+ * Avoids running an 80-clause `aselect` expression over tens of millions of samples.
+ */
+export function computeBackgroundLevelsFromPcm(
+  pcm: Float32Array,
+  sampleRate: number,
+  gaps: Array<{ start: number; end: number }>
+): { backgroundDb: number | null; overallDb: number | null } {
+  if (!pcm || pcm.length === 0 || sampleRate <= 0) {
+    return { backgroundDb: null, overallDb: null };
+  }
+  const toDb = (sumSq: number, count: number): number | null => {
+    if (count <= 0) return null;
+    const meanSq = sumSq / count;
+    if (meanSq <= 1e-12) return -120;
+    return Number((10 * Math.log10(meanSq)).toFixed(1));
+  };
+
+  let overallSum = 0;
+  for (let i = 0; i < pcm.length; i++) {
+    const s = pcm[i];
+    overallSum += s * s;
+  }
+  const overallDb = toDb(overallSum, pcm.length);
+
+  let gapSum = 0;
+  let gapCount = 0;
+  for (const g of gaps) {
+    const startIdx = Math.max(0, Math.floor((g.start * sampleRate) / 1000));
+    const endIdx = Math.min(pcm.length, Math.ceil((g.end * sampleRate) / 1000));
+    for (let i = startIdx; i < endIdx; i++) {
+      const s = pcm[i];
+      gapSum += s * s;
+    }
+    if (endIdx > startIdx) gapCount += endIdx - startIdx;
+  }
+  const backgroundDb = toDb(gapSum, gapCount);
+  return { backgroundDb, overallDb };
+}
+
 export class MediaService {
   private amixNormalizeCache = new Map<string, boolean>();
 
@@ -629,7 +673,52 @@ export class MediaService {
    * Authenticated Storage Resolution: Automatically detects any GCS/Firebase Storage URLs (gs://, storage.googleapis.com,
    * firebasestorage.googleapis.com) and streams directly via the Storage Admin SDK, eliminating 403 Forbidden errors on private objects.
    */
-  private async downloadToStream(url: string, destinationPath: string, bucket: any, timeoutMs: number = 180000): Promise<void> {
+  /**
+   * Ensures a media asset is downloaded at most once per job invocation in `/tmp`.
+   */
+  async ensureJobLocalFile(
+    jobId: string,
+    urlOrPath: string,
+    defaultExt = ".bin",
+    timeoutMs = 180000
+  ): Promise<string | null> {
+    if (!urlOrPath || typeof urlOrPath !== "string") return null;
+    const clean = urlOrPath.startsWith("file://") ? urlOrPath.replace("file://", "") : urlOrPath;
+    if (fs.existsSync(clean)) return clean;
+    if (!sharedTmpEnabled() || !jobId) return null;
+
+    const bucket = storage().bucket();
+    try {
+      return await sharedJobMedia.ensureLocalFile(jobId, clean, defaultExt, async (destPath) => {
+        await this.downloadDirectToPath(clean, destPath, bucket, timeoutMs);
+      });
+    } catch (err) {
+      console.warn(`[MediaService] ensureJobLocalFile failed for ${jobId}:`, err);
+      return null;
+    }
+  }
+
+  async registerJobLocalFile(
+    jobId: string,
+    urlOrPath: string,
+    localPath: string,
+    defaultExt?: string
+  ): Promise<string | null> {
+    if (!sharedTmpEnabled() || !jobId) return null;
+    return sharedJobMedia.registerLocalFile(jobId, urlOrPath, localPath, defaultExt).catch(() => null);
+  }
+
+  async releaseJobLocalFiles(jobId: string): Promise<void> {
+    if (!jobId) return;
+    await sharedJobMedia.releaseJob(jobId);
+  }
+
+  private async downloadDirectToPath(
+    url: string,
+    destinationPath: string,
+    bucket: any,
+    timeoutMs: number = 180000
+  ): Promise<void> {
     const storageInfo = parseAnyStorageUrl(url);
     if (storageInfo) {
       const targetBucket = storageInfo.bucketName ? storage().bucket(storageInfo.bucketName) : bucket;
@@ -646,6 +735,35 @@ export class MediaService {
       writeStream.on("finish", () => resolve());
       writeStream.on("error", (err: any) => reject(err));
     });
+  }
+
+  private async downloadToStream(
+    url: string,
+    destinationPath: string,
+    bucket: any,
+    timeoutMs: number = 180000,
+    jobId?: string
+  ): Promise<void> {
+    const clean = url.startsWith("file://") ? url.replace("file://", "") : url;
+    if (fs.existsSync(clean)) {
+      if (path.resolve(clean) !== path.resolve(destinationPath)) {
+        await fs.promises.copyFile(clean, destinationPath);
+      }
+      return;
+    }
+    if (sharedTmpEnabled() && jobId) {
+      const ext = path.extname(clean.split("?")[0] || "") || path.extname(destinationPath) || ".bin";
+      const cachedPath = await sharedJobMedia.ensureLocalFile(jobId, clean, ext, async (dest) => {
+        await this.downloadDirectToPath(clean, dest, bucket, timeoutMs);
+      }).catch(() => null);
+      if (cachedPath && fs.existsSync(cachedPath)) {
+        if (path.resolve(cachedPath) !== path.resolve(destinationPath)) {
+          await fs.promises.copyFile(cachedPath, destinationPath);
+        }
+        return;
+      }
+    }
+    await this.downloadDirectToPath(url, destinationPath, bucket, timeoutMs);
   }
 
   /**
@@ -1272,7 +1390,7 @@ export class MediaService {
 
     try {
       const tDelivDl = Date.now();
-      await this.downloadToStream(opts.masterUrl, tMaster, bucket, 120000);
+      await this.downloadToStream(opts.masterUrl, tMaster, bucket, 120000, jobId);
       emitDubbingTiming("post.delivery_download", tDelivDl, { jobId, lang: language, file: "master" });
       let chosenPath = tMaster;
       let chosenUrl = opts.masterUrl;
@@ -1285,7 +1403,7 @@ export class MediaService {
       if (opts.referenceUrl && opts.speech.length > 0) {
         try {
           const tRefDl = Date.now();
-          await this.downloadToStream(opts.referenceUrl, tRef, bucket, 180000);
+          await this.downloadToStream(opts.referenceUrl, tRef, bucket, 180000, jobId);
           emitDubbingTiming("post.delivery_download", tRefDl, { jobId, lang: language, file: "reference" });
           const ref = await this.decodeMonoPcm(tRef);
           const master = await this.decodeMonoPcm(tMaster);
@@ -1298,7 +1416,7 @@ export class MediaService {
           if (report.bleed) {
             const canFallBack = Boolean(opts.dialogueOnlyUrl && opts.dialogueOnlyUrl !== opts.masterUrl);
             if (canFallBack) {
-              await this.downloadToStream(opts.dialogueOnlyUrl!, tDialogue, bucket, 120000);
+              await this.downloadToStream(opts.dialogueOnlyUrl!, tDialogue, bucket, 120000, jobId);
               const dlg = await this.decodeMonoPcm(tDialogue);
               const again = detectSourceBleed(dlg, ref, 8000, opts.speech);
               bleedAfterFallback = { bleed: again.bleed, flaggedMs: again.flaggedMs, worstR: again.worstR };
@@ -1348,7 +1466,11 @@ export class MediaService {
           });
           emitDubbingTiming("post.delivery_upload", tDelivUp, { jobId, lang: language });
           chosenUrl = `gs://${bucket.name}/${outputPath}`;
+          await this.registerJobLocalFile(jobId, chosenUrl, tOut, ".mp3");
         }
+      }
+      if (chosenUrl === opts.masterUrl || chosenUrl === opts.dialogueOnlyUrl) {
+        await this.registerJobLocalFile(jobId, chosenUrl, chosenPath, ".mp3");
       }
 
       const action = usedDialogueOnly
@@ -1438,41 +1560,52 @@ export class MediaService {
         try {
           // Memory-safe streaming downloads to disk
           const tRemuxDl = Date.now();
-          await this.downloadToStream(request.videoUrl, tempVideo, bucket, 180000);
-          await this.downloadToStream(request.audioUrl, tempAudio, bucket, 90000);
+          await this.downloadToStream(request.videoUrl, tempVideo, bucket, 180000, request.jobId);
+          await this.downloadToStream(request.audioUrl, tempAudio, bucket, 90000, request.jobId);
           emitDubbingTiming("post.remux_download", tRemuxDl, { jobId: request.jobId, lang: request.language });
 
           let audioFilterArg = request.audioFilters && !request.isPreMastered
             ? sanitizeAudioFilterString(request.audioFilters)
-            : "apad";
+            : "";
 
           if (request.durationSeconds && request.durationSeconds > 0) {
             const targetSamples = Math.max(1, Math.round(request.durationSeconds * 44100));
             if (!audioFilterArg.includes("whole_len")) {
-              audioFilterArg = `${audioFilterArg},apad=whole_len=${targetSamples}`;
+              audioFilterArg = audioFilterArg
+                ? `${audioFilterArg},apad=whole_len=${targetSamples}`
+                : `apad=whole_len=${targetSamples}`;
             }
           }
 
           const ffmpegArgs = [
+            "-nostdin",
             "-y",
             "-i", tempVideo,
             "-i", tempAudio,
             "-c:v", "copy",
             "-c:a", "aac",
             "-b:a", "192k",
-            "-filter:a", audioFilterArg,
+            ...(audioFilterArg ? ["-filter:a", audioFilterArg] : []),
             "-map", "0:v:0",
             "-map", "1:a:0",
             "-shortest",
+            "-movflags", "+faststart",
+            tempOut,
           ];
-
-          ffmpegArgs.push(tempOut);
+          const remuxTimeoutMs = Math.max(
+            120_000,
+            Math.min(300_000, Math.round(Number(request.durationSeconds || 60) * 2000))
+          );
           const tRemuxFf = Date.now();
           try {
-            await execFileAsync(ffmpegPath, ffmpegArgs, { maxBuffer: 100 * 1024 * 1024 });
+            await execFileAsync(ffmpegPath, ffmpegArgs, {
+              maxBuffer: 100 * 1024 * 1024,
+              timeout: remuxTimeoutMs,
+            });
           } catch (filterErr) {
             console.warn("[MediaService] Remux with filter failed, retrying without filter:", filterErr);
             const simpleArgs = [
+              "-nostdin",
               "-y",
               "-i", tempVideo,
               "-i", tempAudio,
@@ -1482,9 +1615,13 @@ export class MediaService {
               "-map", "0:v:0",
               "-map", "1:a:0",
               "-shortest",
+              "-movflags", "+faststart",
               tempOut,
             ];
-            await execFileAsync(ffmpegPath, simpleArgs, { maxBuffer: 100 * 1024 * 1024 });
+            await execFileAsync(ffmpegPath, simpleArgs, {
+              maxBuffer: 100 * 1024 * 1024,
+              timeout: remuxTimeoutMs,
+            });
           }
           emitDubbingTiming("post.remux_ffmpeg", tRemuxFf, { jobId: request.jobId, lang: request.language });
 
@@ -1866,11 +2003,13 @@ export class MediaService {
     const ffmpegPath = getFfmpegPath();
     if (!ffmpegPath || gaps.length === 0) return { backgroundDb: null, overallDb: null, gapSeconds };
     const tempAudio = path.join(os.tmpdir(), `bgprobe_${jobId}_${Date.now()}.audio`);
+    let ownedTemp = true;
+    let probePath = tempAudio;
     const volume = async (filter: string): Promise<number | null> => {
       try {
         const { stderr } = await execFileAsync(
           ffmpegPath,
-          ["-hide_banner", "-nostats", "-i", tempAudio, "-af", filter, "-f", "null", "-"],
+          ["-nostdin", "-hide_banner", "-nostats", "-i", probePath, "-af", filter, "-f", "null", "-"],
           { maxBuffer: 8 * 1024 * 1024, timeout: 120000 }
         );
         return parseMeanVolumeDb(String(stderr));
@@ -1879,7 +2018,24 @@ export class MediaService {
       }
     };
     try {
-      await this.downloadToStream(audioUrl, tempAudio, storage().bucket(), 90000);
+      const sharedPath = await this.ensureJobLocalFile(jobId, audioUrl, ".audio", 90000);
+      if (sharedPath) {
+        probePath = sharedPath;
+        ownedTemp = false;
+      } else {
+        await this.downloadToStream(audioUrl, tempAudio, storage().bucket(), 90000, jobId);
+      }
+
+      if (fastSeparationProbeEnabled()) {
+        const pcm = await this.decodeMonoPcm(probePath, 8000, 3600).catch(() => new Float32Array(0));
+        if (pcm.length > 0) {
+          const levels = computeBackgroundLevelsFromPcm(pcm, 8000, gaps);
+          if (levels.overallDb !== null) {
+            return { ...levels, gapSeconds };
+          }
+        }
+      }
+
       const backgroundDb = await volume(`aselect='${selectExpression(gaps)}',volumedetect`);
       const overallDb = await volume("volumedetect");
       return { backgroundDb, overallDb, gapSeconds };
@@ -1887,7 +2043,9 @@ export class MediaService {
       console.warn(`[MediaService] Background level probe failed for ${jobId}: ${err?.message || err}`);
       return { backgroundDb: null, overallDb: null, gapSeconds };
     } finally {
-      fs.promises.unlink(tempAudio).catch(() => {});
+      if (ownedTemp) {
+        fs.promises.unlink(tempAudio).catch(() => {});
+      }
     }
   }
 
@@ -2395,10 +2553,10 @@ export class MediaService {
       const hasBed = Boolean(opts.bedUrl);
       const tMixDl = Date.now();
       await Promise.all([
-        this.downloadToStream(opts.sourceAudioUrl, tSource, bucket, 300000),
-        this.downloadToStream(opts.dubbedAudioUrl, tDub, bucket, 300000),
-        hasBed ? this.downloadToStream(opts.bedUrl!, tBed, bucket, 300000) : Promise.resolve(),
-        opts.isolatedVocalUrl ? this.downloadToStream(opts.isolatedVocalUrl, tVocals, bucket, 300000).catch(() => undefined) : Promise.resolve(),
+        this.downloadToStream(opts.sourceAudioUrl, tSource, bucket, 300000, jobId),
+        this.downloadToStream(opts.dubbedAudioUrl, tDub, bucket, 300000, jobId),
+        hasBed ? this.downloadToStream(opts.bedUrl!, tBed, bucket, 300000, jobId) : Promise.resolve(),
+        opts.isolatedVocalUrl ? this.downloadToStream(opts.isolatedVocalUrl, tVocals, bucket, 300000, jobId).catch(() => undefined) : Promise.resolve(),
       ]);
       emitDubbingTiming("post.mix_download", tMixDl, { jobId, lang: language, hasBed });
       const tMixPcm = Date.now();
@@ -2921,7 +3079,9 @@ export class MediaService {
         },
       });
       emitDubbingTiming("post.mix_upload", tMixUp, { jobId, lang: language });
-      return { ...base, ok: true, url: `gs://${bucket.name}/${outputPath}` };
+      const gsOutUrl = `gs://${bucket.name}/${outputPath}`;
+      await this.registerJobLocalFile(jobId, gsOutUrl, tOut, ".mp3");
+      return { ...base, ok: true, url: gsOutUrl };
     } catch (err: any) {
       return fail(`faithful mix error: ${String(err?.message || err).slice(0, 200)}`);
     } finally {
@@ -2975,8 +3135,12 @@ export class MediaService {
       const profile = options.masteringProfile ? MASTERING_PROFILES[options.masteringProfile] : MASTERING_PROFILES.web_streaming;
       // Gentler sidechain defaults — previous 0.12/2.8 over-ducked an already -14 LUFS dialogue track
       // With a clean, validated M&E stem only light ducking (~2–3 dB) is needed.
+      const duckPct =
+        typeof options.bgmDuckLevelPercent === "number" && Number.isFinite(options.bgmDuckLevelPercent)
+          ? Math.max(0, Math.min(50, options.bgmDuckLevelPercent))
+          : undefined;
       const threshold = options.duckingThreshold ?? 0.1;
-      const ratio = options.duckingRatio ?? 1.5;
+      const ratio = options.duckingRatio ?? (duckPct !== undefined ? Number((1.2 + (duckPct / 50) * 2.2).toFixed(2)) : 1.5);
       const attack = options.attackMs ?? 15;
       const release = options.releaseMs ?? 200;
       const targetLoudness = options.targetLoudnessLufs ?? profile.targetLufs;
@@ -3049,10 +3213,13 @@ export class MediaService {
         }
       } catch (_) { /* non-fatal — proceed with unity gain */ }
 
+      const defaultMneWeight = duckPct !== undefined
+        ? Number(Math.max(0.55, 1.15 - duckPct / 100).toFixed(2))
+        : 1.1;
       const mneWeight =
         typeof options.mneGain === "number" && Number.isFinite(options.mneGain)
           ? Number(Math.max(0, Math.min(2.5, options.mneGain * 1.1)).toFixed(2))
-          : 1.1;
+          : defaultMneWeight;
       const dialogueWeight =
         typeof options.dialogueGain === "number" && Number.isFinite(options.dialogueGain)
           ? Number(Math.max(0.2, Math.min(2.5, options.dialogueGain)).toFixed(2))
@@ -3377,9 +3544,14 @@ export class MediaService {
     }
   }
 
-  async extractAudio(videoUrl: string, jobId: string): Promise<string> {
+  async extractAudio(
+    videoUrl: string,
+    jobId: string,
+    options?: { alsoExtractStereo?: boolean }
+  ): Promise<string> {
     try {
       const outputPath = `audio/${jobId}/original.mp3`;
+      const stereoOutputPath = `audio/${jobId}/source_stereo.mp3`;
       const ffmpegServiceUrl = PIPELINE_CONFIG.FFMPEG_SERVICE_URL;
 
       if (ffmpegServiceUrl && !ffmpegServiceUrl.includes("placeholder")) {
@@ -3395,33 +3567,78 @@ export class MediaService {
         const tmpDir = os.tmpdir();
         const tempVideo = path.join(tmpDir, `vid_${jobId}_${Date.now()}.mp4`);
         const tempAudio = path.join(tmpDir, `aud_${jobId}_${Date.now()}.mp3`);
+        const wantStereo = Boolean(options?.alsoExtractStereo && sharedTmpEnabled());
+        const tempStereo = path.join(tmpDir, `stereo_aud_${jobId}_${Date.now()}.mp3`);
+        let videoPathToUse = tempVideo;
+        let ownsTempVideo = true;
 
         try {
           const tExtDl = Date.now();
-          await this.downloadToStream(videoUrl, tempVideo, bucket, 60000);
+          const sharedVid = await this.ensureJobLocalFile(jobId, videoUrl, ".mp4", 60000);
+          if (sharedVid && fs.existsSync(sharedVid)) {
+            videoPathToUse = sharedVid;
+            ownsTempVideo = false;
+          } else {
+            await this.downloadToStream(videoUrl, tempVideo, bucket, 60000, jobId);
+          }
           emitDubbingTiming("transcription.extract_download", tExtDl, { jobId });
 
           try {
             const tExtFf = Date.now();
-            await execFileAsync(ffmpegPath, [
-              "-y",
-              "-i", tempVideo,
-              "-vn",
-              "-acodec", "libmp3lame",
-              "-ar", "16000",
-              "-ac", "1",
-              tempAudio,
-            ]);
+            const ffArgs = wantStereo
+              ? [
+                  "-nostdin",
+                  "-y",
+                  "-i", videoPathToUse,
+                  "-vn", "-acodec", "libmp3lame", "-ar", "16000", "-ac", "1", tempAudio,
+                  "-vn", "-ac", "2", "-ar", "44100", "-b:a", "256k", "-acodec", "libmp3lame", tempStereo,
+                ]
+              : [
+                  "-nostdin",
+                  "-y",
+                  "-i", videoPathToUse,
+                  "-vn",
+                  "-acodec", "libmp3lame",
+                  "-ar", "16000",
+                  "-ac", "1",
+                  tempAudio,
+                ];
+            await execFileAsync(ffmpegPath, ffArgs, { maxBuffer: 100 * 1024 * 1024 });
             emitDubbingTiming("transcription.extract_ffmpeg", tExtFf, { jobId });
 
             const tExtUp = Date.now();
-            await bucket.upload(tempAudio, {
-              destination: outputPath,
-              metadata: { contentType: "audio/mpeg" },
-            });
+            const uploads: Promise<any>[] = [
+              bucket.upload(tempAudio, {
+                destination: outputPath,
+                metadata: { contentType: "audio/mpeg" },
+              }),
+            ];
+            if (wantStereo && fs.existsSync(tempStereo)) {
+              uploads.push(
+                bucket.upload(tempStereo, {
+                  destination: stereoOutputPath,
+                  metadata: {
+                    contentType: "audio/mpeg",
+                    metadata: {
+                      jobId,
+                      purpose: "stereo_source_for_mne_isolation",
+                      sampleRate: "44100",
+                      channels: "2",
+                      createdAt: String(Date.now()),
+                    },
+                  },
+                }).catch(() => undefined)
+              );
+            }
+            await Promise.all(uploads);
             emitDubbingTiming("transcription.audio_upload", tExtUp, { jobId });
 
-            return `gs://${bucket.name}/${outputPath}`;
+            const gsAudioUrl = `gs://${bucket.name}/${outputPath}`;
+            await this.registerJobLocalFile(jobId, gsAudioUrl, tempAudio, ".mp3");
+            if (wantStereo && fs.existsSync(tempStereo)) {
+              await this.registerJobLocalFile(jobId, `gs://${bucket.name}/${stereoOutputPath}`, tempStereo, ".mp3");
+            }
+            return gsAudioUrl;
           } catch (ffmpegErr: any) {
             const errStr = String(ffmpegErr?.stderr || ffmpegErr?.message || ffmpegErr);
             if (
@@ -3436,8 +3653,9 @@ export class MediaService {
             throw ffmpegErr;
           }
         } finally {
-          await fs.promises.unlink(tempVideo).catch(() => {});
+          if (ownsTempVideo) await fs.promises.unlink(tempVideo).catch(() => {});
           await fs.promises.unlink(tempAudio).catch(() => {});
+          await fs.promises.unlink(tempStereo).catch(() => {});
         }
       }
 
@@ -3479,13 +3697,22 @@ export class MediaService {
     const tmpDir = os.tmpdir();
     const tempVideo = path.join(tmpDir, `stereo_in_${jobId}_${Date.now()}.mp4`);
     const tempAudio = path.join(tmpDir, `stereo_out_${jobId}_${Date.now()}.mp3`);
+    let videoPathToUse = tempVideo;
+    let ownsTempVideo = true;
 
     try {
-      await this.downloadToStream(videoUrl, tempVideo, bucket, 180000);
+      const sharedVid = await this.ensureJobLocalFile(jobId, videoUrl, ".mp4", 180000);
+      if (sharedVid && fs.existsSync(sharedVid)) {
+        videoPathToUse = sharedVid;
+        ownsTempVideo = false;
+      } else {
+        await this.downloadToStream(videoUrl, tempVideo, bucket, 180000, jobId);
+      }
 
       await execFileAsync(ffmpegPath, [
+        "-nostdin",
         "-y",
-        "-i", tempVideo,
+        "-i", videoPathToUse,
         "-vn",
         "-ac", "2",
         "-ar", "44100",
@@ -3508,12 +3735,14 @@ export class MediaService {
         },
       });
 
-      return `gs://${bucket.name}/${outputPath}`;
+      const gsStereoUrl = `gs://${bucket.name}/${outputPath}`;
+      await this.registerJobLocalFile(jobId, gsStereoUrl, tempAudio, ".mp3");
+      return gsStereoUrl;
     } catch (err) {
       console.warn("[MediaService] Stereo source extraction failed — falling back to videoUrl:", err);
       return videoUrl;
     } finally {
-      await fs.promises.unlink(tempVideo).catch(() => {});
+      if (ownsTempVideo) await fs.promises.unlink(tempVideo).catch(() => {});
       await fs.promises.unlink(tempAudio).catch(() => {});
     }
   }
@@ -4431,6 +4660,7 @@ export class MediaService {
     await execFileAsync(
       ffmpeg,
       [
+        "-nostdin",
         "-y",
         "-ss", `${Math.max(0, timestampSec).toFixed(3)}`,
         "-i", videoPath,
@@ -4438,7 +4668,7 @@ export class MediaService {
         "-q:v", "2",
         outputPath,
       ],
-      { maxBuffer: 8 * 1024 * 1024 }
+      { maxBuffer: 8 * 1024 * 1024, timeout: 20_000 }
     );
     return outputPath;
   }

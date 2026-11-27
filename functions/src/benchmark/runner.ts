@@ -14,9 +14,9 @@ if (!admin.apps.length) {
     // Ignore in standalone tests
   }
 }
-import { PIPELINE_CONFIG } from "../pipeline/config";
 import { ClaimVerificationService } from "../pipeline/services/claimVerification";
 import { ClaimStatus } from "../pipeline/types";
+import { PIPELINE_CONFIG } from "../pipeline/config";
 import {
   BenchmarkClaim,
   BenchmarkDataset,
@@ -31,8 +31,7 @@ export class BenchmarkRunner {
 
 
   constructor() {
-    const apiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
-    this.verificationService = new ClaimVerificationService(apiKey, 0.6);
+    this.verificationService = new ClaimVerificationService(undefined, 0.6);
     this.scorer = new BenchmarkScorer();
   }
 

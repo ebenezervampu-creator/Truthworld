@@ -294,8 +294,7 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
                     Padding(
                       padding: const EdgeInsets.only(right: 10),
                       child: Obx(() {
-                        final wallet = controller.wallet.value;
-                        final credits = wallet?.balanceCredits ?? controller.totalAvailableCharacters;
+                        final availableUsd = controller.totalAvailableWalletUsd;
                         final isFree = controller.isFreeDubbingActive;
 
                         return InkWell(
@@ -311,9 +310,9 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
                             child: Row(
                               children: [
                                 Icon(
-                                  isFree ? Icons.verified_rounded : Icons.bolt_rounded,
+                                  isFree ? Icons.verified_rounded : Icons.account_balance_wallet_rounded,
                                   size: 14,
-                                  color: (credits > 0 || isFree)
+                                  color: (availableUsd > 0 || isFree)
                                       ? DubbingStudioTheme.accentSky
                                       : DubbingStudioTheme.textSecondary,
                                 ),
@@ -321,7 +320,7 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
                                 Text(
                                   isFree
                                       ? '100% Free'
-                                      : '${credits.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} chars',
+                                      : '\$${availableUsd.toStringAsFixed(2)} USD',
                                   style: DubbingStudioTheme.monoMeta.copyWith(
                                     color: DubbingStudioTheme.textPrimary,
                                     fontWeight: FontWeight.w600,
@@ -1884,7 +1883,7 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
       final actionTitle = isJobRunning
           ? 'Processing (${job.progressPercent}%)...'
           : (isChannelVideo
-              ? (isSubOnly ? 'Generate Channel Subtitles' : 'Dub Video & Save to Audio Tracks')
+              ? (isSubOnly ? 'Generate Channel Subtitles' : 'Dub Video & Save to Dubs')
               : (isSubOnly
                   ? (hasCompletedJobs ? 'Add Subtitles' : 'Generate Subtitles')
                   : (hasCompletedJobs ? 'Generate Dubs' : 'Start Dubbing')));
@@ -1961,7 +1960,7 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
                 Icon(Icons.sync_rounded, size: 12, color: AppColors.textTertiary),
                 SizedBox(width: 4),
                 Text(
-                  'Saved directly to your Studio Audio Tracks tab',
+                  'Saved directly to your Studio Dubs tab',
                   style: TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     color: AppColors.textTertiary,
@@ -2288,7 +2287,7 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
                         const Icon(Icons.audiotrack, size: 14, color: AppColors.textLink),
                         const SizedBox(width: 6),
                         Text(
-                          'Studio Audio Tracks (${controller.selectedVideoAudioTracks.length})',
+                          'Studio Dubs (${controller.selectedVideoAudioTracks.length})',
                           style: const TextStyle(
                             fontFamily: TWTypography.uiFamily,
                             color: AppColors.textPrimary,
@@ -2450,7 +2449,7 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
                     ),
                     const SizedBox(height: 3),
                     const Text(
-                      'MP4, MOV, MKV, MP3, WAV • Up to 2 Hours (4 GB)',
+                      'MP4, MOV, MKV, MP3, WAV • Up to 2h (1 GB video / 250 MB audio)',
                       style: TextStyle(
                         fontFamily: TWTypography.uiFamily,
                         color: AppColors.textSecondary,
@@ -3192,7 +3191,6 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
   }) {
     final norm = langCode.trim().toLowerCase();
     final canGenerateMp4 = job.status == DubbingJobStatus.completed &&
-        job.mode == DubbingMode.dubbing &&
         job.sourceMediaType != 'audio' &&
         videoUrl == null &&
         audioUrl != null;
@@ -3237,18 +3235,19 @@ class DubbingStudioScreen extends GetView<DubbingStudioController> {
                   _buildDownloadButton(
                     icon: Icons.movie_outlined,
                     label: 'Dubbed MP4 (video_with_${norm}_dub.mp4)',
-                    onTap: () => controller.downloadExportArtifact(
-                      videoUrl,
-                      'video_with_${norm}_dub.mp4',
+                    onTap: () => controller.downloadDubbedMp4ForLanguage(
+                      norm,
+                      existingVideoUrl: videoUrl,
                     ),
                   )
                 else if (canGenerateMp4)
                   Obx(() {
-                    final busy = controller.isExportingAssets.value;
+                    final busy = controller.generatingMp4Lang.value == norm ||
+                        controller.isExportingAssets.value;
                     return _buildDownloadButton(
                       icon: busy ? Icons.hourglass_top_rounded : Icons.movie_creation_outlined,
-                      label: busy ? 'Generating Dubbed MP4...' : 'Generate Dubbed MP4',
-                      onTap: busy ? () {} : () => controller.exportPackage(),
+                      label: busy ? 'Generating Dubbed MP4...' : 'Download Dubbed MP4 (video_with_${norm}_dub.mp4)',
+                      onTap: busy ? () {} : () => controller.downloadDubbedMp4ForLanguage(norm),
                     );
                   }),
                 if (audioUrl != null)

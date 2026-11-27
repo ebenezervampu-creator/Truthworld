@@ -19,6 +19,11 @@ const REGION = "asia-south1";
 type EventType =
   | "video_start"
   | "watch_ping"
+  | "qualified_view"
+  | "milestone_25"
+  | "milestone_50"
+  | "milestone_75"
+  | "milestone_100"
   | "pause"
   | "resume"
   | "seek"
@@ -898,6 +903,11 @@ export const aggregateWatchStats = onSchedule(
           break;
 
         case "watch_ping":
+        case "qualified_view":
+        case "milestone_25":
+        case "milestone_50":
+        case "milestone_75":
+        case "milestone_100":
         case "pause":
         case "exit": {
           // ── FIX 3: True watch time via delta ──
@@ -905,19 +915,22 @@ export const aggregateWatchStats = onSchedule(
           const clientDelta = e.watchTimeSecondsDelta !== undefined ? Number(e.watchTimeSecondsDelta) : undefined;
           let safeDelta = 0;
           if (clientDelta !== undefined && !isNaN(clientDelta)) {
-            safeDelta = Math.min(Math.max(0, clientDelta), 20);
+            safeDelta = Math.min(Math.max(0, clientDelta), 90);
           } else {
             const prev =
               e.prevPosition !== undefined
                 ? Number(e.prevPosition)
                 : s.lastPingPos;
             const delta = Math.max(0, e.position - prev);
-            // Cap delta at 20 s to discard tab-background / seek jumps
-            safeDelta = Math.min(delta, 20);
+            // Cap delta at 90 s to discard tab-background / seek jumps
+            safeDelta = Math.min(delta, 90);
           }
           s.deltaSeconds += safeDelta;
           s.lastPingPos = e.position;
           s.maxPosition = Math.max(s.maxPosition, e.position);
+          if (e.eventType === "milestone_100" && s.duration > 0 && s.deltaSeconds >= s.duration * 0.85) {
+            s.completed = true;
+          }
           break;
         }
 
@@ -997,7 +1010,7 @@ export const aggregateWatchStats = onSchedule(
       // ── Qualified View Threshold ──
       // A session is only counted as a Qualified View if true elapsed playback reached at least 10 seconds,
       // 30% of video duration, or genuine video completion (>= 85%).
-      const isQualifiedView = s.started && (
+      const isQualifiedView = (s.started || s.deltaSeconds >= 10) && (
         s.deltaSeconds >= 10 || 
         (s.duration > 0 && (s.deltaSeconds / s.duration) >= 0.3) || 
         (s.completed && s.duration > 0 && s.deltaSeconds >= s.duration * 0.85)
@@ -1168,6 +1181,29 @@ export const aggregateWatchStats = onSchedule(
       // Record in CostEngine for creator and platform unit economics accounting
       costEngine.recordCDNCost(vid, "system", egressGB, cdnRegion).catch((cdnErr) => {
         logger.warn(`[WatchTime] Non-blocking CDN cost attribution failed for ${vid}:`, cdnErr);
+      });
+
+      // Write hourly stats for real-time today analytics (YYYY_MM_DD_HH in IST)
+      const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+      const yyyy = istNow.getUTCFullYear();
+      const mm = String(istNow.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(istNow.getUTCDate()).padStart(2, "0");
+      const hh = String(istNow.getUTCHours()).padStart(2, "0");
+      const hourKey = `${yyyy}_${mm}_${dd}_${hh}`;
+
+      await addOp(db.collection("video_stats_hourly").doc(`${vid}_${hourKey}`), {
+        videoId: vid,
+        hourKey,
+        totalViews: admin.firestore.FieldValue.increment(acc.views),
+        uniqueViewers: admin.firestore.FieldValue.increment(acc.users.size),
+        totalWatchTimeSeconds: admin.firestore.FieldValue.increment(Math.round(acc.watchSeconds)),
+        subscriberViews: admin.firestore.FieldValue.increment(acc.Subscribers),
+        nonSubscriberViews: admin.firestore.FieldValue.increment(Math.max(0, acc.views - acc.Subscribers)),
+        bouncedUnder20s: admin.firestore.FieldValue.increment(acc.under20),
+        watched50Percent: admin.firestore.FieldValue.increment(acc.half),
+        watched100Percent: admin.firestore.FieldValue.increment(acc.full),
+        hour: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
 

@@ -99,3 +99,44 @@ export function hashSemanticClaimText(text: string): string {
   return crypto.createHash("sha256").update(canonical).digest("hex");
 }
 
+const LIVE_TIME_SENSITIVE_MARKER_RX =
+  /\b(today|yesterday|this morning|this afternoon|tonight|just now|just in|breaking|recently|this week|this month|this year|right now|currently|presently|current|as of now|at present)\b/i;
+
+const YEAR_TOKEN_RX =
+  /\b(1[0-9]{3}|20[0-9]{2}|21[0-9]{2})\b(?!\s*(?:km|kilometers|kilometres|m|meters|metres|cm|mm|kg|g|mg|mcg|ml|l|liters|litres|ft|feet|mi|miles|mph|kph|watts|w|hz|khz|mhz|ghz|rpm|bps|calories|kcal|crore|lakh|million|billion|trillion|dollars|usd|inr|eur|gbp|rupees)\b)/gi;
+
+export function hasLiveTimeMarker(claimText: string): boolean {
+  if (!claimText) return false;
+  return LIVE_TIME_SENSITIVE_MARKER_RX.test(claimText);
+}
+
+export function extractFourDigitYears(claimText: string): number[] {
+  if (!claimText) return [];
+  const matches = claimText.match(YEAR_TOKEN_RX) || [];
+  return matches.map((m) => Number(m)).filter((y) => Number.isFinite(y));
+}
+
+/**
+ * Returns true when a claim references strictly settled past calendar years (< current UTC year)
+ * and carries no live/breaking present-tense markers.
+ */
+export function isSettledPastYearClaim(claimText: string, now: Date = new Date()): boolean {
+  if (!claimText || hasLiveTimeMarker(claimText)) return false;
+  const years = extractFourDigitYears(claimText);
+  if (years.length === 0) return false;
+  const currentUtcYear = now.getUTCFullYear();
+  return years.every((y) => y < currentUtcYear);
+}
+
+/**
+ * Detects volatile/breaking assertions that require fresh short-TTL verification.
+ * Settled past years (< current UTC year) are NOT marked volatile unless paired with live markers.
+ */
+export function isTimeSensitiveClaim(claimText: string, now: Date = new Date()): boolean {
+  if (!claimText) return false;
+  if (hasLiveTimeMarker(claimText)) return true;
+  const currentUtcYear = now.getUTCFullYear();
+  const years = extractFourDigitYears(claimText);
+  return years.some((y) => y >= currentUtcYear);
+}
+

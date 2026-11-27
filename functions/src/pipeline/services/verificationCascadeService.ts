@@ -30,9 +30,17 @@ import {
   FilteredClaim,
   VerifiedClaim,
 } from "../types";
+import { PIPELINE_CONFIG } from "../config";
+import { getBigQueryAnalyticsService } from "../../analytics/bigqueryService";
+import { hashClaimText, hashSemanticClaimText } from "../utils/claim-normalization";
+import { stripEvidenceText } from "./verdictReconciliation";
 import { claimCacheService, isTimeSensitiveClaim } from "./claimCacheService";
 import { DeterministicRegistryService } from "./deterministicRegistry";
 import { tier0KnowledgeService } from "./tier0Knowledge";
+import {
+  batchResolveMultilingualCanonical,
+  gatherDomainWidePreRetrieval,
+} from "./multilingualPreRetrievalService";
 import { FastTrackLlmService } from "./fastTrackLlmService";
 import { FusedGroundingService, FusedGroundingOptions } from "./fusedGroundingService";
 import { StreamingClaimProcessor } from "./streamingClaimProcessor";
@@ -67,9 +75,10 @@ export class VerificationCascadeService {
     const lower = text.toLowerCase();
     const escalationReasons: string[] = [];
 
-    // Temporal Recency Gate: if explicitly marked requiresLiveWeb === false, suppress temporal escalation
+    // Temporal Recency Gate: if explicitly marked requiresLiveWeb === false, suppress temporal escalation.
+    // Settled past years (< current UTC year) are NOT treated as volatile unless live/present markers exist.
     const explicitlyStatic = claimMeta?.requiresLiveWeb === false;
-    const timeSensitive = !explicitlyStatic && (isTimeSensitiveClaim(text) || /\b(202[4-9]|this morning|just in)\b/i.test(lower));
+    const timeSensitive = !explicitlyStatic && isTimeSensitiveClaim(text);
     if (timeSensitive) {
       escalationReasons.push("Time-sensitive temporal claim requires live grounded corroboration");
     }
@@ -178,12 +187,27 @@ export class VerificationCascadeService {
     // Prepare claim map by claimId and by text
     const pendingClaims = [...claims];
 
+    // Upfront 1-call multilingual canonical English normalization (shared across Tiers 1, 2, & Pre-Retrieval)
+    const englishCanonicalMap = new Map<string, string>(options.englishCanonicalMap || []);
+    const nonAsciiClaims = pendingClaims.filter(
+      (c) => /[^\x00-\x7F]/.test(c.text || "") && !englishCanonicalMap.has(c.claimId)
+    );
+    if (nonAsciiClaims.length > 0) {
+      const translatedMap = await batchResolveMultilingualCanonical(nonAsciiClaims).catch(
+        () => new Map<string, string>()
+      );
+      for (const [k, v] of translatedMap.entries()) {
+        englishCanonicalMap.set(k, v);
+      }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // TIER 1: SEMANTIC CLAIM CACHE (< 50ms)
     // ──────────────────────────────────────────────────────────────────────────
     const tier1Candidates: FilteredClaim[] = [];
     for (const c of pendingClaims) {
-      const routing = this.analyzeClaimForTierRouting(c.text, {
+      const routingText = englishCanonicalMap.get(c.claimId) || c.text;
+      const routing = this.analyzeClaimForTierRouting(routingText, {
         requiresLiveWeb: (c as any).requiresLiveWeb,
         domain: (c as any).domain,
       });
@@ -197,21 +221,29 @@ export class VerificationCascadeService {
 
     if (tier1Candidates.length > 0) {
       try {
-        const cacheHits = await claimCacheService.getBatch(tier1Candidates.map(c => c.text));
+        const cacheHits = await claimCacheService.getBatch(
+          tier1Candidates.map((c) => ({
+            claimId: c.claimId,
+            text: c.text,
+            englishCanonical: englishCanonicalMap.get(c.claimId),
+          }))
+        );
         const resolvedTier1: VerifiedClaim[] = [];
 
         for (const candidate of tier1Candidates) {
-          const cached = cacheHits.get(candidate.text);
+          const canonical = englishCanonicalMap.get(candidate.claimId);
+          const cached = cacheHits.get(candidate.text) || (canonical ? cacheHits.get(canonical) : undefined);
           if (cached && cached.status) {
+            const richSources = cached.richSources || [];
             const verified: VerifiedClaim = {
               ...candidate,
               status: cached.status,
               verificationConfidence: cached.verificationConfidence || 0.95,
               evidenceConfidence: 0.95,
               reasoning: cached.reasoning || "Previously verified and corroborating sources remain active.",
-              sources: (cached.richSources || []).map(s => s.url).filter(Boolean),
-              richSources: cached.richSources || [],
-              isGrounded: true,
+              sources: richSources.map((s) => s.url).filter(Boolean),
+              richSources,
+              isGrounded: richSources.length > 0,
               verificationMethod: "cache_hit",
               displayLabel: cached.displayLabel,
               evidenceLevel: (cached.evidenceLevel as EvidenceLevel) || EvidenceLevel.MODERATE,
@@ -245,8 +277,14 @@ export class VerificationCascadeService {
     const remainingAfterTier2: FilteredClaim[] = [];
 
     for (const c of remainingAfterTier1) {
-      // 1. Enhanced Deterministic Registry (Strict units, conditions, country-capitals)
-      const detMatch = DeterministicRegistryService.resolveDeterministicFact(c.text);
+      const canonical = englishCanonicalMap.get(c.claimId);
+
+      // 1. Enhanced Deterministic Registry (Strict units, conditions, country-capitals, Apollo 11)
+      const detMatch =
+        DeterministicRegistryService.resolveDeterministicFact(c.text) ??
+        (canonical && canonical !== c.text
+          ? DeterministicRegistryService.resolveDeterministicFact(canonical)
+          : null);
       if (detMatch) {
         const verified: VerifiedClaim = {
           ...c,
@@ -265,11 +303,13 @@ export class VerificationCascadeService {
       }
 
       // 2. Canonical Tier-0 Pre-Indexed Facts (Physical constants & NASA/WHO baselines)
-      const t0Match = tier0KnowledgeService.lookupPreIndexedFact(c.text);
+      const t0Match =
+        tier0KnowledgeService.lookupPreIndexedFact(c.text) ??
+        (canonical && canonical !== c.text
+          ? tier0KnowledgeService.lookupPreIndexedFact(canonical)
+          : null);
       if (t0Match) {
-        const t0Stance = (t0Match.status as string) === "false_claim"
-          ? "CONTRADICTS"
-          : "SUPPORTS";
+        const t0Stance = t0Match.claimStance || ((t0Match.status as string) === "false_claim" ? "CONTRADICTS" : "SUPPORTS");
         const nowIso = new Date().toISOString();
         const verified: VerifiedClaim = {
           ...c,
@@ -288,6 +328,7 @@ export class VerificationCascadeService {
             status: "verified",
             retrievalMethod: "tier0_local_store",
             claimStance: t0Stance,
+            sourceKind: t0Match.sourceKind || "REFERENCE",
             claimStanceReason: t0Match.reasoning,
             lastVerified: nowIso,
             urlVerification: {
@@ -314,9 +355,13 @@ export class VerificationCascadeService {
       remainingAfterTier2.push(c);
     }
 
-    // Stream Tier 2 hits immediately to Firestore (< 100ms)
-    if (resolvedTier2.length > 0 && videoId) {
-      await StreamingClaimProcessor.publishResolvedClaims(videoId, resolvedTier2).catch(() => {});
+    // Stream Tier 2 hits immediately to Firestore (< 100ms), persist cache & enqueue BigQuery ledger
+    if (resolvedTier2.length > 0) {
+      if (videoId) {
+        await StreamingClaimProcessor.publishResolvedClaims(videoId, resolvedTier2).catch(() => {});
+      }
+      await claimCacheService.setBatch(resolvedTier2, englishCanonicalMap).catch(() => {});
+      this.enqueueBigQueryVerifiedClaims(videoId, resolvedTier2, englishCanonicalMap);
       logger.info(`[VerificationCascade] Tier 2 Deterministic Registry resolved ${resolvedTier2.length} claims in ${Date.now() - t0}ms`);
     }
 
@@ -331,7 +376,11 @@ export class VerificationCascadeService {
     const preEscalatedToTier4: FilteredClaim[] = [];
 
     for (const c of remainingAfterTier2) {
-      const routing = this.analyzeClaimForTierRouting(c.text);
+      const routingText = englishCanonicalMap.get(c.claimId) || c.text;
+      const routing = this.analyzeClaimForTierRouting(routingText, {
+        requiresLiveWeb: (c as any).requiresLiveWeb,
+        domain: (c as any).domain,
+      });
       if (routing.recommendedTier === 4) {
         preEscalatedToTier4.push(c);
       } else {
@@ -409,28 +458,20 @@ export class VerificationCascadeService {
       ).catch(() => {});
     }
 
-    // Pre-retrieve authoritative biomedical / scientific literature (PubMed & Crossref)
+    // Pre-retrieve domain-wide authoritative evidence (Wikipedia EN+native, Wikidata, conditional PubMed/Crossref/WorldBank/FRED)
     let preRetrievedEvidence: any[] = [];
-    const scientificClaims = prioritizedTier4.filter(
-      (c) =>
-        domainContext === "HEALTH_MEDICAL" ||
-        domainContext === "Science" ||
-        /\b(\d+%|study|trial|clinical|vaccine|drug|pharmacology|medical|disease|treatment|fda)\b/i.test(c.text)
-    );
-    if (scientificClaims.length > 0) {
-      try {
-        const { gatherLayer06CEvidence } = require("../layers/06-credibility");
-        preRetrievedEvidence = await gatherLayer06CEvidence(scientificClaims);
-        if (preRetrievedEvidence.length > 0) {
-          logger.info(`[VerificationCascade] Pre-retrieved ${preRetrievedEvidence.length} scientific literature sources from PubMed/Crossref`);
-        }
-      } catch (litErr: any) {
-        logger.warn("[VerificationCascade] Scientific pre-retrieval non-fatal warning", { err: litErr?.message });
+    try {
+      preRetrievedEvidence = await gatherDomainWidePreRetrieval(prioritizedTier4, englishCanonicalMap);
+      if (preRetrievedEvidence.length > 0) {
+        logger.info(`[VerificationCascade] Domain-wide $0 pre-retrieval collected ${preRetrievedEvidence.length} sources`);
       }
+    } catch (litErr: any) {
+      logger.warn("[VerificationCascade] Domain-wide pre-retrieval non-fatal warning", { err: litErr?.message });
     }
 
     const tier4Options: FusedGroundingOptions = {
       ...options,
+      englishCanonicalMap,
       ...(preRetrievedEvidence.length > 0 ? { preRetrievedEvidence } : {}),
     };
 
@@ -439,6 +480,9 @@ export class VerificationCascadeService {
       prioritizedTier4,
       VerificationConcurrencyManager.TIER4_MICRO_BATCH_SIZE
     );
+
+    const MAX_ISOLATED_RETRIES = 4;
+    let isolatedRetriesUsed = 0;
 
     // 3. Execute micro-batches concurrently through Tier 4 bounded pool with resilient retry and full jitter
     const microBatchTasks = microBatches.map(async (microBatch, batchIdx) => {
@@ -450,6 +494,53 @@ export class VerificationCascadeService {
             { maxRetries: 3, baseDelayMs: 800, maxDelayMs: 8000 }
           );
 
+          // Option A bounded single-claim isolated retry for sourceless/unproven factual batch misses
+          if (!options.isSingleClaimRetry && microBatch.length > 1) {
+            for (let i = 0; i < microBatchResults.length; i++) {
+              if (isolatedRetriesUsed >= MAX_ISOLATED_RETRIES || Date.now() - t0 >= 360_000) {
+                break;
+              }
+              const current = microBatchResults[i];
+              const origClaim = microBatch.find((c) => c.claimId === current.claimId) || microBatch[i];
+              const isEmpirical =
+                (origClaim as any).requiresVerification !== false &&
+                current.status !== "opinion_claim" &&
+                current.status !== "religious_belief" &&
+                current.status !== "satire_claim";
+              const missed = (current.richSources?.length ?? 0) === 0 || current.status === "unproven";
+              if (!isEmpirical || !missed) continue;
+
+              isolatedRetriesUsed++;
+              try {
+                const scopedPre = preRetrievedEvidence.filter(
+                  (e) => Array.isArray(e?.claimIds) && e.claimIds.includes(origClaim.claimId)
+                );
+                const retriedBatch = await FusedGroundingService.verifyBatchFused(
+                  [origClaim],
+                  domainContext,
+                  {
+                    ...tier4Options,
+                    ...(scopedPre.length > 0 ? { preRetrievedEvidence: scopedPre } : {}),
+                    thinkingBudget: 512,
+                    isSingleClaimRetry: true,
+                  }
+                );
+                const retried = retriedBatch[0];
+                if (
+                  retried &&
+                  ((retried.richSources?.length ?? 0) > (current.richSources?.length ?? 0) ||
+                    (current.status === "unproven" && retried.status !== "unproven"))
+                ) {
+                  microBatchResults[i] = retried;
+                }
+              } catch (retryErr: any) {
+                logger.warn(`[VerificationCascade] Option A isolated retry failed for ${origClaim.claimId}`, {
+                  err: retryErr?.message,
+                });
+              }
+            }
+          }
+
           for (const g of microBatchResults) {
             finalResultsMap.set(g.claimId, g);
           }
@@ -459,8 +550,9 @@ export class VerificationCascadeService {
             await StreamingClaimProcessor.publishResolvedClaims(videoId, microBatchResults).catch(() => {});
           }
 
-          // Back-write to Tier 1 Cache with content-aware TTL
-          await claimCacheService.setBatch(microBatchResults).catch(() => {});
+          // Back-write to Tier 1 Cache + BigQuery verified ledger
+          await claimCacheService.setBatch(microBatchResults, englishCanonicalMap).catch(() => {});
+          this.enqueueBigQueryVerifiedClaims(videoId, microBatchResults, englishCanonicalMap);
         } catch (err: any) {
           logger.error(`[VerificationCascade] Tier 4 micro-batch ${batchIdx} failed; assigning unproven fallback to prevent false certainty`, {
             err: err?.message,
@@ -496,6 +588,79 @@ export class VerificationCascadeService {
 
     // Return in strict deterministic order matching original input slice
     return VerificationConcurrencyManager.restoreDeterministicOrder(claims, finalResultsMap);
+  }
+
+  /**
+   * Enqueues newly verified Tier 2 and Tier 4 claims (non-cache, non-unproven, grounded with sources)
+   * into the BigQuery `raw_claims_verified` ledger so Tier 1C warm hits accumulate organically.
+   */
+  private static enqueueBigQueryVerifiedClaims(
+    videoId: string,
+    verifiedClaims: VerifiedClaim[],
+    englishCanonicalMap?: Map<string, string>
+  ): void {
+    try {
+      const bq = getBigQueryAnalyticsService();
+      const nowIso = new Date().toISOString();
+      for (const c of verifiedClaims) {
+        if (!c || !c.text) continue;
+        if (
+          c.verificationMethod === "cache_hit" ||
+          c.verificationMethod === "llm_training" ||
+          c.verificationMethod === "not_verified"
+        ) {
+          continue;
+        }
+        if (
+          c.status === "unproven" ||
+          c.status === "verification_timeout" ||
+          c.status === "opinion_claim" ||
+          c.status === "religious_belief" ||
+          c.status === "satire_claim"
+        ) {
+          continue;
+        }
+        const rawSources = Array.isArray(c.richSources) ? c.richSources : [];
+        if (rawSources.length === 0) continue;
+
+        const strippedSources = stripEvidenceText(rawSources) || [];
+        const englishCanonical = englishCanonicalMap?.get(c.claimId);
+        const normalizedHash = hashClaimText(c.text);
+        const englishHash = englishCanonical ? hashClaimText(englishCanonical) : null;
+        const semanticHash = hashSemanticClaimText(englishCanonical || c.text);
+
+        bq.enqueueVerifiedClaim({
+          claim_id: c.claimId,
+          timestamp: nowIso,
+          video_id: videoId || "unknown_video",
+          claim_text: c.text,
+          normalized_claim_hash: normalizedHash,
+          english_claim_hash: englishHash,
+          semantic_hash: semanticHash,
+          evidence_schema_version: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
+          rich_sources_json: JSON.stringify(strippedSources),
+          speaker: (c as any).speaker || null,
+          start_sec: typeof c.start === "number" ? c.start : null,
+          end_sec: typeof c.end === "number" ? c.end : null,
+          status: c.status,
+          verification_method: c.verificationMethod || "grounded",
+          verification_confidence: typeof c.verificationConfidence === "number" ? c.verificationConfidence : 0,
+          evidence_confidence: typeof c.evidenceConfidence === "number" ? c.evidenceConfidence : (c.verificationConfidence ?? 0),
+          reasoning: c.reasoning || "",
+          sources_count: strippedSources.length,
+          primary_source_url: strippedSources[0]?.url || null,
+          primary_source_domain: strippedSources[0]?.domain || null,
+          primary_source_tier: strippedSources[0]?.tier || null,
+          is_grounded: Boolean(c.isGrounded && strippedSources.length > 0),
+          nature: c.nature ? String(c.nature) : null,
+          importance: typeof c.importance === "number" ? c.importance : null,
+        });
+      }
+    } catch (err: any) {
+      logger.warn("[VerificationCascade] Non-fatal BigQuery verified-claim enqueue error", {
+        err: err?.message,
+      });
+    }
   }
 
   /**

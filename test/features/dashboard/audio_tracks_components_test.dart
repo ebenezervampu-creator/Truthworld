@@ -168,7 +168,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Audio & Video Tracks'), findsOneWidget);
+      expect(find.text('Dubs'), findsOneWidget);
       expect(find.textContaining('Languages & Layers'), findsOneWidget);
       expect(find.text('Add Language'), findsOneWidget);
 
@@ -194,10 +194,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Audio Tracks'), findsOneWidget);
+      expect(find.text('Dubs'), findsOneWidget);
       expect(find.text('VideoTracks'), findsNothing);
 
-      await tester.tap(find.text('Audio Tracks'));
+      await tester.tap(find.text('Dubs'));
       await tester.pump();
       expect(controller.activeTab.value, equals('tracks'));
     });
@@ -234,7 +234,7 @@ void main() {
         ),
       );
 
-      expect(find.textContaining('Audio Dubbing & Voiceover Tracks'), findsOneWidget);
+      expect(find.textContaining('Dubs & Voiceover Tracks'), findsOneWidget);
       expect(find.text('English'), findsOneWidget);
       expect(find.text('Primary Base Audio'), findsOneWidget);
     });
@@ -435,9 +435,9 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+      expect(find.text('Dubs'), findsOneWidget);
       expect(find.text('AI Dubbing'), findsOneWidget);
-      expect(find.text('Direct Audio Track'), findsOneWidget);
+      expect(find.text('Direct Dub'), findsOneWidget);
     });
   });
 }

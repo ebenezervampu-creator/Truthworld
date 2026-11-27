@@ -8,7 +8,7 @@ class AudioTracksSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const StudioLoadingIndicator(
-      message: 'Loading audio tracks workspace...',
+      message: 'Loading dubs workspace...',
     );
   }
 }

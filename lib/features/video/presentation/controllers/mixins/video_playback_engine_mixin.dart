@@ -61,6 +61,9 @@ mixin VideoPlaybackEngineMixin on GetxController {
 
   VideoAnalyticsController get analyticsController;
   MainController get mainController;
+  String get playbackSessionId;
+  String get trafficSource;
+  String get viewerHash;
   StreamSubscription<DocumentSnapshot>? get videoSubscription;
   set videoSubscription(StreamSubscription<DocumentSnapshot>? s);
   StreamSubscription? get languageRequestsSubscription;
@@ -793,6 +796,9 @@ mixin VideoPlaybackEngineMixin on GetxController {
             duration: totalDur,
             isSubscriber: isSub,
             isNotSubscriber: isNotSub,
+            trafficSource: trafficSource,
+            viewerHash: viewerHash.isNotEmpty ? viewerHash : null,
+            sessionId: playbackSessionId,
           );
         }
       }

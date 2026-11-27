@@ -7,7 +7,7 @@ import {
   onSnapshot 
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { db, functions } from "../firebase";
+import { db, credibilityFunctions } from "../firebase";
 import CommunityEvidenceQueue from "./CommunityEvidenceQueue";
 
 // Helper to strictly validate safe web URLs and prevent XSS (javascript: / data: schemes)
@@ -187,7 +187,7 @@ export default function AppealsDeskTab({ user, formatDate }) {
     setActionSuccess("");
 
     try {
-      const resolveClaimAppealFn = httpsCallable(functions, "resolveClaimAppeal");
+      const resolveClaimAppealFn = httpsCallable(credibilityFunctions, "resolveClaimAppeal");
       const res = await resolveClaimAppealFn({
         appealId: selectedAppeal.appealId || selectedAppeal.id,
         decision,
@@ -219,7 +219,7 @@ export default function AppealsDeskTab({ user, formatDate }) {
     setChainVerifyResult(null);
 
     try {
-      const verifyAuditChainFn = httpsCallable(functions, "verifyGovernanceAuditChain");
+      const verifyAuditChainFn = httpsCallable(credibilityFunctions, "verifyGovernanceAuditChain");
       const res = await verifyAuditChainFn({ targetId: selectedAppeal.videoId });
       setChainVerifyResult(res.data);
     } catch (err) {

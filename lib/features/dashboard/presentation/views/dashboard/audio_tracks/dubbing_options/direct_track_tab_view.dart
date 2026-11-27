@@ -53,7 +53,7 @@ class DirectTrackTabView extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Where to Get Direct Audio Tracks (Studio Guide)',
+                          'Where to Get Direct Dubs (Studio Guide)',
                           style: typography.title.copyWith(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w600,
@@ -318,7 +318,7 @@ class _SingleFileUploadCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Upload Finished Direct Audio Track',
+                      'Upload Finished Direct Dub',
                       style: typography.title.copyWith(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w600,

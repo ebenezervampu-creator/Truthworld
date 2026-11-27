@@ -102,6 +102,8 @@ export const rollupVideoCounterShards = onSchedule(
     let ops = 0;
     let consolidatedVideos = 0;
     let consolidatedChannels = 0;
+    const freshVideoViews = new Map<string, number>();
+    const freshVideoWatch = new Map<string, number>();
 
     // 2. Consolidate video counter shards
     for (const videoId of videoIdsToRollup) {
@@ -159,9 +161,11 @@ export const rollupVideoCounterShards = onSchedule(
             updateData.viewCount = totalViews;
             updateData.views = totalViews;
             updateData.qualifiedViewCount = totalQualified;
+            freshVideoViews.set(videoId, totalViews);
           }
           if (totalWatchTimeSeconds > 0) {
             updateData.totalWatchTimeSeconds = totalWatchTimeSeconds;
+            freshVideoWatch.set(videoId, totalWatchTimeSeconds);
           }
           batch.update(videoRef, updateData);
           ops++;
@@ -212,8 +216,10 @@ export const rollupVideoCounterShards = onSchedule(
             const status = vData?.status;
             if (status !== "deleted" && status !== "deletion_pending") {
               activeVideoCount++;
-              sumVideoViews += Number(vData?.viewCount || vData?.views || 0);
-              sumVideoWatch += Number(vData?.totalWatchTimeSeconds || 0);
+              const effectiveVViews = freshVideoViews.get(vDoc.id) ?? Number(vData?.viewCount || vData?.views || 0);
+              const effectiveVWatch = freshVideoWatch.get(vDoc.id) ?? Number(vData?.totalWatchTimeSeconds || 0);
+              sumVideoViews += effectiveVViews;
+              sumVideoWatch += effectiveVWatch;
             }
           }
           if (activeVideoCount > 0) {

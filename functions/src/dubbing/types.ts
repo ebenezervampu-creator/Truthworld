@@ -89,6 +89,8 @@ export interface DubbingJob {
   chargeBasis: "characters" | "free_trial";
   totalCharactersCharged: number;
   costUsd: number;
+  walletSource?: "channel" | "personal" | "cashfree_direct";
+  cashfreeOrderId?: string;
   
   // Segments per target language
   segmentsByLanguage?: Record<string, DubbingSegment[]>;
@@ -120,7 +122,7 @@ export interface DubbingJob {
 
 export interface DubbingWalletTransaction {
   id: string;
-  type: "trial_credit" | "topup" | "job_debit" | "refund" | "admin_grant" | "admin_adjustment";
+  type: "trial_credit" | "topup" | "job_debit" | "refund" | "admin_grant" | "admin_adjustment" | "direct_payment";
   amountCredits: number;
   amountUsd: number;
   description: string;

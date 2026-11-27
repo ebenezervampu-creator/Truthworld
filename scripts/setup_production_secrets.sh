@@ -12,7 +12,10 @@ CASHFREE_APP_ID="${2:-}"
 CASHFREE_SECRET_KEY="${3:-}"
 ASSEMBLYAI_KEY="${4:-}"
 ELEVENLABS_API_KEY="${5:-}"
-INDEXNOW_KEY="${6:-truthworld-indexnow-key-2026}"
+DEMUX_WORKER_TOKEN="${6:-}"
+GOOGLE_TRANSLATION_API_KEY="${7:-}"
+ASSEMBLYAI_WEBHOOK_SECRET="${8:-}"
+INDEXNOW_KEY="${9:-truthworld-indexnow-key-2026}"
 
 echo "=========================================================="
 echo " TruthWorld Production Secret Manager Setup"
@@ -76,11 +79,24 @@ if [ -n "${ELEVENLABS_API_KEY}" ]; then
   set_gcp_secret "ELEVENLABS_API_KEY" "${ELEVENLABS_API_KEY}"
 fi
 
+if [ -n "${DEMUX_WORKER_TOKEN}" ]; then
+  set_gcp_secret "DEMUX_WORKER_TOKEN" "${DEMUX_WORKER_TOKEN}"
+fi
+
+if [ -n "${GOOGLE_TRANSLATION_API_KEY}" ]; then
+  set_gcp_secret "GOOGLE_TRANSLATION_API_KEY" "${GOOGLE_TRANSLATION_API_KEY}"
+fi
+
+if [ -n "${ASSEMBLYAI_WEBHOOK_SECRET}" ]; then
+  set_gcp_secret "ASSEMBLYAI_WEBHOOK_SECRET" "${ASSEMBLYAI_WEBHOOK_SECRET}"
+fi
+
 if [ -n "${INDEXNOW_KEY}" ]; then
   set_gcp_secret "INDEXNOW_KEY" "${INDEXNOW_KEY}"
 fi
 
 echo "=========================================================="
 echo " [✓] All production secrets provisioned successfully!"
+echo " Modal parity check: modal secret list (verify truthworld-demux-auth matches DEMUX_WORKER_TOKEN)"
 echo " Next step: Deploy functions with: cd functions && npm run deploy"
 echo "=========================================================="

@@ -6,7 +6,6 @@
  *
  * Setup: firebase functions:secrets:set ASSEMBLYAI_KEY
  *        firebase functions:secrets:set ELEVENLABS_API_KEY
- *        firebase functions:secrets:set GEMINI_API_KEY
  *        firebase functions:secrets:set GOOGLE_TRANSLATION_API_KEY
  */
 
@@ -80,11 +79,6 @@ export const PIPELINE_CONFIG = {
   },
   get ELEVENLABS_API_KEY(): string {
     return requireEnv("ELEVENLABS_API_KEY");
-  },
-  get GEMINI_API_KEY(): string {
-    // Vertex AI runs on Google Cloud IAM (Application Default Credentials).
-    // GEMINI_API_KEY is only optional for legacy Google AI Studio fallbacks.
-    return process.env.GEMINI_API_KEY || "";
   },
   get GOOGLE_TRANSLATION_API_KEY(): string {
     return requireEnv("GOOGLE_TRANSLATION_API_KEY");

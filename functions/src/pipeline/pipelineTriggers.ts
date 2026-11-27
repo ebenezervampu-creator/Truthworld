@@ -1,9 +1,10 @@
+import { CREDIBILITY_REGION, DUBBING_REGION } from "../config/regions";
 import { buildOrderPrices, recordDubbingOrder, refundDubbingFeeOnFailure } from "./services/refundService";
 import * as admin from "firebase-admin";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { requireAuth, isCallableAdmin } from "../utils/auth";
 import { applySecurityHeaders } from "../utils/securityHeaders";
@@ -22,7 +23,6 @@ import {
 } from "./types";
 import { logger } from "./utils/logger";
 import { emitDubbingTiming } from "./utils/dubbing-timing";
-import { PIPELINE_CONFIG } from "./config";
 import { normalizeLanguageCode, LANGUAGE_NAME_TO_CODE, getLanguageDisplayName, isSummaryLanguageMismatch } from "../shared/language-normalizer";
 import { calculateSubtitleCost, getFlatDubbingPriceForTier } from "./services/cost-engine";
 import { parseCastList, parseCastRelationships, parseExpectedSpeakers } from "./services/cast-list";
@@ -84,7 +84,7 @@ export const triggerVideoAIFeatures = onRequest(
     maxInstances: 5,
     timeoutSeconds: 300,
     memory: "1GiB",
-    secrets: ["GEMINI_API_KEY", "ASSEMBLYAI_KEY", "ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
+    secrets: ["ASSEMBLYAI_KEY", "ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
   async (req, res) => {
     applySecurityHeaders(res);
@@ -1141,7 +1141,7 @@ export const onVideoUpload = onObjectFinalized(
 export const handleTranscription = onMessagePublished(
   {
     topic: "video.uploaded",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 540,
     memory: "1GiB",
     minInstances: 0,  // Scale-to-zero when idle for cost efficiency
@@ -1149,7 +1149,7 @@ export const handleTranscription = onMessagePublished(
     concurrency: 2,   // Allow 2 concurrent transcriptions per instance
     cpu: 1,           // ⚡ 1 vCPU required when concurrency > 1
     retry: true,
-    secrets: ["ASSEMBLYAI_KEY", "GEMINI_API_KEY"],
+    secrets: ["ASSEMBLYAI_KEY"],
   },
   async (event) => {
     try {
@@ -1189,7 +1189,7 @@ export const handleTranscription = onMessagePublished(
 export const handleTranscriptionComplete = onMessagePublished(
   {
     topic: "transcription.completed",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0, // Scale-to-zero when idle for cost efficiency
@@ -1251,13 +1251,12 @@ export const handleTranscriptionComplete = onMessagePublished(
 export const handleCredibility = onMessagePublished(
   {
     topic: "factcheck.requested",
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,  // Scale-to-zero when idle for cost efficiency
     maxInstances: 15, // Scale horizontally to absorb viral traffic spikes
     retry: true,
-    secrets: ["GEMINI_API_KEY"],
   },
   async (event) => {
     try {
@@ -1270,9 +1269,25 @@ export const handleCredibility = onMessagePublished(
       logger.info("[handleCredibility] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
       const { executionPlan, videoUrl } = parsedEvent.data as { executionPlan: ExecutionPlan; videoUrl?: string };
-      const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
+      const targetVideoId = String((executionPlan as any)?.videoId || parsedEvent.jobId || "");
+      if (targetVideoId) {
+        const [videoSnap, jobSnap] = await Promise.all([
+          admin.firestore().collection("videos").doc(targetVideoId).get(),
+          admin.firestore().collection("video_jobs").doc(parsedEvent.jobId).get(),
+        ]);
+        const vData = videoSnap.data();
+        const jData = jobSnap.data();
+        if (vData?.status === "rejected" || vData?.moderation?.status === "rejected" || jData?.status === "rejected") {
+          logger.warn("[handleCredibility] Skipping credibility — video/job already rejected by moderation", {
+            jobId: parsedEvent.jobId,
+            videoId: targetVideoId,
+          });
+          return;
+        }
+      }
+
       const { CredibilityEngine } = require("./layers/06-credibility");
-      const engine = new CredibilityEngine(geminiKey);
+      const engine = new CredibilityEngine();
 
       await engine.runCredibilityPipeline(
         parsedEvent.jobId,
@@ -1285,6 +1300,13 @@ export const handleCredibility = onMessagePublished(
     } catch (error) {
       logger.error("[handleCredibility] Critical failure", { error: String(error) });
       throw error;
+    } finally {
+      try {
+        const { getBigQueryAnalyticsService } = require("../analytics/bigqueryService");
+        await getBigQueryAnalyticsService().flush();
+      } catch (flushErr) {
+        logger.warn("[handleCredibility] Non-fatal BigQuery analytics flush failed", { error: String(flushErr) });
+      }
     }
   }
 );
@@ -1297,7 +1319,7 @@ export const handleCredibility = onMessagePublished(
 export const credibilitySlaCanary = onSchedule(
   {
     schedule: "every 15 minutes",
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     timeoutSeconds: 120,
     memory: "512MiB",
     minInstances: 0,
@@ -1350,13 +1372,12 @@ export const credibilitySlaCanary = onSchedule(
 export const handleCredibilitySynthesis = onMessagePublished(
   {
     topic: "credibility.synthesis.requested",
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
     maxInstances: 10,
     retry: true,
-    secrets: ["GEMINI_API_KEY"],
   },
   async (event) => {
     try {
@@ -1364,9 +1385,8 @@ export const handleCredibilitySynthesis = onMessagePublished(
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleCredibilitySynthesis] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
-      const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
       const { CredibilityEngine } = require("./layers/06-credibility");
-      const engine = new CredibilityEngine(geminiKey);
+      const engine = new CredibilityEngine();
       await engine.runSynthesisPass(parsedEvent.jobId, parsedEvent.userId, parsedEvent.eventId);
     } catch (error: any) {
       logger.error("[handleCredibilitySynthesis] Execution error", { error: String(error) });
@@ -1392,7 +1412,7 @@ export const handleCredibilitySynthesis = onMessagePublished(
 export const handleDubbing = onMessagePublished(
   {
     topic: "dubbing.requested",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 540,
     memory: "4GiB",
     cpu: 2,
@@ -1445,6 +1465,22 @@ export const handleDubbing = onMessagePublished(
       }
 
       const { videoUrl, executionPlan } = parsedEvent.data as { videoUrl?: string; executionPlan: ExecutionPlan };
+      const targetVideoId = String((executionPlan as any)?.videoId || parsedEvent.jobId || "");
+      if (targetVideoId) {
+        const [videoSnap, jobSnap] = await Promise.all([
+          admin.firestore().collection("videos").doc(targetVideoId).get(),
+          admin.firestore().collection("video_jobs").doc(parsedEvent.jobId).get(),
+        ]);
+        const vData = videoSnap.data();
+        const jData = jobSnap.data();
+        if (vData?.status === "rejected" || vData?.moderation?.status === "rejected" || jData?.status === "rejected") {
+          logger.warn("[handleDubbing] Skipping dubbing — video/job already rejected by moderation", {
+            jobId: parsedEvent.jobId,
+            videoId: targetVideoId,
+          });
+          return;
+        }
+      }
 
       let url = videoUrl ?? "";
       if (!url) {
@@ -1476,7 +1512,7 @@ export const handleDubbing = onMessagePublished(
 export const handleFactComplete = onMessagePublished(
   {
     topic: "factcheck.completed",
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     timeoutSeconds: 60,
     minInstances: 0,
     maxInstances: 2,
@@ -1522,7 +1558,7 @@ export const handleFactComplete = onMessagePublished(
 export const handleDubbingComplete = onMessagePublished(
   {
     topic: "dubbing.completed",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 60,
     minInstances: 0,
     maxInstances: 2,
@@ -1575,7 +1611,6 @@ export const handleCopyrightCheck = onMessagePublished(
     maxInstances: 10,
     retry: true,
     cpu: 0.5,
-    secrets: ["GEMINI_API_KEY"],
   },
   async (event) => {
     try {
@@ -1602,7 +1637,7 @@ export const handleCopyrightCheck = onMessagePublished(
 export const onDubbingResultWritten = onDocumentWritten(
   {
     document: "dubbing_results/{resultId}",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     minInstances: 0,
     maxInstances: 5,
   },
@@ -1705,12 +1740,11 @@ export const onDubbingResultWritten = onDocumentWritten(
  */
 export const getVideoAiSummary = onCall(
   {
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     minInstances: 0,
     maxInstances: 5,
     timeoutSeconds: 60,
     memory: "512MiB",
-    secrets: ["GEMINI_API_KEY"],
   },
   async (request) => {
     // 🔒 Auth Enforcement: Prevent unauthenticated denial-of-service / resource exhaustion
@@ -1900,7 +1934,7 @@ ${safeTranscript}
 export const getSourceAvatars = onCall(
   {
     cors: true,
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     minInstances: 0,
     maxInstances: 5,
     memory: "256MiB",
@@ -1932,7 +1966,7 @@ export const getSourceAvatars = onCall(
 export const verifyElevenLabsStatus = onCall(
   {
     cors: true,
-    region: "asia-south1",
+    region: DUBBING_REGION,
     minInstances: 0,
     maxInstances: 5,
     memory: "256MiB",
@@ -2003,7 +2037,7 @@ function checkBrokenReportRateLimit(callerKey: string): boolean {
 export const reportBrokenSourceUrl = onCall(
   {
     cors: true,
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     minInstances: 0,
     maxInstances: 10,
     memory: "512MiB",
@@ -2085,7 +2119,7 @@ export const evidenceFreshnessSweep = onSchedule(
   {
     schedule: "17 3 * * *",
     timeZone: "Asia/Kolkata",
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     timeoutSeconds: 540,
     memory: "1GiB",
     minInstances: 0,
@@ -2107,7 +2141,7 @@ export const evidenceFreshnessSweep = onSchedule(
 export const auditAndHealBrokenSources = onCall(
   {
     cors: true,
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     minInstances: 0,
     maxInstances: 3,
     memory: "1GiB",
@@ -2172,7 +2206,7 @@ export const auditAndHealBrokenSources = onCall(
 export const handleDubbingReel = onMessagePublished(
   {
     topic: "dubbing.reel.requested",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
@@ -2202,7 +2236,7 @@ export const handleDubbingReel = onMessagePublished(
 export const handleAssembleDubbingReels = onMessagePublished(
   {
     topic: "dubbing.reel.assemble",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
@@ -2237,7 +2271,7 @@ export const handleAssembleDubbingReels = onMessagePublished(
 export const handleDubbingPrewarm = onMessagePublished(
   {
     topic: "dubbing.prewarm.requested",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
@@ -2277,7 +2311,7 @@ function getCallerIsAdmin(auth: { token?: Record<string, any> } | undefined): bo
 
 export const getDubbingEditorManifest = onCall(
   {
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 60,
     memory: "512MiB",
   },
@@ -2314,7 +2348,7 @@ export const getDubbingEditorManifest = onCall(
 
 export const updateDubbingSegmentAndResynthesize = onCall(
   {
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 120,
     memory: "1GiB",
     secrets: ["ELEVENLABS_API_KEY"],
@@ -2357,7 +2391,7 @@ export const updateDubbingSegmentAndResynthesize = onCall(
 
 export const saveDubbingPronunciationGlossary = onCall(
   {
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 60,
     memory: "512MiB",
   },
@@ -2394,7 +2428,7 @@ export const saveDubbingPronunciationGlossary = onCall(
 
 export const updateDubbingSegmentTimings = onCall(
   {
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 120,
     memory: "512MiB",
   },
@@ -2431,9 +2465,10 @@ export const updateDubbingSegmentTimings = onCall(
 
 export const retranslateDubbingSegment = onCall(
   {
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 120,
     memory: "512MiB",
+    secrets: ["GOOGLE_TRANSLATION_API_KEY"],
   },
   async (request) => {
     if (!request.auth?.uid) {
@@ -2476,7 +2511,7 @@ export const retranslateDubbingSegment = onCall(
 
 export const remasterDubbedAudioTrack = onCall(
   {
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
@@ -2518,9 +2553,10 @@ export const remasterDubbedAudioTrack = onCall(
 
 export const getDubbingExportPackage = onCall(
   {
-    region: "asia-south1",
-    timeoutSeconds: 60,
-    memory: "512MiB",
+    region: DUBBING_REGION,
+    timeoutSeconds: 300,
+    memory: "1GiB",
+    secrets: ["ELEVENLABS_API_KEY", "DEMUX_WORKER_TOKEN"],
   },
   async (request) => {
     if (!request.auth?.uid) {
@@ -2563,7 +2599,7 @@ export const getDubbingExportPackage = onCall(
  */
 export const generateDubbedVideo = onCall(
   {
-    region: "asia-south1",
+    region: DUBBING_REGION,
     timeoutSeconds: 300,
     memory: "1GiB",
     maxInstances: 3,
@@ -2576,20 +2612,74 @@ export const generateDubbedVideo = onCall(
     }
     const data = request.data && typeof request.data === "object" ? request.data : {};
     const videoId = typeof data.videoId === "string" ? data.videoId.trim() : "";
+    const jobIdParam = typeof data.jobId === "string" ? data.jobId.trim() : "";
     const rawLanguage = typeof data.language === "string" ? data.language.trim() : "";
     const language = normalizeLanguageCode(rawLanguage) || rawLanguage.toLowerCase();
 
-    if (!videoId || !language) {
-      throw new HttpsError("invalid-argument", "Both videoId and language are required.");
+    if ((!videoId && !jobIdParam) || !language) {
+      throw new HttpsError("invalid-argument", "A valid jobId or videoId, and language are required.");
     }
 
-    const videoSnap = await admin.firestore().collection("videos").doc(videoId).get();
-    if (!videoSnap.exists) {
-      throw new HttpsError("not-found", "Video not found.");
+    const db = admin.firestore();
+    const isAdmin = getCallerIsAdmin(request.auth);
+    const videoSnap = videoId ? await db.collection("videos").doc(videoId).get() : null;
+    const isChannelVideo = Boolean(videoSnap?.exists);
+    const videoData = videoSnap?.exists ? (videoSnap.data() || {}) : {};
+
+    if (isChannelVideo) {
+      const visibility = String(videoData.visibility || "public").toLowerCase();
+      const isPrivateOrDraft =
+        visibility === "private" || visibility === "draft" || visibility === "private_draft";
+      const isOwner =
+        videoData.ownerId === request.auth.uid ||
+        videoData.userId === request.auth.uid ||
+        videoData.uploaderId === request.auth.uid;
+      if (isPrivateOrDraft && !isOwner && !isAdmin) {
+        throw new HttpsError(
+          "permission-denied",
+          "You do not have permission to generate a dubbed video for this private video."
+        );
+      }
     }
 
-    const videoData = videoSnap.data() || {};
-    const sourceVideoUrl = (videoData.videoUrl || videoData.originalUrl || "") as string;
+    let studioJobId = jobIdParam;
+    let studioJobData: Record<string, any> = {};
+    let pipelineJobId = videoData.jobId || videoId || jobIdParam;
+    let videoJobData: Record<string, any> = {};
+
+    if (!isChannelVideo) {
+      if (studioJobId) {
+        let sjSnap = await db.collection("studio_dubbing_jobs").doc(studioJobId).get();
+        if (!sjSnap.exists) {
+          sjSnap = await db.collection("dubbing_jobs").doc(studioJobId).get();
+        }
+        if (sjSnap.exists) {
+          studioJobData = sjSnap.data() || {};
+          pipelineJobId = studioJobData.pipelineJobId || studioJobData.videoId || studioJobData.jobId || studioJobId;
+        }
+      }
+
+      const vjSnap = pipelineJobId ? await db.collection("video_jobs").doc(pipelineJobId).get() : null;
+      if (vjSnap?.exists) {
+        videoJobData = vjSnap.data() || {};
+      }
+
+      const ownerUid = studioJobData.userId || videoJobData.userId || "";
+      if (!studioJobData.userId && !vjSnap?.exists) {
+        throw new HttpsError("not-found", "Video or dubbing job not found.");
+      }
+      if (ownerUid && ownerUid !== request.auth.uid && !getCallerIsAdmin(request.auth)) {
+        throw new HttpsError("permission-denied", "You do not have permission to access this dubbing job.");
+      }
+    }
+
+    const sourceVideoUrl = (
+      videoData.videoUrl ||
+      videoData.originalUrl ||
+      videoJobData.videoUrl ||
+      studioJobData.sourceMediaUrl ||
+      ""
+    ) as string;
     if (!sourceVideoUrl) {
       throw new HttpsError("not-found", "Master video stream was not found.");
     }
@@ -2603,16 +2693,22 @@ export const generateDubbedVideo = onCall(
       return false;
     };
 
-    // 1. Check if an authentic pre-rendered dubbed video already exists in video doc or video_localizations
-    const existingDubbedMap = (videoData.dubbedVideos || videoData.media?.dubbedVideos || {}) as Record<string, any>;
+    // 1. Check if an authentic pre-rendered dubbed video already exists
+    const existingDubbedMap = (
+      videoData.dubbedVideos ||
+      videoData.media?.dubbedVideos ||
+      videoJobData.outputs?.dubbedVideos ||
+      studioJobData.exportUrls?.dubbedVideoByLanguage ||
+      {}
+    ) as Record<string, any>;
     let existingEntry = existingDubbedMap[language] || existingDubbedMap[rawLanguage];
     let existingDubbedUrl = typeof existingEntry === "string"
       ? existingEntry
       : (existingEntry?.videoUrl || existingEntry?.path || "");
 
-    if (!existingDubbedUrl || isMasterUrl(existingDubbedUrl)) {
+    if ((!existingDubbedUrl || isMasterUrl(existingDubbedUrl)) && isChannelVideo) {
       try {
-        const globalLocSnap = await admin.firestore().collection("video_localizations").doc(videoId).get();
+        const globalLocSnap = await db.collection("video_localizations").doc(videoId).get();
         if (globalLocSnap.exists) {
           const gData = globalLocSnap.data() || {};
           const gDubbed = (gData.dubbedVideos || {}) as Record<string, any>;
@@ -2625,21 +2721,31 @@ export const generateDubbedVideo = onCall(
       } catch (_) {}
     }
 
+    const { audioIdentityService } = require("./services/audio-identity");
     if (existingDubbedUrl && !isMasterUrl(existingDubbedUrl)) {
+      const accessibleExisting = await audioIdentityService
+        .getAccessibleUrl(existingDubbedUrl, { downloadFileName: `video_with_${language}_dub.mp4` })
+        .catch(() => existingDubbedUrl);
       return {
         success: true,
-        videoUrl: existingDubbedUrl,
+        videoUrl: accessibleExisting,
         cached: true,
       };
     }
 
     // 2. Resolve target language audio track URL
-    const audioTracksMap = (videoData.audioTracks || videoData.media?.audioTracks || {}) as Record<string, string>;
+    const audioTracksMap = (
+      videoData.audioTracks ||
+      videoData.media?.audioTracks ||
+      videoJobData.outputs?.audioTracks ||
+      studioJobData.exportUrls?.dubbedAudioByLanguage ||
+      {}
+    ) as Record<string, string>;
     let audioTrackUrl = audioTracksMap[language] || audioTracksMap[rawLanguage] || "";
 
-    if (!audioTrackUrl) {
+    if (!audioTrackUrl && isChannelVideo) {
       try {
-        const locSnap = await admin.firestore().collection("videos").doc(videoId).collection("media").doc("localization").get();
+        const locSnap = await db.collection("videos").doc(videoId).collection("media").doc("localization").get();
         if (locSnap.exists) {
           const locData = locSnap.data() || {};
           const locAudio = (locData.audioTracks || {}) as Record<string, string>;
@@ -2649,9 +2755,9 @@ export const generateDubbedVideo = onCall(
       } catch (_) {}
     }
 
-    if (!audioTrackUrl) {
+    if (!audioTrackUrl && isChannelVideo) {
       try {
-        const globalLocSnap = await admin.firestore().collection("video_localizations").doc(videoId).get();
+        const globalLocSnap = await db.collection("video_localizations").doc(videoId).get();
         if (globalLocSnap.exists) {
           const gData = globalLocSnap.data() || {};
           const gAudio = (gData.audioTracks || {}) as Record<string, string>;
@@ -2663,25 +2769,75 @@ export const generateDubbedVideo = onCall(
 
     if (!audioTrackUrl) {
       try {
-        const candidateJobIds = [videoId, videoData.jobId].filter(Boolean);
+        const candidateJobIds = [pipelineJobId, videoId, studioJobId, videoData.jobId].filter(Boolean);
         for (const jId of candidateJobIds) {
-          const dubResultSnap = await admin.firestore().collection("dubbing_results").doc(`${jId}_${language}`).get();
+          const dubResultSnap = await db.collection("dubbing_results").doc(`${jId}_${language}`).get();
           if (dubResultSnap.exists && dubResultSnap.data()?.audioUrl) {
             audioTrackUrl = dubResultSnap.data()!.audioUrl;
+            break;
+          }
+          const manifestSnap = await db.collection("video_jobs").doc(jId).collection("dubbing_manifests").doc(language).get();
+          if (manifestSnap.exists && manifestSnap.data()?.masterAudioUrl) {
+            audioTrackUrl = manifestSnap.data()!.masterAudioUrl;
             break;
           }
         }
       } catch (_) {}
     }
 
+    if (!audioTrackUrl && pipelineJobId) {
+      const bucket = admin.storage().bucket();
+      const canonicalCandidates = [
+        `audio/${pipelineJobId}/${language}/master_delivery.mp3`,
+        `audio/${pipelineJobId}/${language}/master_faithful.mp3`,
+        `audio/${pipelineJobId}/${language}/master.mp3`,
+        `audio/${pipelineJobId}/${language}/master_reels.mp3`,
+      ];
+      for (const pathCandidate of canonicalCandidates) {
+        const [exists] = await bucket.file(pathCandidate).exists().catch(() => [false]);
+        if (exists) {
+          audioTrackUrl = `gs://${bucket.name}/${pathCandidate}`;
+          break;
+        }
+      }
+    }
+
     if (!audioTrackUrl) {
       throw new HttpsError("not-found", `Audio track for language '${language}' was not found.`);
+    }
+
+    if (!isAdmin) {
+      const limitRef = db.collection("dubbing_video_mux_limits").doc(request.auth.uid);
+      const nowMs = Date.now();
+      const windowMs = 10 * 60 * 1000;
+      await db.runTransaction(async (tx) => {
+        const limitSnap = await tx.get(limitRef);
+        const lData = limitSnap.exists ? (limitSnap.data() || {}) : {};
+        const windowStart = Number(lData.windowStartMs || 0);
+        const inWindow = windowStart > 0 && nowMs - windowStart < windowMs;
+        const nextCount = inWindow ? Number(lData.count || 0) + 1 : 1;
+        if (nextCount > 5) {
+          throw new HttpsError(
+            "resource-exhausted",
+            "Too many video export requests. Please wait a few minutes and try again."
+          );
+        }
+        tx.set(
+          limitRef,
+          {
+            windowStartMs: inWindow ? windowStart : nowMs,
+            count: nextCount,
+            updatedAt: nowMs,
+          },
+          { merge: true }
+        );
+      });
     }
 
     // 3. Render synchronized video with target language audio using mediaService.mergeAudioToVideo
     const { mediaService, parseAnyStorageUrl } = require("./services/media");
     const bucket = admin.storage().bucket();
-    const effectiveJobId = videoData.jobId || videoId;
+    const effectiveJobId = pipelineJobId || videoData.jobId || videoId;
 
     try {
       const dubbedGcsUrl = await mediaService.mergeAudioToVideo({
@@ -2712,24 +2868,54 @@ export const generateDubbedVideo = onCall(
         directVideoUrl = `https://firebasestorage.googleapis.com/v0/b/${targetBucket.name}/o/${encodeURIComponent(storageInfo.filePath)}?alt=media&token=${token}`;
       }
 
-      // 5. Persist to Firestore videos collection (existing docs only) & video_localizations for instant cache hits
-      await safeMergeExistingVideo(
-        videoId,
-        {
-          dubbedVideos: { [language]: directVideoUrl },
-          media: { dubbedVideos: { [language]: directVideoUrl } },
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        "[generateDubbedVideo]"
-      );
+      // 5. Persist to Firestore for instant cache hits
+      if (isChannelVideo && videoId) {
+        await safeMergeExistingVideo(
+          videoId,
+          {
+            dubbedVideos: { [language]: directVideoUrl },
+            media: { dubbedVideos: { [language]: directVideoUrl } },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          "[generateDubbedVideo]"
+        );
 
-      await admin.firestore().collection("video_localizations").doc(videoId).set({
-        dubbedVideos: { [language]: directVideoUrl },
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true }).catch(() => {});
+        await db.collection("video_localizations").doc(videoId).set({
+          dubbedVideos: { [language]: directVideoUrl },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true }).catch(() => {});
+      }
+
+      if (pipelineJobId) {
+        await db.collection("video_jobs").doc(pipelineJobId).set({
+          outputs: {
+            dubbedVideos: {
+              [language]: directVideoUrl,
+              ...(rawLanguage && rawLanguage !== language ? { [rawLanguage]: directVideoUrl } : {}),
+            },
+          },
+        }, { merge: true }).catch(() => {});
+
+        await db.collection("dubbing_results").doc(`${pipelineJobId}_${language}`).set({
+          videoUrl: directVideoUrl,
+        }, { merge: true }).catch(() => {});
+      }
+
+      if (studioJobId) {
+        await db.collection("studio_dubbing_jobs").doc(studioJobId).set({
+          exportUrls: {
+            dubbedVideoByLanguage: {
+              [language]: directVideoUrl,
+              ...(rawLanguage && rawLanguage !== language ? { [rawLanguage]: directVideoUrl } : {}),
+            },
+          },
+        }, { merge: true }).catch(() => {});
+      }
 
       logger.info("[generateDubbedVideo] Successfully rendered dubbed MP4:", {
-        videoId,
+        videoId: videoId || null,
+        studioJobId: studioJobId || null,
+        pipelineJobId,
         language,
         directVideoUrl,
       });
@@ -2765,7 +2951,7 @@ export { assemblyAiWebhook, recoverWebhookOutboxLeases } from "./webhooks/assemb
 export const getDubbingQuote = onCall(
   {
     cors: true,
-    region: "asia-south1",
+    region: DUBBING_REGION,
     minInstances: 0,
     maxInstances: 5,
     memory: "256MiB",
@@ -2776,12 +2962,20 @@ export const getDubbingQuote = onCall(
     if (!uid) throw new HttpsError("unauthenticated", "Please sign in to see dubbing prices.");
     const data = request.data || {};
     const videoId = typeof data.videoId === "string" ? data.videoId.trim() : "";
-    if (!videoId) throw new HttpsError("invalid-argument", "Please choose a video.");
+    const pipelineJobId = typeof data.pipelineJobId === "string" ? data.pipelineJobId.trim() : "";
+    const requestedDuration = Number(data.durationSeconds || 0);
+    const requestedMode = typeof data.mode === "string" ? data.mode.trim() : "dubbing";
+    if (!videoId && requestedDuration <= 0) {
+      throw new HttpsError("invalid-argument", "Please choose a video or provide media duration.");
+    }
 
     const db = admin.firestore();
-    const videoSnap = await db.collection("videos").doc(videoId).get();
-    if (!videoSnap.exists) throw new HttpsError("not-found", "We couldn't find this video.");
-    const videoData = videoSnap.data() || {};
+    let videoData: Record<string, any> = {};
+    if (videoId) {
+      const videoSnap = await db.collection("videos").doc(videoId).get();
+      if (!videoSnap.exists) throw new HttpsError("not-found", "We couldn't find this video.");
+      videoData = videoSnap.data() || {};
+    }
 
     const isAdmin = isCallableAdmin(request.auth);
     const videoOwnerId = videoData.ownerId || videoData.userId || videoData.uploaderId;
@@ -2801,8 +2995,10 @@ export const getDubbingQuote = onCall(
     } catch (e) {
       logger.warn("[getDubbingQuote] Channel lookup failed — quoting without discount", { videoId, error: String(e) });
     }
-    const isOwner = videoOwnerId === uid || channelData?.ownerId === uid || channelData?.userId === uid;
-    if (!isOwner && !isAdmin) throw new HttpsError("permission-denied", "Only the video's owner can see its dubbing price.");
+    if (videoId) {
+      const isOwner = videoOwnerId === uid || channelData?.ownerId === uid || channelData?.userId === uid;
+      if (!isOwner && !isAdmin) throw new HttpsError("permission-denied", "Only the video's owner can see its dubbing price.");
+    }
 
     // Same duration rule as triggerVideoAIFeatures (authoritative video duration first).
     const authoritativeDuration = Number(
@@ -2813,15 +3009,20 @@ export const getDubbingQuote = onCall(
     );
     const durationSeconds = authoritativeDuration > 0
       ? authoritativeDuration
-      : Math.max(120, Number(data.durationSeconds || 120));
+      : Math.max(60, requestedDuration > 0 ? requestedDuration : 120);
 
     const fallbackSourceLanguage = normalizeLanguageCode(
-      videoData.sourceLanguage || videoData.originalLanguage || videoData.language || videoData.primaryLanguage || "en"
+      videoData.sourceLanguage ||
+      videoData.originalLanguage ||
+      videoData.language ||
+      videoData.primaryLanguage ||
+      (typeof data.sourceLanguage === "string" ? data.sourceLanguage : "") ||
+      "en"
     ) || "en";
     const targetLanguages = validateTargetLanguages(data.targetLanguages).filter((l) => l !== fallbackSourceLanguage);
     // Same launch-language rule as triggerVideoAIFeatures: never quote a dub the order would refuse.
     const langCheck = checkDubbingRequest(fallbackSourceLanguage, targetLanguages);
-    if (targetLanguages.length > 0 && !langCheck.ok) {
+    if (requestedMode !== "subtitles_only" && targetLanguages.length > 0 && !langCheck.ok) {
       return {
         status: "language_unavailable",
         message: dubbingLanguageMessage(langCheck),
@@ -2846,8 +3047,31 @@ export const getDubbingQuote = onCall(
       } catch (_) {}
     }
 
+    if (requestedMode === "subtitles_only") {
+      const { studioCharge } = require("../dubbing/studio-order");
+      const subCharge = studioCharge({
+        mode: "subtitles_only",
+        targetLanguages,
+        durationSeconds,
+        channelData: channelData || {},
+        isAdmin,
+        dubbingDiscountPercent: discountPercent,
+        quote: null,
+        characterPricing: false,
+      });
+      return {
+        status: "ready",
+        characterPricingEnabled: false,
+        dubbingChargeUsd: subCharge.chargedUsd,
+        priceByLanguage: {},
+        basis: "minutes",
+        durationSec: durationSeconds,
+        discountPercent,
+      };
+    }
+
     const quote = await quoteFromTranscript({
-      transcriptIds: [videoData.jobId, videoId],
+      transcriptIds: [videoData.jobId, videoId || undefined, pipelineJobId || undefined],
       durationSec: durationSeconds,
       fallbackSourceLanguage,
       targetLanguages,
@@ -2856,8 +3080,8 @@ export const getDubbingQuote = onCall(
     });
     const characterPricing = characterPricingEnabled();
 
-    // With character pricing on, the price needs the transcript.
-    if (characterPricing && !quote) {
+    // With character pricing on, the price needs the transcript (when quoting an existing channel video).
+    if (videoId && characterPricing && !quote) {
       return {
         status: "transcript_pending",
         message: "We're still listening to your video. Your exact dubbing price will be ready in a few minutes.",
@@ -2894,7 +3118,7 @@ export const getDubbingQuote = onCall(
 export const onVideoJobWrittenSyncDubbingStudio = onDocumentWritten(
   {
     document: "video_jobs/{jobId}",
-    region: "asia-south1",
+    region: DUBBING_REGION,
     minInstances: 0,
     maxInstances: 10,
   },
@@ -2911,5 +3135,52 @@ export const onVideoJobWrittenSyncDubbingStudio = onDocumentWritten(
 
     const { syncStudioDubbingJobsForPipelineJob } = require("../dubbing/studio-job-sync");
     await syncStudioDubbingJobsForPipelineJob(jobId, data);
+  }
+);
+
+/**
+ * 🔍 Evaluates disputed or supporting Community Notes (`stance === "disputes" | "supports"` with `sourceUrls`)
+ * against live URL verification + Trust Tier checks:
+ *  - `disputes` with valid sources: re-adjudicates the single target claim.
+ *  - `supports` with valid sources: appends verified sources alongside the claim's sources.
+ *  - All-invalid/random sources: records an abuse strike and enforces progressive AI Check restrictions.
+ */
+export const onDisputedClaimCommentCreated = onDocumentCreated(
+  {
+    document: "videos/{videoId}/claim_comments/{commentId}",
+    region: CREDIBILITY_REGION,
+    memory: "1GiB",
+    timeoutSeconds: 180,
+    maxInstances: 10,
+  },
+  async (event) => {
+    const comment = event.data?.data();
+    if (!comment) return;
+
+    const stance = String(comment.stance || "").toLowerCase().trim();
+    const rawUrls = Array.isArray(comment.sourceUrls) ? comment.sourceUrls : [];
+    if ((stance !== "disputes" && stance !== "supports") || rawUrls.length === 0) return;
+
+    const { videoId, commentId } = event.params;
+    const { communityEvidenceService } = require("./services/communityEvidenceService");
+    try {
+      const outcome = await communityEvidenceService.processClaimNoteEvidence({
+        videoId,
+        commentId,
+        comment,
+      });
+      logger.info("[onDisputedClaimCommentCreated] Processed claim note evidence", {
+        videoId,
+        commentId,
+        stance,
+        ...outcome,
+      });
+    } catch (err) {
+      logger.error("[onDisputedClaimCommentCreated] Failed evaluating claim note", {
+        videoId,
+        commentId,
+        err: String(err),
+      });
+    }
   }
 );

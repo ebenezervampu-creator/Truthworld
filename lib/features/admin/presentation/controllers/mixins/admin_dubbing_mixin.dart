@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -43,7 +44,7 @@ mixin AdminDubbingMixin on GetxController {
     try {
       // 1. Authoritative Cloud Function path (Admin SDK context, immune to client Firestore Rules)
       try {
-        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+        final callable = FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion)
             .httpsCallable('adminListDubbingAccounts');
         final res = await callable.call();
         final data = res.data;

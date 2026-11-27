@@ -93,32 +93,186 @@ async function processImage(id: string, action: string, reason: string) {
   await batch.commit();
 }
 
+async function cancelSpeculativeJobsForVideo(videoId: string, jobId: string, reason: string, now: number) {
+  const db = admin.firestore();
+  const activeStatuses = ["pending", "accepted", "processing", "running"];
+  const collections = ["video_jobs", "credibility_jobs", "dubbing_jobs"];
+  const batch = db.batch();
+  let hasUpdates = false;
+
+  for (const col of collections) {
+    const byVideo = await db.collection(col)
+      .where("videoId", "==", videoId)
+      .where("status", "in", activeStatuses)
+      .get();
+
+    for (const doc of byVideo.docs) {
+      const updatePayload: Record<string, any> = {
+        status: "rejected",
+        rejectionReason: reason || "Rejected by Admin Bulk Review",
+        updatedAt: now,
+      };
+      if (col === "video_jobs") {
+        updatePayload["stages.moderation"] = {
+          status: "failed",
+          reason: reason || "Rejected by Admin Bulk Review",
+          failedAt: now,
+        };
+      }
+      batch.update(doc.ref, updatePayload);
+      hasUpdates = true;
+    }
+
+    if (jobId && jobId !== videoId) {
+      const byJobRef = db.collection(col).doc(jobId);
+      const byJobSnap = await byJobRef.get();
+      if (byJobSnap.exists && activeStatuses.includes(String(byJobSnap.data()?.status || ""))) {
+        batch.update(byJobRef, {
+          status: "rejected",
+          rejectionReason: reason || "Rejected by Admin Bulk Review",
+          updatedAt: now,
+        });
+        hasUpdates = true;
+      }
+    }
+  }
+
+  if (hasUpdates) {
+    await batch.commit();
+  }
+}
+
 async function processVideo(id: string, action: string, reason: string) {
+  const db = admin.firestore();
   const status = action === "approve" ? "approved" : "rejected";
   const now = Date.now();
-  
-  const batch = admin.firestore().batch();
-  
-  const videoJobRef = admin.firestore().collection("video_jobs").doc(id);
-  batch.update(videoJobRef, { status, adminReason: reason, reviewedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+  // Resolve both jobId and videoId since callers may pass either.
+  let jobId = id;
+  let videoId = id;
+  let jobSnap = await db.collection("video_jobs").doc(id).get();
+  if (jobSnap.exists) {
+    videoId = String(jobSnap.data()?.videoId || id);
+  } else {
+    const byVideo = await db.collection("video_jobs").where("videoId", "==", id).limit(1).get();
+    if (!byVideo.empty) {
+      jobSnap = byVideo.docs[0];
+      jobId = jobSnap.id;
+    }
+  }
+
+  const batch = db.batch();
+  const videoJobRef = db.collection("video_jobs").doc(jobId);
+  const videoRef = db.collection("videos").doc(videoId);
+  const reviewQueueRef = db.collection("admin_review_queue").doc(videoId);
 
   if (action === "approve") {
-    batch.update(videoJobRef, {
-      gatewayStatus: "APPROVED",
-      "gatewayDecision.status": "APPROVED",
-      "gatewayDecision.reviewReason": reason || "Approved by Admin Bulk Review",
-      "stages.moderation.status": "completed",
-      "stages.moderation.progress": 100,
-      "stages.moderation.completedAt": now,
-      updatedAt: now,
-    });
+    if (jobSnap.exists) {
+      batch.update(videoJobRef, {
+        status,
+        adminReason: reason,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        gatewayStatus: "APPROVED",
+        "gatewayDecision.status": "APPROVED",
+        "gatewayDecision.reviewReason": reason || "Approved by Admin Bulk Review",
+        "stages.moderation.status": "completed",
+        "stages.moderation.progress": 100,
+        "stages.moderation.completedAt": now,
+        updatedAt: now,
+      });
+    }
+
+    const videoSnap = await videoRef.get();
+    if (videoSnap.exists) {
+      const videoData = videoSnap.data() || {};
+      const videoUpdates: Record<string, any> = {
+        "moderation.status": "approved",
+        "moderation.policyAction": "allow",
+        "moderation.reason": reason || "Approved by Admin Bulk Review",
+        "moderation.reviewedByAdmin": true,
+        "moderation.checkedAt": now,
+        isModerated: true,
+        updatedAt: now,
+      };
+      if (videoData.status === "pending_review") {
+        videoUpdates.status = jobSnap.exists && jobSnap.data()?.status === "completed" ? "published" : "processing";
+      }
+      batch.update(videoRef, videoUpdates);
+    }
+
+    batch.delete(reviewQueueRef);
+    await batch.commit();
+
+    try {
+      const freshJobSnap = await videoJobRef.get();
+      if (freshJobSnap.exists) {
+        const jobData = freshJobSnap.data() || {};
+        const executionPlan = jobData.executionPlan || {};
+        const userId = jobData.userId || "system";
+        const { DistributionLayer } = require("../pipeline/layers/04-distribution");
+        const { AggregationLayer } = require("../pipeline/layers/09-aggregation");
+        const distribution = new DistributionLayer();
+        const aggregationLayer = new AggregationLayer();
+
+        await aggregationLayer.onStageComplete(jobId, "transcription", userId, executionPlan).catch(() => {});
+
+        await distribution.publish("copyright.requested" as any, {
+          eventId: `copy_bulk_${jobId}`,
+          eventType: "copyright.requested" as any,
+          jobId,
+          userId,
+          timestamp: now,
+          data: { videoUrl: jobData.videoUrl, executionPlan },
+          retryCount: 0,
+          source: "admin-bulk-approval",
+        }).catch(() => {});
+
+        const { isCredibilityEnabled, isLocalizationEnabled } = require("../pipeline/types");
+        const shouldRunCredibility = isCredibilityEnabled(executionPlan);
+        const shouldRunLocalization = isLocalizationEnabled(executionPlan);
+
+        if (shouldRunCredibility) {
+          await distribution.publish("factcheck.requested" as any, {
+            eventId: `fact_bulk_${jobId}`,
+            eventType: "factcheck.requested" as any,
+            jobId,
+            userId,
+            timestamp: now,
+            data: { videoUrl: jobData.videoUrl || "", executionPlan },
+            retryCount: 0,
+            source: "admin-bulk-approval",
+          }).catch(() => {});
+        }
+        if (shouldRunLocalization) {
+          await distribution.publish("dubbing.requested" as any, {
+            eventId: `dub_bulk_${jobId}`,
+            eventType: "dubbing.requested" as any,
+            jobId,
+            userId,
+            timestamp: now,
+            data: { videoUrl: jobData.videoUrl || "", executionPlan },
+            retryCount: 0,
+            source: "admin-bulk-approval",
+          }).catch(() => {});
+        }
+      }
+    } catch (err) {
+      logger.warn(`[adminBulkModerate] Fanout error for job ${jobId}:`, err);
+    }
   } else {
     // action === "reject"
-    // Delete video doc from videos collection
-    const videoRef = admin.firestore().collection("videos").doc(id);
+    await cancelSpeculativeJobsForVideo(videoId, jobId, reason, now);
+    if (jobSnap.exists) {
+      batch.update(videoJobRef, {
+        status,
+        adminReason: reason,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: now,
+      });
+    }
     batch.delete(videoRef);
-    const reviewQueueRef = admin.firestore().collection("admin_review_queue").doc(id);
     batch.delete(reviewQueueRef);
+    await batch.commit();
 
     // Delete files from Storage with structured async handling
     const bucket = admin.storage().bucket();
@@ -131,66 +285,8 @@ async function processVideo(id: string, action: string, reason: string) {
       }
     };
     await Promise.allSettled([
-      deleteFiles(`videos/${id}/`),
-      deleteFiles(`thumbnails/${id}/`),
+      deleteFiles(`videos/${videoId}/`),
+      deleteFiles(`thumbnails/${videoId}/`),
     ]);
-  }
-
-  await batch.commit();
-
-  if (action === "approve") {
-    try {
-      const jobSnap = await videoJobRef.get();
-      if (jobSnap.exists) {
-        const jobData = jobSnap.data() || {};
-        const executionPlan = jobData.executionPlan || {};
-        const userId = jobData.userId || "system";
-        const { DistributionLayer } = require("../pipeline/layers/04-distribution");
-        const { AggregationLayer } = require("../pipeline/layers/09-aggregation");
-        const distribution = new DistributionLayer();
-        const aggregationLayer = new AggregationLayer();
-
-        await aggregationLayer.onStageComplete(id, "transcription", userId, executionPlan).catch(() => {});
-
-        await distribution.publish("copyright-processing" as any, {
-          eventId: `copy_bulk_${id}`,
-          eventType: "copyright-processing" as any,
-          jobId: id, userId,
-          timestamp: now,
-          data: { videoUrl: jobData.videoUrl, executionPlan },
-          retryCount: 0,
-          source: "admin-bulk-approval"
-        }).catch(() => {});
-
-        const { isCredibilityEnabled, isLocalizationEnabled } = require("../pipeline/types");
-        const shouldRunCredibility = isCredibilityEnabled(executionPlan);
-        const shouldRunLocalization = isLocalizationEnabled(executionPlan);
-
-        if (shouldRunCredibility) {
-          await distribution.publish("fact-processing", {
-            eventId: `fact_bulk_${id}`,
-            eventType: "fact-processing",
-            jobId: id, userId,
-            timestamp: now,
-            data: { executionPlan },
-            retryCount: 0,
-            source: "admin-bulk-approval"
-          }).catch(() => {});
-        }
-        if (shouldRunLocalization) {
-          await distribution.publish("dubbing-processing", {
-            eventId: `dub_bulk_${id}`,
-            eventType: "dubbing-processing",
-            jobId: id, userId,
-            timestamp: now,
-            data: { videoUrl: jobData.videoUrl || "", executionPlan },
-            retryCount: 0,
-            source: "admin-bulk-approval"
-          }).catch(() => {});
-        }
-      }
-    } catch (err) {
-      logger.warn(`[adminBulkModerate] Fanout error for job ${id}:`, err);
-    }
   }
 }

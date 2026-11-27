@@ -1,4 +1,5 @@
 import { BigQuery, Table } from "@google-cloud/bigquery";
+import { resolveBigQueryAnalyticsEnabled } from "../config/env";
 import { logger } from "../pipeline/utils/logger";
 
 // ─── Playback & View Telemetry ────────────────────────────────────────────────
@@ -96,6 +97,10 @@ export interface BigQueryVerifiedClaim {
   user_id?: string | null;
   claim_text: string;
   normalized_claim_hash?: string | null;
+  english_claim_hash?: string | null;
+  semantic_hash?: string | null;
+  evidence_schema_version?: string | number | null;
+  rich_sources_json?: string | null;
   speaker?: string | null;
   start_sec?: number | null;
   end_sec?: number | null;
@@ -404,6 +409,7 @@ export class BigQueryAnalyticsService {
   private flushTimer: NodeJS.Timeout | null = null;
   private isFlushing = false;
   private schemaInitialized = false;
+  private verifiedClaimsColumnsEnsured = false;
 
   public static readonly WATCH_EVENTS_TABLE = "raw_watch_events";
   public static readonly IMPRESSIONS_TABLE = "raw_impressions";
@@ -435,7 +441,13 @@ export class BigQueryAnalyticsService {
     this.location = config?.location || process.env.BIGQUERY_LOCATION || "asia-south1";
     this.batchSize = config?.batchSize || 100;
     this.flushIntervalMs = config?.flushIntervalMs || 2000;
-    this.enabled = config?.enabled ?? (process.env.ENABLE_BIGQUERY_ANALYTICS !== "false");
+    const explicitEnabled =
+      typeof config?.enabled === "boolean"
+        ? config.enabled
+        : bqClient
+          ? process.env.ENABLE_BIGQUERY_ANALYTICS !== "false"
+          : undefined;
+    this.enabled = resolveBigQueryAnalyticsEnabled(explicitEnabled);
 
     this.bigquery = bqClient || new BigQuery({
       projectId: config?.projectId || process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT,
@@ -444,6 +456,10 @@ export class BigQueryAnalyticsService {
     if (this.enabled && this.flushIntervalMs > 0) {
       this.startFlushTimer();
     }
+  }
+
+  public isEnabled(): boolean {
+    return this.enabled;
   }
 
   private startFlushTimer(): void {
@@ -640,6 +656,10 @@ export class BigQueryAnalyticsService {
           { name: "user_id", type: "STRING", mode: "NULLABLE" },
           { name: "claim_text", type: "STRING", mode: "REQUIRED" },
           { name: "normalized_claim_hash", type: "STRING", mode: "NULLABLE" },
+          { name: "english_claim_hash", type: "STRING", mode: "NULLABLE" },
+          { name: "semantic_hash", type: "STRING", mode: "NULLABLE" },
+          { name: "evidence_schema_version", type: "STRING", mode: "NULLABLE" },
+          { name: "rich_sources_json", type: "STRING", mode: "NULLABLE" },
           { name: "speaker", type: "STRING", mode: "NULLABLE" },
           { name: "start_sec", type: "FLOAT64", mode: "NULLABLE" },
           { name: "end_sec", type: "FLOAT64", mode: "NULLABLE" },
@@ -664,7 +684,10 @@ export class BigQueryAnalyticsService {
           timePartitioning: { field: "timestamp", type: "DAY" },
           clustering: { fields: ["video_id", "status", "verification_method"] },
         });
+        this.verifiedClaimsColumnsEnsured = true;
         logger.info(`[BigQueryAnalytics] Created table '${BigQueryAnalyticsService.VERIFIED_CLAIMS_TABLE}'`);
+      } else {
+        await this.ensureVerifiedClaimsColumns(verifiedClaimsTable);
       }
 
       // 7. Ensure raw_fact_check_evaluations table
@@ -1012,12 +1035,12 @@ LEFT JOIN (
       if (!claimRadarExists) {
         const claimRadarSql = `
 SELECT
-  claim_hash,
-  claim_text_normalized,
+  normalized_claim_hash AS claim_hash,
+  claim_text AS claim_text_normalized,
   status,
   COUNT(1) AS occurrence_count,
   COUNT(DISTINCT video_id) AS distinct_videos_count,
-  ROUND(AVG(confidence), 4) AS avg_confidence,
+  ROUND(AVG(verification_confidence), 4) AS avg_confidence,
   MAX(verification_method) AS primary_verification_method,
   MAX(primary_source_tier) AS highest_source_tier,
   LOGICAL_OR(COALESCE(is_grounded, false)) AS is_grounded_anywhere,
@@ -1025,7 +1048,7 @@ SELECT
   MAX(timestamp) AS last_detected_at,
   ARRAY_AGG(DISTINCT video_id LIMIT 10) AS sample_video_ids
 FROM \`${this.datasetId}.${BigQueryAnalyticsService.VERIFIED_CLAIMS_TABLE}\`
-GROUP BY claim_hash, claim_text_normalized, status`.trim();
+GROUP BY normalized_claim_hash, claim_text, status`.trim();
 
         await dataset.createTable(BigQueryAnalyticsService.CREDIBILITY_CLAIM_RADAR_VIEW, {
           view: { query: claimRadarSql, useLegacySql: false },
@@ -1455,7 +1478,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || events.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.WATCH_EVENTS_TABLE);
-      await table.insert(events, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(events, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${events.length} watch events to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1472,7 +1495,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || impressions.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.IMPRESSIONS_TABLE);
-      await table.insert(impressions, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(impressions, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${impressions.length} impressions to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1489,7 +1512,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || matches.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.COPYRIGHT_MATCHES_TABLE);
-      await table.insert(matches, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(matches, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${matches.length} copyright matches to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1506,7 +1529,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || claims.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.COPYRIGHT_CLAIMS_TABLE);
-      await table.insert(claims, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(claims, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${claims.length} copyright claims to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1523,7 +1546,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || appeals.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.COPYRIGHT_APPEALS_TABLE);
-      await table.insert(appeals, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(appeals, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${appeals.length} copyright appeals to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1536,11 +1559,73 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     }
   }
 
+  private async ensureVerifiedClaimsColumns(table: Table): Promise<void> {
+    if (!this.enabled || this.verifiedClaimsColumnsEnsured) return;
+    if (typeof (table as any)?.getMetadata !== "function") {
+      this.verifiedClaimsColumnsEnsured = true;
+      return;
+    }
+
+    const requiredColumns: Array<{ name: string; type: string; mode: string }> = [
+      { name: "english_claim_hash", type: "STRING", mode: "NULLABLE" },
+      { name: "semantic_hash", type: "STRING", mode: "NULLABLE" },
+      { name: "evidence_schema_version", type: "STRING", mode: "NULLABLE" },
+      { name: "rich_sources_json", type: "STRING", mode: "NULLABLE" },
+    ];
+
+    try {
+      const [metadata] = await table.getMetadata();
+      const existingFields: Array<{ name: string; [key: string]: any }> = Array.isArray(metadata?.schema?.fields)
+        ? metadata.schema.fields
+        : [];
+      const existingNames = new Set(existingFields.map((f) => f?.name).filter(Boolean));
+      const missingFields = requiredColumns.filter((col) => !existingNames.has(col.name));
+
+      if (missingFields.length === 0) {
+        this.verifiedClaimsColumnsEnsured = true;
+        return;
+      }
+
+      if (typeof (table as any)?.setMetadata === "function") {
+        await table.setMetadata({
+          schema: {
+            fields: [...existingFields, ...missingFields],
+          },
+        });
+      } else if (typeof (this.bigquery as any)?.query === "function") {
+        for (const col of missingFields) {
+          await this.bigquery.query({
+            query: `ALTER TABLE \`${this.datasetId}.${BigQueryAnalyticsService.VERIFIED_CLAIMS_TABLE}\` ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`,
+            location: this.location,
+          });
+        }
+      }
+
+      this.verifiedClaimsColumnsEnsured = true;
+      logger.info("[BigQueryAnalytics] Upgraded raw_claims_verified schema columns", {
+        added: missingFields.map((f) => f.name),
+      });
+    } catch (err: any) {
+      logger.warn("[BigQueryAnalytics] Non-fatal schema upgrade check on raw_claims_verified", {
+        err: String(err?.message || err),
+      });
+    }
+  }
+
   async insertVerifiedClaims(claims: BigQueryVerifiedClaim[]): Promise<void> {
     if (!this.enabled || claims.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.VERIFIED_CLAIMS_TABLE);
-      await table.insert(claims, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      if (!this.verifiedClaimsColumnsEnsured) {
+        await this.ensureVerifiedClaimsColumns(table);
+      }
+      const normalizedRows = claims.map((c) => ({
+        ...c,
+        ...(c.evidence_schema_version !== undefined && c.evidence_schema_version !== null
+          ? { evidence_schema_version: String(c.evidence_schema_version) }
+          : {}),
+      }));
+      await table.insert(normalizedRows, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${claims.length} verified claims to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1557,7 +1642,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || evaluations.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.FACT_CHECK_EVALUATIONS_TABLE);
-      await table.insert(evaluations, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(evaluations, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${evaluations.length} fact-check evaluations to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1574,7 +1659,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || earnings.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.CREATOR_EARNINGS_TABLE);
-      await table.insert(earnings, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(earnings, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${earnings.length} creator earnings records to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1591,7 +1676,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || transactions.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.PAYOUT_TRANSACTIONS_TABLE);
-      await table.insert(transactions, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(transactions, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${transactions.length} payout transactions to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1608,7 +1693,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || deductions.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.MONETIZATION_DEDUCTIONS_TABLE);
-      await table.insert(deductions, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(deductions, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${deductions.length} monetization deductions to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1625,7 +1710,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || impressions.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.AD_IMPRESSIONS_TABLE);
-      await table.insert(impressions, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(impressions, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${impressions.length} ad impressions to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1642,7 +1727,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || clicks.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.AD_CLICKS_TABLE);
-      await table.insert(clicks, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(clicks, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${clicks.length} ad clicks to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1659,7 +1744,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || signals.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.AD_FRAUD_SIGNALS_TABLE);
-      await table.insert(signals, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(signals, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${signals.length} ad fraud signals to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1676,7 +1761,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || queries.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.SEARCH_QUERIES_TABLE);
-      await table.insert(queries, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(queries, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${queries.length} search queries to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1693,7 +1778,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || clicks.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.SEARCH_CLICKTHROUGHS_TABLE);
-      await table.insert(clicks, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(clicks, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${clicks.length} search clickthroughs to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1710,7 +1795,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || scans.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.MODERATION_SCANS_TABLE);
-      await table.insert(scans, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(scans, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${scans.length} moderation scans to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1727,7 +1812,7 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
     if (!this.enabled || actions.length === 0) return;
     try {
       const table: Table = this.bigquery.dataset(this.datasetId).table(BigQueryAnalyticsService.MODERATOR_ACTIONS_TABLE);
-      await table.insert(actions, { raw: true, skipInvalidRows: true, ignoreUnknownValues: true });
+      await table.insert(actions, { skipInvalidRows: true, ignoreUnknownValues: true });
       logger.info(`[BigQueryAnalytics] Streamed ${actions.length} moderator actions to BigQuery`);
     } catch (err: any) {
       const insertErrors = err?.errors || err?.response?.insertErrors;
@@ -1758,6 +1843,85 @@ GROUP BY scan_date, s.moderation_status, s.risk_level, s.model, a.human_action_c
         error: String(err?.message || err),
       });
       throw err;
+    }
+  }
+
+  /**
+   * Tier 1C single-query batched lookup against `raw_claims_verified`.
+   * Fails open cleanly on error or timeout so verification is never blocked.
+   */
+  async lookupVerifiedClaimsBatch(params: {
+    exactHashes: string[];
+    semanticHashes: string[];
+    schemaVersion: string | number;
+    timeoutMs?: number;
+  }): Promise<BigQueryVerifiedClaim[]> {
+    if (!this.enabled) return [];
+
+    const exactHashes = Array.from(new Set((params.exactHashes || []).map((h) => String(h || "").trim()).filter(Boolean)));
+    const semanticHashes = Array.from(new Set((params.semanticHashes || []).map((h) => String(h || "").trim()).filter(Boolean)));
+    if (exactHashes.length === 0 && semanticHashes.length === 0) {
+      return [];
+    }
+
+    const timeoutMs = params.timeoutMs ?? 2500;
+    const schemaVersion = String(params.schemaVersion);
+    const sql = `
+SELECT *
+FROM \`${this.datasetId}.${BigQueryAnalyticsService.VERIFIED_CLAIMS_TABLE}\`
+WHERE is_grounded = TRUE
+  AND evidence_schema_version = @schemaVersion
+  AND (
+    normalized_claim_hash IN UNNEST(@hashes)
+    OR english_claim_hash IN UNNEST(@hashes)
+    OR semantic_hash IN UNNEST(@semHashes)
+  )
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY COALESCE(normalized_claim_hash, english_claim_hash, semantic_hash, claim_id)
+  ORDER BY timestamp DESC
+) = 1`;
+
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    try {
+      const queryOpts: any = {
+        query: sql.trim(),
+        params: {
+          hashes: exactHashes,
+          semHashes: semanticHashes,
+          schemaVersion,
+        },
+        location: this.location,
+        jobTimeoutMs: timeoutMs,
+      };
+      if (exactHashes.length === 0 || semanticHashes.length === 0) {
+        queryOpts.types = {
+          hashes: ["STRING"],
+          semHashes: ["STRING"],
+          schemaVersion: "STRING",
+        };
+      }
+
+      const queryPromise = this.bigquery.query(queryOpts).then(([rows]) => (Array.isArray(rows) ? rows : []));
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error(`BIGQUERY_LOOKUP_TIMEOUT_${timeoutMs}ms`)), timeoutMs);
+        if (typeof timeoutHandle.unref === "function") {
+          timeoutHandle.unref();
+        }
+      });
+
+      const rows = await Promise.race([queryPromise, timeoutPromise]);
+      return rows as BigQueryVerifiedClaim[];
+    } catch (err: any) {
+      logger.warn("[BigQueryAnalytics] Tier 1C lookupVerifiedClaimsBatch failed open", {
+        exactCount: exactHashes.length,
+        semanticCount: semanticHashes.length,
+        error: String(err?.message || err),
+      });
+      return [];
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
     }
   }
 

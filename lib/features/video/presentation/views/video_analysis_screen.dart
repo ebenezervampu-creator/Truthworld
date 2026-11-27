@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_widgets.dart';
@@ -228,10 +229,22 @@ class VideoAnalysisScreen extends StatelessWidget {
             ),
             tooltip: 'Ask AI',
             onPressed: () {
+              final parsed = FactCheckDataParser.parse(
+                effectiveVideoCtrl.factCheckData,
+                fallbackReport: video.uiReport,
+                isVideoFactChecked: video.isFactChecked,
+              );
               AskAiScreen.open(
                 context,
                 video: video,
                 controller: effectiveVideoCtrl,
+                allSources: parsed.parsedSources.isNotEmpty
+                    ? parsed.parsedSources
+                    : parsed.sources,
+                allClaims: parsed.claims,
+                summary: parsed.summary.isNotEmpty
+                    ? parsed.summary
+                    : parsed.conclusion,
               );
             },
           ),

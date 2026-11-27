@@ -1,3 +1,4 @@
+import { CREDIBILITY_REGION } from "../config/regions";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
@@ -21,14 +22,18 @@ function getActiveChatModel(): string {
  * Resolves and filters chat sources strictly through UrlVerificationService (Closed-World Gate).
  * Unverified, 404, Soft-404, or bare homepage URLs are never admitted into chat source cards.
  */
-export async function resolveClosedWorldChatSources(rawSources: any[]): Promise<CredibilityChatSource[]> {
+export async function resolveClosedWorldChatSources(
+  rawSources: any[],
+  maxCandidates: number = 12,
+  maxReturn: number = 8
+): Promise<CredibilityChatSource[]> {
   if (!Array.isArray(rawSources) || rawSources.length === 0) return [];
 
   const preVerified: CredibilityChatSource[] = [];
   const toCheck: Array<{ raw: any; url: string }> = [];
   const seen = new Set<string>();
 
-  for (const s of rawSources.slice(0, 8)) {
+  for (const s of rawSources.slice(0, maxCandidates)) {
     if (!s || typeof s !== "object") continue;
     const rawUrl = String(s.canonicalUrl || s.url || s.directUrl || "").trim();
     if (!/^https?:\/\//i.test(rawUrl) || isGenericHomepageUrl(rawUrl)) continue;
@@ -72,7 +77,268 @@ export async function resolveClosedWorldChatSources(rawSources: any[]): Promise<
     }
   }
 
-  return preVerified.slice(0, 5);
+  return preVerified.slice(0, maxReturn);
+}
+
+const CHAT_QUERY_STOP_WORDS = new Set([
+  "the", "and", "for", "are", "was", "were", "what", "why", "how", "who",
+  "this", "that", "with", "from", "have", "has", "had", "does", "did",
+  "really", "true", "false", "about", "into", "video", "claim", "claims",
+]);
+
+function extractChatQueryTokens(query: string): string[] {
+  return String(query || "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length >= 3 && !CHAT_QUERY_STOP_WORDS.has(w));
+}
+
+export interface ChatClaimLedgerCounts {
+  total: number;
+  verified: number;
+  caution: number;
+  falseCount: number;
+  unproven: number;
+  contextual: number;
+}
+
+export interface RankedChatClaim {
+  claim: any;
+  index1: number;
+  score: number;
+}
+
+/**
+ * Ranks claims for Ask AI context using query-relevance, verdict salience,
+ * and source-tier weights so high-signal claims later in a 30–200 claim video
+ * are never dropped by naive `.slice(0, 6)` truncation.
+ */
+export function rankClaimsForChatPrompt(
+  claims: any[],
+  userQuery: string,
+  maxClaims: number = 15
+): { counts: ChatClaimLedgerCounts; rankedClaims: RankedChatClaim[] } {
+  const counts: ChatClaimLedgerCounts = {
+    total: Array.isArray(claims) ? claims.length : 0,
+    verified: 0,
+    caution: 0,
+    falseCount: 0,
+    unproven: 0,
+    contextual: 0,
+  };
+  if (!Array.isArray(claims) || claims.length === 0) {
+    return { counts, rankedClaims: [] };
+  }
+
+  const tokens = extractChatQueryTokens(userQuery);
+  const targetNum = extractTargetClaimNumber(userQuery);
+  const tierWeight: Record<string, number> = { A: 12, B: 8, C: 4, D: 1 };
+
+  const scored: RankedChatClaim[] = claims.map((c, idx) => {
+    const index1 = idx + 1;
+    const status = String(c?.verdict || c?.status || "").toLowerCase().trim();
+    const nature = String(c?.nature || "").toUpperCase();
+
+    let verdictWeight = 4;
+    if (
+      status === "opinion_claim" ||
+      status === "opinion" ||
+      status === "satire_claim" ||
+      status === "religious_belief" ||
+      status === "historical_tradition" ||
+      nature === "OPINION" ||
+      nature === "BELIEF"
+    ) {
+      counts.contextual++;
+      verdictWeight = 10;
+    } else if (
+      status === "false_claim" ||
+      status === "verified_false" ||
+      status === "incorrect" ||
+      status === "historical_consensus_denial" ||
+      status === "incorrect_citation"
+    ) {
+      counts.falseCount++;
+      verdictWeight = 40;
+    } else if (
+      status === "disputed" ||
+      status === "misleading" ||
+      status === "needs_context" ||
+      status === "outdated" ||
+      status === "partially_true"
+    ) {
+      counts.caution++;
+      verdictWeight = 32;
+    } else if (
+      status === "verified_true" ||
+      status === "mostly_true" ||
+      status === "correct" ||
+      status === "mostly_correct"
+    ) {
+      counts.verified++;
+      verdictWeight = 28;
+    } else {
+      counts.unproven++;
+      verdictWeight = 4;
+    }
+
+    const text = String(c?.statement || c?.claim || c?.claimText || c?.text || "").toLowerCase();
+    const reasoning = String(c?.reasoning || c?.explanation || "").toLowerCase();
+    const haystack = `${text} ${reasoning}`;
+
+    let relevanceWeight = 0;
+    if (tokens.length > 0) {
+      let hits = 0;
+      for (const tok of tokens) {
+        if (haystack.includes(tok)) hits++;
+      }
+      relevanceWeight = Math.min(100, hits * 25);
+    }
+
+    const rawSources = Array.isArray(c?.richSources) && c.richSources.length > 0
+      ? c.richSources
+      : (Array.isArray(c?.sources) ? c.sources : []);
+    let evidenceWeight = rawSources.length > 0 ? 15 : 0;
+    let bestTierBonus = 0;
+    for (const s of rawSources) {
+      const t = String(s?.tier || "").toUpperCase();
+      if ((tierWeight[t] || 0) > bestTierBonus) bestTierBonus = tierWeight[t] || 0;
+    }
+    evidenceWeight += bestTierBonus;
+
+    const conf = typeof c?.confidence === "number"
+      ? c.confidence
+      : (typeof c?.verificationConfidence === "number" ? c.verificationConfidence : 0.5);
+    const confWeight = Math.min(10, Math.max(0, conf * 10));
+    const explicitBoost = targetNum === index1 ? 200 : 0;
+
+    return {
+      claim: c,
+      index1,
+      score: explicitBoost + relevanceWeight + verdictWeight + evidenceWeight + confWeight,
+    };
+  });
+
+  scored.sort((a, b) => (b.score !== a.score ? b.score - a.score : a.index1 - b.index1));
+  return { counts, rankedClaims: scored.slice(0, maxClaims) };
+}
+
+/**
+ * Ranks and deduplicates sources by Trust Tier (A > B > C > D), sourceKind,
+ * stance alignment, and relevance to the user query and top-weighted claims.
+ */
+export function rankSourcesForChat(
+  rawSources: any[],
+  userQuery: string,
+  rankedClaims: RankedChatClaim[] = []
+): any[] {
+  const byUrl = new Map<string, any>();
+  const topClaimUrls = new Set<string>();
+
+  for (const rc of rankedClaims.slice(0, 5)) {
+    const cSrcs = Array.isArray(rc.claim?.richSources) && rc.claim.richSources.length > 0
+      ? rc.claim.richSources
+      : (Array.isArray(rc.claim?.sources) ? rc.claim.sources : []);
+    for (const s of cSrcs) {
+      const u = String(s?.canonicalUrl || s?.url || s?.directUrl || "").trim().toLowerCase();
+      if (u) topClaimUrls.add(u);
+    }
+  }
+
+  const allCandidates: any[] = [...(Array.isArray(rawSources) ? rawSources : [])];
+  for (const rc of rankedClaims) {
+    const cSrcs = Array.isArray(rc.claim?.richSources) && rc.claim.richSources.length > 0
+      ? rc.claim.richSources
+      : (Array.isArray(rc.claim?.sources) ? rc.claim.sources : []);
+    allCandidates.push(...cSrcs);
+  }
+
+  for (const s of allCandidates) {
+    if (!s || typeof s !== "object") continue;
+    const rawUrl = String(s.canonicalUrl || s.url || s.directUrl || "").trim();
+    if (!/^https?:\/\//i.test(rawUrl)) continue;
+    const key = rawUrl.toLowerCase();
+    if (!byUrl.has(key)) {
+      byUrl.set(key, s);
+    }
+  }
+
+  const tokens = extractChatQueryTokens(userQuery);
+  const tierWeights: Record<string, number> = { A: 50, B: 35, C: 20, D: 10, E: -100 };
+  const kindWeights: Record<string, number> = {
+    PRIMARY_RECORD: 20,
+    REFERENCE: 15,
+    INDEPENDENT_REPORTING: 15,
+    OFFICIAL_STATEMENT: 5,
+  };
+
+  return Array.from(byUrl.entries())
+    .map(([key, src]) => {
+      const tier = String(src.tier || "D").toUpperCase();
+      const kind = String(src.sourceKind || "").toUpperCase();
+      const stance = String(src.claimStance || "").toUpperCase();
+      const text = `${src.title || ""} ${src.publisher || ""} ${src.domain || ""} ${src.snippet || ""}`.toLowerCase();
+
+      let relScore = 0;
+      for (const tok of tokens) {
+        if (text.includes(tok)) relScore += 15;
+      }
+      relScore = Math.min(45, relScore);
+
+      const stanceBonus = stance === "SUPPORTS" || stance === "CONTRADICTS" ? 12 : 0;
+      const topClaimBonus = topClaimUrls.has(key) ? 15 : 0;
+      const totalScore =
+        (tierWeights[tier] ?? 10) +
+        (kindWeights[kind] ?? 0) +
+        stanceBonus +
+        topClaimBonus +
+        relScore;
+
+      return { src, totalScore };
+    })
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .map((entry) => entry.src);
+}
+
+function buildWeightedVideoContextSection(params: {
+  summaryText: unknown;
+  existingClaims: any[];
+  verifiedSources: CredibilityChatSource[];
+  userQuery: string;
+  useEvidenceIds: boolean;
+}): string {
+  const { summaryText, existingClaims, verifiedSources, userQuery, useEvidenceIds } = params;
+  let section = `\nVIDEO CREDIBILITY SUMMARY:\n`;
+  if (summaryText) {
+    section += `- Summary: "${String(summaryText).substring(0, 350)}"\n`;
+  }
+
+  if (existingClaims.length > 0) {
+    const { counts, rankedClaims } = rankClaimsForChatPrompt(existingClaims, userQuery, 15);
+    section += `- Full Claim Ledger Counts (${counts.total} claims total): ${counts.verified} Verified, ${counts.caution} Caution, ${counts.falseCount} False, ${counts.unproven} No evidence yet${counts.contextual > 0 ? `, ${counts.contextual} Contextual/Opinion` : ""}\n`;
+    const claimsSummary = rankedClaims.map(({ claim, index1 }) => {
+      const stmt = String(claim.statement || claim.claim || claim.claimText || claim.text || "Claim").substring(0, 140);
+      const verd = claim.verdict || claim.status || "unproven";
+      const expl = String(claim.reasoning || claim.explanation || "").trim();
+      const explSnippet = expl ? ` — ${expl.substring(0, 110)}` : "";
+      return `  Claim #${index1}. [${verd}] "${stmt}"${explSnippet}`;
+    }).join("\n");
+    section += `- Highest-Relevance & Key Assertions:\n${claimsSummary}\n`;
+  }
+
+  if (verifiedSources.length > 0) {
+    const sourcesSummary = verifiedSources.map((s, idx) => {
+      const prefix = useEvidenceIds ? `[E${idx + 1} / ${idx + 1}]` : `[${idx + 1}]`;
+      return `  ${prefix} ${s.publisher || s.domain || "Source"}: "${(s.title || "").substring(0, 70)}"`;
+    }).join("\n");
+    section += useEvidenceIds
+      ? `- VERIFIED EVIDENCE CATALOG (CITE ONLY THESE IDs e.g. ["E1"]): \n${sourcesSummary}\n`
+      : `- Verified Authoritative Sources:\n${sourcesSummary}\n`;
+  } else if (useEvidenceIds) {
+    section += `- VERIFIED EVIDENCE CATALOG: NONE (return citedEvidenceIds: [] and never invent URLs)\n`;
+  }
+
+  return section;
 }
 
 /**
@@ -489,6 +755,25 @@ function getNormalizedCacheKey(videoId: string, scope: string, claimIndex: numbe
   return `${videoId}:${scope}:${claimIndex ?? "all"}:${normQ}`;
 }
 
+export function invalidateChatCacheForVideo(videoId: string): void {
+  const prefix = `${String(videoId || "").trim()}:`;
+  if (prefix === ":") return;
+  for (const key of chatResponseCache.keys()) {
+    if (key.startsWith(prefix)) chatResponseCache.delete(key);
+  }
+  for (const key of streamResponseCache.keys()) {
+    if (key.startsWith(prefix)) streamResponseCache.delete(key);
+  }
+}
+
+function sanitizeClientPromptText(raw: unknown, maxLen: number): string {
+  return String(raw || "")
+    .replace(/<\/?(user_query|untrusted_input|system_override|instruction)[^>]*>/gi, "")
+    .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, maxLen);
+}
+
 export interface RelatedTruthWorldVideo {
   id: string;
   title: string;
@@ -594,6 +879,388 @@ export function formatTimeSec(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+export interface AuthoritativeCredibilityContext {
+  videoTitle: string;
+  videoChannel: string;
+  videoCategory: string;
+  videoTopics: string[];
+  uiReport: any;
+  existingClaims: any[];
+  existingSources: any[];
+  summary?: string;
+  conclusion?: any;
+  relatedTruthWorldVideos: RelatedTruthWorldVideo[];
+}
+
+export function resolveAuthoritativeSummaryText(
+  summary?: unknown,
+  conclusion?: unknown,
+  uiReport?: any,
+  fallbackSummary?: unknown
+): string | undefined {
+  const candidates = [
+    summary,
+    uiReport?.summary,
+    conclusion,
+    uiReport?.conclusion,
+    fallbackSummary,
+  ];
+  for (const cand of candidates) {
+    if (typeof cand === "string" && cand.trim().length > 0) {
+      return cand.trim();
+    }
+    if (cand && typeof cand === "object") {
+      const obj = cand as Record<string, any>;
+      const text = typeof obj.text === "string" && obj.text.trim().length > 0
+        ? obj.text.trim()
+        : typeof obj.label === "string" && obj.label.trim().length > 0
+        ? obj.label.trim()
+        : "";
+      if (text) return text;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Parses and validates a Firebase Storage / GCS fact-check location without allowing
+ * arbitrary external HTTP fetches (SSRF-safe). Accepts `gs://bucket/path`, Firebase Storage
+ * download URLs (`firebasestorage.googleapis.com/v0/b/.../o/...`), GCS URLs, or storage paths
+ * strictly under `factChecks/` or `final_outputs/`.
+ */
+export function parseFactCheckStorageLocation(
+  rawUrl: unknown,
+  defaultBucketName?: string
+): { bucketName?: string; objectPath: string } | null {
+  if (typeof rawUrl !== "string") return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed || /[\x00-\x1f\x7f\\]/.test(trimmed)) return null;
+
+  let bucketName: string | undefined;
+  let objectPath = "";
+
+  if (trimmed.startsWith("gs://")) {
+    const withoutScheme = trimmed.slice(5);
+    const slashIdx = withoutScheme.indexOf("/");
+    if (slashIdx <= 0) return null;
+    bucketName = withoutScheme.slice(0, slashIdx).trim();
+    objectPath = withoutScheme.slice(slashIdx + 1).trim();
+  } else if (/^https?:\/\//i.test(trimmed)) {
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      return null;
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (host === "firebasestorage.googleapis.com") {
+      const match = parsed.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+      if (!match) return null;
+      bucketName = decodeURIComponent(match[1]);
+      objectPath = decodeURIComponent(match[2]);
+    } else if (host === "storage.googleapis.com") {
+      const v1Match = parsed.pathname.match(/^\/download\/storage\/v1\/b\/([^/]+)\/o\/(.+)$/);
+      if (v1Match) {
+        bucketName = decodeURIComponent(v1Match[1]);
+        objectPath = decodeURIComponent(v1Match[2]);
+      } else {
+        const directMatch = parsed.pathname.match(/^\/([^/]+)\/(.+)$/);
+        if (!directMatch) return null;
+        bucketName = decodeURIComponent(directMatch[1]);
+        objectPath = decodeURIComponent(directMatch[2]);
+      }
+    } else {
+      return null;
+    }
+  } else {
+    objectPath = trimmed;
+  }
+
+  objectPath = objectPath.replace(/^\/+/, "");
+  if (!objectPath || objectPath.includes("..")) return null;
+  if (!/^(?:factchecks|final_outputs)\//i.test(objectPath)) return null;
+
+  if (bucketName && defaultBucketName && bucketName !== defaultBucketName) {
+    const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.PROJECT_ID || "";
+    const allowedBuckets = new Set(
+      [
+        defaultBucketName,
+        process.env.FIREBASE_STORAGE_BUCKET,
+        projectId ? `${projectId}.firebasestorage.app` : "",
+        projectId ? `${projectId}.appspot.com` : "",
+        "truthworld-1.firebasestorage.app",
+        "truthworld-1.appspot.com",
+      ].filter(Boolean)
+    );
+    if (!allowedBuckets.has(bucketName)) {
+      return null;
+    }
+  }
+
+  return { bucketName, objectPath };
+}
+
+async function loadFactCheckReportFromStorage(
+  rawFactCheckUrl: string,
+  videoId: string
+): Promise<Record<string, any> | null> {
+  const storage = admin.storage();
+  const defaultBucket = storage.bucket();
+  const defaultBucketName = typeof (defaultBucket as any)?.name === "string" ? (defaultBucket as any).name : undefined;
+  const loc = parseFactCheckStorageLocation(rawFactCheckUrl, defaultBucketName);
+  if (!loc) {
+    logger.warn("[aiCredibilityChat] Rejected invalid or disallowed factCheckUrl storage location", { videoId });
+    return null;
+  }
+
+  const bucket =
+    loc.bucketName && defaultBucketName && loc.bucketName !== defaultBucketName
+      ? storage.bucket(loc.bucketName)
+      : defaultBucket;
+
+  const candidatePaths = [loc.objectPath];
+  const jobMatch = loc.objectPath.match(/^factChecks\/([^/]+)\/latest\.json$/i);
+  if (jobMatch) {
+    candidatePaths.push(`factChecks/${jobMatch[1]}/full.json`);
+  }
+
+  for (const objPath of candidatePaths) {
+    try {
+      const file = bucket.file(objPath);
+      if (typeof (file as any).exists === "function") {
+        const [exists] = await (file as any).exists();
+        if (!exists) continue;
+      }
+      const [buf] = await file.download();
+      const parsed = JSON.parse(buf.toString("utf8"));
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, any>;
+      }
+    } catch (dlErr) {
+      logger.warn("[aiCredibilityChat] Storage factCheckUrl read attempt failed", {
+        videoId,
+        objPath,
+        err: String(dlErr),
+      });
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Shared Zero-Trust loader for both `chatWithCredibilityAi` and `streamCredibilityAiChat`.
+ * Reads authoritative claims, sources, summary, and conclusion exclusively from Firestore
+ * and Firebase Storage (`factCheckUrl`), never trusting client-supplied verdicts or sources.
+ */
+export async function loadAuthoritativeCredibilityContext(
+  db: admin.firestore.Firestore,
+  videoId: string,
+  data: CredibilityChatRequest,
+  callerTag: string = "[aiCredibilityChat]"
+): Promise<AuthoritativeCredibilityContext> {
+  let videoTitle = data.videoTitle || "Untitled Video";
+  let videoChannel = data.channelName || "Creator";
+  let videoCategory = (data as any).category || (data as any).videoCategory || "";
+  let videoTopics: string[] = Array.isArray((data as any).topics) ? (data as any).topics : [];
+  let uiReport: any = null;
+  let existingClaims: any[] = [];
+  let existingSources: any[] = [];
+  let summary: string | undefined;
+  let conclusion: any;
+  let relatedTruthWorldVideos: RelatedTruthWorldVideo[] = [];
+
+  try {
+    // Proper Firestore schema: videos/{videoId} and videos/{videoId}/media/credibility
+    const [videoDoc, credDoc] = await Promise.all([
+      db.collection("videos").doc(videoId).get(),
+      db.collection("videos").doc(videoId).collection("media").doc("credibility").get(),
+    ]);
+
+    const vData = videoDoc.exists ? (videoDoc.data() || {}) : {};
+    if (videoDoc.exists) {
+      videoTitle = vData.title || videoTitle;
+      videoChannel = vData.channelTitle || vData.channelName || videoChannel;
+      videoCategory = vData.category || videoCategory;
+      if (Array.isArray(vData.topics) && vData.topics.length > 0) {
+        videoTopics = vData.topics;
+      }
+      uiReport = vData.uiReport || uiReport;
+      if (typeof vData.summary === "string" && vData.summary.trim()) {
+        summary = vData.summary.trim();
+      } else if (typeof vData.aiFeatures?.factCheckSummary === "string" && vData.aiFeatures.factCheckSummary.trim()) {
+        summary = vData.aiFeatures.factCheckSummary.trim();
+      }
+      if (vData.conclusion) {
+        conclusion = vData.conclusion;
+      }
+    }
+
+    relatedTruthWorldVideos = await fetchRelatedTruthWorldVideos(
+      db,
+      videoId,
+      videoCategory,
+      videoTopics
+    );
+
+    // 1. Authoritative credibility document takes highest precedence
+    const cData = credDoc.exists ? (credDoc.data() || {}) : {};
+    if (credDoc.exists) {
+      if (Array.isArray(cData.claims) && cData.claims.length > 0) {
+        existingClaims = cData.claims;
+      }
+      if (Array.isArray(cData.sources) && cData.sources.length > 0) {
+        existingSources = cData.sources;
+      }
+      if (cData.uiReport) {
+        uiReport = cData.uiReport;
+      }
+      if (!summary && typeof cData.summary === "string" && cData.summary.trim()) {
+        summary = cData.summary.trim();
+      }
+      if (!conclusion && cData.conclusion) {
+        conclusion = cData.conclusion;
+      }
+    }
+
+    // 2. Fallback from uiReport if claims/sources still empty
+    if (existingClaims.length === 0) {
+      if (Array.isArray(uiReport?.keyClaims) && uiReport.keyClaims.length > 0) {
+        existingClaims = uiReport.keyClaims;
+      } else if (Array.isArray(uiReport?.claims) && uiReport.claims.length > 0) {
+        existingClaims = uiReport.claims;
+      }
+    }
+    if (existingSources.length === 0 && Array.isArray(uiReport?.sources) && uiReport.sources.length > 0) {
+      existingSources = uiReport.sources;
+    }
+    if (!summary && typeof uiReport?.summary === "string" && uiReport.summary.trim()) {
+      summary = uiReport.summary.trim();
+    }
+    if (!conclusion && uiReport?.conclusion) {
+      conclusion = uiReport.conclusion;
+    }
+
+    // 3. Fallback from live claims subcollection via StreamingClaimProcessor
+    if (existingClaims.length === 0) {
+      existingClaims = await StreamingClaimProcessor.getLiveClaims(videoId, 100);
+    }
+
+    // 4. Zero-Trust GCS factCheckUrl fallback when claims or sources are still incomplete
+    if (existingClaims.length === 0 || existingSources.length === 0) {
+      let rawFactCheckUrl =
+        (typeof vData?.factCheckUrl === "string" && vData.factCheckUrl.trim()) ||
+        (typeof vData?.media?.factCheckUrl === "string" && vData.media.factCheckUrl.trim()) ||
+        (typeof cData?.factCheckUrl === "string" && cData.factCheckUrl.trim()) ||
+        "";
+
+      if (!rawFactCheckUrl) {
+        const candidateJobIds = Array.from(
+          new Set(
+            [vData?.jobId, cData?.jobId, videoId].filter(
+              (x): x is string => typeof x === "string" && x.trim().length > 0
+            )
+          )
+        );
+        for (const jId of candidateJobIds) {
+          const jDoc = await db.collection("video_jobs").doc(jId).get().catch(() => null);
+          const jobUrl = jDoc?.exists ? jDoc.data()?.outputs?.factCheckUrl : undefined;
+          if (typeof jobUrl === "string" && jobUrl.trim()) {
+            rawFactCheckUrl = jobUrl.trim();
+            break;
+          }
+        }
+        if (!rawFactCheckUrl) {
+          const jobSnap = await db
+            .collection("video_jobs")
+            .where("videoId", "==", videoId)
+            .limit(1)
+            .get()
+            .catch(() => null);
+          const firstJob = jobSnap && !jobSnap.empty ? jobSnap.docs[0] : null;
+          const jobUrl = firstJob?.data()?.outputs?.factCheckUrl;
+          if (typeof jobUrl === "string" && jobUrl.trim()) {
+            rawFactCheckUrl = jobUrl.trim();
+          }
+        }
+      }
+
+      if (rawFactCheckUrl) {
+        const gcsReport = await loadFactCheckReportFromStorage(rawFactCheckUrl, videoId);
+        if (gcsReport) {
+          if (existingClaims.length === 0) {
+            if (Array.isArray(gcsReport.claims) && gcsReport.claims.length > 0) {
+              existingClaims = gcsReport.claims;
+            } else if (Array.isArray(gcsReport.verifiedClaims) && gcsReport.verifiedClaims.length > 0) {
+              existingClaims = gcsReport.verifiedClaims;
+            } else if (Array.isArray(gcsReport.claimsLedger) && gcsReport.claimsLedger.length > 0) {
+              existingClaims = gcsReport.claimsLedger;
+            }
+          }
+          if (existingSources.length === 0) {
+            if (Array.isArray(gcsReport.sources) && gcsReport.sources.length > 0) {
+              existingSources = gcsReport.sources;
+            } else if (Array.isArray(gcsReport.richSources) && gcsReport.richSources.length > 0) {
+              existingSources = gcsReport.richSources;
+            } else if (Array.isArray(gcsReport.conclusion?.sources) && gcsReport.conclusion.sources.length > 0) {
+              existingSources = gcsReport.conclusion.sources;
+            }
+          }
+          if (!summary && typeof gcsReport.summary === "string" && gcsReport.summary.trim()) {
+            summary = gcsReport.summary.trim();
+          }
+          if (!conclusion && gcsReport.conclusion) {
+            conclusion = gcsReport.conclusion;
+          }
+          if (!uiReport && gcsReport.uiReport) {
+            uiReport = gcsReport.uiReport;
+          }
+        }
+      }
+    }
+
+    // 5. Derive sources from claims if top-level sources array is still empty
+    if (existingSources.length === 0 && existingClaims.length > 0) {
+      for (const c of existingClaims) {
+        if (Array.isArray(c.richSources) && c.richSources.length > 0) {
+          existingSources.push(...c.richSources);
+        } else if (Array.isArray(c.sources) && c.sources.length > 0) {
+          existingSources.push(...c.sources);
+        }
+      }
+    }
+
+    if (summary || conclusion) {
+      uiReport = {
+        ...(uiReport && typeof uiReport === "object" ? uiReport : {}),
+        ...(summary ? { summary } : {}),
+        ...(conclusion ? { conclusion } : {}),
+      };
+    }
+
+    // Epistemic Guard (Zero-Trust): Never accept claims or sources sent by client app payload!
+    // All claims and sources must strictly originate from authoritative Firestore/Storage records.
+  } catch (fetchErr) {
+    logger.warn(`${callerTag} Unable to load full video metadata from Firestore/Storage`, {
+      videoId,
+      error: String(fetchErr),
+    });
+  }
+
+  return {
+    videoTitle,
+    videoChannel,
+    videoCategory,
+    videoTopics,
+    uiReport,
+    existingClaims,
+    existingSources,
+    summary,
+    conclusion,
+    relatedTruthWorldVideos,
+  };
+}
+
 const CHAT_SYSTEM_INSTRUCTION = `You are TruthWorld's Credibility Intelligence Assistant ("Ask AI").
 TruthWorld is an empirical, non-partisan video platform dedicated to transparency, verifiable evidence, and factual honesty.
 
@@ -696,71 +1363,6 @@ const CREDIBILITY_CHAT_RESPONSE_SCHEMA: any = {
   required: ["answer"],
 };
 
-/**
- * Direct REST fallback to Google Gemini API using GEMINI_API_KEY secret
- */
-async function callGeminiRestApi(
-  prompt: string,
-  systemInstruction: string,
-  apiKey: string,
-  preferredModel: string = getActiveChatModel(),
-  isJson: boolean = true
-): Promise<string> {
-  const modelsToTry = [preferredModel, "gemini-3.5-flash-lite"].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
-  for (const model of modelsToTry) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-      const payload: any = {
-        system_instruction: {
-          parts: [{ text: systemInstruction }],
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 1024,
-        },
-      };
-      if (isJson) {
-        payload.generationConfig.responseMimeType = "application/json";
-      }
-
-      let response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify(payload),
-      });
-
-      // If tool was not accepted by this specific model/region, retry without tools
-      if (!response.ok && payload.tools) {
-        delete payload.tools;
-        response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      if (!response.ok) {
-        continue;
-      }
-
-      const data: any = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text && text.trim().length > 0) {
-        return text;
-      }
-    } catch {
-      // Continue to next model
-    }
-  }
-  throw new Error("Gemini REST API fallback exhausted");
-}
-
 export function extractUrls(text: string): string[] {
   const matches = text.match(/https?:\/\/[^\s)]+/g) || [];
   return matches.map((u) => u.replace(/[.,;!?]+$/, ''));
@@ -797,14 +1399,21 @@ export function synthesizeHeuristicResponse({
   userQuery: string;
   relatedVideos?: RelatedTruthWorldVideo[];
 }): CredibilityChatResponse {
-  const formattedSources: CredibilityChatSource[] = existingSources.slice(0, 6).map((s) => ({
-    title: String(s.title || s.headline || "Reference Source"),
-    url: String(s.url || s.directUrl || ""),
-    domain: String(s.domain || ""),
-    publisher: String(s.publisher || s.domain || "Verified Publisher"),
-    snippet: s.snippet ? String(s.snippet) : undefined,
-    publishedYear: s.publishedYear || s.year ? String(s.publishedYear || s.year) : undefined,
-  }));
+  const { rankedClaims } = rankClaimsForChatPrompt(existingClaims, userQuery, 15);
+  const formattedSources: CredibilityChatSource[] = rankSourcesForChat(
+    existingSources,
+    userQuery,
+    rankedClaims
+  )
+    .slice(0, 8)
+    .map((s) => ({
+      title: String(s.title || s.headline || "Reference Source"),
+      url: String(s.url || s.directUrl || ""),
+      domain: String(s.domain || ""),
+      publisher: String(s.publisher || s.domain || "Verified Publisher"),
+      snippet: s.snippet ? String(s.snippet) : undefined,
+      publishedYear: s.publishedYear || s.year ? String(s.publishedYear || s.year) : undefined,
+    }));
 
   const lowerQ = userQuery.toLowerCase().trim();
 
@@ -954,32 +1563,23 @@ export function synthesizeHeuristicResponse({
     if (urlMatches.length > 0 && targetClaimNum) {
       const sourcesList = urlMatches.map((u) => `- ${u}`).join("\n");
       return {
-        answer: `### ⚖️ Dispute Automatically Initiated for Claim #${targetClaimNum}\n\n` +
-          `I have validated your submitted counter-evidence and **automatically initiated a formal factual dispute** for Claim #${targetClaimNum}.\n\n` +
-          `**Dispute Summary:**\n` +
-          `- **Target Claim**: Claim #${targetClaimNum}\n` +
-          `- **Submitted Counter-Sources**:\n${sourcesList}\n` +
-          `- **Status**: **Dispatched to Deep Re-Verification Engine**\n\n` +
+        answer: `### ⚖️ How to Submit Counter-Evidence for Claim #${targetClaimNum}\n\n` +
+          `Ask AI chat does not directly modify claim verdicts. To trigger automated re-verification with your sources, please submit a **Dispute** Community Note on **Claim #${targetClaimNum}** (or use **Submit Dispute** in the AI Check menu):\n\n` +
+          `**Sources You Referenced:**\n${sourcesList}\n\n` +
           `---\n` +
-          `### Next Process: Automated Deep Re-Verification\n` +
-          `1. **Particular Claim Deep Re-Verification**: The automated credibility pipeline crawls and cross-references your submitted URLs directly against regulatory registries (SEC/SEBI), corporate statutory filings, and global wire services.\n` +
-          `2. **Platform Verdict Flip**: If the empirical documentation confirms the assertion is inaccurate, the master ledger officially flips Claim #${targetClaimNum}'s verdict from **Verified** to **False** (or **Contradicted**).\n` +
-          `3. **Claim Ledger Update**: Claim #${targetClaimNum}'s classification on the master truth ledger will be updated from Verified to False.\n` +
-          `4. **Notification**: You will receive a platform alert as soon as the verification engine completes the re-examination.`,
-        sources: urlMatches.map((u) => ({
-          title: "Submitted Counter-Evidence",
-          url: u,
-          domain: u.split("/")[2] || "web",
-          publisher: "User Submitted Source",
-        })),
+          `### Automated Re-Verification Process\n` +
+          `1. **Live Source Validation**: TruthWorld verifies that each submitted URL is live (\`HTTP 200\`), on-topic, and from an acceptable source.\n` +
+          `2. **Single-Claim Re-Check**: Valid sources are cross-checked against Claim #${targetClaimNum} and existing evidence.\n` +
+          `3. **Verdict & Ledger Update**: If the new evidence warrants a change, Claim #${targetClaimNum}'s verdict and sources are updated automatically.`,
+        sources: [],
         suggestedFollowups: [
-          "What is the status of this re-verification?",
-          "How are statutory sources verified?",
-          "Explain the verified claims",
+          "What are the primary sources?",
+          "Why this verdict?",
+          "How does the dispute process work?",
         ],
         scope,
         claimIndex: data.claimIndex,
-        disclaimer: "Factual dispute queued for automated deep re-verification.",
+        disclaimer: "Submit counter-sources via the claim's Dispute Community Note to trigger automated re-verification.",
         isOffTopicAbuse: false,
       };
     }
@@ -1369,14 +1969,13 @@ export function synthesizeHeuristicResponse({
 
 export const chatWithCredibilityAi = onCall(
   {
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     enforceAppCheck: true,
     cpu: 1,
     memory: "512MiB",
     timeoutSeconds: 60,
     maxInstances: 10,
     concurrency: 20,
-    secrets: ["GEMINI_API_KEY"],
   },
   async (request): Promise<CredibilityChatResponse> => {
     const data = request.data as CredibilityChatRequest;
@@ -1419,24 +2018,6 @@ export const chatWithCredibilityAi = onCall(
       };
     }
 
-    // 🛡️ Pre-Screening: Detect Unmatching / Parasitic Free-Riding Queries
-    if (isOffTopicQuery(userQuery, data.videoTitle, data.claimText)) {
-      const violation = await recordOffTopicViolation(uid, userQuery, videoId);
-      return {
-        answer: violation.message,
-        sources: [],
-        suggestedFollowups: [
-          "Why was this claim verified as true or false?",
-          "What are the primary sources?",
-          "Suggest better videos on this topic",
-        ],
-        scope,
-        claimIndex: data.claimIndex,
-        disclaimer: "Ask AI is dedicated exclusively to analyzing video credibility and claims.",
-        isOffTopicAbuse: true,
-      };
-    }
-
     // 🎯 Specialized Claim Scope Guard: Redirect if user on Claim X asks about Claim Y
     if (scope === "claim" && typeof data.claimIndex === "number") {
       const currentClaimNum = data.claimIndex + 1;
@@ -1462,14 +2043,6 @@ export const chatWithCredibilityAi = onCall(
       }
     }
 
-    // ⚡ Step 0: Instant Cache Check (Zero Cost & <5ms response time)
-    const cacheKey = getNormalizedCacheKey(videoId, scope, data.claimIndex, userQuery);
-    const cachedEntry = chatResponseCache.get(cacheKey);
-    if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL_MS) {
-      logger.info("[chatWithCredibilityAi] Serving from memory cache", { videoId, cacheKey });
-      return cachedEntry.response;
-    }
-
     // Rate Limiting & High-Traffic Safeguard (Graceful Degradation, Zero 429 Errors)
     const forwardedHeader = request.rawRequest?.headers?.["x-forwarded-for"];
     const ip = typeof forwardedHeader === "string"
@@ -1479,87 +2052,48 @@ export const chatWithCredibilityAi = onCall(
     const limit = (clientId === "anon_chat_pool") ? 60 : MAX_REQUESTS_PER_WINDOW;
     const isRateLimited = checkRateLimit(clientId, limit);
 
-    // Fetch video document and credibility data from Firestore
-    let videoTitle = data.videoTitle || "Untitled Video";
-    let videoChannel = data.channelName || "Creator";
-    let videoCategory = (data as any).category || (data as any).videoCategory || "";
-    let videoTopics: string[] = Array.isArray((data as any).topics) ? (data as any).topics : [];
-    let uiReport: any = null;
-    let existingClaims: any[] = [];
-    let existingSources: any[] = [];
-    let relatedTruthWorldVideos: RelatedTruthWorldVideo[] = [];
+    // Fetch authoritative video/credibility context from Firestore + GCS fallback (Zero-Trust)
+    const {
+      videoTitle,
+      videoChannel,
+      uiReport,
+      existingClaims,
+      existingSources,
+      relatedTruthWorldVideos,
+    } = await loadAuthoritativeCredibilityContext(
+      admin.firestore(),
+      videoId,
+      data,
+      "[chatWithCredibilityAi]"
+    );
 
-    try {
-      const db = admin.firestore();
-      // Proper Firestore schema: videos/{videoId} and videos/{videoId}/media/credibility
-      const [videoDoc, credDoc] = await Promise.all([
-        db.collection("videos").doc(videoId).get(),
-        db.collection("videos").doc(videoId).collection("media").doc("credibility").get(),
-      ]);
+    // 🛡️ Pre-Screening against AUTHORITATIVE videoTitle & claim text (never spoofable client title)
+    const authClaimForScope = scope === "claim"
+      ? String(existingClaims[data.claimIndex ?? 0]?.statement || existingClaims[data.claimIndex ?? 0]?.claim || data.claimText || "")
+      : undefined;
+    if (isOffTopicQuery(userQuery, videoTitle, authClaimForScope)) {
+      const violation = await recordOffTopicViolation(uid, userQuery, videoId);
+      return {
+        answer: violation.message,
+        sources: [],
+        suggestedFollowups: [
+          "Why was this claim verified as true or false?",
+          "What are the primary sources?",
+          "Suggest better videos on this topic",
+        ],
+        scope,
+        claimIndex: data.claimIndex,
+        disclaimer: "Ask AI is dedicated exclusively to analyzing video credibility and claims.",
+        isOffTopicAbuse: true,
+      };
+    }
 
-      if (videoDoc.exists) {
-        const vData = videoDoc.data() || {};
-        videoTitle = vData.title || videoTitle;
-        videoChannel = vData.channelTitle || vData.channelName || videoChannel;
-        videoCategory = vData.category || videoCategory;
-        if (Array.isArray(vData.topics) && vData.topics.length > 0) {
-          videoTopics = vData.topics;
-        }
-        uiReport = vData.uiReport || uiReport;
-      }
-
-      relatedTruthWorldVideos = await fetchRelatedTruthWorldVideos(
-        db,
-        videoId,
-        videoCategory,
-        videoTopics
-      );
-
-      // 1. Authoritative credibility document takes highest precedence
-      if (credDoc.exists) {
-        const cData = credDoc.data() || {};
-        if (Array.isArray(cData.claims) && cData.claims.length > 0) {
-          existingClaims = cData.claims;
-        }
-        if (Array.isArray(cData.sources) && cData.sources.length > 0) {
-          existingSources = cData.sources;
-        }
-        if (cData.uiReport) {
-          uiReport = cData.uiReport;
-        }
-      }
-
-      // 2. Fallback from uiReport if claims/sources still empty
-      if (existingClaims.length === 0 && Array.isArray(uiReport?.keyClaims) && uiReport.keyClaims.length > 0) {
-        existingClaims = uiReport.keyClaims;
-      }
-      if (existingSources.length === 0 && Array.isArray(uiReport?.sources) && uiReport.sources.length > 0) {
-        existingSources = uiReport.sources;
-      }
-
-      // 3. Fallback from live claims subcollection via StreamingClaimProcessor
-      if (existingClaims.length === 0) {
-        existingClaims = await StreamingClaimProcessor.getLiveClaims(videoId, 50);
-      }
-
-      // 4. Derive sources from claims if sources array empty
-      if (existingSources.length === 0 && existingClaims.length > 0) {
-        for (const c of existingClaims) {
-          if (Array.isArray(c.richSources) && c.richSources.length > 0) {
-            existingSources.push(...c.richSources);
-          } else if (Array.isArray(c.sources) && c.sources.length > 0) {
-            existingSources.push(...c.sources);
-          }
-        }
-      }
-
-      // Epistemic Guard (Zero-Trust): Never accept claims or sources sent by client app payload!
-      // All claims and sources must strictly originate from authoritative Firestore records.
-    } catch (fetchErr) {
-      logger.warn("[chatWithCredibilityAi] Unable to load full video metadata from Firestore", {
-        videoId,
-        error: String(fetchErr),
-      });
+    // ⚡ Instant Cache Check (after authoritative off-topic screening)
+    const cacheKey = getNormalizedCacheKey(videoId, scope, data.claimIndex, userQuery);
+    const cachedEntry = chatResponseCache.get(cacheKey);
+    if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL_MS) {
+      logger.info("[chatWithCredibilityAi] Serving from memory cache", { videoId, cacheKey });
+      return cachedEntry.response;
     }
 
     if (isRateLimited) {
@@ -1592,7 +2126,16 @@ export const chatWithCredibilityAi = onCall(
         rawContextSources = existingSources;
       }
     } else {
-      rawContextSources = existingSources;
+      const { rankedClaims: weightedClaimsForSources } = rankClaimsForChatPrompt(
+        existingClaims,
+        userQuery,
+        15
+      );
+      rawContextSources = rankSourcesForChat(
+        existingSources,
+        userQuery,
+        weightedClaimsForSources
+      );
     }
 
     let verifiedCatalogSources = await resolveClosedWorldChatSources(rawContextSources);
@@ -1669,27 +2212,13 @@ export const chatWithCredibilityAi = onCall(
         }
       }
     } else {
-      contextPrompt += `\nVIDEO CREDIBILITY SUMMARY:\n`;
-      const summaryText = uiReport?.summary || uiReport?.conclusion || data.summary;
-      if (summaryText) {
-        contextPrompt += `- Summary: "${String(summaryText).substring(0, 350)}"\n`;
-      }
-      if (existingClaims.length > 0) {
-        const claimsSummary = existingClaims.slice(0, 6).map((c, i) => {
-          const stmt = (c.statement || c.claim || c.claimText || "Claim").substring(0, 100);
-          const verd = c.verdict || c.status || "Unknown";
-          return `  ${i + 1}. [${verd}] "${stmt}"`;
-        }).join("\n");
-        contextPrompt += `- Verified Assertions:\n${claimsSummary}\n`;
-      }
-      if (verifiedCatalogSources.length > 0) {
-        const sourcesSummary = verifiedCatalogSources.map((s, idx) => {
-          return `  [E${idx + 1} / ${idx + 1}] ${s.publisher || s.domain || 'Source'}: "${(s.title || '').substring(0, 70)}"`;
-        }).join("\n");
-        contextPrompt += `- VERIFIED EVIDENCE CATALOG (CITE ONLY THESE IDs e.g. ["E1"]): \n${sourcesSummary}\n`;
-      } else {
-        contextPrompt += `- VERIFIED EVIDENCE CATALOG: NONE (return citedEvidenceIds: [] and never invent URLs)\n`;
-      }
+      contextPrompt += buildWeightedVideoContextSection({
+        summaryText: uiReport?.summary || uiReport?.conclusion || data.summary,
+        existingClaims,
+        verifiedSources: verifiedCatalogSources,
+        userQuery,
+        useEvidenceIds: true,
+      });
     }
 
     if (relatedTruthWorldVideos.length > 0) {
@@ -1705,19 +2234,19 @@ export const chatWithCredibilityAi = onCall(
       contextPrompt += `\nACTIVE VIDEO PLAYBACK POSITION & TEMPORAL ANCHOR:\n`;
       contextPrompt += `- Current Timestamp: ${timeStr} (${Math.round(data.playbackSec)} seconds into video)\n`;
       if (data.activeChapterTitle) {
-        contextPrompt += `- Active Chapter / Topic: "${data.activeChapterTitle}"\n`;
+        contextPrompt += `- Active Chapter / Topic: "${sanitizeClientPromptText(data.activeChapterTitle, 120)}"\n`;
       }
       if (data.transcriptSnippet) {
-        contextPrompt += `- Spoken Dialogue Window (Transcript at ~${timeStr}): "${data.transcriptSnippet.substring(0, 500)}"\n`;
+        contextPrompt += `- Client-Provided Transcript Window (~${timeStr}, untrusted): "${sanitizeClientPromptText(data.transcriptSnippet, 500)}"\n`;
       }
     }
 
-    // Build Conversation History (Compacted to last 4 turns)
+    // Build Conversation History (Compacted to last 4 turns, sanitized)
     let conversationThread = "";
     if (data.history && Array.isArray(data.history) && data.history.length > 0) {
       const recent = data.history.slice(-4);
       conversationThread = "\nRECENT CONVERSATION HISTORY:\n" +
-        recent.map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${(h.content || '').substring(0, 200)}`).join("\n") + "\n";
+        recent.map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${sanitizeClientPromptText(h.content, 200)}`).join("\n") + "\n";
     }
 
     const fullPrompt = `${contextPrompt}\n${conversationThread}
@@ -1764,18 +2293,11 @@ CRITICAL INSTRUCTIONS:
         rawText = extractCandidateText(result.response?.candidates?.[0]) ||
           result.response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
       } catch (vertexErr) {
-        logger.warn("[chatWithCredibilityAi] Vertex AI generation failed, trying Gemini API key fallback", {
+        logger.error("[chatWithCredibilityAi] Vertex AI generation failed", {
           videoId,
           error: String(vertexErr),
         });
-
-        // Step 2: Try direct Gemini API with GEMINI_API_KEY secret
-        const apiKey = process.env.GEMINI_API_KEY || PIPELINE_CONFIG.GEMINI_API_KEY;
-        if (apiKey) {
-          rawText = await callGeminiRestApi(fullPrompt, CHAT_SYSTEM_INSTRUCTION, apiKey);
-        } else {
-          throw vertexErr;
-        }
+        throw vertexErr;
       }
 
       if (!rawText) {
@@ -1982,14 +2504,13 @@ CORE PRINCIPLES:
  */
 export const streamCredibilityAiChat = onRequest(
   {
-    region: "asia-south1",
+    region: CREDIBILITY_REGION,
     cors: false,
     cpu: 1,
     memory: "512MiB",
     timeoutSeconds: 60,
     maxInstances: 10,
     concurrency: 20,
-    secrets: ["GEMINI_API_KEY"],
   },
   async (req, res) => {
     applySecurityHeaders(res);
@@ -2124,18 +2645,6 @@ export const streamCredibilityAiChat = onRequest(
       }
     }
 
-    // 🛡️ Pre-Screening: Detect Unmatching / Parasitic Free-Riding Queries
-    if (isOffTopicQuery(userQuery, data.videoTitle, data.claimText)) {
-      const violationUser = authenticatedUid || "guest_pool";
-      const violation = await recordOffTopicViolation(violationUser, userQuery, videoId);
-      res.write(`data: ${JSON.stringify({ type: "metadata", sources: [], suggestedFollowups: ["What are the primary sources?", "Why this verdict?"], scope, disclaimer: "Ask AI is dedicated exclusively to analyzing video credibility." })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: "delta", text: violation.message })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      res.end();
-      return;
-    }
-
     // 🎯 Specialized Claim Scope Guard: Redirect if user on Claim X asks about Claim Y
     if (scope === "claim" && typeof data.claimIndex === "number") {
       const currentClaimNum = data.claimIndex + 1;
@@ -2165,7 +2674,40 @@ export const streamCredibilityAiChat = onRequest(
       }
     }
 
-    // ⚡ Fast Stream Cache Check (0ms latency, zero API spend)
+    // Rate Limiting keyed on verified authenticatedUid (not spoofable X-Forwarded-For)
+    const clientId = authenticatedUid;
+    const isRateLimited = checkRateLimit(clientId, 60);
+
+    // Fetch authoritative video/credibility context from Firestore + GCS fallback (Zero-Trust)
+    const {
+      videoTitle,
+      videoChannel,
+      uiReport,
+      existingClaims,
+      existingSources,
+      relatedTruthWorldVideos,
+    } = await loadAuthoritativeCredibilityContext(
+      admin.firestore(),
+      videoId,
+      data,
+      "[streamCredibilityAiChat]"
+    );
+
+    // 🛡️ Pre-Screening against AUTHORITATIVE videoTitle & claim text (never spoofable client title)
+    const authClaimForScope = scope === "claim"
+      ? String(existingClaims[data.claimIndex ?? 0]?.statement || existingClaims[data.claimIndex ?? 0]?.claim || data.claimText || "")
+      : undefined;
+    if (isOffTopicQuery(userQuery, videoTitle, authClaimForScope)) {
+      const violation = await recordOffTopicViolation(authenticatedUid, userQuery, videoId);
+      res.write(`data: ${JSON.stringify({ type: "metadata", sources: [], suggestedFollowups: ["What are the primary sources?", "Why this verdict?"], scope, disclaimer: "Ask AI is dedicated exclusively to analyzing video credibility." })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "delta", text: violation.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+      return;
+    }
+
+    // ⚡ Fast Stream Cache Check (after authoritative off-topic screening)
     const cacheKey = getNormalizedCacheKey(videoId, scope, data.claimIndex, userQuery);
     const cachedStream = streamResponseCache.get(cacheKey);
     if (cachedStream && Date.now() - cachedStream.timestamp < CACHE_TTL_MS) {
@@ -2183,93 +2725,6 @@ export const streamCredibilityAiChat = onRequest(
       res.write("data: [DONE]\n\n");
       res.end();
       return;
-    }
-
-    // Rate Limiting & High-Traffic Safeguard (Graceful Fallback, Zero User Disruption)
-    const forwardedHeader = req.headers["x-forwarded-for"];
-    const ip = typeof forwardedHeader === "string"
-      ? forwardedHeader.split(",")[0].trim()
-      : (req.ip || req.socket?.remoteAddress);
-    const clientId = ip || "anon_stream_pool";
-    const isRateLimited = checkRateLimit(clientId, 60);
-
-    // Fetch video document and credibility data from Firestore
-    let videoTitle = data.videoTitle || "Untitled Video";
-    let videoChannel = data.channelName || "Creator";
-    let videoCategory = (data as any).category || (data as any).videoCategory || "";
-    let videoTopics: string[] = Array.isArray((data as any).topics) ? (data as any).topics : [];
-    let uiReport: any = null;
-    let existingClaims: any[] = [];
-    let existingSources: any[] = [];
-    let relatedTruthWorldVideos: RelatedTruthWorldVideo[] = [];
-
-    try {
-      const db = admin.firestore();
-      const [videoDoc, credDoc] = await Promise.all([
-        db.collection("videos").doc(videoId).get(),
-        db.collection("videos").doc(videoId).collection("media").doc("credibility").get(),
-      ]);
-
-      if (videoDoc.exists) {
-        const vData = videoDoc.data() || {};
-        videoTitle = vData.title || videoTitle;
-        videoChannel = vData.channelTitle || vData.channelName || videoChannel;
-        videoCategory = vData.category || videoCategory;
-        if (Array.isArray(vData.topics) && vData.topics.length > 0) {
-          videoTopics = vData.topics;
-        }
-        uiReport = vData.uiReport || uiReport;
-      }
-
-      relatedTruthWorldVideos = await fetchRelatedTruthWorldVideos(
-        db,
-        videoId,
-        videoCategory,
-        videoTopics
-      );
-
-      // 1. Authoritative credibility document takes highest precedence
-      if (credDoc.exists) {
-        const cData = credDoc.data() || {};
-        if (Array.isArray(cData.claims) && cData.claims.length > 0) {
-          existingClaims = cData.claims;
-        }
-        if (Array.isArray(cData.sources) && cData.sources.length > 0) {
-          existingSources = cData.sources;
-        }
-        if (cData.uiReport) {
-          uiReport = cData.uiReport;
-        }
-      }
-
-      // 2. Fallback from uiReport if claims/sources still empty
-      if (existingClaims.length === 0 && Array.isArray(uiReport?.keyClaims) && uiReport.keyClaims.length > 0) {
-        existingClaims = uiReport.keyClaims;
-      }
-      if (existingSources.length === 0 && Array.isArray(uiReport?.sources) && uiReport.sources.length > 0) {
-        existingSources = uiReport.sources;
-      }
-
-      // 3. Fallback from live claims subcollection via StreamingClaimProcessor
-      if (existingClaims.length === 0) {
-        existingClaims = await StreamingClaimProcessor.getLiveClaims(videoId, 50);
-      }
-
-      // 4. Derive sources from claims if sources array empty
-      if (existingSources.length === 0 && existingClaims.length > 0) {
-        for (const c of existingClaims) {
-          if (Array.isArray(c.richSources) && c.richSources.length > 0) {
-            existingSources.push(...c.richSources);
-          } else if (Array.isArray(c.sources) && c.sources.length > 0) {
-            existingSources.push(...c.sources);
-          }
-        }
-      }
-
-      // Epistemic Guard (Zero-Trust): Never accept claims or sources sent by client app payload!
-      // All claims and sources must strictly originate from authoritative Firestore records.
-    } catch (fetchErr) {
-      logger.warn("[streamCredibilityAiChat] Unable to load video metadata from Firestore", { videoId, error: String(fetchErr) });
     }
 
     if (isRateLimited) {
@@ -2350,26 +2805,21 @@ export const streamCredibilityAiChat = onRequest(
         }
       }
     } else {
-      contextPrompt += `\nVIDEO CREDIBILITY SUMMARY:\n`;
-      const summaryText = uiReport?.summary || uiReport?.conclusion || data.summary;
-      if (summaryText) {
-        contextPrompt += `- Summary: "${String(summaryText).substring(0, 350)}"\n`;
-      }
-      if (existingClaims.length > 0) {
-        const claimsSummary = existingClaims.slice(0, 6).map((c, i) => {
-          const stmt = (c.statement || c.claim || c.claimText || "Claim").substring(0, 100);
-          const verd = c.verdict || c.status || "Unknown";
-          return `  ${i + 1}. [${verd}] "${stmt}"`;
-        }).join("\n");
-        contextPrompt += `- Verified Assertions:\n${claimsSummary}\n`;
-      }
-      targetSources = await resolveClosedWorldChatSources(existingSources);
-      if (targetSources.length > 0) {
-        const sourcesSummary = targetSources.map((s, idx) => {
-          return `  [${idx + 1}] ${s.publisher || s.domain || 'Source'}: "${(s.title || '').substring(0, 70)}"`;
-        }).join("\n");
-        contextPrompt += `- Verified Authoritative Sources:\n${sourcesSummary}\n`;
-      }
+      const { rankedClaims: weightedStreamClaims } = rankClaimsForChatPrompt(
+        existingClaims,
+        userQuery,
+        15
+      );
+      targetSources = await resolveClosedWorldChatSources(
+        rankSourcesForChat(existingSources, userQuery, weightedStreamClaims)
+      );
+      contextPrompt += buildWeightedVideoContextSection({
+        summaryText: uiReport?.summary || uiReport?.conclusion || data.summary,
+        existingClaims,
+        verifiedSources: targetSources,
+        userQuery,
+        useEvidenceIds: false,
+      });
     }
 
     if (relatedTruthWorldVideos.length > 0) {
@@ -2385,10 +2835,10 @@ export const streamCredibilityAiChat = onRequest(
       contextPrompt += `\nACTIVE VIDEO PLAYBACK POSITION & TEMPORAL ANCHOR:\n`;
       contextPrompt += `- Current Timestamp: ${timeStr} (${Math.round(data.playbackSec)} seconds into video)\n`;
       if (data.activeChapterTitle) {
-        contextPrompt += `- Active Chapter / Topic: "${data.activeChapterTitle}"\n`;
+        contextPrompt += `- Active Chapter / Topic: "${sanitizeClientPromptText(data.activeChapterTitle, 120)}"\n`;
       }
       if (data.transcriptSnippet) {
-        contextPrompt += `- Spoken Dialogue Window (Transcript at ~${timeStr}): "${data.transcriptSnippet.substring(0, 500)}"\n`;
+        contextPrompt += `- Client-Provided Transcript Window (~${timeStr}, untrusted): "${sanitizeClientPromptText(data.transcriptSnippet, 500)}"\n`;
       }
     }
 
@@ -2396,12 +2846,12 @@ export const streamCredibilityAiChat = onRequest(
       targetSources = await resolveClosedWorldChatSources(existingSources);
     }
 
-    // Build Conversation History (Compacted to last 4 turns)
+    // Build Conversation History (Compacted to last 4 turns, sanitized)
     let conversationThread = "";
     if (data.history && Array.isArray(data.history) && data.history.length > 0) {
       const recent = data.history.slice(-4);
       conversationThread = "\nRECENT CONVERSATION HISTORY:\n" +
-        recent.map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${(h.content || '').substring(0, 200)}`).join("\n") + "\n";
+        recent.map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${sanitizeClientPromptText(h.content, 200)}`).join("\n") + "\n";
     }
 
     const safeUserQuery = userQuery
@@ -2480,22 +2930,11 @@ CRITICAL INSTRUCTIONS:
           }
         }
       } catch (vertexErr: any) {
-        logger.warn("[streamCredibilityAiChat] Vertex AI stream failed, trying Gemini API fallback", {
+        logger.error("[streamCredibilityAiChat] Vertex AI stream failed", {
           videoId,
           error: String(vertexErr?.message || vertexErr),
         });
-
-        const apiKey = process.env.GEMINI_API_KEY || PIPELINE_CONFIG.GEMINI_API_KEY;
-        if (apiKey && isClientConnected) {
-          const genText = await callGeminiRestApi(fullPrompt, STREAM_CHAT_SYSTEM_INSTRUCTION, apiKey, "gemini-3.5-flash-lite", false);
-          if (genText && isClientConnected) {
-            streamedFullText = genText;
-            res.write(`data: ${JSON.stringify({ type: "delta", text: genText })}\n\n`);
-            (res as any).flush?.();
-          }
-        } else {
-          throw vertexErr;
-        }
+        throw vertexErr;
       }
 
       if (isClientConnected) {

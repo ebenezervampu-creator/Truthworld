@@ -36,7 +36,10 @@ import 'package:video_player/video_player.dart';
 
 /// GetX Controller orchestrating TruthWorld Standalone Dubbing Studio.
 class DubbingStudioController extends GetxController {
-  final DubbingService _service = DubbingService();
+  DubbingStudioController({DubbingService? service})
+      : _service = service ?? DubbingService();
+
+  final DubbingService _service;
   final DubbingQuoteService _quoteService = DubbingQuoteService();
 
   // --- Real-Time Server Pricing State ---
@@ -73,12 +76,14 @@ class DubbingStudioController extends GetxController {
   final RxList<DubbingJob> projectJobs = <DubbingJob>[].obs;
   final RxBool isLoadingProjects = false.obs;
   final RxBool isSavingProject = false.obs;
+  final RxnString generatingMp4Lang = RxnString();
   final RxBool isEditingProjectTitle = false.obs;
   final RxBool showSourceEditor = false.obs;
   final TextEditingController createProjectTitleController = TextEditingController();
   final TextEditingController projectTitleEditController = TextEditingController();
   final TextEditingController hubSearchController = TextEditingController();
   Timer? _saveDebounceTimer;
+  Timer? _segmentEditDebounceTimer;
 
   // --- Projects Hub Filter & View Mode ---
   /// 'all' | 'completed' | 'processing' | 'failed'
@@ -154,14 +159,13 @@ class DubbingStudioController extends GetxController {
     }).toList(growable: false);
   }
 
-  // --- Picked File & Upload State (Up to 2 Hours / 4GB) ---
+  // --- Picked File & Upload State (Up to 2 Hours / 1 GB Video / 250 MB Audio) ---
   final Rxn<PlatformFile> pickedFile = Rxn<PlatformFile>();
   final RxString pickedFileName = ''.obs;
   final RxInt pickedFileSizeBytes = 0.obs;
   final RxBool isUploadingMedia = false.obs;
   final RxDouble uploadProgress = 0.0.obs;
   final RxString uploadStatus = ''.obs;
-  final RxBool showManualUrlInput = false.obs;
 
   // --- Custom Controls ---
   final RxBool isolateVocals = true.obs;
@@ -178,8 +182,8 @@ class DubbingStudioController extends GetxController {
     const DubbingSpeaker(
       id: 'speaker_1',
       label: 'Speaker 1 (Primary Host)',
-      assignedVoiceId: 'voice_telugu_charan',
-      isCloned: true,
+      assignedVoiceId: 'default_voice',
+      isCloned: false,
     ),
   ].obs;
 
@@ -209,7 +213,17 @@ class DubbingStudioController extends GetxController {
   // --- Wallet & Credits ---
   final Rxn<DubbingWallet> wallet = Rxn<DubbingWallet>();
   final RxBool isPurchasingCredits = false.obs;
+  final RxBool isProcessingDirectPayment = false.obs;
   final RxInt selectedPurchaseTierUsd = 10.obs;
+  final RxString selectedTopupWalletScope = 'personal'.obs;
+
+  double get personalDubbingWalletUsd => wallet.value?.balanceUsd ?? 0.0;
+
+  double get totalAvailableWalletUsd {
+    final personal = personalDubbingWalletUsd;
+    final studio = studioWalletSpendableBalance;
+    return personal > studio ? personal : studio;
+  }
 
   /// Live spendable balance in the creator's TruthWorld Studio Channel Wallet.
   double get studioWalletSpendableBalance {
@@ -279,6 +293,7 @@ class DubbingStudioController extends GetxController {
   @override
   void onClose() {
     _saveDebounceTimer?.cancel();
+    _segmentEditDebounceTimer?.cancel();
     createProjectTitleController.dispose();
     projectTitleEditController.dispose();
     hubSearchController.dispose();
@@ -388,7 +403,11 @@ class DubbingStudioController extends GetxController {
     }
   }
 
-  Future<void> loadPreviewMedia(String url, {bool isBlob = false}) async {
+  Future<void> loadPreviewMedia(
+    String url, {
+    bool isBlob = false,
+    bool manageBlobLifetime = true,
+  }) async {
     final trimmed = url.trim();
     if (trimmed.isEmpty) {
       await disposePreviewPlayer();
@@ -397,7 +416,7 @@ class DubbingStudioController extends GetxController {
     if (_loadedMediaUrl == trimmed && isPlayerInitialized.value) return;
 
     await disposePreviewPlayer();
-    if (isBlob) {
+    if (isBlob && manageBlobLifetime) {
       _activePreviewBlobUrl = trimmed;
     }
     _loadedMediaUrl = trimmed;
@@ -512,8 +531,7 @@ class DubbingStudioController extends GetxController {
       }
       if (!fallbackOk && !autoTriggered && !isExportingAssets.value) {
         await exportPackage(silent: true);
-        final refreshedJob = activeJob.value;
-        final refreshedVideo = refreshedJob?.dubbedVideoUrlFor(normalizedKey);
+        final refreshedVideo = findDubbedVideoUrl(normalizedKey);
         if (refreshedVideo != null && refreshedVideo.isNotEmpty && refreshedVideo != dubbedVideoUrl) {
           await loadPreviewMedia(refreshedVideo);
           final refreshedCtrl = videoPlayerController;
@@ -529,8 +547,10 @@ class DubbingStudioController extends GetxController {
             return;
           }
         }
-        final refreshedAudio = refreshedJob?.dubbedAudioUrlFor(normalizedKey);
-        if (refreshedAudio != null && refreshedAudio.isNotEmpty) {
+        final refreshedAudio = findDubbedAudioUrl(normalizedKey);
+        if (refreshedAudio != null &&
+            refreshedAudio.isNotEmpty &&
+            refreshedAudio != fallbackAudio) {
           fallbackOk = await _loadDubbedAudioSyncedWithOriginal(
             refreshedAudio,
             previousPos: previousPos,
@@ -563,8 +583,7 @@ class DubbingStudioController extends GetxController {
         );
         if (!loaded && !autoTriggered && !isExportingAssets.value) {
           await exportPackage(silent: true);
-          final refreshedJob = activeJob.value;
-          final refreshedVideo = refreshedJob?.dubbedVideoUrlFor(normalizedKey);
+          final refreshedVideo = findDubbedVideoUrl(normalizedKey);
           if (refreshedVideo != null && refreshedVideo.isNotEmpty) {
             await _disposeDubbedAudioPlayer();
             await loadPreviewMedia(refreshedVideo);
@@ -581,8 +600,10 @@ class DubbingStudioController extends GetxController {
               return;
             }
           }
-          final refreshedAudio = refreshedJob?.dubbedAudioUrlFor(normalizedKey);
-          if (refreshedAudio != null && refreshedAudio.isNotEmpty) {
+          final refreshedAudio = findDubbedAudioUrl(normalizedKey);
+          if (refreshedAudio != null &&
+              refreshedAudio.isNotEmpty &&
+              refreshedAudio != dubbedAudioUrl) {
             loaded = await _loadDubbedAudioSyncedWithOriginal(
               refreshedAudio,
               previousPos: previousPos,
@@ -632,40 +653,54 @@ class DubbingStudioController extends GetxController {
         (_dubbedAudioPlayer == null && _webDubbedAudioPlayer == null)) {
       await _disposeDubbedAudioPlayer();
       _loadedDubbedAudioUrl = trimmed;
-      final resolvedUrl = await StorageUtils.resolveUrl(trimmed);
+      var resolvedUrl = await StorageUtils.resolveUrl(trimmed);
+      if (!_isAuthorizedMediaUrl(resolvedUrl) &&
+          activeJob.value?.status == DubbingJobStatus.completed &&
+          !isExportingAssets.value) {
+        await exportPackage(silent: true);
+        final refreshed = activeJob.value?.dubbedAudioUrlFor(activePreviewLanguage.value) ?? '';
+        if (refreshed.isNotEmpty && _isAuthorizedMediaUrl(refreshed)) {
+          resolvedUrl = refreshed;
+        }
+      }
       final targetUrl = resolvedUrl.isNotEmpty ? resolvedUrl : trimmed;
       final candidateUrls = <String>[
-        targetUrl,
-        if (trimmed != targetUrl && (trimmed.startsWith('http://') || trimmed.startsWith('https://')))
+        if (_isAuthorizedMediaUrl(targetUrl)) targetUrl,
+        if (trimmed != targetUrl &&
+            (trimmed.startsWith('http://') || trimmed.startsWith('https://')) &&
+            _isAuthorizedMediaUrl(trimmed))
           trimmed,
+        if (!_isAuthorizedMediaUrl(targetUrl)) targetUrl,
       ];
 
       var loadedAny = false;
-      for (final candidate in candidateUrls) {
-        try {
-          final audioPlayer = ja.AudioPlayer();
-          final isFirebaseTokenUrl =
-              candidate.contains('firebasestorage.googleapis.com') && candidate.contains('token=');
-          final headers = (kIsWeb || isFirebaseTokenUrl)
-              ? null
-              : StorageUtils.getSyncMediaHeaders(targetUrl: candidate);
-          await audioPlayer.setUrl(candidate, headers: headers);
-          _dubbedAudioPlayer = audioPlayer;
-          isDubbedAudioFallbackActive.value = true;
-          loadedAny = true;
-          break;
-        } catch (e) {
-          logger.warning('Dubbed audio just_audio load failed: $e', tag: 'DubbingStudioController');
-        }
-      }
-
-      if (!loadedAny && kIsWeb) {
+      if (kIsWeb) {
         for (final candidate in candidateUrls) {
           final webOk = await _loadWebDubbedAudio(candidate);
           if (webOk) {
             isDubbedAudioFallbackActive.value = true;
             loadedAny = true;
             break;
+          }
+        }
+      }
+
+      if (!loadedAny) {
+        for (final candidate in candidateUrls) {
+          try {
+            final audioPlayer = ja.AudioPlayer();
+            final isFirebaseTokenUrl =
+                candidate.contains('firebasestorage.googleapis.com') && candidate.contains('token=');
+            final headers = (kIsWeb || isFirebaseTokenUrl)
+                ? null
+                : StorageUtils.getSyncMediaHeaders(targetUrl: candidate);
+            await audioPlayer.setUrl(candidate, headers: headers);
+            _dubbedAudioPlayer = audioPlayer;
+            isDubbedAudioFallbackActive.value = true;
+            loadedAny = true;
+            break;
+          } catch (e) {
+            logger.warning('Dubbed audio just_audio load failed: $e', tag: 'DubbingStudioController');
           }
         }
       }
@@ -792,10 +827,14 @@ class DubbingStudioController extends GetxController {
                 : 'audio/mp4')
         : 'video/mp4';
 
-    if (kIsWeb && file.bytes != null) {
-      final blobUrl = WebPlatformUtils.createBlobUrl(file.bytes!, mimeType);
-      if (blobUrl.isNotEmpty) {
-        await loadPreviewMedia(blobUrl, isBlob: true);
+    if (kIsWeb) {
+      if (file.path != null && file.path!.isNotEmpty) {
+        await loadPreviewMedia(file.path!, isBlob: true, manageBlobLifetime: false);
+      } else if (file.bytes != null) {
+        final blobUrl = WebPlatformUtils.createBlobUrl(file.bytes!, mimeType);
+        if (blobUrl.isNotEmpty) {
+          await loadPreviewMedia(blobUrl, isBlob: true);
+        }
       }
     } else if (!kIsWeb && file.path != null) {
       await disposePreviewPlayer();
@@ -1068,6 +1107,9 @@ class DubbingStudioController extends GetxController {
         videoId: videoId ?? '',
         targetLanguages: targetLangs,
         durationSeconds: dur,
+        sourceLanguage: sourceLanguage.value,
+        mode: mode.value == DubbingMode.subtitlesOnly ? 'subtitles_only' : 'dubbing',
+        pipelineJobId: activeJob.value?.pipelineJobId,
       );
       if (reqId == _quoteRequestId) {
         serverQuote.value = quote;
@@ -1180,8 +1222,9 @@ class DubbingStudioController extends GetxController {
 
     if (!hasSufficientBalance) {
       AppSnackbar.warning(
-        'Insufficient balance in Studio Wallet (\$${studioWalletSpendableBalance.toStringAsFixed(2)} available vs \$${calculatedCostUsd.toStringAsFixed(2)} required). Please top up your channel wallet.',
+        'Insufficient balance (\$${totalAvailableWalletUsd.toStringAsFixed(2)} available vs \$${calculatedCostUsd.toStringAsFixed(2)} required). Top up your wallet or pay directly.',
       );
+      Get.dialog(const DubbingWalletModal());
       return;
     }
 
@@ -1223,7 +1266,7 @@ class DubbingStudioController extends GetxController {
         AppSnackbar.success(
           isSubOnly
               ? 'Subtitles started for "${video.title}"!'
-              : 'Dubbing started for "${video.title}"! All dubbed audio tracks will be stored in your video\'s Audio Tracks tab in Studio.',
+              : 'Dubbing started for "${video.title}"! All dubbed audio tracks will be stored in your video\'s Dubs tab in Studio.',
         );
         await _recordJobInActiveProject(jobId, mode: mode.value, langs: targetLangs);
         _listenToJob(jobId);
@@ -1251,11 +1294,16 @@ class DubbingStudioController extends GetxController {
   /// Authoritative server-priced dubbing charge:
   /// Higher of $0.30 per minute or $0.30 per 1,000 characters per language.
   double get calculatedCostUsd {
+    if (targetLanguages.isEmpty) return 0.0;
     if (serverQuote.value != null && serverQuote.value!.isReady) {
       return serverQuote.value!.dubbingChargeUsd;
     }
     final numLangs = targetLanguages.length;
-    final minuteCost = (estimatedDurationSeconds.value / 60.0) * 0.30 * numLangs;
+    final billedMinutes = (estimatedDurationSeconds.value / 60.0).clamp(1.0, 999.0);
+    if (mode.value == DubbingMode.subtitlesOnly) {
+      return double.parse((billedMinutes * 0.10 * numLangs).toStringAsFixed(2));
+    }
+    final minuteCost = billedMinutes * 0.30 * numLangs;
     final charCost = (estimatedCharacterCount.value / 1000.0) * 0.30 * numLangs;
     return minuteCost > charCost ? minuteCost : charCost;
   }
@@ -1290,7 +1338,8 @@ class DubbingStudioController extends GetxController {
 
   bool get hasSufficientBalance {
     if (isFreeDubbingActive) return true;
-    return studioWalletSpendableBalance >= calculatedCostUsd;
+    final cost = calculatedCostUsd;
+    return personalDubbingWalletUsd >= cost || studioWalletSpendableBalance >= cost;
   }
 
   // --- Actions ---
@@ -1329,11 +1378,160 @@ class DubbingStudioController extends GetxController {
     }
   }
 
-  /// Claim or verify free trial characters.
+  /// Promotional trial credits are discontinued; refreshes wallet and surfaces server notice.
   Future<void> claimFreeTrial() async {
-    await _service.claimFreeTrial();
+    final res = await _service.claimFreeTrial();
     await refreshWallet();
-    AppSnackbar.success('1,000 Free Characters active in your wallet! You can test dubbing before paying.');
+    final msg = res['message']?.toString().trim();
+    AppSnackbar.info(
+      (msg != null && msg.isNotEmpty)
+          ? msg
+          : 'Promotional creator trial credits have been discontinued.',
+    );
+  }
+
+  void setPublishToTruthworld(bool enabled) {
+    if (enabled && userChannel.value == null) {
+      publishToTruthworld.value = false;
+      AppSnackbar.info(
+        'Create or link a TruthWorld creator channel to publish dubbed videos to your feed. You can still dub and export files privately.',
+      );
+      return;
+    }
+    publishToTruthworld.value = enabled;
+    scheduleProjectAutoSave();
+  }
+
+  void updateSpeakerVoice(String speakerId, String voiceId, {bool isCloned = false}) {
+    final idx = speakers.indexWhere((s) => s.id == speakerId);
+    if (idx < 0) return;
+    final current = speakers[idx];
+    speakers[idx] = DubbingSpeaker(
+      id: current.id,
+      label: current.label,
+      assignedVoiceId: voiceId,
+      isCloned: isCloned,
+      pitchAdjustment: current.pitchAdjustment,
+      speedAdjustment: current.speedAdjustment,
+    );
+  }
+
+  void updateSpeakerTuning(String speakerId, {double? pitch, double? speed}) {
+    final idx = speakers.indexWhere((s) => s.id == speakerId);
+    if (idx < 0) return;
+    final current = speakers[idx];
+    speakers[idx] = DubbingSpeaker(
+      id: current.id,
+      label: current.label,
+      assignedVoiceId: current.assignedVoiceId,
+      isCloned: current.isCloned,
+      pitchAdjustment: (pitch ?? current.pitchAdjustment).clamp(-12.0, 12.0),
+      speedAdjustment: (speed ?? current.speedAdjustment).clamp(0.5, 2.0),
+    );
+  }
+
+  void addSpeaker() {
+    if (speakers.length >= 6) return;
+    final nextNum = speakers.length + 1;
+    speakers.add(
+      DubbingSpeaker(
+        id: 'speaker_$nextNum',
+        label: 'Speaker $nextNum',
+        assignedVoiceId: 'default_voice',
+        isCloned: false,
+      ),
+    );
+  }
+
+  void removeSpeaker(String speakerId) {
+    if (speakers.length <= 1) return;
+    speakers.removeWhere((s) => s.id == speakerId);
+  }
+
+  /// Tops up either Personal USD Dubbing Wallet or Channel Studio Wallet via Cashfree PG.
+  Future<bool> topUpWalletWithCashfree({
+    required int amountUsd,
+    bool useChannelWallet = false,
+  }) async {
+    if (!AuthService.to.isUserSignedIn) {
+      await signInWithGoogle();
+      if (!AuthService.to.isUserSignedIn) return false;
+    }
+
+    final uid = _currentUid;
+    final chan = userChannel.value;
+    isPurchasingCredits.value = true;
+    try {
+      final ok = (useChannelWallet && chan != null)
+          ? await ChannelWalletService().topupChannelWalletWithCashfree(
+              channel: chan,
+              amountUSD: amountUsd.toDouble(),
+              userId: uid,
+            )
+          : await ChannelWalletService().topupPersonalDubbingWalletWithCashfree(
+              amountUSD: amountUsd.toDouble(),
+              userId: uid,
+            );
+      if (ok) {
+        await Future.wait([refreshWallet(), loadUserChannelAndVideos()]);
+        AppSnackbar.success('Added \$$amountUsd USD to your Dubbing Wallet!');
+      }
+      return ok;
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, context: 'DubbingStudioController.topUpWalletWithCashfree');
+      AppSnackbar.error('Unable to complete wallet top-up. Please try again.');
+      return false;
+    } finally {
+      isPurchasingCredits.value = false;
+    }
+  }
+
+  /// Pays for the current dubbing order directly via Cashfree PG and launches the job immediately.
+  Future<void> payDirectlyAndStartDubbingJob() async {
+    if (isProcessingDirectPayment.value || isSubmitting.value) return;
+    if (!AuthService.to.isUserSignedIn) {
+      await signInWithGoogle();
+      if (!AuthService.to.isUserSignedIn) return;
+    }
+    if (targetLanguages.isEmpty) {
+      AppSnackbar.warning('Please select at least one output language first.');
+      return;
+    }
+    if (_voiceCloneConsentMissing()) return;
+
+    final amount = calculatedCostUsd;
+    if (amount <= 0) {
+      await startDubbingJob();
+      return;
+    }
+
+    isProcessingDirectPayment.value = true;
+    try {
+      final isSubOnly = mode.value == DubbingMode.subtitlesOnly;
+      final res = await ChannelWalletService().payForDubbingOrderWithCashfree(
+        channel: userChannel.value,
+        amountUSD: amount,
+        languageCode: targetLanguages.first,
+        targetLanguages: targetLanguages.toList(),
+        videoId: selectedChannelVideo.value?.id ?? '',
+        dubbingTier: 'audio_track',
+        purpose: isSubOnly ? 'ai_subtitles' : 'ai_dubbing',
+      );
+      if (res.success && res.orderId.isNotEmpty) {
+        if (Get.isDialogOpen ?? false) {
+          Get.back<void>();
+        }
+        await startDubbingJob(cashfreeOrderId: res.orderId);
+      } else if (res.errorMessage != null &&
+          !res.errorMessage!.toLowerCase().contains('cancel')) {
+        AppSnackbar.warning(res.errorMessage!);
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, context: 'DubbingStudioController.payDirectlyAndStartDubbingJob');
+      AppSnackbar.error('Unable to complete direct payment. Please try again.');
+    } finally {
+      isProcessingDirectPayment.value = false;
+    }
   }
 
   /// Turns voice cloning on or off. Turning it off also clears the consent confirmation.
@@ -1516,6 +1714,12 @@ class DubbingStudioController extends GetxController {
 
     try {
       if (kIsWeb) {
+        if (file.path != null && file.path!.isNotEmpty) {
+          final dur = await WebPlatformUtils.getVideoDurationFromUrl(file.path!);
+          if (dur != null && dur.inSeconds > 0) {
+            return dur.inSeconds;
+          }
+        }
         if (file.bytes != null) {
           final dur = await WebPlatformUtils.getVideoDurationFromBytes(file.bytes!, mimeType);
           if (dur != null && dur.inSeconds > 0) {
@@ -1544,7 +1748,7 @@ class DubbingStudioController extends GetxController {
     return 120;
   }
 
-  /// Picks media file up to 2 hours duration and 4GB in size.
+  /// Picks media file up to 2 hours duration and 1 GB (video) / 250 MB (audio) matching storage.rules.
   Future<void> pickMediaFile() async {
     try {
       final result = await FilePicker.pickFiles(
@@ -1553,16 +1757,23 @@ class DubbingStudioController extends GetxController {
           'mp4', 'mov', 'mkv', 'webm', 'avi', 'flv', '3gp', 'm4v',
           'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac',
         ],
-        withData: true,
+        withData: false,
       );
 
       if (result == null || result.files.isEmpty) return;
       final file = result.files.first;
+      final ext = file.extension?.toLowerCase() ?? '';
+      final isAudio = const {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'}.contains(ext);
 
-      // 4GB size limit (accommodates 2 hours 1080p video)
-      const maxSizeBytes = 4 * 1024 * 1024 * 1024;
-      if (file.size > maxSizeBytes) {
-        AppSnackbar.warning('Selected file exceeds the 4GB upload limit.');
+      // Match storage.rules limits: 1 GB for video, 250 MB for audio
+      const maxVideoSizeBytes = 1024 * 1024 * 1024;
+      const maxAudioSizeBytes = 250 * 1024 * 1024;
+      if (isAudio && file.size > maxAudioSizeBytes) {
+        AppSnackbar.warning('Selected audio exceeds the 250 MB upload limit.');
+        return;
+      }
+      if (!isAudio && file.size > maxVideoSizeBytes) {
+        AppSnackbar.warning('Selected video exceeds the 1 GB upload limit.');
         return;
       }
 
@@ -1633,19 +1844,16 @@ class DubbingStudioController extends GetxController {
         'webm' => 'video/webm',
         'mov' => 'video/quicktime',
         'mkv' => 'video/x-matroska',
+        'avi' => 'video/x-msvideo',
+        'flv' => 'video/x-flv',
+        '3gp' => 'video/3gpp',
+        'm4v' => 'video/x-m4v',
         _ => 'video/mp4',
       };
 
       final sanitizedName = file.name.replaceAll(RegExp('[^a-zA-Z0-9._-]'), '_');
       final path = 'dubbing_uploads/$uid/${DateTime.now().millisecondsSinceEpoch}_$sanitizedName';
       final storageRef = FirebaseStorage.instance.ref(path);
-
-      final fileBytes = file.bytes ??
-          (file.path != null && !kIsWeb ? await io.File(file.path!).readAsBytes() : null);
-
-      if (fileBytes == null) {
-        throw Exception('Could not read file data from device.');
-      }
 
       final metadata = SettableMetadata(
         contentType: mimeType,
@@ -1657,7 +1865,23 @@ class DubbingStudioController extends GetxController {
         },
       );
 
-      final uploadTask = storageRef.putData(fileBytes, metadata);
+      late final UploadTask uploadTask;
+      if (!kIsWeb && file.path != null && file.path!.isNotEmpty) {
+        uploadTask = storageRef.putFile(io.File(file.path!), metadata);
+      } else if (kIsWeb && file.path != null && file.path!.isNotEmpty) {
+        final jsBlob = await WebPlatformUtils.fetchBlobFromObjectUrl(file.path!);
+        if (jsBlob != null) {
+          uploadTask = storageRef.putBlob(jsBlob, metadata);
+        } else if (file.bytes != null) {
+          uploadTask = storageRef.putData(file.bytes!, metadata);
+        } else {
+          throw Exception('Could not access selected media file.');
+        }
+      } else if (file.bytes != null) {
+        uploadTask = storageRef.putData(file.bytes!, metadata);
+      } else {
+        throw Exception('Could not read file data from device.');
+      }
       uploadTask.snapshotEvents.listen(
         (snapshot) {
           if (snapshot.totalBytes > 0) {
@@ -1717,7 +1941,7 @@ class DubbingStudioController extends GetxController {
   }
 
   /// Launch the dubbing job.
-  Future<void> startDubbingJob() async {
+  Future<void> startDubbingJob({String? cashfreeOrderId}) async {
     if (hasInFlightJob) {
       AppSnackbar.info('A dubbing project is already processing. Please wait for it to finish.');
       return;
@@ -1759,9 +1983,10 @@ class DubbingStudioController extends GetxController {
 
     if (_voiceCloneConsentMissing()) return;
 
-    if (!hasSufficientBalance) {
+    final hasPaidDirectOrder = cashfreeOrderId != null && cashfreeOrderId.isNotEmpty;
+    if (!hasPaidDirectOrder && !hasSufficientBalance) {
       AppSnackbar.warning(
-        'Insufficient balance in Studio Wallet (\$${studioWalletSpendableBalance.toStringAsFixed(2)} available vs \$${calculatedCostUsd.toStringAsFixed(2)} required). Please top up your channel wallet.',
+        'Insufficient balance (\$${totalAvailableWalletUsd.toStringAsFixed(2)} available vs \$${calculatedCostUsd.toStringAsFixed(2)} required). Top up your wallet or pay directly.',
       );
       Get.dialog(const DubbingWalletModal());
       return;
@@ -1771,6 +1996,11 @@ class DubbingStudioController extends GetxController {
     try {
       final pickedExt = pickedFile.value?.extension?.toLowerCase() ?? '';
       final isAudioUpload = const {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'}.contains(pickedExt);
+      final preferredWalletSource = hasPaidDirectOrder
+          ? 'cashfree_direct'
+          : ((userChannel.value != null && studioWalletSpendableBalance >= calculatedCostUsd)
+              ? 'channel'
+              : 'personal');
       final res = await _service.createJob(
         title: mediaTitle.value,
         mode: mode.value,
@@ -1785,7 +2015,7 @@ class DubbingStudioController extends GetxController {
         voiceCloningEnabled: voiceCloningEnabled.value,
         voiceCloneConsent: voiceCloningEnabled.value && voiceCloneConsent.value,
         twoStageReviewEnabled: twoStageReviewEnabled.value,
-        publishToTruthworld: publishToTruthworld.value,
+        publishToTruthworld: publishToTruthworld.value && userChannel.value != null,
         demuxOptions: {
           'isolateVocals': isolateVocals.value,
           'preserveBgm': preserveBgm.value,
@@ -1794,6 +2024,8 @@ class DubbingStudioController extends GetxController {
         },
         speakers: speakers.map((s) => s.toMap()).toList(),
         channelId: userChannel.value?.id,
+        cashfreeOrderId: cashfreeOrderId,
+        walletSource: preferredWalletSource,
       );
 
       if (res['success'] == true && res['jobId'] != null) {
@@ -1825,10 +2057,25 @@ class DubbingStudioController extends GetxController {
     required String language,
     required List<DubbingSegment> segments,
     bool approveForTTS = false,
+    bool immediate = false,
   }) async {
     final job = activeJob.value;
     if (job == null) return;
 
+    if (!approveForTTS && !immediate) {
+      _segmentEditDebounceTimer?.cancel();
+      _segmentEditDebounceTimer = Timer(const Duration(milliseconds: 750), () {
+        unawaited(_service.updateTranscription(
+          jobId: job.id,
+          language: language,
+          segments: segments,
+          approveForTTS: false,
+        ));
+      });
+      return;
+    }
+
+    _segmentEditDebounceTimer?.cancel();
     final success = await _service.updateTranscription(
       jobId: job.id,
       language: language,
@@ -1978,20 +2225,174 @@ class DubbingStudioController extends GetxController {
     }
   }
 
+  bool _isAuthorizedMediaUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return false;
+    if (trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return true;
+    if (trimmed.contains('X-Goog-Signature') || trimmed.contains('GoogleAccessId')) {
+      return !StorageUtils.isSignedUrlExpired(trimmed);
+    }
+    if (trimmed.contains('cdn.truthworld.in')) {
+      return true;
+    }
+    if (trimmed.contains('firebasestorage.googleapis.com')) {
+      return trimmed.contains('token=');
+    }
+    if (trimmed.contains('storage.googleapis.com')) {
+      return false;
+    }
+    return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+  }
+
+  String? _findRefreshedArtifactUrl(DubbingJob? job, String fileName) {
+    if (job == null) return null;
+    final lower = fileName.toLowerCase();
+    if (lower == 'vocals_stem.mp3') return job.vocalsStemMp3;
+    if (lower == 'background_stem.mp3') return job.backgroundStemMp3;
+    if (lower == 'report.json') return job.reportJson;
+
+    final videoMatch = RegExp(r'^video_with_([a-z0-9_-]+)_dub\.mp4$').firstMatch(lower);
+    if (videoMatch != null) return job.dubbedVideoByLanguage[videoMatch.group(1)!];
+
+    final audioMatch = RegExp(r'^dub_([a-z0-9_-]+)\.mp3$').firstMatch(lower);
+    if (audioMatch != null) return job.dubbedAudioByLanguage[audioMatch.group(1)!];
+
+    final dialMatch = RegExp(r'^dialogue_([a-z0-9_-]+)\.mp3$').firstMatch(lower);
+    if (dialMatch != null) return job.dialogueAudioByLanguage[dialMatch.group(1)!];
+
+    final transMatch = RegExp(r'^translation_([a-z0-9_-]+)\.json$').firstMatch(lower);
+    if (transMatch != null) return job.translationJsonByLanguage[transMatch.group(1)!];
+
+    if (lower.endsWith('.srt')) {
+      final lang = lower.substring(0, lower.length - 4);
+      return job.subtitlesSrt[lang];
+    }
+    if (lower.endsWith('.vtt')) {
+      final lang = lower.substring(0, lower.length - 4);
+      return job.subtitlesVtt[lang];
+    }
+    return null;
+  }
+
   /// Downloads one output artifact with an explicit filename.
   Future<void> downloadExportArtifact(String url, String fileName) async {
-    final trimmed = DubbingService.toBrowserDownloadUrl(url);
-    final uri = Uri.tryParse(trimmed);
+    var candidate = DubbingService.toBrowserDownloadUrl(url);
+    if (candidate.isEmpty) {
+      AppSnackbar.warning('This artifact is not available yet. Please refresh downloads.');
+      return;
+    }
+
+    if (!_isAuthorizedMediaUrl(candidate)) {
+      final resolved = await StorageUtils.resolveUrl(url);
+      if (resolved.isNotEmpty) {
+        candidate = resolved;
+      }
+    }
+
+    if (!_isAuthorizedMediaUrl(candidate) && activeJob.value?.status == DubbingJobStatus.completed) {
+      await exportPackage(silent: true);
+      final refreshed = _findRefreshedArtifactUrl(activeJob.value, fileName);
+      if (refreshed != null && refreshed.isNotEmpty) {
+        candidate = refreshed;
+      }
+    }
+
+    if (!_isAuthorizedMediaUrl(candidate)) {
+      AppSnackbar.warning('Unable to authorize this download right now. Please click Refresh output artifacts and try again.');
+      return;
+    }
+
+    final uri = Uri.tryParse(candidate);
     if (uri == null || !uri.hasScheme) {
       AppSnackbar.warning('This artifact is not available yet. Please refresh downloads.');
       return;
     }
     try {
-      await DownloadHelper.downloadFromUrl(trimmed, fileName);
+      await DownloadHelper.downloadFromUrl(candidate, fileName);
       AppSnackbar.success('Downloading $fileName');
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, context: 'DubbingStudioController.downloadExportArtifact');
-      await openExportLink(trimmed);
+      await openExportLink(candidate);
+    }
+  }
+
+  /// Downloads an existing dubbed MP4 for [langCode], or generates and downloads it on-demand.
+  Future<void> downloadDubbedMp4ForLanguage(
+    String langCode, {
+    String? existingVideoUrl,
+  }) async {
+    final norm = langCode.trim().toLowerCase();
+    final fileName = 'video_with_${norm}_dub.mp4';
+    if (existingVideoUrl != null && existingVideoUrl.trim().isNotEmpty) {
+      await downloadExportArtifact(existingVideoUrl, fileName);
+      return;
+    }
+
+    final job = activeJob.value;
+    if (job == null) {
+      AppSnackbar.warning('Please select a completed dubbing job first.');
+      return;
+    }
+    if (generatingMp4Lang.value != null) return;
+
+    generatingMp4Lang.value = norm;
+    try {
+      var generatedUrl = await _service.generateDubbedVideo(
+        jobId: job.id,
+        videoId: job.videoId,
+        language: norm,
+      );
+      if (generatedUrl == null || generatedUrl.isEmpty) {
+        await exportPackage(silent: true);
+        generatedUrl = activeJob.value?.dubbedVideoByLanguage[norm];
+      }
+      if (generatedUrl == null || generatedUrl.isEmpty) {
+        AppSnackbar.warning('Unable to generate the dubbed MP4 right now. Please try again shortly.');
+        return;
+      }
+
+      final current = activeJob.value ?? job;
+      final mergedExports = Map<String, dynamic>.from(current.exportUrls ?? const {});
+      final existingVideos = Map<String, dynamic>.from(
+        (mergedExports['dubbedVideoByLanguage'] as Map?) ?? const {},
+      );
+      existingVideos[norm] = generatedUrl;
+      mergedExports['dubbedVideoByLanguage'] = existingVideos;
+
+      final updated = DubbingJob(
+        id: current.id,
+        userId: current.userId,
+        title: current.title,
+        mode: current.mode,
+        status: current.status,
+        progressPercent: current.progressPercent,
+        currentStepMessage: current.currentStepMessage,
+        sourceMediaUrl: current.sourceMediaUrl,
+        sourceMediaType: current.sourceMediaType,
+        durationSeconds: current.durationSeconds,
+        characterCount: current.characterCount,
+        sourceLanguage: current.sourceLanguage,
+        targetLanguages: current.targetLanguages,
+        voiceCloningEnabled: current.voiceCloningEnabled,
+        twoStageReviewEnabled: current.twoStageReviewEnabled,
+        publishToTruthworld: current.publishToTruthworld,
+        costUsd: current.costUsd,
+        totalCharactersCharged: current.totalCharactersCharged,
+        speakers: current.speakers,
+        segmentsByLanguage: current.segmentsByLanguage,
+        exportUrls: mergedExports,
+        videoId: current.videoId,
+        pipelineJobId: current.pipelineJobId,
+        channelId: current.channelId,
+        error: current.error,
+        createdAt: current.createdAt,
+        stages: current.stages,
+      );
+      activeJob.value = updated;
+      _upsertProjectJob(updated);
+      await downloadExportArtifact(generatedUrl, fileName);
+    } finally {
+      generatingMp4Lang.value = null;
     }
   }
 
@@ -2045,24 +2446,37 @@ class DubbingStudioController extends GetxController {
       final projects = results[0] as List<DubbingProject>;
       final jobs = results[1] as List<DubbingJob>;
 
-      final linkedJobIds = <String>{};
-      for (final p in projects) {
-        linkedJobIds.addAll(p.jobIds);
-      }
-
-      final merged = <DubbingProject>[...projects];
-      for (final j in jobs) {
-        if (!linkedJobIds.contains(j.id)) {
-          merged.add(DubbingProject.fromLegacyJob(j));
-        }
-      }
-      merged.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-      savedProjects.assignAll(merged);
+      savedProjects.assignAll(mergeProjectsAndLegacyJobs(projects, jobs));
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, context: 'DubbingStudioController.loadSavedProjects');
     } finally {
       isLoadingProjects.value = false;
     }
+  }
+
+  /// Merges saved [DubbingProject] documents with unlinked legacy [DubbingJob]s,
+  /// excluding soft-deleted projects while preventing their linked jobs from
+  /// being resurrected as legacy projects.
+  @visibleForTesting
+  static List<DubbingProject> mergeProjectsAndLegacyJobs(
+    List<DubbingProject> projects,
+    List<DubbingJob> jobs,
+  ) {
+    final linkedJobIds = <String>{};
+    for (final p in projects) {
+      linkedJobIds.addAll(p.jobIds);
+    }
+
+    final merged = <DubbingProject>[
+      ...projects.where((p) => !p.isDeleted && !p.id.startsWith('deleted_')),
+    ];
+    for (final j in jobs) {
+      if (!linkedJobIds.contains(j.id)) {
+        merged.add(DubbingProject.fromLegacyJob(j));
+      }
+    }
+    merged.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return merged;
   }
 
   /// Creates a new project, persists it to Firestore, and opens its Studio workspace.
@@ -2113,19 +2527,6 @@ class DubbingStudioController extends GetxController {
     if (proj == null) return;
     sourceInputMode.value = 'file_upload';
     await pickMediaFile();
-  }
-
-  /// Creates a new project from a pasted media URL in the Hub dropzone.
-  Future<void> quickPasteUrlFromHub(String url) async {
-    final trimmed = url.trim();
-    if (trimmed.isEmpty) return;
-    final proj = await createNewProject(title: 'Untitled Project');
-    if (proj == null) return;
-    sourceInputMode.value = 'file_upload';
-    showManualUrlInput.value = true;
-    mediaUrl.value = trimmed;
-    await loadPreviewMedia(trimmed);
-    scheduleProjectAutoSave();
   }
 
   /// Opens an existing [DubbingProject], restoring its settings, source media, and jobs.
@@ -2219,10 +2620,50 @@ class DubbingStudioController extends GetxController {
   }
 
   /// Deletes a saved [DubbingProject].
+  ///
+  /// Projects with linked `studio_dubbing_jobs` (or legacy job wrappers) write
+  /// a `deleted_*` tombstone in `dubbing_projects` (using only fields in the
+  /// base schema) so their underlying jobs are not resurrected on subsequent
+  /// logins, then delete the original project document.
   Future<void> deleteProject(DubbingProject project) async {
-    if (!project.id.startsWith('legacy_')) {
-      await _service.deleteProject(project.id);
+    if (activeProject.value?.id == project.id) {
+      _saveDebounceTimer?.cancel();
+      _saveDebounceTimer = null;
     }
+
+    final isLegacy = project.id.startsWith('legacy_');
+    var persistedOk = true;
+
+    if (project.jobIds.isNotEmpty || isLegacy) {
+      final uid = _currentUid.isNotEmpty ? _currentUid : project.userId;
+      final rawTombstoneId = 'deleted_${project.id}';
+      final tombstoneId = rawTombstoneId.length > 128
+          ? rawTombstoneId.substring(0, 128)
+          : rawTombstoneId;
+      final safeTitle = project.title.length > 200
+          ? project.title.substring(0, 200)
+          : project.title;
+      final tombstone = DubbingProject(
+        id: tombstoneId,
+        userId: uid,
+        title: safeTitle,
+        jobIds: project.jobIds.take(50).toList(),
+        createdAt: project.createdAt,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      persistedOk = await _service.saveProject(tombstone);
+      if (persistedOk && !isLegacy) {
+        persistedOk = await _service.deleteProject(project.id);
+      }
+    } else {
+      persistedOk = await _service.deleteProject(project.id);
+    }
+
+    if (!persistedOk) {
+      AppSnackbar.error('Unable to delete project right now. Please try again.');
+      return;
+    }
+
     savedProjects.removeWhere((p) => p.id == project.id);
     if (activeProject.value?.id == project.id) {
       _jobSub?.cancel();

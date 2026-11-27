@@ -646,15 +646,17 @@ class ClaimResult {
       startVal = (map['startMs'] as num).toDouble() / 1000.0;
     } else if (map['startTimeMs'] is num) {
       startVal = (map['startTimeMs'] as num).toDouble() / 1000.0;
+    } else if (map['startSeconds'] is num) {
+      startVal = (map['startSeconds'] as num).toDouble();
     } else if (map['start'] is num) {
       final s = (map['start'] as num).toDouble();
-      startVal = s > 100000 ? s / 1000.0 : s;
+      startVal = s >= 1000 ? s / 1000.0 : s;
     } else if (map['timestampStart'] is num) {
       final s = (map['timestampStart'] as num).toDouble();
-      startVal = s > 100000 ? s / 1000.0 : s;
+      startVal = s >= 1000 ? s / 1000.0 : s;
     } else if (map['startTime'] is num) {
       final s = (map['startTime'] as num).toDouble();
-      startVal = s > 100000 ? s / 1000.0 : s;
+      startVal = s >= 1000 ? s / 1000.0 : s;
     }
 
     double? endVal;
@@ -662,15 +664,17 @@ class ClaimResult {
       endVal = (map['endMs'] as num).toDouble() / 1000.0;
     } else if (map['endTimeMs'] is num) {
       endVal = (map['endTimeMs'] as num).toDouble() / 1000.0;
+    } else if (map['endSeconds'] is num) {
+      endVal = (map['endSeconds'] as num).toDouble();
     } else if (map['end'] is num) {
       final e = (map['end'] as num).toDouble();
-      endVal = e > 100000 ? e / 1000.0 : e;
+      endVal = e >= 1000 ? e / 1000.0 : e;
     } else if (map['timestampEnd'] is num) {
       final e = (map['timestampEnd'] as num).toDouble();
-      endVal = e > 100000 ? e / 1000.0 : e;
+      endVal = e >= 1000 ? e / 1000.0 : e;
     } else if (map['endTime'] is num) {
       final e = (map['endTime'] as num).toDouble();
-      endVal = e > 100000 ? e / 1000.0 : e;
+      endVal = e >= 1000 ? e / 1000.0 : e;
     }
 
     final rawSources = map['effectiveSources'] ??

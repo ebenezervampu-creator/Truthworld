@@ -212,7 +212,7 @@ class DashboardSidebarMenu extends StatelessWidget {
         // Creative Tools
         {
           'icon': Icons.spatial_audio_rounded,
-          'label': 'Audio Tracks',
+          'label': 'Dubs',
           'action': 'select',
           'target': 7,
         },

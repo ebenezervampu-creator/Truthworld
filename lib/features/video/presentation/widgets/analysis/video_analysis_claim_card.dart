@@ -65,12 +65,7 @@ class VideoAnalysisClaimCard extends StatelessWidget {
     final cleanClaimText = resolved.cleanText;
 
     // 1. Resolve timestamp
-    final rawClaimStart = claim['start'] ??
-        claim['startMs'] ??
-        claim['startTime'] ??
-        claim['startTimeMs'] ??
-        claim['timestampStart'];
-    final claimStartMs = VideoAnalysisHelpers.normalizeTimestampToMs(rawClaimStart);
+    final claimStartMs = VideoAnalysisHelpers.resolveClaimTimestampMs(claim);
     final timestampText = claimStartMs > 0
         ? FormatUtils.formatDuration(Duration(milliseconds: claimStartMs))
         : '00:00';

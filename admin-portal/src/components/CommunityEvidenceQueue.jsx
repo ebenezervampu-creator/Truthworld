@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, limit, onSnapshot, query } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { db, functions } from "../firebase";
+import { db, credibilityFunctions } from "../firebase";
 
 // Only http(s) links are ever rendered as clickable (blocks javascript:/data: URLs).
 const isSafeWebUrl = (url) => {
@@ -56,7 +56,7 @@ export default function CommunityEvidenceQueue({ formatDate }) {
     setBusyId(item.id);
     setMessage({ type: "", text: "" });
     try {
-      const fn = httpsCallable(functions, "reviewCommunityEvidence");
+      const fn = httpsCallable(credibilityFunctions, "reviewCommunityEvidence");
       const res = await fn({ evidenceId: item.evidenceId || item.id, decision, reviewerNotes: notes[item.id] || "" });
       const outcome = res?.data?.outcome?.message;
       setMessage({ type: "success", text: outcome || (decision === "approve" ? "Evidence approved." : "Evidence rejected.") });

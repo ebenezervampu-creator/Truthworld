@@ -10,6 +10,9 @@ param(
     [string]$CashfreeSecretKey,
     [string]$AssemblyAiKey = "",
     [string]$ElevenLabsApiKey = "",
+    [string]$DemuxWorkerToken = "",
+    [string]$GoogleTranslationApiKey = "",
+    [string]$AssemblyAiWebhookSecret = "",
     [string]$IndexNowKey = "truthworld-indexnow-key-2026"
 )
 
@@ -82,11 +85,24 @@ if ($ElevenLabsApiKey) {
     Set-GcpSecret -SecretName "ELEVENLABS_API_KEY" -SecretValue $ElevenLabsApiKey
 }
 
+if ($DemuxWorkerToken) {
+    Set-GcpSecret -SecretName "DEMUX_WORKER_TOKEN" -SecretValue $DemuxWorkerToken
+}
+
+if ($GoogleTranslationApiKey) {
+    Set-GcpSecret -SecretName "GOOGLE_TRANSLATION_API_KEY" -SecretValue $GoogleTranslationApiKey
+}
+
+if ($AssemblyAiWebhookSecret) {
+    Set-GcpSecret -SecretName "ASSEMBLYAI_WEBHOOK_SECRET" -SecretValue $AssemblyAiWebhookSecret
+}
+
 if ($IndexNowKey) {
     Set-GcpSecret -SecretName "INDEXNOW_KEY" -SecretValue $IndexNowKey
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host " [✓] All production secrets provisioned successfully!" -ForegroundColor Green
+Write-Host " Modal parity check: modal secret list (verify truthworld-demux-auth matches DEMUX_WORKER_TOKEN)" -ForegroundColor Yellow
 Write-Host " Next step: Deploy functions with: cd functions; npm run deploy" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan

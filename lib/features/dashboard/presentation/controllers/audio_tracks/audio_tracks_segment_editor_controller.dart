@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -185,7 +186,7 @@ class DubbingSegmentEditorController extends GetxController {
   });
 
   final FirebaseFunctions _functions =
-      FirebaseFunctions.instanceFor(region: 'asia-south1');
+      FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion);
 
   final RxBool isLoading = true.obs;
   final RxBool isSavingGlossary = false.obs;

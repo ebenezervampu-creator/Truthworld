@@ -12,6 +12,15 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == ownerId;
     }
 
+    // Helper function to check if the authenticated user is currently restricted from AI check / community posting
+    function isAiCheckRestricted() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/user_ai_check_restrictions/$(request.auth.uid)) &&
+             'restrictedUntilMs' in get(/databases/$(database)/documents/user_ai_check_restrictions/$(request.auth.uid)).data &&
+             get(/databases/$(database)/documents/user_ai_check_restrictions/$(request.auth.uid)).data.restrictedUntilMs is int &&
+             get(/databases/$(database)/documents/user_ai_check_restrictions/$(request.auth.uid)).data.restrictedUntilMs > request.time.toMillis();
+    }
+
     // Helper function to check if user has administrative privileges.
     // Relies strictly on Firebase Auth custom claims, verified bootstrap owner emails, or verified admin_members records.
     function isAdmin() {
@@ -51,6 +60,27 @@ service cloud.firestore {
         isAdmin() ||
         (exists(/databases/$(database)/documents/videos/$(videoId)) &&
          isVideoDataOwner(get(/databases/$(database)/documents/videos/$(videoId)).data))
+      );
+    }
+
+    // Helper function to safely check pipeline job ownership from video_jobs/{jobId} data
+    // Guards missing keys, null values, and empty videoId strings to avoid rules runtime errors.
+    function isPipelineJobDataOwner(jobData) {
+      return ('userId' in jobData && jobData.userId is string && jobData.userId == request.auth.uid) ||
+             ('videoId' in jobData && jobData.videoId is string && jobData.videoId.size() > 0 && !jobData.videoId.matches('.*/.*') && isVideoOwner(jobData.videoId));
+    }
+
+    // Helper function to check if user owns a pipeline job directly (via video_jobs.userId)
+    // or indirectly via the associated video (videos/{jobId} or videos/{video_jobs.videoId}).
+    function isPipelineJobOwner(jobId) {
+      return isAuthenticated() &&
+             jobId is string &&
+             jobId.size() > 0 &&
+             !jobId.matches('.*/.*') && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/video_jobs/$(jobId)) &&
+         isPipelineJobDataOwner(get(/databases/$(database)/documents/video_jobs/$(jobId)).data)) ||
+        isVideoOwner(jobId)
       );
     }
 
@@ -384,7 +414,13 @@ service cloud.firestore {
                get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid) ||
               ('userId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
                get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)))) &&
-           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'userId', 'uploaderId']))
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+             'ownerId', 'userId', 'uploaderId',
+             'factCheckUrl', 'credibilityScore', 'factCheck', 'credibility',
+             'credibilityStatus', 'uiReport', 'summary', 'conclusion',
+             'factCheckStats', 'claimLedger'
+           ]) &&
+           (!('media' in request.resource.data) || !(request.resource.data.media is map) || (request.resource.data.media.get('factCheckUrl', null) == resource.data.get('media', {}).get('factCheckUrl', null) && request.resource.data.media.get('credibility', null) == resource.data.get('media', {}).get('credibility', null))))
         );
         allow delete: if isAuthenticated() && (
           isAdmin() ||
@@ -520,8 +556,10 @@ service cloud.firestore {
            'ownerId', 'userId', 'channelId', 'uploaderId',
            'credibilityScore', 'factCheck', 'truthScore', 'pipelineStatus', 'moderation', 'moderationReason', 'gatewayDecision',
            'views', 'viewCount', 'playCount', 'credibilityVerified', 'isVerified',
-           'credibility', 'credibilityStatus', 'factCheckDispute', 'claimLedger', 'factCheckStats', 'uiReport', 'isFactChecked', 'scoringFactors', 'aiDubbedAudio'
-         ])) ||
+           'credibility', 'credibilityStatus', 'factCheckDispute', 'claimLedger', 'factCheckStats', 'uiReport', 'isFactChecked', 'scoringFactors', 'aiDubbedAudio',
+           'factCheckUrl', 'summary', 'conclusion', 'sources', 'richSources', 'claims', 'verifiedClaims', 'claimsLedger', 'qualityAudit', 'evidenceSchemaVersion'
+         ]) &&
+         (!('media' in request.resource.data) || !(request.resource.data.media is map) || (request.resource.data.media.get('factCheckUrl', null) == resource.data.get('media', {}).get('factCheckUrl', null) && request.resource.data.media.get('credibility', null) == resource.data.get('media', {}).get('credibility', null)))) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount', 'totalWatchTimeSeconds', 'updatedAt'
         ]) &&
@@ -759,16 +797,31 @@ service cloud.firestore {
       // Claim Comments subcollection (Community Deliberation Notes)
       match /claim_comments/{commentId} {
         allow read: if true;
-        allow create: if videoExists(videoId) && isAuthenticated() && request.resource.data.userId == request.auth.uid &&
-                         (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
+        allow create: if videoExists(videoId) && isAuthenticated() && !isAiCheckRestricted() &&
+                         request.resource.data.userId == request.auth.uid &&
+                         request.resource.data.stance is string &&
+                         request.resource.data.stance in ['supports', 'disputes', 'context'] &&
+                         (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000)) &&
+                         (!('sourceUrls' in request.resource.data) || (request.resource.data.sourceUrls is list && request.resource.data.sourceUrls.size() <= 5));
         allow update: if videoExists(videoId) && isAuthenticated() && (
-          resource.data.userId == request.auth.uid ||
-          isVideoOwner(videoId) ||
+          (isVideoOwner(videoId) && !isAiCheckRestricted()) ||
           isAdmin() ||
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'helpfulCount', 'unhelpfulCount', 'helpfulUserIds', 'unhelpfulUserIds',
-            'likes', 'dislikes', 'likeCount', 'dislikeCount'
-          ])
+          (resource.data.userId == request.auth.uid &&
+           !isAiCheckRestricted() &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'stance', 'sourceUrls', 'updatedAt']) &&
+           request.resource.data.stance is string &&
+           request.resource.data.stance in ['supports', 'disputes', 'context'] &&
+           (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000)) &&
+           (!('sourceUrls' in request.resource.data) || (request.resource.data.sourceUrls is list && request.resource.data.sourceUrls.size() <= 5))) ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['helpfulCount', 'unhelpfulCount', 'helpfulUserIds', 'unhelpfulUserIds']) &&
+           request.resource.data.helpfulUserIds is list &&
+           request.resource.data.unhelpfulUserIds is list &&
+           request.resource.data.helpfulCount == request.resource.data.helpfulUserIds.size() &&
+           request.resource.data.unhelpfulCount == request.resource.data.unhelpfulUserIds.size() &&
+           request.resource.data.helpfulUserIds.toSet().difference(resource.data.get('helpfulUserIds', []).toSet()).hasOnly([request.auth.uid]) &&
+           resource.data.get('helpfulUserIds', []).toSet().difference(request.resource.data.helpfulUserIds.toSet()).hasOnly([request.auth.uid]) &&
+           request.resource.data.unhelpfulUserIds.toSet().difference(resource.data.get('unhelpfulUserIds', []).toSet()).hasOnly([request.auth.uid]) &&
+           resource.data.get('unhelpfulUserIds', []).toSet().difference(request.resource.data.unhelpfulUserIds.toSet()).hasOnly([request.auth.uid]))
         );
         allow delete: if isAuthenticated() && (
           resource.data.userId == request.auth.uid ||
@@ -984,6 +1037,12 @@ service cloud.firestore {
       allow write: if false; // Strictly server-only; only Firebase Admin SDK / Cloud Functions pipeline writes claim documents
     }
 
+    // Video Reports Subcollection (server-only writes via submitVideoReport Cloud Function)
+    match /videos/{videoId}/reports/{reporterId} {
+      allow read: if isAuthenticated() && (request.auth.uid == reporterId || isAdmin());
+      allow write: if false;
+    }
+
     // Video Transcripts Collection (Root level - pipeline generated, readable by authenticated users)
     match /transcripts/{transcriptId} {
       allow read: if isAuthenticated();
@@ -1053,18 +1112,26 @@ service cloud.firestore {
          (!('isBanned' in request.resource.data) || request.resource.data.isBanned == false) &&
          (!('status' in request.resource.data) || request.resource.data.status == 'active') &&
          (!('accountStatus' in request.resource.data) || request.resource.data.accountStatus == 'ACTIVE' || request.resource.data.accountStatus == 'active') &&
-         (!('strikes' in request.resource.data) || request.resource.data.strikes == 0)) ||
+         (!('strikes' in request.resource.data) || request.resource.data.strikes == 0) &&
+         (!('isDubbingFree' in request.resource.data) || request.resource.data.isDubbingFree == false) &&
+         (!('dubbingDiscountType' in request.resource.data) || request.resource.data.dubbingDiscountType == null) &&
+         (!('dubbingDiscountPercent' in request.resource.data) || request.resource.data.dubbingDiscountPercent == 0) &&
+         (!('isSubtitlesFree' in request.resource.data) || request.resource.data.isSubtitlesFree == false) &&
+         (!('subtitlesDiscountType' in request.resource.data) || request.resource.data.subtitlesDiscountType == null) &&
+         (!('subtitlesDiscountPercent' in request.resource.data) || request.resource.data.subtitlesDiscountPercent == 0)) ||
         isAdmin()
       );
       
-      // Allow users to update their own profile but disallow self-assigning admin, permission roles, premium, or financial balances
+      // Allow users to update their own profile but disallow self-assigning admin, permission roles, premium, financial balances, or dubbing/subtitle discounts
       allow update: if isAuthenticated() && (
         (request.auth.uid == userId &&
          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
            'role', 'isAdmin', 'isSuperadmin', 'permissions', 'isPremium', 'monetizationTier',
            'premiumExpiresAt', 'premiumPlanId', 'walletBalance', 'walletBalanceUSD',
            'hasChannel', 'channelId', 'channelsCount',
-           'isBanned', 'bannedAt', 'banReason', 'accountStatus', 'status', 'strikes', 'trustScore'
+           'isBanned', 'bannedAt', 'banReason', 'accountStatus', 'status', 'strikes', 'trustScore',
+           'isDubbingFree', 'dubbingDiscountType', 'dubbingDiscountPercent',
+           'isSubtitlesFree', 'subtitlesDiscountType', 'subtitlesDiscountPercent'
          ])) ||
         isAdmin()
       );
@@ -2132,6 +2199,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Per-user AI check / community posting restrictions (written only by Cloud Functions / Admin SDK).
+    match /user_ai_check_restrictions/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if false;
+    }
+
     // Output quality grades for every fact-check report (reviewer dashboard).
     match /credibility_quality_audits/{jobId} {
       allow read: if isAdmin();
@@ -2369,6 +2442,15 @@ service cloud.firestore {
          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId']))
       );
       allow delete: if isAdmin();
+
+      // Per-language interactive dubbing manifests (segments, stems, master URLs)
+      // Assumed fields: jobId (string), language (string), masterAudioUrl (string),
+      //   masterVideoUrl (string), dialogueStemUrl (string), mneStemUrl (string),
+      //   subtitleUrl (string), segments (list), updatedAt (int)
+      match /dubbing_manifests/{lang} {
+        allow read: if isAuthenticated() && (isAdmin() || isPipelineJobOwner(jobId));
+        allow write: if false; // Written exclusively via Cloud Functions / Admin SDK
+      }
     }
     match /pipeline_errors/{doc=**} {
       allow read, write: if isAdmin();
@@ -2450,7 +2532,7 @@ service cloud.firestore {
                  'voiceCloningEnabled', 'isolateVocals', 'preserveBgm', 'bgmDuckingPercent',
                  'twoStageReviewEnabled', 'publishToTruthworld', 'jobIds',
                  'dubbedLanguages', 'subtitledLanguages', 'latestJobId', 'latestStatus',
-                 'createdAt', 'updatedAt'
+                 'isDeleted', 'createdAt', 'updatedAt'
                ]) &&
                'id' in data &&
                data.id is string &&
@@ -2491,7 +2573,8 @@ service cloud.firestore {
                (!('dubbedLanguages' in data) || (data.dubbedLanguages is list && data.dubbedLanguages.size() <= 50)) &&
                (!('subtitledLanguages' in data) || (data.subtitledLanguages is list && data.subtitledLanguages.size() <= 50)) &&
                (!('latestJobId' in data) || data.latestJobId == null || (data.latestJobId is string && data.latestJobId.size() <= 128)) &&
-               (!('latestStatus' in data) || (data.latestStatus is string && data.latestStatus in ['draft', 'processing', 'completed', 'failed']));
+               (!('latestStatus' in data) || (data.latestStatus is string && data.latestStatus in ['draft', 'processing', 'completed', 'failed'])) &&
+               (!('isDeleted' in data) || data.isDeleted is bool);
       }
 
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
@@ -2653,6 +2736,44 @@ service cloud.firestore {
     match /governance_audit_logs/{logId} {
       allow read: if isAuthenticated() && (resource.data.performerId == request.auth.uid || isAdmin());
       allow write: if false; // Written exclusively via Cloud Functions
+    }
+
+    // Dubbing Studio Orders (server-authored payment/checkout records)
+    match /dubbing_orders/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Dubbing Wallet Transactions (immutable ledger authored via Cloud Functions)
+    match /dubbing_wallet_transactions/{txId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Pipeline Job Outputs (per-job materialized outputs owned by job/video owner)
+    match /job_outputs/{jobId} {
+      allow read: if isAuthenticated() && (isAdmin() || isPipelineJobOwner(jobId));
+      allow write: if false;
+    }
+
+    // Dubbing Pipeline Results (owned by userId or associated video_jobs/{jobId})
+    match /dubbing_results/{resultId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        ('userId' in resource.data && resource.data.userId is string && resource.data.userId == request.auth.uid) ||
+        ('jobId' in resource.data && resource.data.jobId is string && isPipelineJobOwner(resource.data.jobId))
+      );
+      allow write: if false;
+    }
+
+    // Subtitle Pipeline Results (owned by userId or associated video_jobs/{jobId})
+    match /subtitle_results/{resultId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        ('userId' in resource.data && resource.data.userId is string && resource.data.userId == request.auth.uid) ||
+        ('jobId' in resource.data && resource.data.jobId is string && isPipelineJobOwner(resource.data.jobId))
+      );
+      allow write: if false;
     }
 
     // Default: Deny all other access

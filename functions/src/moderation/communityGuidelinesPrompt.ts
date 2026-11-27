@@ -9,7 +9,7 @@ COMMUNITY GUIDELINES & STANDARDS:
 4. No deceptive practices, spam, financial scams, phishing, or impersonation of known figures or brands.
 5. No promotion of terrorism, hate groups, or violence.
 6. No offensive language or profanity.
-7. Content must not be misleading or make false claims.`;
+7. Do NOT reject content for controversial opinions, political or historical debate, or unverified factual claims (TruthWorld's Credibility System evaluates truth and accuracy separately); only reject for delivery violations, scams/impersonation, or unsafe content listed above.`;
 
 export const MODERATION_RESPONSE_SCHEMA = {
   type: Type.OBJECT,

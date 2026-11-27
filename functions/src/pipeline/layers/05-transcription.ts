@@ -161,9 +161,16 @@ export class TranscriptionLayer {
 
       const apiKey = PIPELINE_CONFIG.ASSEMBLYAI_KEY;
 
-      // 1. Extract audio
+      // 1. Extract audio (also extract 44.1 kHz stereo in one pass when dubbing is requested)
       const tExtractAudioStart = Date.now();
-      const extractResult = await this.extractAudio(jobId, videoUrl);
+      const alsoExtractStereo = Boolean(
+        executionPlan.generateDubbing ||
+        executionPlan.enableDubbing ||
+        (Array.isArray(executionPlan.dubbingLanguages) && executionPlan.dubbingLanguages.length > 0)
+      );
+      const extractResult = await (alsoExtractStereo
+        ? this.extractAudio(jobId, videoUrl, { alsoExtractStereo: true })
+        : this.extractAudio(jobId, videoUrl));
       emitDubbingTiming("transcription.extract_audio", tExtractAudioStart, { jobId });
       const audioUrl = typeof extractResult === "string" ? extractResult : extractResult?.audioUrl ?? null;
       const hasAudioStream = typeof extractResult === "object" && extractResult !== null && "hasAudioStream" in extractResult
@@ -1729,6 +1736,7 @@ ${safeEnhancedText}
       jobId,
       language: detectedLanguage,
       detectedLanguage,
+      duration: Number(assemblyResult?.audio_duration || 0),
       text: assemblyResult?.text ?? "",
       confidence: assemblyResult?.confidence ?? 0.95,
       speakerConfidence: this.calculateSpeakerConfidence(assemblyResult),
@@ -1751,11 +1759,29 @@ ${safeEnhancedText}
       updatedAt: Date.now(),
     }, { merge: true });
 
+    const resolvedVideoId = isVideoId(executionPlan.videoId) ? executionPlan.videoId : undefined;
+    await Promise.all([
+      this.storeTranscript(jobId, userId, enhanced, resolvedVideoId),
+      this.generateAndStoreNativeSubtitlesFromSegments(
+        jobId,
+        enhanced.detectedLanguage,
+        enhanced.segments,
+        (enhanced.speakers?.length || 0) > 1,
+        enhanced.words,
+        ASSEMBLYAI_STT_MODEL
+      ).catch((subErr) => {
+        logger.warn("[Transcription] Webhook native subtitle notice:", { jobId, err: String(subErr) });
+        return false;
+      }),
+    ]);
+
     await EdgeLayer.updateStageSync(jobId, "transcription", {
       status: "completed",
       progress: 100,
       completedAt: Date.now(),
     } as any);
+
+    await aggregationLayer.onStageComplete(jobId, "transcription", userId, executionPlan).catch(() => {});
 
     // Fan-out to downstream services (Credibility / Fact-checking, Dubbing / Subtitles, Copyright)
     const fanoutTasks: Promise<any>[] = [];
@@ -2133,10 +2159,16 @@ ${safeEnhancedText}
     }
   }
 
-  private async extractAudio(jobId: string, videoUrl: string): Promise<{ audioUrl: string | null; hasAudioStream: boolean }> {
+  private async extractAudio(
+    jobId: string,
+    videoUrl: string,
+    options?: { alsoExtractStereo?: boolean }
+  ): Promise<{ audioUrl: string | null; hasAudioStream: boolean }> {
     try {
       const { mediaService } = require("../services/media");
-      const extractedUrl = await mediaService.extractAudio(videoUrl, jobId);
+      const extractedUrl = options?.alsoExtractStereo
+        ? await mediaService.extractAudio(videoUrl, jobId, { alsoExtractStereo: true })
+        : await mediaService.extractAudio(videoUrl, jobId);
       if (extractedUrl && typeof extractedUrl === "string" && !extractedUrl.includes("placeholder")) {
         return { audioUrl: extractedUrl, hasAudioStream: true };
       }

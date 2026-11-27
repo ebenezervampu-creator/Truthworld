@@ -90,15 +90,15 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(find.byIcon(Icons.arrow_back), findsOneWidget);
-        expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+        expect(find.text('Dubs'), findsOneWidget);
         expect(
           find.text(
-            'Create a new audio track or dub your video into another language.',
+            'Create a new dub or upload a dubbed track for your video.',
           ),
           findsOneWidget,
         );
         expect(find.text('AI Dubbing'), findsOneWidget);
-        expect(find.text('Direct Audio Track'), findsOneWidget);
+        expect(find.text('Direct Dub'), findsOneWidget);
         expect(find.text('Target Language'), findsOneWidget);
         expect(find.text('Telugu (తెలుగు)'), findsOneWidget);
         expect(find.text('Voice Cloning'), findsOneWidget);
@@ -110,7 +110,7 @@ void main() {
         );
         expect(find.text('Voice Gender'), findsOneWidget);
         expect(find.text('Auto'), findsOneWidget);
-        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.text('Generate Dub'), findsOneWidget);
         expect(find.text('Cancel'), findsNothing);
       },
     );
@@ -146,7 +146,7 @@ void main() {
         expect(find.text('Telugu (తెలుగు)'), findsNothing);
         expect(find.text('Select a language'), findsOneWidget);
         expect(find.text('Target Language'), findsOneWidget);
-        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.text('Generate Dub'), findsOneWidget);
 
         // Tapping 'Select a language' opens the target language picker
         await tester.tap(find.text('Select a language'));
@@ -189,12 +189,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+        expect(find.text('Dubs'), findsOneWidget);
         expect(find.text('Voice Cloning'), findsOneWidget);
         expect(find.text('Speaker Diarization'), findsOneWidget);
         expect(find.text('Voice Gender'), findsOneWidget);
         expect(find.text('Auto'), findsOneWidget);
-        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.text('Generate Dub'), findsOneWidget);
 
         // Toggle Voice Cloning & Speaker Diarization switches
         expect(dialog.voiceType.value, 'cloned');
@@ -252,7 +252,7 @@ void main() {
         // Starts with 1 language ('te')
         expect(page.selectedLangCodes, ['te']);
         expect(find.text('Target Language'), findsOneWidget);
-        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.text('Generate Dub'), findsOneWidget);
 
         // Open language picker sheet
         await tester.tap(find.text('Target Language'));
@@ -281,7 +281,7 @@ void main() {
         // Main UI switches to multi-language view
         expect(find.text('Target Languages'), findsOneWidget);
         expect(find.text('3 languages'), findsOneWidget);
-        expect(find.text('Generate 3 Audio Tracks'), findsOneWidget);
+        expect(find.text('Generate 3 Dubs'), findsOneWidget);
         expect(find.text('Add'), findsOneWidget);
 
         // Removing one language via chip close button updates reactive CTA count
@@ -290,7 +290,7 @@ void main() {
 
         expect(page.selectedLangCodes, ['hi', 'ta']);
         expect(find.text('2 languages'), findsOneWidget);
-        expect(find.text('Generate 2 Audio Tracks'), findsOneWidget);
+        expect(find.text('Generate 2 Dubs'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
@@ -327,7 +327,7 @@ void main() {
         expect(page.selectedLangCodes.length, 5);
         expect(page.selectedLangCodes.contains('en'), isFalse);
         expect(find.text('5 languages'), findsOneWidget);
-        expect(find.text('Generate 5 Audio Tracks'), findsOneWidget);
+        expect(find.text('Generate 5 Dubs'), findsOneWidget);
       },
     );
 
@@ -360,7 +360,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.text('Generate Dub'), findsOneWidget);
         expect(find.textContaining('Pay'), findsNothing);
 
         // Standard paid channel with 2 languages & $0 wallet shows clear Pay CTA
@@ -369,7 +369,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.textContaining(r'Estimated total: $'), findsOneWidget);
-        expect(find.textContaining('& Generate 2 Tracks'), findsOneWidget);
+        expect(find.textContaining('& Generate 2 Dubs'), findsOneWidget);
       },
     );
 
@@ -399,16 +399,16 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Switch to Direct Audio Track tab
-        await tester.tap(find.text('Direct Audio Track'));
+        // Switch to Direct Dub tab
+        await tester.tap(find.text('Direct Dub'));
         await tester.pumpAndSettle();
 
         expect(
-          find.text('Where to Get Direct Audio Tracks (Studio Guide)'),
+          find.text('Where to Get Direct Dubs (Studio Guide)'),
           findsOneWidget,
         );
         expect(find.text('Download Original Audio'), findsOneWidget);
-        expect(find.text('Upload Finished Direct Audio Track'), findsOneWidget);
+        expect(find.text('Upload Finished Direct Dub'), findsOneWidget);
         expect(find.text('Upload & Attach Track'), findsOneWidget);
 
         // Selecting a second language shows per-language upload slots
@@ -463,8 +463,8 @@ void main() {
         await tester.tap(addFinder);
         await tester.pumpAndSettle();
 
-        expect(find.text('Audio Track & Dubbing'), findsOneWidget);
-        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.text('Dubs'), findsOneWidget);
+        expect(find.text('Generate Dub'), findsOneWidget);
         expect(find.text('Kannada (ಕನ್ನಡ)'), findsOneWidget);
       },
     );

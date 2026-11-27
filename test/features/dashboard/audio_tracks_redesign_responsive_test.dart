@@ -126,16 +126,16 @@ void main() {
       await tester.pump();
 
       // 1. Header verification
-      expect(find.text('Audio & Video'), findsAtLeastNWidgets(1));
+      expect(find.text('Dubs'), findsWidgets);
       expect(find.byIcon(Icons.video_library_outlined), findsOneWidget);
 
-      // 2. Underlined Tabs verification (Audio Tracks only, VideoTracks tab completely removed)
+      // 2. Underlined Tabs verification (Dubs only, VideoTracks tab completely removed)
       expect(find.byType(AudioTracksUnderlineTabBar), findsOneWidget);
-      expect(find.text('Audio Tracks'), findsWidgets);
+      expect(find.text('Dubs'), findsWidgets);
       expect(find.text('VideoTracks'), findsNothing);
 
-      // 4. Available Audio tracks header verification
-      expect(find.text('Available Audio tracks'), findsOneWidget);
+      // 4. Available Dubs header verification
+      expect(find.text('Available Dubs'), findsOneWidget);
       expect(
         find.textContaining('Manage available multi-language audio and voiceover streams'),
         findsOneWidget,
@@ -206,7 +206,7 @@ void main() {
 
       // Verify mobile components
       expect(find.byIcon(Icons.video_library_outlined), findsOneWidget);
-      expect(find.text('Audio Tracks'), findsWidgets);
+      expect(find.text('Dubs'), findsWidgets);
       expect(find.text('VideoTracks'), findsNothing);
       expect(find.text('Audio'), findsWidgets);
       expect(find.text('Download'), findsOneWidget);
@@ -238,9 +238,9 @@ void main() {
       await tester.tap(find.text('Open Add Audio Sheet'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Add Audio Track'), findsOneWidget);
-      expect(find.text('Generate Audio tracks'), findsOneWidget);
-      expect(find.text('Upload Audio track from device video/Audio'), findsOneWidget);
+      expect(find.text('Add Dub'), findsOneWidget);
+      expect(find.text('Generate Dubs'), findsOneWidget);
+      expect(find.text('Upload Dub from device video/Audio'), findsOneWidget);
       expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
       expect(find.byIcon(Icons.upload_file_rounded), findsOneWidget);
     });

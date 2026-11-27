@@ -6,14 +6,22 @@ import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart'
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 
 class VideoAnalysisHelpers {
-  static int normalizeTimestampToMs(dynamic raw) {
+  static int normalizeTimestampToMs(
+    dynamic raw, {
+    bool isSecondsUnit = false,
+    bool isMillisecondsUnit = false,
+  }) {
     if (raw == null) return 0;
     if (raw is String) {
-      final parsed = double.tryParse(raw);
+      final parsed = double.tryParse(raw.trim());
       if (parsed != null) {
-        return normalizeTimestampToMs(parsed);
+        return normalizeTimestampToMs(
+          parsed,
+          isSecondsUnit: isSecondsUnit,
+          isMillisecondsUnit: isMillisecondsUnit,
+        );
       }
-      final parts = raw.split(':');
+      final parts = raw.trim().split(':');
       if (parts.length == 2) {
         final m = double.tryParse(parts[0]) ?? 0;
         final s = double.tryParse(parts[1]) ?? 0;
@@ -29,10 +37,46 @@ class VideoAnalysisHelpers {
     if (raw is num) {
       final val = raw.toDouble();
       if (val <= 0) return 0;
-      if (val > 10000) {
-        return val.toInt();
-      }
+      if (isMillisecondsUnit) return val.toInt();
+      if (isSecondsUnit) return (val * 1000).toInt();
+      if (val >= 1000) return val.toInt();
       return (val * 1000).toInt();
+    }
+    return 0;
+  }
+
+  /// Resolves claim or chapter timestamps in milliseconds without double-scaling
+  /// millisecond fields (`startMs`, `startTimeMs`, `start`) into hours.
+  static int resolveClaimTimestampMs(
+    Map<dynamic, dynamic> map, {
+    bool isEnd = false,
+  }) {
+    final msKeys = isEnd
+        ? const ['endMs', 'endTimeMs']
+        : const ['startMs', 'startTimeMs'];
+    for (final key in msKeys) {
+      final val = map[key];
+      if (val != null) {
+        return normalizeTimestampToMs(val, isMillisecondsUnit: true);
+      }
+    }
+    final secKeys = isEnd
+        ? const ['endSeconds', 'endSec']
+        : const ['startSeconds', 'startSec'];
+    for (final key in secKeys) {
+      final val = map[key];
+      if (val != null) {
+        return normalizeTimestampToMs(val, isSecondsUnit: true);
+      }
+    }
+    final mixedKeys = isEnd
+        ? const ['end', 'timestampEnd', 'endTime']
+        : const ['start', 'timestampStart', 'startTime'];
+    for (final key in mixedKeys) {
+      final val = map[key];
+      if (val != null) {
+        return normalizeTimestampToMs(val);
+      }
     }
     return 0;
   }

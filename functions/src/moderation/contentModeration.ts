@@ -110,6 +110,52 @@ export const onContentUploadedForModeration = onObjectFinalized(
     });
 
     try {
+      // ─── STEP 1.25: Check Trusted Channel Moderation Exemption ─────────────
+      const { isChannelTrustedModerationBypassed } = require("../channels/moderation");
+      const isTrustedChannel = await isChannelTrustedModerationBypassed(videoData?.channelId);
+      if (isTrustedChannel) {
+        console.log("[ContentModeration] Trusted Channel Moderation Exemption active. Auto-approving video.", {
+          videoId,
+          channelId: videoData?.channelId,
+        });
+        const now = Date.now();
+        await db.collection("videos").doc(videoId).update({
+          "moderation.status": "approved",
+          "moderation.reason": "Approved via Trusted Channel Moderation Exemption.",
+          "moderation.policyAction": "allow",
+          "moderation.riskLevel": "safe",
+          "moderation.policyReason": "Approved via Trusted Channel Moderation Exemption.",
+          "moderation.violationCategories": [],
+          "moderation.confidenceScore": 1,
+          "moderation.checkedAt": now,
+          "moderation.model": "trusted-channel-bypass",
+          "moderation.trustedBypass": true,
+          isModerated: true,
+          trustedModerationBypass: true,
+        });
+
+        const jobsSnap = await db.collection("video_jobs")
+          .where("videoId", "==", videoId)
+          .get();
+
+        if (!jobsSnap.empty) {
+          const batch = db.batch();
+          for (const jobDoc of jobsSnap.docs) {
+            batch.update(jobDoc.ref, {
+              "stages.moderation": {
+                status: "completed",
+                progress: 100,
+                completedAt: now,
+                reason: "Approved via Trusted Channel Moderation Exemption.",
+              },
+              updatedAt: now,
+            });
+          }
+          await batch.commit();
+        }
+        return;
+      }
+
       // ─── STEP 1.5: Check if Content Gemini AI is bypassed (Admin Only Mode) ───
       const { isVideosBypassed } = require("./moderationModes");
       const bypassed = await isVideosBypassed();
@@ -185,7 +231,13 @@ export const onContentUploadedForModeration = onObjectFinalized(
           result = await contentModerationService.moderate(
             videoGcsUri,
             contentType,
-            { title: videoTitle, description: videoDescription, tags: videoTags }
+            {
+              title: videoTitle,
+              description: videoDescription,
+              tags: videoTags,
+              videoId,
+              userId: videoData?.userId || videoData?.ownerId || videoData?.uploaderId || "system",
+            }
           );
           break;
         } catch (err: any) {
@@ -307,25 +359,59 @@ export const onContentUploadedForModeration = onObjectFinalized(
           rejectionReason: result.policyReason || result.violationReason,
         });
 
-        // Cancel any in-progress video_jobs for this video
-        const jobsSnap = await db.collection("video_jobs")
-          .where("videoId", "==", videoId)
-          .where("status", "in", ["accepted", "processing", "running"])
-          .limit(1)
-          .get();
+        // Cancel all active pipeline & speculative jobs for this video
+        const nowReject = Date.now();
+        const activeStatuses = ["pending", "accepted", "processing", "running"];
+        const [jobsSnap, credSnap, dubSnap] = await Promise.all([
+          db.collection("video_jobs")
+            .where("videoId", "==", videoId)
+            .where("status", "in", activeStatuses)
+            .get(),
+          db.collection("credibility_jobs")
+            .where("videoId", "==", videoId)
+            .where("status", "in", activeStatuses)
+            .get(),
+          db.collection("dubbing_jobs")
+            .where("videoId", "==", videoId)
+            .where("status", "in", activeStatuses)
+            .get(),
+        ]);
 
-        if (!jobsSnap.empty) {
-          const jobDoc = jobsSnap.docs[0];
-          await jobDoc.ref.update({
+        const cancelBatch = db.batch();
+        const rejectReason = result.policyReason || result.violationReason;
+        for (const jobDoc of jobsSnap.docs) {
+          cancelBatch.update(jobDoc.ref, {
             status: "rejected",
             "stages.moderation": {
               status: "failed",
-              reason: result.policyReason || result.violationReason,
-              failedAt: Date.now(),
+              reason: rejectReason,
+              failedAt: nowReject,
             },
-            updatedAt: Date.now(),
+            updatedAt: nowReject,
           });
-          console.log("[ContentModeration] Cancelled pipeline job:", jobDoc.id);
+        }
+        for (const credDoc of credSnap.docs) {
+          cancelBatch.update(credDoc.ref, {
+            status: "rejected",
+            rejectionReason: rejectReason,
+            updatedAt: nowReject,
+          });
+        }
+        for (const dubDoc of dubSnap.docs) {
+          cancelBatch.update(dubDoc.ref, {
+            status: "rejected",
+            rejectionReason: rejectReason,
+            updatedAt: nowReject,
+          });
+        }
+        if (!jobsSnap.empty || !credSnap.empty || !dubSnap.empty) {
+          await cancelBatch.commit();
+          console.log("[ContentModeration] Cancelled speculative pipeline jobs:", {
+            videoId,
+            videoJobs: jobsSnap.size,
+            credibilityJobs: credSnap.size,
+            dubbingJobs: dubSnap.size,
+          });
         }
 
         // Notify user about rejection
@@ -991,6 +1077,82 @@ export const resubmitVideoForModeration = onCall(
       remainingResubmissions: 2 - nextCount,
       message: `Video resubmitted for moderation review. (Attempt ${nextCount} of 2).`,
     };
+  }
+);
+
+const VIDEO_REPORT_BLOCK_THRESHOLD = 5;
+
+/**
+ * 🛡️ Callable Function — Submit a user report for a video server-side.
+ *
+ * Stores each reporter's submission privately in `videos/{videoId}/reports/{reporterId}`
+ * and atomically updates `reportCount` and `isBlocked` on `videos/{videoId}`.
+ */
+export const submitVideoReport = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    maxInstances: 20,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "User must be authenticated to report a video.");
+    }
+
+    const { videoId, reportType, details } = request.data || {};
+    if (!videoId || typeof videoId !== "string" || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
+      throw new HttpsError("invalid-argument", "Valid videoId is required.");
+    }
+    if (!reportType || typeof reportType !== "string" || reportType.trim().length === 0 || reportType.trim().length > 100) {
+      throw new HttpsError("invalid-argument", "Valid reportType is required.");
+    }
+
+    const sanitizedDetails = typeof details === "string" ? details.trim().slice(0, 1000) : "";
+    const reporterId = request.auth.uid;
+    const videoRef = db.collection("videos").doc(videoId);
+    const reportRef = videoRef.collection("reports").doc(reporterId);
+
+    const outcome = await db.runTransaction(async (transaction) => {
+      const [videoSnap, existingReportSnap] = await Promise.all([
+        transaction.get(videoRef),
+        transaction.get(reportRef),
+      ]);
+
+      if (!videoSnap.exists) {
+        throw new HttpsError("not-found", "Video not found.");
+      }
+
+      const videoData = videoSnap.data() || {};
+      const currentCount = typeof videoData.reportCount === "number" ? videoData.reportCount : 0;
+      const isNewReport = !existingReportSnap.exists;
+      const nextCount = isNewReport ? currentCount + 1 : currentCount;
+      const shouldBlock = nextCount >= VIDEO_REPORT_BLOCK_THRESHOLD;
+
+      transaction.set(
+        reportRef,
+        {
+          reporterId,
+          reportType: reportType.trim(),
+          details: sanitizedDetails || null,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...(isNewReport ? { createdAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
+        },
+        { merge: true }
+      );
+
+      if (isNewReport || (shouldBlock && videoData.isBlocked !== true)) {
+        transaction.update(videoRef, {
+          reportCount: nextCount,
+          isBlocked: shouldBlock || videoData.isBlocked === true,
+          updatedAt: Date.now(),
+        });
+      }
+
+      return { reportCount: nextCount, isBlocked: shouldBlock || videoData.isBlocked === true };
+    });
+
+    return { success: true, ...outcome };
   }
 );
 

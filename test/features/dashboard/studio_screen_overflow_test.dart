@@ -174,16 +174,16 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+      expect(find.text('Dubs'), findsOneWidget);
       expect(find.text('AI Dubbing'), findsOneWidget);
-      expect(find.text('Generate Audio Track'), findsOneWidget);
+      expect(find.text('Generate Dub'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
-      // Switch to Direct Audio Track tab
-      await tester.tap(find.text('Direct Audio Track'));
+      // Switch to Direct Dub tab
+      await tester.tap(find.text('Direct Dub'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Where to Get Direct Audio Tracks (Studio Guide)'), findsOneWidget);
+      expect(find.text('Where to Get Direct Dubs (Studio Guide)'), findsOneWidget);
       expect(find.text('Download Original Audio'), findsOneWidget);
       expect(find.text('Upload & Attach Track'), findsOneWidget);
       expect(tester.takeException(), isNull);

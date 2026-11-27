@@ -35,6 +35,7 @@ import { z } from "zod";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
 import { extractCandidateText } from "../utils/ai-utils";
+import { costEngine } from "./cost-engine";
 
 // ─── Response Schema ─────────────────────────────────────────────────────────
 
@@ -590,7 +591,7 @@ export class ContentModerationService {
   async moderate(
     gcsUri: string,
     mimeType: string = "video/mp4",
-    metadata?: { title?: string; description?: string; tags?: string[] }
+    metadata?: { title?: string; description?: string; tags?: string[]; videoId?: string; userId?: string }
   ): Promise<ContentModerationResult> {
     const t0 = Date.now();
     const MAX_RETRIES = 4;
@@ -642,6 +643,25 @@ export class ContentModerationService {
         const responseText =
           extractCandidateText(result.response.candidates?.[0]) ||
           result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+        // Record Gemini token usage for video moderation cost attribution
+        const usage = (result.response as any)?.usageMetadata;
+        if (usage && metadata?.videoId) {
+          const promptTokens = Number(usage.promptTokenCount || 0);
+          const candidateTokens = Number(usage.candidatesTokenCount || 0);
+          if (promptTokens > 0 || candidateTokens > 0) {
+            costEngine.recordGeminiCost(
+              metadata.videoId,
+              metadata.userId || "system",
+              "content_moderation",
+              "flash-lite",
+              promptTokens,
+              candidateTokens
+            ).catch((costErr) => {
+              console.warn(`[ContentModeration] Failed to record Gemini cost for ${metadata.videoId}:`, costErr);
+            });
+          }
+        }
 
         // Parse and validate response
         let parsedObj: any;

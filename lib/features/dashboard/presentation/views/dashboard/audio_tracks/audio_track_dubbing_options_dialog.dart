@@ -93,7 +93,7 @@ class AudioTrackDubbingOptionsDialog extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Audio Track & Dubbing',
+                            'Dubs',
                             style: typography.display.copyWith(
                               fontFamily: TWTypography.brandFamily,
                               fontSize: 22,
@@ -104,7 +104,7 @@ class AudioTrackDubbingOptionsDialog extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Create a new audio track or dub your video into another language.',
+                            'Create a new dub or upload a dubbed track for your video.',
                             style: typography.bodySmall.copyWith(
                               fontSize: 12.5,
                               color: colors.textSecondary,

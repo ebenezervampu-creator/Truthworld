@@ -56,7 +56,7 @@ const FastResponseSchema = z.object({
 export class FastVerificationService {
   private readonly genAI: VertexAI;
 
-  constructor(geminiApiKey: string) {
+  constructor(_geminiApiKey?: string) {
     this.genAI = getVertexAI();
   }
 

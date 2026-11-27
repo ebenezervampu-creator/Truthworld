@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 
 /// Production client service for the TruthWorld IFCN Fact-Check Appeals Desk
@@ -7,7 +8,7 @@ class CredibilityGovernanceService {
   CredibilityGovernanceService._();
 
   static final FirebaseFunctions _functions =
-      FirebaseFunctions.instanceFor(region: 'asia-south1');
+      FirebaseFunctions.instanceFor(region: AppConfig.credibilityFunctionsRegion);
 
   /// Submits a formal claim appeal to the IFCN accredited appeals desk.
   /// Enforces creator authorization, ombudsman quorum, and cryptographic SHA-256 audit chaining.

@@ -473,7 +473,7 @@ class AdminEntityModerationService {
 
       // 1. Authoritative Cloud Function call
       try {
-        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+        final callable = FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion)
             .httpsCallable('adminGrantChannelDubbingCredits');
         await callable.call({
           'channelId': channelId,
@@ -636,7 +636,7 @@ class AdminEntityModerationService {
 
       // 1. Authoritative Cloud Function call
       try {
-        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+        final callable = FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion)
             .httpsCallable('adminGrantChannelDubbingCredits');
         await callable.call({
           'channelId': channelId,

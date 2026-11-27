@@ -82,6 +82,7 @@ export {
   moderateVideoManual,
   scheduledContentModerationRetry,
   resubmitVideoForModeration,
+  submitVideoReport,
 } from "./moderation/contentModeration";
 export {
   ingestUploadedImage,

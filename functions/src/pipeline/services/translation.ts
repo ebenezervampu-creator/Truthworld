@@ -57,6 +57,8 @@ import {
 } from "./cast-list";
 import type { OnScreenTextEvent } from "./screenContentAnalyzer";
 import { editorContextEnabled } from "./translation-flags";
+import { emitDubbingTiming } from "../utils/dubbing-timing";
+import { parallelTranslationEnabled } from "./latency-flags";
 
 /** Plain-language sense of each glossary category, sent with glossary terms to the Gemini edit. */
 const GLOSSARY_SENSE: Record<string, string> = {
@@ -695,82 +697,100 @@ export class TranslationService {
       contextAfter?: Array<{ source: string; speaker?: string }>;
     }
   ): Promise<string> {
+    const tConcise = Date.now();
     const src = normalizeLanguageCode(sourceLanguage);
     const tgt = normalizeLanguageCode(targetLanguage);
-
-    const current = options?.currentTranslation?.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
-    // Shortening the current line needs the Gemini edit step; without it, translate afresh as before.
-    const draft = current && isContextualDubbingEditEnabled()
-      ? current
-      : isContextualDubbingEditEnabled()
-        ? (await this.batchTranslateV3([originalText], src, tgt))[0]
-        : await this.translateText(originalText, src, tgt);
-    let result = decodeHtmlEntities(draft);
-
-    if (isContextualDubbingEditEnabled()) {
-      const draftSyllables = countSourceSyllables(result, tgt);
-      const ratio = options?.targetDurationRatio && options.targetDurationRatio > 1 ? options.targetDurationRatio : 1.2;
-      const maxSyllables = options?.maxDurationMs && options.maxDurationMs > 0
-        ? syllableBudgetForDuration(options.maxDurationMs, tgt, options.syllablesPerSecond)
-        : Math.max(2, Math.floor(draftSyllables / ratio));
-
-      if (draftSyllables > maxSyllables) {
+    let conciseOk = false;
+    try {
+      const current = options?.currentTranslation?.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
+      // Shortening the current line needs the Gemini edit step; without it, translate afresh as before.
+      let draft: string;
+      if (current && isContextualDubbingEditEnabled()) {
+        draft = current;
+      } else if (isContextualDubbingEditEnabled()) {
+        const tDraft = Date.now();
+        let draftOk = false;
         try {
-          let honorificCache = options?.honorificCache;
-          if (!honorificCache && options?.bible) {
-            honorificCache = new RollingHonorificCache(tgt);
-            honorificCache.seedFromBible(options.bible, tgt);
-          }
-          const [edited] = await geminiDubbingEditor.editSegments(
-            [{
-              id: "L1",
-              source: originalText,
-              draft: result,
-              speaker: options?.speaker,
-              speakerGender: options?.speakerGender ?? (options?.speaker ? options?.castGenderByLabel?.[options.speaker] : undefined),
-              addressedTo: options?.addressedTo,
-              registerDirective: options?.registerDirective || options?.appliedRegister,
-              delivery: options?.delivery,
-              maxSyllables,
-            }],
-            {
-              outsideContext: {
-                before: (options?.contextBefore || []).map((c, i) => ({ id: `B${i}`, source: c.source, draft: "", speaker: c.speaker })),
-                after: (options?.contextAfter || []).map((c, i) => ({ id: `A${i}`, source: c.source, draft: "", speaker: c.speaker })),
-              },
-              jobId: options?.jobId || "retranslate",
-              userId: options?.userId,
-              sourceLanguage: src,
-              targetLanguage: tgt,
-              creatorDNA: options?.creatorDNA,
-              targetPlatform: options?.targetPlatform,
-              glossary: this.buildGlossaryTermsForEditor([originalText], src, tgt),
-              castList: options?.castList,
-              relationships: options?.relationships,
-              speakerNames: options?.speakerNames,
-              bible: options?.bible,
-              inferBible: false,
-              honorificCache,
-              countSyllables: countSourceSyllables,
-              countGlossaryViolations: (source, translated, lang) =>
-                TerminologyService.checkTerminologyCompliance(source, translated, lang).violations.length,
+          draft = (await this.batchTranslateV3([originalText], src, tgt))[0];
+          draftOk = true;
+        } finally {
+          if (options?.jobId) emitDubbingTiming("translation.google_draft", tDraft, { jobId: options.jobId, lang: tgt, lines: 1, ok: draftOk });
+        }
+      } else {
+        draft = await this.translateText(originalText, src, tgt);
+      }
+      let result = decodeHtmlEntities(draft);
+
+      if (isContextualDubbingEditEnabled()) {
+        const draftSyllables = countSourceSyllables(result, tgt);
+        const ratio = options?.targetDurationRatio && options.targetDurationRatio > 1 ? options.targetDurationRatio : 1.2;
+        const maxSyllables = options?.maxDurationMs && options.maxDurationMs > 0
+          ? syllableBudgetForDuration(options.maxDurationMs, tgt, options.syllablesPerSecond)
+          : Math.max(2, Math.floor(draftSyllables / ratio));
+
+        if (draftSyllables > maxSyllables) {
+          try {
+            let honorificCache = options?.honorificCache;
+            if (!honorificCache && options?.bible) {
+              honorificCache = new RollingHonorificCache(tgt);
+              honorificCache.seedFromBible(options.bible, tgt);
             }
-          );
-          if (edited && !edited.usedDraft) result = edited.text;
-        } catch (err) {
-          console.warn("[Translation] Concise edit failed — keeping the Translation LLM draft", err);
+            const [edited] = await geminiDubbingEditor.editSegments(
+              [{
+                id: "L1",
+                source: originalText,
+                draft: result,
+                speaker: options?.speaker,
+                speakerGender: options?.speakerGender ?? (options?.speaker ? options?.castGenderByLabel?.[options.speaker] : undefined),
+                addressedTo: options?.addressedTo,
+                registerDirective: options?.registerDirective || options?.appliedRegister,
+                delivery: options?.delivery,
+                maxSyllables,
+              }],
+              {
+                outsideContext: {
+                  before: (options?.contextBefore || []).map((c, i) => ({ id: `B${i}`, source: c.source, draft: "", speaker: c.speaker })),
+                  after: (options?.contextAfter || []).map((c, i) => ({ id: `A${i}`, source: c.source, draft: "", speaker: c.speaker })),
+                },
+                jobId: options?.jobId || "retranslate",
+                userId: options?.userId,
+                sourceLanguage: src,
+                targetLanguage: tgt,
+                creatorDNA: options?.creatorDNA,
+                targetPlatform: options?.targetPlatform,
+                glossary: this.buildGlossaryTermsForEditor([originalText], src, tgt),
+                castList: options?.castList,
+                relationships: options?.relationships,
+                speakerNames: options?.speakerNames,
+                bible: options?.bible,
+                inferBible: false,
+                honorificCache,
+                countSyllables: countSourceSyllables,
+                countGlossaryViolations: (source, translated, lang) =>
+                  TerminologyService.checkTerminologyCompliance(source, translated, lang).violations.length,
+              }
+            );
+            if (edited && !edited.usedDraft) result = edited.text;
+          } catch (err) {
+            console.warn("[Translation] Concise edit failed — keeping the Translation LLM draft", err);
+          }
         }
       }
-    }
 
-    let cleaned = stripDanglingClauseFragments(result);
-    if (tgt === "te") {
-      cleaned = applyTeluguTheologicalLexiconGuard(cleaned);
-      // With the Gemini edit on, spoken style is chosen in context (prompt rule 4); a blind rewrite
-      // afterwards would override it, including in formal speech. Only the legacy path needs it.
-      if (!isContextualDubbingEditEnabled()) cleaned = applySpokenTeluguColloquialContractions(cleaned);
+      let cleaned = stripDanglingClauseFragments(result);
+      if (tgt === "te") {
+        cleaned = applyTeluguTheologicalLexiconGuard(cleaned);
+        // With the Gemini edit on, spoken style is chosen in context (prompt rule 4); a blind rewrite
+        // afterwards would override it, including in formal speech. Only the legacy path needs it.
+        if (!isContextualDubbingEditEnabled()) cleaned = applySpokenTeluguColloquialContractions(cleaned);
+      }
+      conciseOk = true;
+      return normalizeScriptureCitationsForTts(sanitizeSpokenTranslationForTts(cleaned.trim() || decodeHtmlEntities(originalText)), tgt);
+    } finally {
+      if (options?.jobId) {
+        emitDubbingTiming("translation.concise_retranslate", tConcise, { jobId: options.jobId, lang: tgt, ok: conciseOk });
+      }
     }
-    return normalizeScriptureCitationsForTts(sanitizeSpokenTranslationForTts(cleaned.trim() || decodeHtmlEntities(originalText)), tgt);
   }
 
   // ─── Batch segment translation ─────────────────────────────────────────────
@@ -821,6 +841,7 @@ export class TranslationService {
       speakerNames?: Record<string, string>;
       castGenderByLabel?: Record<string, "male" | "female">;
       enableDualTrack?: boolean;
+      precomputedDrafts?: string[];
     }
   ): Promise<TranslationResult> {
     const normSourceLang = normalizeLanguageCode(sourceLanguage);
@@ -859,7 +880,20 @@ export class TranslationService {
       let resolvedBible: LocalizationBible | undefined;
       if (hybrid) {
         // Step 1: Translation LLM drafts every line. Step 2: Gemini edits in context.
-        const drafts = await this.batchTranslateV3(texts, normSourceLang, normTargetLang);
+        const tGoogleDraft = Date.now();
+        let draftOk = false;
+        let drafts: string[];
+        try {
+          if (Array.isArray(options?.precomputedDrafts) && options!.precomputedDrafts.length === texts.length) {
+            drafts = options!.precomputedDrafts;
+            draftOk = true;
+          } else {
+            drafts = await this.batchTranslateV3(texts, normSourceLang, normTargetLang);
+            draftOk = true;
+          }
+        } finally {
+          emitDubbingTiming("translation.google_draft", tGoogleDraft, { jobId, lang: normTargetLang, lines: texts.length, ok: draftOk, precomputed: Boolean(options?.precomputedDrafts?.length === texts.length) });
+        }
         editOutputs = await this.applyContextualDubbingEdit(
           jobId, segments, drafts, normSourceLang, normTargetLang, profileKey, options
         );
@@ -869,12 +903,19 @@ export class TranslationService {
         standardRegisters = editOutputs.map((o) => o.appliedRegister);
       } else {
         // Legacy composite: Translation LLM followed by Adaptive MT.
-        standardTranslated = await this.batchTranslateStandard(
-          texts,
-          normSourceLang,
-          normTargetLang,
-          profileKey
-        );
+        const tAdaptive = Date.now();
+        let adaptiveOk = false;
+        try {
+          standardTranslated = await this.batchTranslateStandard(
+            texts,
+            normSourceLang,
+            normTargetLang,
+            profileKey
+          );
+          adaptiveOk = true;
+        } finally {
+          emitDubbingTiming("translation.adaptive_mt", tAdaptive, { jobId, lang: normTargetLang, lines: texts.length, ok: adaptiveOk });
+        }
         standardSubtitles = [...standardTranslated];
         standardRegisters = standardTranslated.map(() => undefined);
       }
@@ -973,11 +1014,21 @@ export class TranslationService {
             });
           },
           backTranslateCallback: async (targetText, tgtLang) => {
-            if (hybrid) {
-              // Plain Translation LLM is enough for a back-translation spot check.
-              return (await this.batchTranslateV3([targetText], tgtLang, normSourceLang))[0];
+            const tBack = Date.now();
+            let backOk = false;
+            try {
+              if (hybrid) {
+                // Plain Translation LLM is enough for a back-translation spot check.
+                const out = (await this.batchTranslateV3([targetText], tgtLang, normSourceLang))[0];
+                backOk = true;
+                return out;
+              }
+              const out = await this.translateText(targetText, tgtLang, normSourceLang, { tone: "formal" });
+              backOk = true;
+              return out;
+            } finally {
+              emitDubbingTiming("translation.google_back_translate", tBack, { jobId, lang: tgtLang, lines: 1, ok: backOk });
             }
-            return await this.translateText(targetText, tgtLang, normSourceLang, { tone: "formal" });
           },
         }
       );
@@ -1219,6 +1270,7 @@ export class TranslationService {
       speakerNames?: Record<string, string>;
       castGenderByLabel?: Record<string, "male" | "female">;
       enableDualTrack?: boolean;
+      precomputedDrafts?: string[];
     }
   ): Promise<Array<{
     text: string;
@@ -1328,6 +1380,9 @@ export class TranslationService {
         relationships: options?.relationships,
         speakerNames: options?.speakerNames,
         enableDualTrack: options?.enableDualTrack ?? true,
+        concurrency: parallelTranslationEnabled()
+          ? Math.max(1, Number(process.env.DUBBING_EDITOR_CONCURRENCY || 3))
+          : 1,
         glossary: this.buildGlossaryTermsForEditor(segments.map((s) => s.text), sourceLanguage, targetLanguage, profileKey),
         countSyllables: countSourceSyllables,
         countGlossaryViolations: (source, translated, lang) =>
@@ -1412,6 +1467,9 @@ export class TranslationService {
           castList: options?.castList,
           relationships: options?.relationships,
           speakerNames: options?.speakerNames,
+          concurrency: parallelTranslationEnabled()
+            ? Math.max(1, Number(process.env.DUBBING_EDITOR_CONCURRENCY || 3))
+            : 1,
           glossary: this.buildGlossaryTermsForEditor(sentences.map((s) => s.text), src, tgt, profileKey),
           countSyllables: countSourceSyllables,
           countGlossaryViolations: (source, translated, lang) =>
@@ -1484,6 +1542,9 @@ export class TranslationService {
           targetLanguage: lang,
           purpose: "subtitle",
           countSyllables: countSourceSyllables,
+          concurrency: parallelTranslationEnabled()
+            ? Math.max(1, Number(process.env.DUBBING_EDITOR_CONCURRENCY || 3))
+            : 1,
           // Condensing only shortens already-final lines: no new register inference (extra call,
           // and it could change address forms that were already decided).
           inferBible: false,
@@ -1909,48 +1970,62 @@ export class TranslationService {
       speakerNames?: Record<string, string>;
     }
   ): Promise<string> {
+    const tNumRepair = Date.now();
     const src = normalizeLanguageCode(sourceLang);
     const tgt = normalizeLanguageCode(targetLang);
+    let numOk = false;
+    let numPath = "editor";
+    try {
+      if (this.adaptiveMtClient) {
+        try {
+          const sourceEntities = NumericalEntityGuard.extractNumericEntities(sourceText);
+          const refPairs = sourceEntities.map((e) => ({
+            sourceSentence: sourceText,
+            targetSentence: `${currentTranslation} [Preserve: ${e.raw}]`,
+          }));
 
-    if (this.adaptiveMtClient) {
-      try {
-        const sourceEntities = NumericalEntityGuard.extractNumericEntities(sourceText);
-        const refPairs = sourceEntities.map((e) => ({
-          sourceSentence: sourceText,
-          targetSentence: `${currentTranslation} [Preserve: ${e.raw}]`,
-        }));
+          const request: any = {
+            parent: this.adaptiveMtParent,
+            sourceLanguageCode: src,
+            targetLanguageCode: tgt,
+            content: [sourceText],
+            referenceSentenceConfig: {
+              referenceSentencePairLists: [{ referenceSentencePairs: refPairs.slice(0, 3) }],
+            },
+          };
+          if (PIPELINE_CONFIG.ADAPTIVE_MT_DATASET) {
+            request.dataset = PIPELINE_CONFIG.ADAPTIVE_MT_DATASET;
+          }
+          const [response]: any = await (this.adaptiveMtClient as any).adaptiveMtTranslate(request);
+          const result = response?.translations?.[0]?.translatedText;
+          if (result && result.trim().length > 0) {
+            const recheck = NumericalEntityGuard.verifyNumericalParity(sourceText, result, tgt);
+            if (recheck.isParity) {
+              numPath = "adaptive_mt";
+              numOk = true;
+              return decodeHtmlEntities(result);
+            }
+          }
+        } catch (adErr) {
+          // Fall through to Gemini single-line repair
+        }
+      }
 
-        const request: any = {
-          parent: this.adaptiveMtParent,
-          sourceLanguageCode: src,
-          targetLanguageCode: tgt,
-          content: [sourceText],
-          referenceSentenceConfig: {
-            referenceSentencePairLists: [{ referenceSentencePairs: refPairs.slice(0, 3) }],
-          },
-        };
-        if (PIPELINE_CONFIG.ADAPTIVE_MT_DATASET) {
-          request.dataset = PIPELINE_CONFIG.ADAPTIVE_MT_DATASET;
-        }
-        const [response]: any = await (this.adaptiveMtClient as any).adaptiveMtTranslate(request);
-        const result = response?.translations?.[0]?.translatedText;
-        if (result && result.trim().length > 0) {
-          const recheck = NumericalEntityGuard.verifyNumericalParity(sourceText, result, tgt);
-          if (recheck.isParity) return decodeHtmlEntities(result);
-        }
-      } catch (adErr) {
-        // Fall through to Gemini single-line repair
+      const out = await this.repairLineWithEditor(
+        sourceText,
+        currentTranslation,
+        src,
+        tgt,
+        _driftDetails || "Fix the number, date, amount or unit mismatch against SOURCE.",
+        { ...repairCtx, profileKey: _profileKey }
+      );
+      numOk = true;
+      return out;
+    } finally {
+      if (repairCtx?.jobId) {
+        emitDubbingTiming("translation.repair_numeric", tNumRepair, { jobId: repairCtx.jobId, lang: tgt, path: numPath, ok: numOk });
       }
     }
-
-    return await this.repairLineWithEditor(
-      sourceText,
-      currentTranslation,
-      src,
-      tgt,
-      _driftDetails || "Fix the number, date, amount or unit mismatch against SOURCE.",
-      { ...repairCtx, profileKey: _profileKey }
-    );
   }
 
   /**
@@ -1974,9 +2049,17 @@ export class TranslationService {
       profileKey?: TerminologyProfile;
     }
   ): Promise<string> {
+    const tMeaningRepair = Date.now();
     const src = normalizeLanguageCode(sourceLang);
     const tgt = normalizeLanguageCode(targetLang);
-    return await this.repairLineWithEditor(sourceText, currentTranslation, src, tgt, problem, opts);
+    let meaningRepairOk = false;
+    try {
+      const out = await this.repairLineWithEditor(sourceText, currentTranslation, src, tgt, problem, opts);
+      meaningRepairOk = true;
+      return out;
+    } finally {
+      if (opts?.jobId) emitDubbingTiming("translation.repair_meaning", tMeaningRepair, { jobId: opts.jobId, lang: tgt, ok: meaningRepairOk });
+    }
   }
 
   private async repairLineWithEditor(

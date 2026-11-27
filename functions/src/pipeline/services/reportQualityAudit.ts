@@ -30,6 +30,7 @@ export interface QualityCheck {
     | "VERDICT_CONTRADICTION"
     | "ZERO_SOURCE_FACTS"
     | "CAUTION_HEAVY"
+    | "UNPROVEN_HEAVY"
     | "VIDEO_SOURCES_MISMATCH"
     | "MIXED_LANGUAGE";
   severity: "WARN" | "FAIL";
@@ -48,12 +49,13 @@ export interface ReportQualityAudit {
     verifiedClaims: number;
     cautionClaims: number;
     falseClaims: number;
-    unprovenClaims?: number;
+    unprovenClaims: number;
     contextualClaims: number;
     factualWithSources: number;
+    zeroSourceFacts: number;
     zeroSourceFactRatio: number;
     cautionRatio: number;
-    unprovenRatio?: number;
+    unprovenRatio: number;
     maxSharedSourceRatio: number;
     maxSharedSourceUrl?: string;
     distinctClaimSources: number;
@@ -66,6 +68,7 @@ export interface ReportQualityAudit {
 
 const VERIFIED = new Set(["verified_true", "mostly_true", "correct", "mostly_correct", "partially_true", "novel_hypothesis"]);
 const FALSE_LIKE = new Set(["false_claim", "verified_false", "incorrect", "misleading", "historical_consensus_denial", "incorrect_citation"]);
+const UNPROVEN = new Set(["unproven", "unsupported", "unverified", "inconclusive", "verification_timeout"]);
 const CONTEXTUAL = new Set([
   "opinion", "opinion_claim", "opinion_or_prediction", "satire", "satire_claim", "religious_belief",
   "faith_based_claim", "faith_context", "tradition_linked", "historical_tradition", "not_historically_verifiable",
@@ -109,7 +112,7 @@ export function auditCredibilityReport(report: any, now: Date = new Date()): Rep
   const claims: any[] = Array.isArray(report?.claims) ? report.claims : [];
   const checks: QualityCheck[] = [];
 
-  let factual = 0, verified = 0, caution = 0, falseCount = 0, contextual = 0, factualWithSources = 0;
+  let factual = 0, verified = 0, caution = 0, falseCount = 0, unproven = 0, contextual = 0, factualWithSources = 0;
   const sourceToClaims = new Map<string, Set<string>>();
   const contradictionIds: string[] = [];
   const unverifiedIds: string[] = [];
@@ -127,6 +130,7 @@ export function auditCredibilityReport(report: any, now: Date = new Date()): Rep
     factual++;
     if (VERIFIED.has(status)) verified++;
     else if (FALSE_LIKE.has(status)) falseCount++;
+    else if (UNPROVEN.has(status) || !status) unproven++;
     else caution++;
 
     const srcs = displayedSources(c);
@@ -142,8 +146,8 @@ export function auditCredibilityReport(report: any, now: Date = new Date()): Rep
       if (s.urlVerification && !isLiveVerificationRecord(s.urlVerification)) unverifiedIds.push(id);
     }
 
-    const isCaution = !VERIFIED.has(status) && !FALSE_LIKE.has(status);
-    if ((isCaution && CONFIRMS_RX.test(reasoning) && !DENIES_RX.test(reasoning)) ||
+    const isUnconfirmedVerdict = !VERIFIED.has(status) && !FALSE_LIKE.has(status);
+    if ((isUnconfirmedVerdict && CONFIRMS_RX.test(reasoning) && !DENIES_RX.test(reasoning)) ||
         (VERIFIED.has(status) && DENIES_RX.test(reasoning) && !CONFIRMS_RX.test(reasoning))) {
       contradictionIds.push(id);
     }
@@ -200,11 +204,16 @@ export function auditCredibilityReport(report: any, now: Date = new Date()): Rep
       message: `${zeroSourceIds.length} of ${factual} factual claims have no source.` });
   }
 
-  // 5. Caution-heavy outcome
+  // 5. Caution-heavy / Unproven-heavy outcome (keep CAUTION and UNPROVEN distinct)
   const cautionRatio = factual > 0 ? caution / factual : 0;
+  const unprovenRatio = factual > 0 ? unproven / factual : 0;
   if (factual >= 5 && cautionRatio >= 0.7) {
     checks.push({ id: "CAUTION_HEAVY", severity: "WARN", value: round(cautionRatio),
       message: `${caution} of ${factual} factual claims ended in Caution.` });
+  }
+  if (factual >= 5 && unprovenRatio >= 0.7) {
+    checks.push({ id: "UNPROVEN_HEAVY", severity: "WARN", value: round(unprovenRatio),
+      message: `${unproven} of ${factual} factual claims ended with no evidence yet.` });
   }
 
   // 6. Video-level source list should cover claim sources
@@ -236,10 +245,13 @@ export function auditCredibilityReport(report: any, now: Date = new Date()): Rep
       verifiedClaims: verified,
       cautionClaims: caution,
       falseClaims: falseCount,
+      unprovenClaims: unproven,
       contextualClaims: contextual,
       factualWithSources,
+      zeroSourceFacts: zeroSourceIds.length,
       zeroSourceFactRatio: round(zeroRatio),
       cautionRatio: round(cautionRatio),
+      unprovenRatio: round(unprovenRatio),
       maxSharedSourceRatio: round(sharedRatio),
       maxSharedSourceUrl: maxSharedUrl,
       distinctClaimSources: sourceToClaims.size,

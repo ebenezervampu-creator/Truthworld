@@ -275,7 +275,7 @@ const FACT_CHECK_SAFETY_SETTINGS = [
 export class FactExtractionService {
   private genAI: VertexAI;
 
-  constructor(apiKey: string) {
+  constructor(_apiKey?: string) {
     this.genAI = getVertexAI();
   }
 

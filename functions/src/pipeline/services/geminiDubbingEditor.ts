@@ -40,6 +40,8 @@ import {
   castRoster,
 } from "./cast-list";
 import { mapWithConcurrency } from "./concurrency";
+import { emitDubbingTiming } from "../utils/dubbing-timing";
+import { parallelTranslationEnabled } from "./latency-flags";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1044,12 +1046,15 @@ export class GeminiDubbingEditor {
       })),
     };
 
+    const tBible = Date.now();
+    let bibleOk = false;
     try {
       const reply = await this.generate({
         model,
         system,
         prompt: JSON.stringify(payload),
       });
+      bibleOk = true;
       const cleaned = (reply.text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
       const parsed = JSON.parse(cleaned);
       const locked: Record<string, FormalityLevel> = { ...defaultLocked };
@@ -1096,6 +1101,14 @@ export class GeminiDubbingEditor {
         visualSceneNotes: opts.visualSceneNotes || [],
         version: "stage4_v2",
       };
+    } finally {
+      emitDubbingTiming("translation.localization_bible", tBible, {
+        jobId: opts.jobId,
+        lang: opts.targetLanguage,
+        model,
+        lines: sampleSegments.length,
+        ok: bibleOk,
+      });
     }
   }
 
@@ -1229,29 +1242,49 @@ export class GeminiDubbingEditor {
    */
   async checkMeaning(segments: EditorSegment[], results: EditorLineResult[], opts: EditorOptions, model: string): Promise<EditorLineResult[]> {
     const out = [...results];
+    const editedTextsSnapshot = out.map((r) => r.text);
     const system = buildMeaningSystem(opts);
     const counts: Record<MeaningAction, number> = { kept: 0, fixed: 0, subtitle: 0, unresolved: 0 };
     const changes: Array<Record<string, unknown>> = [];
+    const chunkStarts: number[] = [];
     for (let start = 0; start < segments.length; start += MEANING_CHECK.linesPerCall) {
+      chunkStarts.push(start);
+    }
+    const meaningConcurrency = parallelTranslationEnabled()
+      ? Math.max(1, Number(process.env.DUBBING_MEANING_CONCURRENCY || 3))
+      : 1;
+
+    await mapWithConcurrency(chunkStarts, meaningConcurrency, async (start) => {
       const idx = Array.from({ length: Math.min(MEANING_CHECK.linesPerCall, segments.length - start) }, (_, k) => start + k);
       const prompt = buildMeaningPrompt(
         idx.map((i) => ({
           id: segments[i].id,
           source: segments[i].source,
-          spoken: out[i].text,
+          spoken: editedTextsSnapshot[i],
           subtitle: out[i].subtitleText,
           maxSyllables: segments[i].maxSyllables,
-          ...(i > 0 ? { previousSource: segments[i - 1].source, previousSpoken: out[i - 1].text } : {}),
+          ...(i > 0 ? { previousSource: segments[i - 1].source, previousSpoken: editedTextsSnapshot[i - 1] } : {}),
         }))
       );
       let verdicts: Map<string, MeaningVerdict>;
+      const tMeaning = Date.now();
+      let meaningOk = false;
       try {
         const reply = await this.generate({ model, system, prompt, schema: MEANING_SCHEMA, thinkingLevel: "LOW" });
         this.recordCost(opts, reply.inputTokens, reply.outputTokens);
         verdicts = parseMeaningReply(reply.text);
+        meaningOk = true;
       } catch (err: any) {
         logger.warn("[GeminiDubbingEditor] Meaning check skipped for a chunk", { jobId: opts.jobId, firstLine: segments[start]?.id, error: String(err?.message || err) });
-        continue;
+        return;
+      } finally {
+        emitDubbingTiming("translation.meaning_check", tMeaning, {
+          jobId: opts.jobId,
+          lang: opts.targetLanguage,
+          model,
+          lines: idx.length,
+          ok: meaningOk,
+        });
       }
       for (const i of idx) {
         const seg = segments[i];
@@ -1260,6 +1293,7 @@ export class GeminiDubbingEditor {
         counts[r.action]++;
         const polarityFlipped = v?.polarityFlipped;
         const numbersChanged = v?.numbersChanged;
+        const beforeText = out[i].text;
         if (r.text !== out[i].text) {
           const subtitle = r.action === "subtitle" ? r.text : out[i].subtitleText;
           out[i] = this.toResult(seg, r.text, out[i].usedDraft, out[i].reason, opts, subtitle, out[i].appliedRegister, out[i].subtitleRejectReason);
@@ -1271,9 +1305,9 @@ export class GeminiDubbingEditor {
           ...(numbersChanged !== undefined ? { meaningNumbersChanged: numbersChanged } : {}),
         };
         if (r.action === "kept") continue;
-        changes.push({ id: seg.id, action: r.action, problem: v?.problem, before: out[i].text, after: r.text });
+        changes.push({ id: seg.id, action: r.action, problem: v?.problem, before: beforeText, after: r.text });
       }
-    }
+    });
     logger.info("[GeminiDubbingEditor] Meaning check", { jobId: opts.jobId, targetLanguage: opts.targetLanguage, lines: segments.length, ...counts, changes: changes.slice(0, 50) });
     return out;
   }
@@ -1464,14 +1498,21 @@ export class GeminiDubbingEditor {
   ): Promise<Map<string, ParsedEditorItem> | null> {
     const locksBlock = honorificCache ? honorificCache.toPromptBlock() : undefined;
     const prompt = buildUserPrompt(chunk, before, after, opts, tightenOnly, locksBlock);
+    const mode = tightenOnly ? "tighten" : chunk.some((s) => Boolean(s.repairInstruction)) ? "repair" : "edit";
+    const timingStage = tightenOnly ? "translation.editor_tighten" : "translation.editor_edit";
     for (let attempt = 1; attempt <= 2; attempt++) {
+      const tCall = Date.now();
+      let callOk = false;
       try {
         const reply = await this.generate({ model, system, prompt });
         this.recordCost(opts, reply.inputTokens, reply.outputTokens);
         const map = parseEditorReplyDetailed(reply.text);
         const missing = chunk.filter((s) => !map.has(s.id)).map((s) => s.id);
         const extra = Array.from(map.keys()).filter((id) => !chunk.some((s) => s.id === id));
-        if (missing.length === 0 && extra.length === 0) return map;
+        if (missing.length === 0 && extra.length === 0) {
+          callOk = true;
+          return map;
+        }
         logger.warn("[GeminiDubbingEditor] Reply ids do not match request", {
           jobId: opts.jobId, attempt, missing: missing.slice(0, 5), extra: extra.slice(0, 5),
         });
@@ -1480,6 +1521,16 @@ export class GeminiDubbingEditor {
           jobId: opts.jobId, attempt, error: String(err?.message || err),
         });
         if (attempt < 2) await new Promise((r) => setTimeout(r, 800 + Math.random() * 400));
+      } finally {
+        emitDubbingTiming(timingStage, tCall, {
+          jobId: opts.jobId,
+          lang: opts.targetLanguage,
+          model,
+          mode,
+          lines: chunk.length,
+          attempt,
+          ok: callOk,
+        });
       }
     }
     return null;

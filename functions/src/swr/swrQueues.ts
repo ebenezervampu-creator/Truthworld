@@ -5,7 +5,6 @@
  */
 
 import { onTaskDispatched } from "firebase-functions/v2/tasks";
-import { PIPELINE_CONFIG } from "../pipeline/config";
 import { logger } from "../pipeline/utils/logger";
 
 const runSWRTask = async (event: any) => {
@@ -26,9 +25,8 @@ const runSWRTask = async (event: any) => {
     if (payload.cacheKeys.length > 50) {
       payload.cacheKeys = payload.cacheKeys.slice(0, 50);
     }
-    const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
     const { CredibilityEngine } = require("../pipeline/layers/06-credibility");
-    const engine = new CredibilityEngine(geminiKey);
+    const engine = new CredibilityEngine();
     await engine.refreshCacheForClaims(payload);
   } catch (error) {
     logger.error("[SWR Task] Execution failed", { error: String(error) });
@@ -41,7 +39,6 @@ export const refreshHighQueue = onTaskDispatched(
     retryConfig: { maxAttempts: 3, minBackoffSeconds: 10 },
     rateLimits: { maxConcurrentDispatches: 10 },
     region: "asia-south1",
-    secrets: ["GEMINI_API_KEY"],
     memory: "512MiB",
     timeoutSeconds: 300,
   },
@@ -53,7 +50,6 @@ export const refreshMediumQueue = onTaskDispatched(
     retryConfig: { maxAttempts: 2, minBackoffSeconds: 30 },
     rateLimits: { maxConcurrentDispatches: 5 },
     region: "asia-south1",
-    secrets: ["GEMINI_API_KEY"],
     memory: "512MiB",
     timeoutSeconds: 300,
   },
@@ -65,7 +61,6 @@ export const refreshLowQueue = onTaskDispatched(
     retryConfig: { maxAttempts: 1, minBackoffSeconds: 60 },
     rateLimits: { maxConcurrentDispatches: 2 },
     region: "asia-south1",
-    secrets: ["GEMINI_API_KEY"],
     memory: "512MiB",
     timeoutSeconds: 300,
   },
@@ -77,7 +72,6 @@ export const refreshBackgroundQueue = onTaskDispatched(
     retryConfig: { maxAttempts: 1, minBackoffSeconds: 120 },
     rateLimits: { maxConcurrentDispatches: 1 },
     region: "asia-south1",
-    secrets: ["GEMINI_API_KEY"],
     memory: "512MiB",
     timeoutSeconds: 300,
   },

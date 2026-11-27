@@ -53,16 +53,16 @@ class DubbingPricingSummary extends StatelessWidget {
       final String buttonLabel;
       if (loading) {
         buttonLabel = selectedCount > 1
-            ? 'Generating $selectedCount Audio Tracks...'
+            ? 'Generating $selectedCount Dubs...'
             : 'Generating...';
       } else if (isInsufficient) {
         buttonLabel = selectedCount > 1
-            ? 'Pay \$${activeRate.toStringAsFixed(2)} & Generate $selectedCount Tracks'
-            : 'Pay \$${activeRate.toStringAsFixed(2)} & Generate Track';
+            ? 'Pay \$${activeRate.toStringAsFixed(2)} & Generate $selectedCount Dubs'
+            : 'Pay \$${activeRate.toStringAsFixed(2)} & Generate Dub';
       } else if (selectedCount > 1) {
-        buttonLabel = 'Generate $selectedCount Audio Tracks';
+        buttonLabel = 'Generate $selectedCount Dubs';
       } else {
-        buttonLabel = 'Generate Audio Track';
+        buttonLabel = 'Generate Dub';
       }
 
       return Column(
@@ -126,7 +126,7 @@ class DubbingPricingSummary extends StatelessWidget {
                   ? () {
                       if (selectedCount == 0) {
                         AppSnackbar.warning(
-                          'Please select a language to generate audio tracks.',
+                          'Please select a language to generate dubs.',
                           title: 'Select Language',
                         );
                         showLanguagePicker(context, state);

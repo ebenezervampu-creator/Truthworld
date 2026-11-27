@@ -93,7 +93,7 @@ class AudioTrackDubbingOptionsPage extends StatelessWidget {
 
                   // Display Heading & Subtitle using TruthWorld Sans + Roboto
                   Text(
-                    'Audio Track & Dubbing',
+                    'Dubs',
                     style: typography.display.copyWith(
                       fontFamily: TWTypography.brandFamily,
                       fontSize: 26,
@@ -105,7 +105,7 @@ class AudioTrackDubbingOptionsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Create a new audio track or dub your video into another language.',
+                    'Create a new dub or upload a dubbed track for your video.',
                     style: typography.body.copyWith(
                       fontSize: 13.5,
                       color: colors.textSecondary,

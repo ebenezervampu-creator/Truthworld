@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 
 /// Whether the server could price the dub yet.
@@ -84,23 +85,30 @@ class DubbingQuoteService {
 
   final FirebaseFunctions? _functionsInstance;
   FirebaseFunctions get _functions =>
-      _functionsInstance ?? FirebaseFunctions.instanceFor(region: 'asia-south1');
+      _functionsInstance ?? FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion);
 
   /// Never throws: failures come back as [DubbingQuoteStatus.unavailable].
   Future<DubbingQuote> fetch({
     required String videoId,
     required List<String> targetLanguages,
     int durationSeconds = 0,
+    String sourceLanguage = 'en',
+    String mode = 'dubbing',
+    String? pipelineJobId,
   }) async {
-    if (videoId.isEmpty || targetLanguages.isEmpty) {
+    final cleanVideoId = videoId.trim();
+    if ((cleanVideoId.isEmpty && durationSeconds <= 0) || targetLanguages.isEmpty) {
       return const DubbingQuote(status: DubbingQuoteStatus.ready);
     }
     try {
       // Callable results arrive as Map<Object?, Object?> on some platforms: read as dynamic.
       final result = await _functions.httpsCallable('getDubbingQuote').call<dynamic>({
-        'videoId': videoId,
+        'videoId': cleanVideoId,
         'targetLanguages': targetLanguages,
         'durationSeconds': durationSeconds,
+        'sourceLanguage': sourceLanguage,
+        'mode': mode,
+        if (pipelineJobId != null && pipelineJobId.isNotEmpty) 'pipelineJobId': pipelineJobId,
       });
       final data = result.data;
       if (data is! Map) return const DubbingQuote.unavailable();

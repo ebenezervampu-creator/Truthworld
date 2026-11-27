@@ -42,6 +42,7 @@ mixin VideoPlaylistNavigationMixin on GetxController {
   String? get tag;
 
   void flushRemainingWatchTime();
+  Future<void> fireMilestoneEvent(String eventType, int position, int duration);
   Future<void> syncWatchHistory(int currentWatchSeconds, int totalDuration);
   void continueInitialization();
   Future<void> initializeVideoPlayer({String? overrideUrl});
@@ -93,7 +94,11 @@ mixin VideoPlaylistNavigationMixin on GetxController {
 
     final totalDuration = videoPlayerController?.value.duration.inSeconds ?? 0;
     flushRemainingWatchTime();
-    syncWatchHistory(watchStopwatch.elapsed.inSeconds, totalDuration);
+    final actualWatched = watchStopwatch.elapsed.inSeconds;
+    if (totalDuration > 0 && actualWatched >= (totalDuration * 0.85)) {
+      fireMilestoneEvent('complete', actualWatched, totalDuration);
+    }
+    syncWatchHistory(actualWatched, totalDuration);
 
     // YouTube Playback Parity: Once a video completes, clear any handoff state
     // and reset resume position to 0:00 so subsequent views restart cleanly from beginning.

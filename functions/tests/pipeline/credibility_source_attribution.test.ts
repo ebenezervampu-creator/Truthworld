@@ -292,7 +292,8 @@ describe("report quality audit (catches these bugs before users do)", () => {
     const audit = auditCredibilityReport({ claims, sources: [src(ipcs)] });
     const ids = audit.checks.map((c) => c.id);
     expect(audit.grade).toBe("FAIL");
-    expect(ids).toEqual(expect.arrayContaining(["SHARED_SOURCE", "VERDICT_CONTRADICTION", "UNVERIFIED_SOURCE", "CAUTION_HEAVY", "MIXED_LANGUAGE"]));
+    expect(ids).toEqual(expect.arrayContaining(["SHARED_SOURCE", "VERDICT_CONTRADICTION", "UNVERIFIED_SOURCE", "UNPROVEN_HEAVY", "MIXED_LANGUAGE"]));
+    expect(ids).not.toContain("CAUTION_HEAVY");
     expect(audit.metrics.maxSharedSourceUrl).toBe(ipcs);
   });
 

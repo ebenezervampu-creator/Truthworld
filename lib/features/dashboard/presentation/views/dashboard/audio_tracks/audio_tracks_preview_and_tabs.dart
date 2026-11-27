@@ -135,24 +135,12 @@ class AudioTracksTabBar extends StatelessWidget {
                 children: [
                   AudioTracksTabPill(
                     id: 'tracks',
-                    label: 'Audio Tracks',
+                    label: 'Dubs',
                     icon: Icons.graphic_eq_rounded,
                     isActive: activeTab == 'tracks',
                     textColor: textColor,
                     textSecondaryColor: textSecondaryColor,
                     onTap: () => controller.setActiveTab('tracks'),
-                  ),
-                  const SizedBox.shrink(
-                    child: Text(
-                      'AudioTracks & VideoTracks',
-                      style: TextStyle(fontSize: 0, color: Colors.transparent),
-                    ),
-                  ),
-                  const SizedBox.shrink(
-                    child: Text(
-                      'Audio & Video Tracks',
-                      style: TextStyle(fontSize: 0, color: Colors.transparent),
-                    ),
                   ),
                   const SizedBox(width: 8),
                   AudioTracksTabPill(
@@ -356,7 +344,7 @@ class AudioTracksUnderlineTabBar extends StatelessWidget {
             children: [
               _buildTab(
                 id: 'tracks',
-                label: 'Audio Tracks',
+                label: 'Dubs',
                 isActive: active == 'tracks',
               ),
             ],

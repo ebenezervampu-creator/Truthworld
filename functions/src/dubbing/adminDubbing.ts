@@ -1,10 +1,11 @@
+import { DUBBING_REGION } from "../config/regions";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { DubbingWallet, DubbingWalletTransaction } from "./types";
 
 const db = () => admin.firestore();
-const REGION = "asia-south1";
+const REGION = DUBBING_REGION;
 
 /**
  * 🔒 Verifies that the caller is an authorized administrator or platform owner.

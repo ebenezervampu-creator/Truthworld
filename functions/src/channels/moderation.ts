@@ -105,7 +105,6 @@ export const onChannelWritten = onDocumentWritten(
     region: "asia-south1",
     retry: false,
     maxInstances: 2,
-    secrets: ["GEMINI_API_KEY"],
   },
   async (event) => {
     const channelId = event.params.channelId;
@@ -267,16 +266,16 @@ Respond only with the JSON schema specified in your system instructions.`;
       }
     }
 
-    // Retries exhausted
+    // Retries exhausted — fail closed to manual admin review
     const channelRetryReason = `Moderation check failed after ${MAX_RETRIES} attempts. Channel is held for manual review.`;
-    logger.error(`[onChannelWritten] All ${MAX_RETRIES} retries exhausted for channel ${channelId}. Marking as verificationRejected.`);
+    logger.error(`[onChannelWritten] All ${MAX_RETRIES} retries exhausted for channel ${channelId}. Holding as underReview.`);
     await db().collection("channels").doc(channelId).update({
       geminiApproved: false,
-      status: "verificationRejected",
+      status: "underReview",
       moderationReason: channelRetryReason,
       updatedAt: Date.now(),
     });
-    await notifyChannelModeration(channelId, afterData, "verificationRejected", channelRetryReason);
+    await notifyChannelModeration(channelId, afterData, "underReview", channelRetryReason);
   }
 );
 

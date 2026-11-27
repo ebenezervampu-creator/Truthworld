@@ -73,6 +73,7 @@ import 'package:truthworld/theme/app_theme.dart';
               domain: domain,
               url: directUrl ?? url,
               publisher: publisher ?? author,
+              title: title,
               avatarUrl: avatarUrl,
               size: 38,
             ),

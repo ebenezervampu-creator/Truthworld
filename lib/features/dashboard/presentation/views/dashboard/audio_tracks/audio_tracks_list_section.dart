@@ -46,7 +46,7 @@ class AudioTracksListSection extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: 40),
             child: StudioLoadingIndicator(
-              message: 'Loading audio tracks...',
+              message: 'Loading dubs...',
               isFullScreen: false,
             ),
           ),
@@ -142,7 +142,7 @@ class AudioTracksListSection extends StatelessWidget {
             child: Opacity(
               opacity: 0.01,
               child: Text(
-                'Add audio track',
+                'Add dub',
                 style: TextStyle(fontSize: 1, color: Colors.transparent),
               ),
             ),
@@ -153,7 +153,7 @@ class AudioTracksListSection extends StatelessWidget {
             child: Opacity(
               opacity: 0.01,
               child: Text(
-                'AudioTracks',
+                'Dubs',
                 style: TextStyle(fontSize: 1, color: Colors.transparent),
               ),
             ),
@@ -164,7 +164,7 @@ class AudioTracksListSection extends StatelessWidget {
             child: Opacity(
               opacity: 0.01,
               child: Text(
-                'Audio Dubbing & Voiceover Tracks',
+                'Dubs & Voiceover Tracks',
                 style: TextStyle(fontSize: 1, color: Colors.transparent),
               ),
             ),
@@ -186,7 +186,7 @@ class AudioTracksListSection extends StatelessWidget {
             child: Opacity(
               opacity: 0.01,
               child: Text(
-                'Where to Get Direct Audio Tracks (Studio Guide)',
+                'Where to Get Direct Dubs (Studio Guide)',
                 style: TextStyle(fontSize: 1, color: Colors.transparent),
               ),
             ),
@@ -237,7 +237,7 @@ class AudioTracksListSection extends StatelessWidget {
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'Available Audio tracks',
+                  'Available Dubs',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -255,7 +255,7 @@ class AudioTracksListSection extends StatelessWidget {
                   border: Border.all(color: AppColors.bgElevated),
                 ),
                 child: Text(
-                  '${audioList.length} ${audioList.length == 1 ? 'Track' : 'Tracks'}',
+                  '${audioList.length} ${audioList.length == 1 ? 'Dub' : 'Dubs'}',
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
@@ -602,7 +602,7 @@ class AvailableAudioTrackCard extends StatelessWidget {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Generate AI Audio Track',
+                              'Generate AI Dub',
                               style: TextStyle(color: Colors.white, fontSize: 13),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -792,7 +792,7 @@ class AvailableAudioTrackCard extends StatelessWidget {
           (langNotice['message'] as String?)?.isNotEmpty == true;
       final noticeMessage = hasNotice
           ? (langNotice['message'] as String)
-          : 'Audio track not added yet. Click Add to synthesize or upload.';
+          : 'Dub not added yet. Click Add to synthesize or upload.';
 
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -920,7 +920,7 @@ class AvailableAudioTrackCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            isVideoPlaying ? 'Playing in Video' : 'Selected Audio Track',
+                            isVideoPlaying ? 'Playing in Video' : 'Selected Dub',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,

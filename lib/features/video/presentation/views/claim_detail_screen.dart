@@ -2461,12 +2461,15 @@ class ClaimDetailScreen extends StatelessWidget {
   }
 
   double? _extractStartSeconds(Map<dynamic, dynamic> claim) {
-    final raw = claim['startMs'] ??
-        claim['startTimeMs'] ??
-        claim['start'] ??
-        claim['timestampStart'];
-    if (raw == null) return null;
-    final ms = VideoAnalysisHelpers.normalizeTimestampToMs(raw);
+    final hasAnyStart = claim['startMs'] != null ||
+        claim['startTimeMs'] != null ||
+        claim['startSeconds'] != null ||
+        claim['startSec'] != null ||
+        claim['start'] != null ||
+        claim['timestampStart'] != null ||
+        claim['startTime'] != null;
+    if (!hasAnyStart) return null;
+    final ms = VideoAnalysisHelpers.resolveClaimTimestampMs(claim);
     return ms > 0 ? ms / 1000.0 : 0.0;
   }
 

@@ -163,115 +163,6 @@ class DubbingProjectsHub extends GetView<DubbingStudioController> {
     );
   }
 
-  static Future<void> _showPasteUrlDialog(
-    BuildContext context,
-    DubbingStudioController controller,
-  ) async {
-    final urlCtrl = TextEditingController();
-    await Get.dialog<void>(
-      Dialog(
-        backgroundColor: DubbingStudioTheme.cardBg,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: DubbingStudioTheme.borderMedium),
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Paste Media URL',
-                  style: TextStyle(
-                    fontFamily: TWTypography.brandFamily,
-                    color: DubbingStudioTheme.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Enter a direct MP4, MOV, WAV, or MP3 media link to open in the studio.',
-                  style: DubbingStudioTheme.body,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: urlCtrl,
-                  autofocus: true,
-                  style: const TextStyle(
-                    fontFamily: DubbingStudioTheme.monoFamily,
-                    fontFamilyFallback: DubbingStudioTheme.monoFallbacks,
-                    color: DubbingStudioTheme.textPrimary,
-                    fontSize: 13,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'https://cdn.example.com/video.mp4',
-                    hintStyle: const TextStyle(color: DubbingStudioTheme.textTertiary),
-                    filled: true,
-                    fillColor: DubbingStudioTheme.inputBg,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: DubbingStudioTheme.borderSubtle),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: DubbingStudioTheme.borderSubtle),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: DubbingStudioTheme.accentIndigo, width: 1.4),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: Get.back,
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: DubbingStudioTheme.textSecondary),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final url = urlCtrl.text;
-                        Get.back();
-                        await controller.quickPasteUrlFromHub(url);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: const Text(
-                        'Open Media',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    urlCtrl.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -419,7 +310,7 @@ class DubbingProjectsHub extends GetView<DubbingStudioController> {
               Flexible(
                 child: Text(
                   total == 0
-                      ? 'Studio ready  •  70+ languages supported'
+                      ? 'Studio ready  •  English → Telugu, Hindi, Marathi, Tamil & Malayalam live'
                       : '$total ${total == 1 ? 'project' : 'projects'}  •  $actionCount action needed',
                   style: DubbingStudioTheme.monoMeta,
                 ),
@@ -482,7 +373,7 @@ class DubbingProjectsHub extends GetView<DubbingStudioController> {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          'MP4, MOV, WAV, MP3 up to 2 hours',
+                          'MP4, MOV, MKV, WAV, MP3 • up to 1 GB video / 250 MB audio',
                           style: DubbingStudioTheme.monoMeta.copyWith(fontSize: 11.5),
                         ),
                       ],
@@ -499,11 +390,6 @@ class DubbingProjectsHub extends GetView<DubbingStudioController> {
                     icon: Icons.video_file_outlined,
                     label: 'Upload Media',
                     onTap: controller.quickUploadFromHub,
-                  ),
-                  _buildDropzoneActionButton(
-                    icon: Icons.link_rounded,
-                    label: 'Paste URL',
-                    onTap: () => _showPasteUrlDialog(context, controller),
                   ),
                   _buildDropzoneActionButton(
                     key: const Key('create_new_project_card'),

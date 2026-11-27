@@ -54,6 +54,10 @@ class WebPlatformUtilsImpl {
     String mimeType = 'video/mp4',
   ]) async => null;
 
+  static Future<dynamic> fetchBlobFromObjectUrl(String blobUrl) async => null;
+
+  static Future<Duration?> getVideoDurationFromUrl(String url) async => null;
+
   static bool isFullscreen() => false;
   static void requestFullscreen() {}
   static void exitFullscreen() {}

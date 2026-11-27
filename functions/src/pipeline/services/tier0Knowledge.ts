@@ -5,7 +5,7 @@ import type { AdjudicatedClaim, EvidenceProvider } from "../types";
 import { claimCacheService } from "./claimCacheService";
 import { sourceTrustService } from "./sourceTrustService";
 import { normalizeClaimForDeterministicMatch } from "./deterministicRegistry";
-import type { ClaimStatus } from "../types";
+import type { ClaimStatus, SourceRole } from "../types";
 
 export interface Tier0Context {
   claimId: string;
@@ -23,6 +23,8 @@ export interface PreIndexedFactMatch {
   domain: string;
   tier: 'A';
   similarity: number;
+  claimStance: 'SUPPORTS' | 'CONTRADICTS';
+  sourceKind: SourceRole;
 }
 
 interface PreIndexedCorpusEntry {
@@ -35,6 +37,7 @@ interface PreIndexedCorpusEntry {
   source: string;
   url: string;
   domain: string;
+  sourceKind?: SourceRole;
 }
 
 export class Tier0KnowledgeService {
@@ -204,6 +207,8 @@ export class Tier0KnowledgeService {
             domain: entry.domain,
             tier: "A",
             similarity: 1.0,
+            claimStance: entry.status === "false_claim" ? "CONTRADICTS" : "SUPPORTS",
+            sourceKind: entry.sourceKind ?? "REFERENCE",
           };
         }
       }

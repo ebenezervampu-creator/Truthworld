@@ -208,20 +208,47 @@ export function liveSources(claim: any): RichSource[] {
 const sourceUrl = (s: RichSource) => String((s as any)?.url || (s as any)?.directUrl || "");
 const isAuthoritative = (s: RichSource) => ["A", "B"].includes(String(s.tier || "").toUpperCase());
 
+const GOV_OFFICIAL_STATEMENT_PATH_RX = /(?:^|\/)(?:press-releases?|press|news|newsroom|speeches|remarks|statements?|briefings?|announcements?|media-releases?|releases?)(?:\/|$)/i;
+const GOV_ARCHIVAL_REFERENCE_PATH_RX = /(?:^|\/)(?:missions?|archive[sd]?|history|historical|facts?|factsheets?|reference|encyclopedia|cuu\/constants?|constants?|education|overview)(?:\/|$)/i;
+const GOV_PRIMARY_RECORD_PATH_RX = /(?:^|\/)(?:datasets?|statistics|stats|tables?|dockets?|judgments?|opinions?|rulings?|statutes?|laws?|acts?|gazettes?|orders?|filings?|treaties)(?:\/|$)/i;
+
+function extractPathname(rawUrl: string): string {
+  try {
+    return new URL(rawUrl).pathname.toLowerCase();
+  } catch {
+    const stripped = String(rawUrl || "").replace(/^https?:\/\/[^/]+/i, "").split(/[?#]/)[0];
+    return stripped.toLowerCase();
+  }
+}
+
 /**
  * Resolves the effective source kind. Institutional .gov / .mil sources default to
  * OFFICIAL_STATEMENT unless explicitly classified as a PRIMARY_RECORD (e.g. court docket,
- * statute text, gazette dataset) or REFERENCE.
+ * statute text, gazette dataset) or REFERENCE — OR residing at a clear archival/mission/
+ * dataset path while NOT residing at a press/news/speech path.
  */
 export function resolveEffectiveSourceKind(s: RichSource): SourceRole {
   const explicit = (s as any)?.sourceKind as SourceRole | undefined;
-  const host = hostOf(sourceUrl(s));
+  const rawUrl = sourceUrl(s);
+  const host = hostOf(rawUrl);
   const inst = classifyInstitutionalHost(host);
   if (inst === "gov") {
-    // Government/military hosts can ONLY be exempted if they are an objective PRIMARY_RECORD
-    // (e.g. court docket, statute text, gazette dataset) or REFERENCE archive.
-    // They can never claim INDEPENDENT_REPORTING.
-    return (explicit === "PRIMARY_RECORD" || explicit === "REFERENCE") ? explicit : "OFFICIAL_STATEMENT";
+    const pathname = extractPathname(rawUrl);
+    if (GOV_OFFICIAL_STATEMENT_PATH_RX.test(pathname)) {
+      return "OFFICIAL_STATEMENT";
+    }
+    if (explicit === "PRIMARY_RECORD" || explicit === "REFERENCE") {
+      return explicit;
+    }
+    if (explicit !== "OFFICIAL_STATEMENT") {
+      if (GOV_PRIMARY_RECORD_PATH_RX.test(pathname)) {
+        return "PRIMARY_RECORD";
+      }
+      if (GOV_ARCHIVAL_REFERENCE_PATH_RX.test(pathname)) {
+        return "REFERENCE";
+      }
+    }
+    return "OFFICIAL_STATEMENT";
   }
   return explicit || "OTHER";
 }

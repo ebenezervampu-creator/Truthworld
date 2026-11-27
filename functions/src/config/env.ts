@@ -19,7 +19,6 @@ export interface FirebaseConfig {
 }
 
 export interface AIServiceConfig {
-  geminiApiKey: string;
   fastTierModel: string;
   verificationModel: string;
   reasoningModel: string;
@@ -88,6 +87,20 @@ export interface EnvironmentConfig {
   analytics: AnalyticsConfig;
 }
 
+export function resolveBigQueryAnalyticsEnabled(override?: boolean): boolean {
+  if (typeof override === "boolean") {
+    return override;
+  }
+  if (process.env.ENABLE_BIGQUERY_ANALYTICS === "false") {
+    return false;
+  }
+  const currentNodeEnv = (process.env.NODE_ENV || "development").toLowerCase();
+  if (currentNodeEnv === "test") {
+    return process.env.ENABLE_BIGQUERY_ANALYTICS === "true";
+  }
+  return true;
+}
+
 const nodeEnv = (process.env.NODE_ENV || "development").toLowerCase() as "development" | "test" | "production";
 const isProduction = nodeEnv === "production";
 const isTest = nodeEnv === "test";
@@ -109,7 +122,6 @@ export const env: EnvironmentConfig = {
   },
 
   ai: {
-    geminiApiKey: process.env.GEMINI_API_KEY || "",
     fastTierModel: process.env.GEMINI_FAST_TIER_MODEL || "gemini-3.5-flash-lite",
     verificationModel: process.env.GEMINI_MODEL_VERIFICATION || "gemini-3.8-flash",
     reasoningModel: process.env.GEMINI_MODEL_REASONING || "gemini-3.8-flash",
@@ -159,7 +171,7 @@ export const env: EnvironmentConfig = {
   },
 
   analytics: {
-    enableBigQueryAnalytics: process.env.ENABLE_BIGQUERY_ANALYTICS === "true",
+    enableBigQueryAnalytics: resolveBigQueryAnalyticsEnabled(),
     bigQueryDataset: process.env.BIGQUERY_DATASET || "truthworld_analytics",
     bigQueryLocation: process.env.BIGQUERY_LOCATION || "asia-south1",
   },

@@ -27,13 +27,7 @@ class VideoAnalysisChaptersSection extends StatelessWidget {
           return next.startTime;
         }
       } else if (next is Map) {
-        final rawNextStart = next['start'] ??
-            next['startMs'] ??
-            next['startTime'] ??
-            next['startTimeMs'] ??
-            next['startSeconds'] ??
-            0;
-        final nextMs = VideoAnalysisHelpers.normalizeTimestampToMs(rawNextStart);
+        final nextMs = VideoAnalysisHelpers.resolveClaimTimestampMs(next);
         final nextDuration = Duration(milliseconds: nextMs);
         if (nextDuration > startDuration) {
           return nextDuration;
@@ -108,22 +102,10 @@ class VideoAnalysisChaptersSection extends StatelessWidget {
               }
               title = extractedTitle.isNotEmpty ? extractedTitle : 'Chapter ${index + 1}';
 
-              final rawStart = rawItem['start'] ??
-                  rawItem['startMs'] ??
-                  rawItem['startTime'] ??
-                  rawItem['startTimeMs'] ??
-                  rawItem['startSeconds'] ??
-                  0;
-              final startVal = VideoAnalysisHelpers.normalizeTimestampToMs(rawStart);
+              final startVal = VideoAnalysisHelpers.resolveClaimTimestampMs(rawItem);
               startDuration = Duration(milliseconds: startVal);
 
-              final rawEnd = rawItem['end'] ??
-                  rawItem['endMs'] ??
-                  rawItem['endTime'] ??
-                  rawItem['endTimeMs'] ??
-                  rawItem['endSeconds'] ??
-                  0;
-              final endVal = VideoAnalysisHelpers.normalizeTimestampToMs(rawEnd);
+              final endVal = VideoAnalysisHelpers.resolveClaimTimestampMs(rawItem, isEnd: true);
               final parsedEnd = Duration(milliseconds: endVal);
 
               if (parsedEnd > startDuration) {

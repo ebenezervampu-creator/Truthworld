@@ -34,6 +34,8 @@ const TOPICS: Record<EventType, string> = {
   "transcription-complete": "transcription.completed",
   "fact-processing":        "factcheck.requested",
   "dubbing-processing":     "dubbing.requested",
+  "dubbing-step-prep":      "dubbing.step.prep",
+  "dubbing-step-translate": "dubbing.step.translate",
   "dubbing-prewarm":        "dubbing.prewarm.requested",
   "dubbing-reel-requested": "dubbing.reel.requested",
   "dubbing-reel-assemble":  "dubbing.reel.assemble",

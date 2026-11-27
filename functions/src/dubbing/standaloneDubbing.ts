@@ -1,3 +1,4 @@
+import { DUBBING_REGION } from "../config/regions";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
@@ -34,8 +35,8 @@ import { audioIdentityService } from "../pipeline/services/audio-identity";
 import { saveDubbingReportArtifact, saveTranslationArtifact } from "../pipeline/services/dubbing-report";
 
 const db = () => admin.firestore();
-const REGION = "asia-south1";
-const CREATE_JOB_REGION = "us-central1";
+const REGION = DUBBING_REGION;
+const CREATE_JOB_REGION = DUBBING_REGION;
 export const STUDIO_JOBS_COLLECTION = "studio_dubbing_jobs";
 
 /**
@@ -233,6 +234,8 @@ export const createDubbingJob = onCall(
       publishToTruthworld = false,
       videoId: requestedVideoId,
       channelId: requestedChannelId,
+      cashfreeOrderId: rawCashfreeOrderId,
+      walletSource: requestedWalletSource,
     } = request.data || {};
 
     if (!sourceMediaUrl && !requestedVideoId) {
@@ -263,8 +266,11 @@ export const createDubbingJob = onCall(
 
     const firestore = db();
 
-    // 1. Resolve Creator Channel
-    let resolvedChannelId = requestedChannelId || null;
+    // 1. Resolve Optional Creator Channel (required only for channel video / Feed Publish)
+    let resolvedChannelId: string | null =
+      typeof requestedChannelId === "string" && requestedChannelId.trim().length > 0
+        ? requestedChannelId.trim()
+        : null;
     if (!resolvedChannelId) {
       try {
         const userChanSnap = await firestore
@@ -278,22 +284,35 @@ export const createDubbingJob = onCall(
       } catch (_) {}
     }
 
-    if (!resolvedChannelId) {
+    const channelRequired =
+      Boolean(requestedChannelId) || Boolean(requestedVideoId) || Boolean(publishToTruthworld);
+    if (channelRequired && !resolvedChannelId) {
       throw new HttpsError(
         "failed-precondition",
-        "A creator channel is required to initiate dubbing. Please set up your channel first."
+        publishToTruthworld
+          ? "A TruthWorld creator channel is required to publish directly to your feed. Turn off Feed Publish to dub privately, or create a channel first."
+          : "A creator channel is required for this video operation. Please set up your channel first."
       );
     }
 
-    const channelRef = firestore.collection("channels").doc(resolvedChannelId);
-    const channelSnap = await channelRef.get();
-    if (!channelSnap.exists) {
-      throw new HttpsError("not-found", "Creator channel not found.");
-    }
-    const channelData = channelSnap.data() || {};
-    const isOwner = channelData.ownerId === uid || channelData.userId === uid;
-    if (!isOwner && !isAdmin) {
-      throw new HttpsError("permission-denied", "You do not own this channel.");
+    let channelRef: admin.firestore.DocumentReference | null = null;
+    let channelData: Record<string, any> = {};
+    if (resolvedChannelId) {
+      channelRef = firestore.collection("channels").doc(resolvedChannelId);
+      const channelSnap = await channelRef.get();
+      if (!channelSnap.exists) {
+        if (channelRequired) {
+          throw new HttpsError("not-found", "Creator channel not found.");
+        }
+        resolvedChannelId = null;
+        channelRef = null;
+      } else {
+        channelData = channelSnap.data() || {};
+        const isOwner = channelData.ownerId === uid || channelData.userId === uid;
+        if (!isOwner && !isAdmin) {
+          throw new HttpsError("permission-denied", "You do not own this channel.");
+        }
+      }
     }
 
     // 2. Resolve or Create Video Document
@@ -322,13 +341,19 @@ export const createDubbingJob = onCall(
             ? Number(vData.durationMs) / 1000
             : 0;
     } else {
-      // A new upload must be a file in this project's storage bucket (the app uploads it there first).
+      // A new upload must be a file in this project's storage bucket under the caller's dubbing_uploads/{uid}/ prefix.
       const info = parseAnyStorageUrl(resolvedMediaUrl);
       const defaultBucket = admin.storage().bucket().name;
       if (!info || info.bucketName !== defaultBucket || !(await checkStorageObjectExists(resolvedMediaUrl))) {
         throw new HttpsError(
           "invalid-argument",
           "We couldn't find your uploaded file. Please upload the video again."
+        );
+      }
+      if (!isAdmin && !info.filePath.startsWith(`dubbing_uploads/${uid}/`)) {
+        throw new HttpsError(
+          "permission-denied",
+          "You can only dub media files uploaded to your own workspace."
         );
       }
     }
@@ -359,7 +384,27 @@ export const createDubbingJob = onCall(
 
     // 3. Server-side price: dubbing via dubbingCharge, "subtitles only" at the subtitle price (studio-order.ts)
     const isSubtitlesOnly = mode === "subtitles_only";
-    const dubbingDiscountPercent = channelDubbingDiscountPercent(channelData, isAdmin);
+    let dubbingDiscountPercent = channelDubbingDiscountPercent(channelData, isAdmin);
+    if (!isAdmin && dubbingDiscountPercent < 100) {
+      try {
+        const userSnap = await firestore.collection("users").doc(uid).get();
+        if (userSnap.exists) {
+          const uData = userSnap.data() || {};
+          if (
+            uData.isDubbingFree === true ||
+            uData.dubbingDiscountType === "free" ||
+            Number(uData.dubbingDiscountPercent) >= 100
+          ) {
+            dubbingDiscountPercent = 100;
+          } else {
+            const uPct = Number(uData.dubbingDiscountPercent || 0);
+            if (uPct > dubbingDiscountPercent) {
+              dubbingDiscountPercent = Math.min(100, uPct);
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
     let dubbingQuote: DubbingQuote | null = null;
     if (!isSubtitlesOnly) try {
@@ -409,100 +454,233 @@ export const createDubbingJob = onCall(
     }
 
     const now = Date.now();
-    const txDocRef = firestore.collection("channel_wallet_transactions").doc();
-    const effectiveTxId = txDocRef.id;
+    const cleanCashfreeOrderId =
+      typeof rawCashfreeOrderId === "string" ? rawCashfreeOrderId.trim() : "";
+    const personalWalletRef = firestore.collection("dubbing_wallets").doc(uid);
+    const channelTxDocRef = firestore.collection("channel_wallet_transactions").doc();
+    const personalTxDocRef = firestore.collection("dubbing_wallet_transactions").doc();
+    let effectiveTxId = cleanCashfreeOrderId || channelTxDocRef.id;
+    let effectiveWalletSource: "channel" | "personal" | "cashfree_direct" = "personal";
     let capturedError: any = null;
 
-    // 4. Atomic OCC Firestore Transaction to debit Channel Wallet (Option B)
+    // 4. Atomic OCC Firestore Transaction: Cashfree direct order -> Channel Wallet -> Personal USD Wallet
     await firestore.runTransaction(async (tx) => {
-      const liveChanSnap = await tx.get(channelRef);
-      if (!liveChanSnap.exists) {
-        capturedError = new HttpsError("not-found", "Channel not found.");
-        throw capturedError;
+      if (cleanCashfreeOrderId) {
+        const orderRef = firestore.collection("payment_orders").doc(cleanCashfreeOrderId);
+        const orderSnap = await tx.get(orderRef);
+        if (!orderSnap.exists) {
+          capturedError = new HttpsError("not-found", "Direct payment order not found.");
+          throw capturedError;
+        }
+        const orderData = orderSnap.data() || {};
+        if (orderData.userId !== uid) {
+          capturedError = new HttpsError("permission-denied", "You do not own this payment order.");
+          throw capturedError;
+        }
+        const orderStatus = String(orderData.status || "").toUpperCase();
+        if (orderStatus !== "PAID" && orderStatus !== "FULFILLED") {
+          capturedError = new HttpsError(
+            "failed-precondition",
+            "Payment order is not confirmed yet. Please complete payment first."
+          );
+          throw capturedError;
+        }
+        const expectedPurpose = isSubtitlesOnly ? "ai_subtitles" : "ai_dubbing";
+        if (orderData.purpose !== expectedPurpose && orderData.purpose !== "ai_dubbing") {
+          capturedError = new HttpsError("invalid-argument", "Payment order purpose does not match this job.");
+          throw capturedError;
+        }
+        if (orderData.consumedByJobId) {
+          capturedError = new HttpsError(
+            "failed-precondition",
+            "This payment order has already been used for another dubbing job."
+          );
+          throw capturedError;
+        }
+        const orderCurrency = String(orderData.currency || "INR").toUpperCase();
+        const verifiedOrderUsd =
+          typeof orderData.verifiedAmountUSD === "number"
+            ? orderData.verifiedAmountUSD
+            : (orderCurrency === "USD"
+                ? Number(orderData.amount || 0)
+                : Number((Number(orderData.amount || 0) / 84.0).toFixed(2)));
+        if (verifiedOrderUsd + 0.01 < totalRequiredCost) {
+          capturedError = new HttpsError(
+            "failed-precondition",
+            `Direct payment amount ($${verifiedOrderUsd.toFixed(2)}) is below the required cost ($${totalRequiredCost.toFixed(2)}).`
+          );
+          throw capturedError;
+        }
+        tx.update(orderRef, {
+          consumedByJobId: pipelineJobId,
+          consumedAt: now,
+        });
+        effectiveTxId = cleanCashfreeOrderId;
+        effectiveWalletSource = "cashfree_direct";
+        return;
       }
 
-      const chData = liveChanSnap.data() || {};
-      const infraConfig = chData.infraConfig || {};
-      const rolloverCredit = Number(infraConfig.rolloverCreditUSD || 0);
-      const fundedBalance = Number(chData.walletBalanceUSD || chData.walletBalance || 0);
+      const [liveChanSnap, personalSnap] = await Promise.all([
+        channelRef ? tx.get(channelRef) : Promise.resolve(null),
+        tx.get(personalWalletRef),
+      ]);
 
-      const totalRevINR =
-        Number(chData.adsRevenueTotal || 0) +
-        Number(chData.premiumSubsRevenueTotal || 0) +
-        Number(chData.membershipRevenueTotal || 0) +
-        Number(chData.superchatRevenueTotal || 0);
-      const withdrawnRevINR = Number(chData.withdrawnRevenueTotal || 0);
-      const availableRevUSD = Math.max(0, totalRevINR - withdrawnRevINR) / 84.0;
-      const totalSpendable = Number((rolloverCredit + fundedBalance + availableRevUSD).toFixed(2));
+      let channelSpendable = 0;
+      let rolloverCredit = 0;
+      let fundedBalance = 0;
+      if (liveChanSnap && liveChanSnap.exists) {
+        const chData = liveChanSnap.data() || {};
+        const infraConfig = chData.infraConfig || {};
+        rolloverCredit = Number(infraConfig.rolloverCreditUSD || 0);
+        fundedBalance = Number(chData.walletBalanceUSD || chData.walletBalance || 0);
+        const totalRevINR =
+          Number(chData.adsRevenueTotal || 0) +
+          Number(chData.premiumSubsRevenueTotal || 0) +
+          Number(chData.membershipRevenueTotal || 0) +
+          Number(chData.superchatRevenueTotal || 0);
+        const withdrawnRevINR = Number(chData.withdrawnRevenueTotal || 0);
+        const availableRevUSD = Math.max(0, totalRevINR - withdrawnRevINR) / 84.0;
+        channelSpendable = Number((rolloverCredit + fundedBalance + availableRevUSD).toFixed(2));
+      }
 
-      if (totalSpendable < totalRequiredCost) {
+      const personalData = personalSnap.exists ? (personalSnap.data() || {}) : {};
+      const personalUsd = Number(personalData.balanceUsd || 0);
+
+      const preferChannel =
+        Boolean(channelRef) &&
+        liveChanSnap?.exists &&
+        (requestedWalletSource === "channel"
+          ? channelSpendable >= totalRequiredCost
+          : (requestedWalletSource !== "personal"
+              ? channelSpendable >= totalRequiredCost
+              : (personalUsd < totalRequiredCost && channelSpendable >= totalRequiredCost)));
+
+      if (preferChannel && channelRef) {
+        let remaining = totalRequiredCost;
+        let rolloverDeducted = 0;
+        if (remaining > 0 && rolloverCredit > 0) {
+          rolloverDeducted = Number(Math.min(rolloverCredit, remaining).toFixed(2));
+          remaining = Number((remaining - rolloverDeducted).toFixed(2));
+        }
+
+        let fundedDeducted = 0;
+        if (remaining > 0 && fundedBalance > 0) {
+          fundedDeducted = Number(Math.min(fundedBalance, remaining).toFixed(2));
+          remaining = Number((remaining - fundedDeducted).toFixed(2));
+        }
+
+        const revenueDeductedUSD = Number(remaining.toFixed(2));
+        const revenueDeductedINR = Number((revenueDeductedUSD * 84.0).toFixed(2));
+        const newRollover = Math.max(0, Number((rolloverCredit - rolloverDeducted).toFixed(2)));
+        const newFundedBalance = Math.max(0, Number((fundedBalance - fundedDeducted).toFixed(2)));
+        const balanceAfter = Math.max(0, Number((channelSpendable - totalRequiredCost).toFixed(2)));
+
+        const channelUpdates: Record<string, any> = {
+          "infraConfig.rolloverCreditUSD": newRollover,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        if (fundedDeducted > 0) {
+          channelUpdates.walletBalanceUSD = newFundedBalance;
+          channelUpdates.walletBalance = newFundedBalance;
+        }
+        if (revenueDeductedINR > 0) {
+          channelUpdates.withdrawnRevenueTotal = admin.firestore.FieldValue.increment(revenueDeductedINR);
+        }
+        tx.update(channelRef, channelUpdates);
+
+        effectiveTxId = channelTxDocRef.id;
+        effectiveWalletSource = "channel";
+        tx.set(channelTxDocRef, {
+          id: effectiveTxId,
+          channelId: resolvedChannelId,
+          userId: uid,
+          amount: totalRequiredCost,
+          trialCreditDeducted: 0,
+          rolloverDeducted,
+          fundedDeducted,
+          revenueDeducted: revenueDeductedUSD,
+          category: "aiDubbing",
+          description: `Dubbing Studio order for "${title}" (${targetLanguages.join(", ").toUpperCase()})`,
+          balanceBefore: channelSpendable,
+          balanceAfter,
+          timestamp: now,
+          redeemed: true,
+          redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+          redeemedByJobId: pipelineJobId,
+          metadata: {
+            videoId: resolvedVideoId || null,
+            pipelineJobId,
+            targetLanguages,
+            durationSeconds: resolvedDuration,
+            costUSD: totalRequiredCost,
+            source: "DubbingStudio",
+          },
+        });
+        return;
+      }
+
+      if (personalUsd < totalRequiredCost) {
+        const bestAvailable = Math.max(personalUsd, channelSpendable);
         capturedError = new HttpsError(
           "failed-precondition",
-          `Insufficient studio wallet balance ($${totalSpendable.toFixed(2)} available vs $${totalRequiredCost.toFixed(2)} required). Please add funds to your channel wallet.`
+          `Insufficient wallet balance ($${bestAvailable.toFixed(2)} available vs $${totalRequiredCost.toFixed(2)} required). Please top up your Dubbing Wallet or pay directly.`
         );
         throw capturedError;
       }
 
-      let remaining = totalRequiredCost;
-      let rolloverDeducted = 0;
-      if (remaining > 0 && rolloverCredit > 0) {
-        rolloverDeducted = Number(Math.min(rolloverCredit, remaining).toFixed(2));
-        remaining = Number((remaining - rolloverDeducted).toFixed(2));
-      }
-
-      let fundedDeducted = 0;
-      if (remaining > 0 && fundedBalance > 0) {
-        fundedDeducted = Number(Math.min(fundedBalance, remaining).toFixed(2));
-        remaining = Number((remaining - fundedDeducted).toFixed(2));
-      }
-
-      const revenueDeductedUSD = Number(remaining.toFixed(2));
-      const revenueDeductedINR = Number((revenueDeductedUSD * 84.0).toFixed(2));
-
-      const newRollover = Math.max(0, Number((rolloverCredit - rolloverDeducted).toFixed(2)));
-      const newFundedBalance = Math.max(0, Number((fundedBalance - fundedDeducted).toFixed(2)));
-      const balanceAfter = Math.max(0, Number((totalSpendable - totalRequiredCost).toFixed(2)));
-
-      const channelUpdates: Record<string, any> = {
-        "infraConfig.rolloverCreditUSD": newRollover,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      };
-      if (fundedDeducted > 0) {
-        channelUpdates.walletBalanceUSD = newFundedBalance;
-        channelUpdates.walletBalance = newFundedBalance;
-      }
-      if (revenueDeductedINR > 0) {
-        channelUpdates.withdrawnRevenueTotal = admin.firestore.FieldValue.increment(revenueDeductedINR);
-      }
-      tx.update(channelRef, channelUpdates);
-
-      // Ledger entry in channel_wallet_transactions
-      tx.set(txDocRef, {
+      effectiveTxId = personalTxDocRef.id;
+      effectiveWalletSource = "personal";
+      const nextPersonalUsd = Math.max(0, Number((personalUsd - totalRequiredCost).toFixed(2)));
+      const prevTxs = Array.isArray(personalData.transactions) ? personalData.transactions : [];
+      const debitDesc = `Dubbing Studio order for "${title}" (${targetLanguages.join(", ").toUpperCase()})`;
+      const debitTx = {
         id: effectiveTxId,
-        channelId: resolvedChannelId,
-        userId: uid,
-        amount: totalRequiredCost,
-        trialCreditDeducted: 0,
-        rolloverDeducted,
-        fundedDeducted,
-        revenueDeducted: revenueDeductedUSD,
-        category: "aiDubbing",
-        description: `Dubbing Studio order for "${title}" (${targetLanguages.join(", ").toUpperCase()})`,
-        balanceBefore: totalSpendable,
-        balanceAfter,
+        type: "job_debit",
+        amountCredits: 0,
+        amountUsd: totalRequiredCost,
+        description: debitDesc,
+        jobId: pipelineJobId,
         timestamp: now,
-        redeemed: true,
-        redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
-        redeemedByJobId: pipelineJobId,
-        metadata: {
-          videoId: resolvedVideoId || null,
-          pipelineJobId,
-          targetLanguages,
-          durationSeconds: resolvedDuration,
-          costUSD: totalRequiredCost,
-          source: "DubbingStudio",
-        },
-      });
+      };
+
+      if (totalRequiredCost > 0 || !personalSnap.exists) {
+        tx.set(
+          personalWalletRef,
+          {
+            userId: uid,
+            balanceCredits: Number(personalData.balanceCredits || 0),
+            balanceUsd: nextPersonalUsd,
+            trialClaimed: Boolean(personalData.trialClaimed),
+            totalCharactersUsed: Number(personalData.totalCharactersUsed || 0),
+            totalSpentUsd: Number((Number(personalData.totalSpentUsd || 0) + totalRequiredCost).toFixed(2)),
+            transactions: totalRequiredCost > 0 ? [debitTx, ...prevTxs].slice(0, 100) : prevTxs,
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+      }
+
+      if (totalRequiredCost > 0) {
+        tx.set(personalTxDocRef, {
+          id: effectiveTxId,
+          orderId: effectiveTxId,
+          jobId: pipelineJobId,
+          userId: uid,
+          type: "job_debit",
+          amountUsd: totalRequiredCost,
+          balanceBefore: personalUsd,
+          balanceAfter: nextPersonalUsd,
+          description: debitDesc,
+          timestamp: now,
+          metadata: {
+            videoId: resolvedVideoId || null,
+            pipelineJobId,
+            targetLanguages,
+            durationSeconds: resolvedDuration,
+            source: "DubbingStudio",
+          },
+        });
+      }
     });
 
     // 5. Per-order record for per-language refundability (refundService.ts)
@@ -512,7 +690,9 @@ export const createDubbingJob = onCall(
         jobId: pipelineJobId,
         videoId: resolvedVideoId || pipelineJobId,
         userId: uid,
-        channelId: resolvedChannelId,
+        channelId: resolvedChannelId || "",
+        walletSource: effectiveWalletSource,
+        ...(cleanCashfreeOrderId ? { cashfreeOrderId: cleanCashfreeOrderId } : {}),
         paidUSD: totalRequiredCost,
         dubbingUSD: charge.dubbingUsd,
         subtitleUSD: charge.subtitleUsd,
@@ -534,10 +714,45 @@ export const createDubbingJob = onCall(
       );
     }
 
+    const sanitizedDemuxOptions: DubbingDemuxOptions = {
+      isolateVocals: demuxOptions?.isolateVocals !== false,
+      preserveBgm: demuxOptions?.preserveBgm !== false,
+      bgmDuckLevelPercent: Math.max(0, Math.min(50, Number(demuxOptions?.bgmDuckLevelPercent ?? 25))),
+      noiseSuppression: demuxOptions?.noiseSuppression !== false,
+    };
+
+    const speakerOverrides: ExecutionPlan["speakerOverrides"] = {};
+    if (Array.isArray(speakers)) {
+      for (const spk of speakers) {
+        if (!spk || typeof spk !== "object") continue;
+        const spkId = String((spk as any).speakerId || (spk as any).id || "").trim();
+        if (!spkId) continue;
+        const rawVoice = String((spk as any).assignedVoiceId || "").trim();
+        const assignedVoiceId =
+          rawVoice && rawVoice !== "default_voice" && rawVoice !== "voice_telugu_charan"
+            ? rawVoice
+            : undefined;
+        const rawPitch = Number((spk as any).pitchAdjustment ?? 0);
+        const rawSpeed = Number((spk as any).speedAdjustment ?? 1.0);
+        const pitchAdjustment = Number.isFinite(rawPitch) ? Math.max(-12, Math.min(12, rawPitch)) : 0;
+        const speedAdjustment = Number.isFinite(rawSpeed) ? Math.max(0.5, Math.min(2.0, rawSpeed)) : 1.0;
+        if (assignedVoiceId || pitchAdjustment !== 0 || speedAdjustment !== 1.0) {
+          speakerOverrides[spkId] = {
+            ...(assignedVoiceId ? { assignedVoiceId } : {}),
+            isClonedVoice: Boolean((spk as any).isClonedVoice),
+            pitchAdjustment,
+            speedAdjustment,
+          };
+        }
+      }
+    }
+
     // 6. Pipeline Execution: Setup video_jobs/{pipelineJobId} & dispatch to real pipeline
     const executionPlan: ExecutionPlan = {
       jobId: pipelineJobId,
       videoId: resolvedVideoId || "",
+      ...(resolvedChannelId ? { channelId: resolvedChannelId } : {}),
+      title,
       primaryLanguage: sourceLanguage || "en",
       sourceLanguage: sourceLanguage || "en",
       languages: targetLanguages,
@@ -560,7 +775,11 @@ export const createDubbingJob = onCall(
       deliverDubbedVideo: !isSubtitlesOnly,
       duration: resolvedDuration,
       durationSeconds: resolvedDuration,
-      stemIsolation: Boolean(demuxOptions?.isolateVocals),
+      stemIsolation: Boolean(sanitizedDemuxOptions.isolateVocals),
+      twoStageReviewEnabled: !isSubtitlesOnly && Boolean(twoStageReviewEnabled),
+      publishToTruthworld: !isSubtitlesOnly && Boolean(publishToTruthworld) && Boolean(resolvedChannelId),
+      demuxOptions: sanitizedDemuxOptions,
+      ...(Object.keys(speakerOverrides).length > 0 ? { speakerOverrides } : {}),
       cinemaGrade: false,
       priority: "normal",
       priorityMode: "accuracy",
@@ -583,7 +802,8 @@ export const createDubbingJob = onCall(
         studioJobId,
         videoId: resolvedVideoId || "",
         userId: uid,
-        channelId: resolvedChannelId,
+        channelId: resolvedChannelId || "",
+        walletSource: effectiveWalletSource,
         videoUrl: resolvedMediaUrl,
         fileName: title,
         status: "processing",
@@ -754,7 +974,9 @@ export const createDubbingJob = onCall(
       costUsd: totalRequiredCost,
       videoId: resolvedVideoId || undefined,
       pipelineJobId,
-      channelId: resolvedChannelId,
+      ...(resolvedChannelId ? { channelId: resolvedChannelId } : {}),
+      walletSource: effectiveWalletSource,
+      ...(cleanCashfreeOrderId ? { cashfreeOrderId: cleanCashfreeOrderId } : {}),
       segmentsByLanguage: {},
       createdAt: now,
       updatedAt: now,
@@ -823,12 +1045,80 @@ export const updateDubbingTranscription = onCall(
     };
 
     if (approveForTTS) {
-      updatePayload.status = "synthesizing_speech";
-      updatePayload.progressPercent = 65;
-      updatePayload.currentStepMessage = "Synthesizing regional voice cloning & TTS...";
-    }
+      const approvedJob = await firestore.runTransaction(async (tx) => {
+        const liveSnap = await tx.get(jobRef);
+        if (!liveSnap.exists) {
+          throw new HttpsError("not-found", "Dubbing job not found.");
+        }
+        const liveData = liveSnap.data() as DubbingJob;
+        if (liveData.userId !== uid) {
+          throw new HttpsError("permission-denied", "You do not own this dubbing job.");
+        }
+        if (liveData.status !== "awaiting_transcription_review") {
+          throw new HttpsError(
+            "failed-precondition",
+            "Script review is not currently awaiting approval for this job."
+          );
+        }
+        tx.update(jobRef, {
+          ...updatePayload,
+          status: "synthesizing_speech",
+          progressPercent: 60,
+          currentStepMessage: "Script approved. Generating natural dubbed voices...",
+        });
+        return liveData;
+      });
 
-    await jobRef.update(updatePayload);
+      const pipelineJobId = approvedJob.pipelineJobId || approvedJob.videoId || (approvedJob as any).jobId || jobId;
+      const normLang = normalizeLanguageCode(language);
+      if (pipelineJobId) {
+        const videoJobRef = firestore.collection("video_jobs").doc(pipelineJobId);
+        const videoJobSnap = await videoJobRef.get();
+        if (videoJobSnap.exists) {
+          const vData = videoJobSnap.data() || {};
+          const nextPlan: ExecutionPlan = {
+            ...(vData.executionPlan || {}),
+            twoStageReviewCompleted: true,
+            skipTranscription: true,
+          };
+          await videoJobRef.set(
+            {
+              executionPlan: nextPlan,
+              reviewedSegmentsByLanguage: {
+                ...(vData.reviewedSegmentsByLanguage || {}),
+                [normLang]: segments,
+              },
+              stages: {
+                ...(vData.stages || {}),
+                dubbing: {
+                  ...(vData.stages?.dubbing || {}),
+                  status: "running",
+                  progress: 50,
+                  updatedAt: Date.now(),
+                },
+              },
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          );
+
+          const { DistributionLayer } = require("../pipeline/layers/04-distribution");
+          const distribution = new DistributionLayer();
+          await distribution.publish("dubbing-processing", {
+            eventId: `dub_resume_${pipelineJobId}_${Date.now()}`,
+            eventType: "dubbing-processing",
+            jobId: pipelineJobId,
+            userId: uid,
+            timestamp: Date.now(),
+            data: { videoUrl: vData.videoUrl || approvedJob.sourceMediaUrl, executionPlan: nextPlan },
+            retryCount: 0,
+            source: "DubbingStudioReview",
+          });
+        }
+      }
+    } else {
+      await jobRef.update(updatePayload);
+    }
 
     return {
       success: true,
@@ -843,22 +1133,39 @@ export const updateDubbingTranscription = onCall(
  * 🎛️ Post-TTS Line Regeneration: Re-synthesize a specific line via real dubbingEditorService.
  */
 export const regenerateDubbingSegment = onCall(
-  { cors: true, region: REGION, memory: "512MiB", maxInstances: 10 },
+  {
+    cors: true,
+    region: REGION,
+    memory: "512MiB",
+    maxInstances: 10,
+    secrets: ["ELEVENLABS_API_KEY"],
+  },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
       throw new HttpsError("unauthenticated", "Please sign in to regenerate audio.");
     }
 
-    const { jobId, language, segmentId, segmentIndex: rawIndex, newText, voiceId: targetVoiceId } = request.data || {};
+    const {
+      jobId,
+      language,
+      segmentId,
+      segmentIndex: rawIndex,
+      newText,
+      voiceId: targetVoiceId,
+      speedMultiplier: rawSpeedMultiplier,
+    } = request.data || {};
     if (!jobId || !language) {
       throw new HttpsError("invalid-argument", "Missing jobId or language.");
     }
 
     const firestore = db();
-    let jobSnap = await firestore.collection(STUDIO_JOBS_COLLECTION).doc(jobId).get();
+    const studioRef = firestore.collection(STUDIO_JOBS_COLLECTION).doc(jobId);
+    let jobRef = studioRef;
+    let jobSnap = await studioRef.get();
     if (!jobSnap.exists) {
-      jobSnap = await firestore.collection("dubbing_jobs").doc(jobId).get();
+      jobRef = firestore.collection("dubbing_jobs").doc(jobId);
+      jobSnap = await jobRef.get();
     }
     if (!jobSnap.exists) {
       throw new HttpsError("not-found", "Dubbing job not found.");
@@ -878,6 +1185,11 @@ export const regenerateDubbingSegment = onCall(
       throw new HttpsError("invalid-argument", "Please choose the line you want to regenerate.");
     }
 
+    const speedMultiplier =
+      typeof rawSpeedMultiplier === "number" && Number.isFinite(rawSpeedMultiplier)
+        ? Math.max(0.5, Math.min(2.0, rawSpeedMultiplier))
+        : 1.0;
+
     try {
       const res = await dubbingEditorService.updateSegmentAndResynthesize({
         jobId: pipelineJobId,
@@ -887,7 +1199,38 @@ export const regenerateDubbingSegment = onCall(
         isAdmin: isCallableAdmin(request.auth),
         editedText: newText,
         voiceId: targetVoiceId,
+        speedMultiplier,
       });
+
+      // Sync regenerated segment back to studio_dubbing_jobs so Studio UI updates immediately
+      const existingSegmentsMap = (jobData.segmentsByLanguage || {}) as Record<string, any[]>;
+      const langKey =
+        Object.keys(existingSegmentsMap).find((k) => normalizeLanguageCode(k) === normLang) ||
+        language;
+      const existingList = Array.isArray(existingSegmentsMap[langKey])
+        ? [...existingSegmentsMap[langKey]]
+        : [];
+      if (existingList[resolvedIndex]) {
+        existingList[resolvedIndex] = {
+          ...existingList[resolvedIndex],
+          translatedText: res.segment.editedText || res.segment.translatedText || newText,
+          audioStemUrl: res.playableAudioUrl || res.segment.synthesizedAudioUrl,
+          speedMultiplier,
+          status: "synthesized",
+        };
+        await jobRef
+          .set(
+            {
+              segmentsByLanguage: {
+                ...existingSegmentsMap,
+                [langKey]: existingList,
+              },
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          )
+          .catch(() => {});
+      }
 
       return {
         success: true,
@@ -910,7 +1253,14 @@ export const regenerateDubbingSegment = onCall(
  * Never sets "completed" before the pipeline reports completion.
  */
 export const exportDubbingAssets = onCall(
-  { cors: true, region: REGION, memory: "1GiB", timeoutSeconds: 300, maxInstances: 10 },
+  {
+    cors: true,
+    region: REGION,
+    memory: "1GiB",
+    timeoutSeconds: 300,
+    maxInstances: 10,
+    secrets: ["ELEVENLABS_API_KEY", "DEMUX_WORKER_TOKEN"],
+  },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -995,31 +1345,31 @@ export const exportDubbingAssets = onCall(
           });
 
           if (pkg.videoUrl && isDubbedVideo(pkg.videoUrl) && (await checkStorageObjectExists(pkg.videoUrl))) {
-            videoByLanguage[lang] = pkg.videoUrl;
+            videoByLanguage[lang] = await resolveDownloadUrl(pkg.videoUrl);
           }
           if (pkg.audioUrl && (await checkStorageObjectExists(pkg.audioUrl))) {
-            audioByLanguage[lang] = pkg.audioUrl;
+            audioByLanguage[lang] = await resolveDownloadUrl(pkg.audioUrl);
           }
           if (pkg.dialogueAudioUrl && (await checkStorageObjectExists(pkg.dialogueAudioUrl))) {
-            dialogueAudioByLanguage[lang] = pkg.dialogueAudioUrl;
+            dialogueAudioByLanguage[lang] = await resolveDownloadUrl(pkg.dialogueAudioUrl);
           }
           if (pkg.translationJsonUrl && (await checkStorageObjectExists(pkg.translationJsonUrl))) {
-            translationJsonByLanguage[lang] = pkg.translationJsonUrl;
+            translationJsonByLanguage[lang] = await resolveDownloadUrl(pkg.translationJsonUrl);
           }
           if (!vocalsStemMp3 && pkg.vocalsStemUrl && (await checkStorageObjectExists(pkg.vocalsStemUrl))) {
-            vocalsStemMp3 = pkg.vocalsStemUrl;
+            vocalsStemMp3 = await resolveDownloadUrl(pkg.vocalsStemUrl);
           }
           if (!backgroundStemMp3 && pkg.backgroundStemUrl && (await checkStorageObjectExists(pkg.backgroundStemUrl))) {
-            backgroundStemMp3 = pkg.backgroundStemUrl;
+            backgroundStemMp3 = await resolveDownloadUrl(pkg.backgroundStemUrl);
           }
           if (!reportJson && pkg.reportJsonUrl && (await checkStorageObjectExists(pkg.reportJsonUrl))) {
-            reportJson = pkg.reportJsonUrl;
+            reportJson = await resolveDownloadUrl(pkg.reportJsonUrl);
           }
           if (pkg.srtUrl && (await checkStorageObjectExists(pkg.srtUrl))) {
-            srtMap[lang] = pkg.srtUrl;
+            srtMap[lang] = await resolveDownloadUrl(pkg.srtUrl);
           }
           if (pkg.vttUrl && (await checkStorageObjectExists(pkg.vttUrl))) {
-            vttMap[lang] = pkg.vttUrl;
+            vttMap[lang] = await resolveDownloadUrl(pkg.vttUrl);
           }
         } catch (pkgErr) {
           logger.warn("[DubbingStudio:exportAssets] Notice inspecting export package for language:", {

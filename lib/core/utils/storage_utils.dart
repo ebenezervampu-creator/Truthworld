@@ -451,7 +451,7 @@ class StorageUtils {
 
     final cached = _fastUrlCache[clean];
     if (cached != null && cached.isNotEmpty) {
-      if (_isSignedUrlExpired(cached)) {
+      if (isSignedUrlExpired(cached)) {
         _fastUrlCache.remove(clean);
       } else if (cached.contains('token=') ||
           cached.contains('cdn.truthworld.in') ||
@@ -471,6 +471,14 @@ class StorageUtils {
           : clean;
       _fastUrlCache[clean] = formatted;
       return formatted;
+    }
+
+    // Preserve valid, unexpired GCS signed URLs without triggering a redundant getDownloadURL()
+    // call (which can fail with permission-denied on pipeline-generated video paths).
+    if ((clean.contains('X-Goog-Signature=') || clean.contains('Signature=')) &&
+        !isSignedUrlExpired(clean)) {
+      _fastUrlCache[clean] = clean;
+      return clean;
     }
 
     // If it's an external third-party URL (neither GCS nor Firebase Storage), return as-is
@@ -502,7 +510,7 @@ class StorageUtils {
             errStr.contains('timeoutexception') ||
             errStr.contains('timeout')) {
           logger.info(
-            'StorageUtils.resolveUrl probe miss or timeout: $clean',
+            'StorageUtils.resolveUrl probe miss or timeout ($e): $clean',
             tag: 'StorageUtils.resolveUrl',
           );
         } else {
@@ -518,7 +526,8 @@ class StorageUtils {
     return getFastDownloadUrl(clean);
   }
 
-  static bool _isSignedUrlExpired(String url) {
+  /// Returns `true` when [url] is a signed GCS/Firebase URL whose signature has expired.
+  static bool isSignedUrlExpired(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
     final qp = uri.queryParameters;

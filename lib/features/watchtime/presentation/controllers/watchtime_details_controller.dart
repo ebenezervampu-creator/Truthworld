@@ -98,11 +98,8 @@ class WatchtimeDetailsController extends BaseController {
 
         final vData = doc.data() as Map<String, dynamic>? ?? {};
         final vViews = (vData['viewCount'] as num?)?.toInt() ?? (vData['views'] as num?)?.toInt() ?? 0;
-        var vWatch = (vData['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+        final vWatch = (vData['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
         final vDur = (vData['durationSeconds'] as num?)?.toInt() ?? 0;
-        if (vWatch <= 0 && vViews > 0 && vDur > 0) {
-          vWatch = (vViews * vDur * 0.75).round();
-        }
         return WatchtimeVideoItem(
           id: doc.id,
           title: videoTitle,

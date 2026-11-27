@@ -1,10 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 
 class VideoReportRepository {
-  VideoReportRepository();
+  VideoReportRepository({FirebaseFunctions? functions})
+      : _functions =
+            functions ?? FirebaseFunctions.instanceFor(region: 'asia-south1');
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFunctions _functions;
   final int reportThresholdToBlock = 5;
 
   /// Validate report details for inappropriate content
@@ -38,57 +40,11 @@ class VideoReportRepository {
       }
     }
 
-    final videoRef = _firestore.collection('videos').doc(videoId);
-
-    try {
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(videoRef);
-
-        if (!snapshot.exists) {
-          throw Exception('Video not found.');
-        }
-
-        final videoData = snapshot.data()!;
-        final reports = (videoData['reports'] as List<dynamic>?) ?? [];
-        var reportCount = (videoData['reportCount'] as num?)?.toInt() ?? 0;
-
-        var isUpdated = false;
-
-        // Check for existing report from the same reporter
-        for (var i = 0; i < reports.length; i++) {
-          final report = reports[i] as Map<String, dynamic>?;
-          if (report != null && report['reporterId'] == reporterId) {
-            reports[i] = {
-              'reporterId': reporterId,
-              'reportType': reportType,
-              'details': details?.trim(),
-              'uploadedAt': Timestamp.now(),
-            };
-            isUpdated = true;
-            break;
-          }
-        }
-
-        if (!isUpdated) {
-          reports.add({
-            'reporterId': reporterId,
-            'reportType': reportType,
-            'details': details?.trim(),
-            'uploadedAt': Timestamp.now(),
-          });
-          reportCount++;
-        }
-
-        final shouldBlock = reportCount >= reportThresholdToBlock;
-
-        transaction.update(videoRef, {
-          'reports': reports,
-          'reportCount': reportCount,
-          'isBlocked': shouldBlock,
-        });
-      });
-    } catch (e) {
-      rethrow;
-    }
+    final callable = _functions.httpsCallable('submitVideoReport');
+    await callable.call(<String, dynamic>{
+      'videoId': videoId,
+      'reportType': reportType,
+      if (details != null && details.trim().isNotEmpty) 'details': details.trim(),
+    });
   }
 }

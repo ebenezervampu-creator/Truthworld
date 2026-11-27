@@ -1700,3 +1700,68 @@ export function sanitizeReportPayloadForClosedWorld<T>(payload: T): T {
   clone.evidenceSchemaVersion = PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION;
   return clone as T;
 }
+
+const OEMBED_ENDPOINTS: Array<{ hosts: string[]; endpoint: string }> = [
+  { hosts: ["x.com", "twitter.com"], endpoint: "https://publish.twitter.com/oembed" },
+  { hosts: ["youtube.com", "youtu.be"], endpoint: "https://www.youtube.com/oembed" },
+  { hosts: ["reddit.com"], endpoint: "https://www.reddit.com/oembed" },
+  { hosts: ["tiktok.com"], endpoint: "https://www.tiktok.com/oembed" },
+];
+
+/**
+ * Resolves public oEmbed metadata for attributed primary social-post URLs
+ * when raw HTTP GET hits a JS/login wall (e.g., X/Twitter, YouTube, Reddit, TikTok).
+ * Returns null if the platform has no oEmbed endpoint or the post does not exist.
+ */
+export async function resolvePublicOEmbedFallback(rawUrl: string): Promise<UrlVerificationRecord | null> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+  const match = OEMBED_ENDPOINTS.find((entry) =>
+    entry.hosts.some((h) => host === h || host.endsWith(`.${h}`))
+  );
+  if (!match) return null;
+
+  const oembedUrl = `${match.endpoint}?url=${encodeURIComponent(rawUrl)}&format=json`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const resp = await fetch(oembedUrl, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    if (!resp.ok) return null;
+    const data: any = await resp.json();
+    const authorName = String(data?.author_name || "").trim();
+    const authorUrl = String(data?.author_url || "").trim();
+    const rawHtml = String(data?.html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const title = String(data?.title || (authorName ? `${authorName} post` : `${host} post`)).trim();
+    const excerpt = (rawHtml || title).slice(0, 500);
+    if (!excerpt && !authorName) return null;
+
+    return {
+      status: "VERIFIED",
+      originalUrl: rawUrl,
+      canonicalUrl: rawUrl,
+      domain: host,
+      httpStatus: 200,
+      redirectHops: 0,
+      isSoft404: false,
+      contentTitle: title.slice(0, 200),
+      excerpt,
+      ...(authorName ? { authorName } : {}),
+      ...(authorUrl ? { authorUrl } : {}),
+      verifiedAtUtc: new Date().toISOString(),
+      verifierMethod: "api_record",
+      fetchStatus: "API_RESOLVED",
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

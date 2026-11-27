@@ -291,13 +291,6 @@ class AnalyticsFirestoreClient {
                   ? (vData['durationMs'] as num).toInt() ~/ 1000
                   : 0);
 
-          if (vWatchSec <= 0 && vViews > 0 && vDurSec > 0) {
-            vWatchSec = math.min(vViews * vDurSec, (vViews * vDurSec * 0.75).round());
-            if (Get.isRegistered<DistributedCounterService>()) {
-              DistributedCounterService.to.healParentVideoWatchTime(vDoc.id, vWatchSec);
-            }
-          }
-
           if (vDurSec > 0 && vWatchSec > 0) {
             final maxAllowed = math.max(1, vViews) * vDurSec;
             if (vWatchSec > maxAllowed) {

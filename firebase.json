@@ -1614,6 +1614,34 @@
           }
         },
         {
+          "source": "/checkout",
+          "function": {
+            "functionId": "cashfreeHostedCheckout",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/checkout/**",
+          "function": {
+            "functionId": "cashfreeHostedCheckout",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/payment-result",
+          "function": {
+            "functionId": "cashfreeHostedCheckout",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/payment-result/**",
+          "function": {
+            "functionId": "cashfreeHostedCheckout",
+            "region": "asia-south1"
+          }
+        },
+        {
           "source": "/sitemap*.xml",
           "function": {
             "functionId": "seoServer",

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/dubbing/data/dubbing_service.dart';
 import 'package:truthworld/features/dubbing/data/models/dubbing_job.dart';
 import 'package:truthworld/features/dubbing/data/models/dubbing_project.dart';
 import 'package:truthworld/features/dubbing/presentation/controllers/dubbing_studio_controller.dart';
@@ -329,5 +330,204 @@ void main() {
       expect(controller.combinedSubtitlesSrtByLang['hi'], 'https://example.com/hi.srt');
       expect(controller.combinedSubtitlesVttByLang['hi'], 'https://example.com/hi.vtt');
     });
+
+    test('DubbingProject isDeleted serialization round-trips cleanly', () {
+      const active = DubbingProject(
+        id: 'proj_active',
+        userId: 'u1',
+        title: 'Active',
+        createdAt: 1000,
+        updatedAt: 2000,
+      );
+      expect(active.isDeleted, isFalse);
+      expect(active.toMap().containsKey('isDeleted'), isFalse);
+
+      final deleted = active.copyWith(isDeleted: true);
+      expect(deleted.isDeleted, isTrue);
+      expect(deleted.toMap()['isDeleted'], isTrue);
+
+      final decoded = DubbingProject.fromMap(deleted.toMap());
+      expect(decoded.isDeleted, isTrue);
+    });
+
+    test('mergeProjectsAndLegacyJobs excludes soft-deleted projects and prevents job resurrection', () {
+      const deletedProject = DubbingProject(
+        id: 'proj_deleted',
+        userId: 'u1',
+        title: 'Deleted Project',
+        jobIds: ['job_1'],
+        isDeleted: true,
+        createdAt: 1000,
+        updatedAt: 2000,
+      );
+      const activeProject = DubbingProject(
+        id: 'proj_active',
+        userId: 'u1',
+        title: 'Active Project',
+        jobIds: ['job_2'],
+        createdAt: 1500,
+        updatedAt: 2500,
+      );
+      const deletedLegacyTombstone = DubbingProject(
+        id: 'legacy_job_3',
+        userId: 'u1',
+        title: 'Deleted Legacy',
+        jobIds: ['job_3'],
+        isDeleted: true,
+        createdAt: 900,
+        updatedAt: 1900,
+      );
+
+      DubbingJob makeJob(String id) => DubbingJob(
+            id: id,
+            userId: 'u1',
+            title: 'Job $id',
+            mode: DubbingMode.dubbing,
+            status: DubbingJobStatus.completed,
+            progressPercent: 100,
+            currentStepMessage: 'Done',
+            sourceMediaUrl: 'https://example.com/$id.mp4',
+            sourceMediaType: 'video',
+            durationSeconds: 30,
+            characterCount: 300,
+            sourceLanguage: 'en',
+            targetLanguages: const ['te'],
+            voiceCloningEnabled: false,
+            twoStageReviewEnabled: false,
+            publishToTruthworld: false,
+            costUsd: 0.30,
+            totalCharactersCharged: 300,
+            speakers: const [],
+            segmentsByLanguage: const {},
+            createdAt: DateTime(2026, 1, 1),
+          );
+
+      final merged = DubbingStudioController.mergeProjectsAndLegacyJobs(
+        [deletedProject, activeProject, deletedLegacyTombstone],
+        [makeJob('job_1'), makeJob('job_2'), makeJob('job_3'), makeJob('job_4')],
+      );
+
+      expect(merged.map((p) => p.id).toList(), unorderedEquals(['proj_active', 'legacy_job_4']));
+    });
+
+    test('deleteProject soft-deletes projects with jobs and hard-deletes empty drafts', () async {
+      final fakeService = _FakeDubbingProjectService();
+      final controller = DubbingStudioController(service: fakeService);
+
+      const draftProject = DubbingProject(
+        id: 'proj_draft',
+        userId: 'u1',
+        title: 'Draft Project',
+        createdAt: 1000,
+        updatedAt: 1000,
+      );
+      const projectWithJob = DubbingProject(
+        id: 'proj_with_job',
+        userId: 'u1',
+        title: 'Project With Job',
+        jobIds: ['job_10'],
+        createdAt: 1000,
+        updatedAt: 2000,
+      );
+      const legacyProject = DubbingProject(
+        id: 'legacy_job_20',
+        userId: 'u1',
+        title: 'Legacy Project',
+        jobIds: ['job_20'],
+        createdAt: 1000,
+        updatedAt: 1500,
+      );
+
+      fakeService.storedProjects[draftProject.id] = draftProject;
+      fakeService.storedProjects[projectWithJob.id] = projectWithJob;
+      controller.savedProjects.assignAll([draftProject, projectWithJob, legacyProject]);
+
+      await controller.deleteProject(draftProject);
+      expect(fakeService.deletedIds, ['proj_draft']);
+      expect(fakeService.storedProjects.containsKey('proj_draft'), isFalse);
+
+      await controller.deleteProject(projectWithJob);
+      expect(fakeService.storedProjects.containsKey('proj_with_job'), isFalse);
+      expect(fakeService.storedProjects['deleted_proj_with_job']?.jobIds, ['job_10']);
+      expect(fakeService.storedProjects['deleted_proj_with_job']?.toMap().containsKey('isDeleted'), isFalse);
+
+      await controller.deleteProject(legacyProject);
+      expect(fakeService.storedProjects['deleted_legacy_job_20']?.jobIds, ['job_20']);
+      expect(fakeService.storedProjects['deleted_legacy_job_20']?.toMap().containsKey('isDeleted'), isFalse);
+
+      expect(controller.savedProjects, isEmpty);
+
+      // Simulate re-login merge: none of the deleted projects or their jobs should reappear
+      final reloaded = DubbingStudioController.mergeProjectsAndLegacyJobs(
+        fakeService.storedProjects.values.toList(),
+        [
+          DubbingJob(
+            id: 'job_10',
+            userId: 'u1',
+            title: 'Job 10',
+            mode: DubbingMode.dubbing,
+            status: DubbingJobStatus.completed,
+            progressPercent: 100,
+            currentStepMessage: 'Done',
+            sourceMediaUrl: 'https://example.com/10.mp4',
+            sourceMediaType: 'video',
+            durationSeconds: 30,
+            characterCount: 300,
+            sourceLanguage: 'en',
+            targetLanguages: const ['te'],
+            voiceCloningEnabled: false,
+            twoStageReviewEnabled: false,
+            publishToTruthworld: false,
+            costUsd: 0.30,
+            totalCharactersCharged: 300,
+            speakers: const [],
+            segmentsByLanguage: const {},
+            createdAt: DateTime(2026, 1, 1),
+          ),
+          DubbingJob(
+            id: 'job_20',
+            userId: 'u1',
+            title: 'Job 20',
+            mode: DubbingMode.dubbing,
+            status: DubbingJobStatus.completed,
+            progressPercent: 100,
+            currentStepMessage: 'Done',
+            sourceMediaUrl: 'https://example.com/20.mp4',
+            sourceMediaType: 'video',
+            durationSeconds: 30,
+            characterCount: 300,
+            sourceLanguage: 'en',
+            targetLanguages: const ['te'],
+            voiceCloningEnabled: false,
+            twoStageReviewEnabled: false,
+            publishToTruthworld: false,
+            costUsd: 0.30,
+            totalCharactersCharged: 300,
+            speakers: const [],
+            segmentsByLanguage: const {},
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ],
+      );
+      expect(reloaded, isEmpty);
+    });
   });
+}
+
+class _FakeDubbingProjectService extends DubbingService {
+  final Map<String, DubbingProject> storedProjects = {};
+  final List<String> deletedIds = [];
+
+  @override
+  Future<bool> saveProject(DubbingProject project) async {
+    storedProjects[project.id] = project;
+    return true;
+  }
+
+  @override
+  Future<bool> deleteProject(String projectId) async {
+    deletedIds.add(projectId);
+    storedProjects.remove(projectId);
+    return true;
+  }
 }

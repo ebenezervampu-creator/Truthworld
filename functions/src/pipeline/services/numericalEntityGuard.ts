@@ -55,6 +55,14 @@ export class NumericalEntityGuard {
     // Hindi
     एक: 1, दो: 2, तीन: 3, चार: 4, पांच: 5, पाँच: 5, छह: 6, सात: 7, आठ: 8, नौ: 9, दस: 10,
     सौ: 100, हज़ार: 1000, हजार: 1000,
+    // Marathi
+    शून्य: 0, दोन: 2, पाच: 5, सहा: 6, नऊ: 9, दहा: 10, शंभर: 100,
+    // Tamil
+    பூஜ்ஜியம்: 0, ஒன்று: 1, ஒரு: 1, இரண்டு: 2, இரு: 2, மூன்று: 3, நான்கு: 4, ஐந்து: 5, ஆறு: 6, ஏழு: 7, எட்டு: 8, ஒன்பது: 9, பத்து: 10,
+    நூறு: 100, ஆயிரம்: 1000,
+    // Malayalam
+    പൂജ്യം: 0, ഒന്ന്: 1, ഒരു: 1, രണ്ട്: 2, മൂന്ന്: 3, നാല്: 4, അഞ്ച്: 5, ആറ്: 6, ഏഴ്: 7, എട്ട്: 8, ഒൻപത്: 9, പത്ത്: 10,
+    നൂറ്: 100, ആയിരം: 1000,
   };
 
   // Scale Multipliers across Western and Indian Systems
@@ -87,7 +95,11 @@ export class NumericalEntityGuard {
     లక్షల: 1e5,
     लाख: 1e5,
     लाखों: 1e5,
+    लक्ष: 1e5,
+    லட்சம்: 1e5,
     இலட்சம்: 1e5,
+    ലക്ഷം: 1e5,
+    ലക്ഷങ്ങൾ: 1e5,
 
     crore: 1e7,
     crores: 1e7,
@@ -98,19 +110,29 @@ export class NumericalEntityGuard {
     करोड़: 1e7,
     करोड: 1e7,
     करोड़ों: 1e7,
+    कोटी: 1e7,
+    कोट: 1e7,
     கோடி: 1e7,
+    കോടി: 1e7,
+    കോടികൾ: 1e7,
+    दशलक्ष: 1e6,
+    अब्ज: 1e9,
+    மில்லியன்: 1e6,
+    பில்லியன்: 1e9,
+    മില്യൺ: 1e6,
+    ബില്യൺ: 1e9,
   };
 
   // Currency Normalization Symbols
   private static readonly CURRENCY_PATTERNS: Array<{ regex: RegExp; symbol: string }> = [
     { regex: /[$]|(?:\b(?:usd|dollars?)\b)/i, symbol: "USD" },
-    { regex: /[₹]|(?:\b(?:inr|rs\.?|rupees?)\b|రూపాయలు|రూ\.?|रुपये|रुपया)/i, symbol: "INR" },
+    { regex: /[₹]|(?:\b(?:inr|rs\.?|rupees?)\b|రూపాయలు|రూ\.?|रुपये|रुपया|रु\.?|ரூபாய்|ரூ\.?|രൂപ)/i, symbol: "INR" },
     { regex: /[€]|(?:\b(?:eur|euros?)\b)/i, symbol: "EUR" },
     { regex: /[£]|(?:\b(?:gbp|pounds?)\b)/i, symbol: "GBP" },
   ];
 
   // Percentage Words across English and Indic Languages (No \b on non-ASCII Indic scripts)
-  private static readonly PERCENT_REGEX = /%|\bpercent\b|శాతం|ప్రతిశతం|प्रतिशत|சதவீதம்/i;
+  private static readonly PERCENT_REGEX = /%|\bpercent\b|శాతం|ప్రతిశతం|प्रतिशत|फीसदी|फ़ीसदी|टक्के|टक्केवारी|சதவீதம்|ശതമാനം/i;
 
   // Contexts where English "one" is a pronoun/determiner/idiom rather than a cardinal number
   private static readonly NON_NUMERIC_ONE_BEFORE = /\b(?:no|any|every|some|this|that|which|each|another|other|the|such|either|neither)\s+$/i;
@@ -161,7 +183,7 @@ export class NumericalEntityGuard {
 
     // 1. Regular expression capturing:
     // (Optional currency) + (Digits with optional decimal/commas) + (Optional scale multiplier/percent)
-    const pattern = /(?:([$₹€£]|(?:(?:USD|INR|Rs\.?|EUR|GBP)\b|రూపాయలు|రూ\.?|रुपये|रुपया))\s*)?(\d+(?:[.,]\d+)?)(?:\s*(%|\bpercent\b|శాతం|ప్రతిశతం|प्रतिशत|சதவீதம்))?(?:\s*([a-zA-Z\u0C00-\u0C7F\u0900-\u097F\u0B80-\u0BFF]+))?/gi;
+    const pattern = /(?:([$₹€£]|(?:(?:USD|INR|Rs\.?|EUR|GBP)\b|రూపాయలు|రూ\.?|रुपये|रुपया|रु\.?|ரூபாய்|ரூ\.?|രൂപ))\s*)?(\d+(?:[.,]\d+)?)(?:\s*(%|\bpercent\b|శాతం|ప్రతిశతం|प्रतिशत|फीसदी|फ़ीसदी|टक्के|टक्केवारी|சதவீதம்|ശതമാനം))?(?:\s*([a-zA-Z\u0900-\u0D7F]+))?/gi;
 
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(normalizedText)) !== null) {
@@ -213,8 +235,12 @@ export class NumericalEntityGuard {
     }
 
     // 2. Extract spelled-out numbers if they didn't match digits
+    // Note: JS \b only works on ASCII [a-zA-Z0-9_], so non-ASCII Indic words require Unicode property boundaries.
     for (const [word, val] of Object.entries(this.SPELLED_NUMBERS)) {
-      const wordRegex = new RegExp(`\\b${word}\\b`, "gi");
+      const isAscii = /^[\x00-\x7F]+$/.test(word);
+      const wordRegex = isAscii
+        ? new RegExp(`\\b${word}\\b`, "gi")
+        : new RegExp(`(?<![\\p{L}\\p{M}])${word}(?![\\p{L}\\p{M}])`, "gu");
       let wMatch: RegExpExecArray | null;
       while ((wMatch = wordRegex.exec(normalizedText)) !== null) {
         if (word === "one" && this.isNonNumericOne(normalizedText, wMatch.index, wMatch[0].length)) {
@@ -225,10 +251,16 @@ export class NumericalEntityGuard {
           (e) => e.rawIndex !== undefined && Math.abs(e.rawIndex - wMatch!.index) < 5
         );
         if (!exists) {
+          const afterText = normalizedText.slice(wMatch.index + wMatch[0].length);
+          const scaleMatch = afterText.match(/^\s+([a-zA-Z\u0900-\u0D7F]+|%)/i);
+          const trailingScale = scaleMatch?.[1]?.toLowerCase();
+          const multiplier = trailingScale && this.SCALE_MULTIPLIERS[trailingScale] ? this.SCALE_MULTIPLIERS[trailingScale] : 1;
+          const isPercentage = Boolean(trailingScale && this.PERCENT_REGEX.test(trailingScale));
           entities.push({
-            raw: wMatch[0],
-            normalizedValue: val,
-            type: "number",
+            raw: (multiplier > 1 || isPercentage) && scaleMatch ? `${wMatch[0]} ${scaleMatch[1]}` : wMatch[0],
+            normalizedValue: val * multiplier,
+            type: isPercentage ? "percentage" : multiplier > 1 ? "multiplier" : "number",
+            unit: isPercentage ? "%" : undefined,
             rawIndex: wMatch.index,
           });
         }

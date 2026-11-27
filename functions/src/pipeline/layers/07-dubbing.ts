@@ -148,12 +148,28 @@ import {
   cachedStep,
   contentHash,
   hasFallbackSpeakerProfile,
+  hasStepPrefixCached,
   isAcousticOnlyProsody,
   isDefaultFingerprint,
   isFailedDiarization,
 } from "../services/dubbing-step-cache";
+import {
+  parallelTranslationEnabled,
+  sharedTmpEnabled,
+  slidingTtsPoolEnabled,
+  stepHandoffEnabled,
+} from "../services/latency-flags";
+import {
+  DEFAULT_REEL_DURATION_MS,
+  DEFAULT_REEL_THRESHOLD_MS,
+  DEFAULT_REEL_WORKER_MAX_INSTANCES,
+  STEP_HANDOFF_MS,
+  computePerWorkerTtsConcurrency,
+} from "../services/dubbing-step-planner";
+import { readMaxElevenLabsConcurrency } from "../services/elevenlabs-plan";
 import { mapWithConcurrency } from "../services/concurrency";
 import { syncStudioDubbingJobsForPipelineJob } from "../../dubbing/studio-job-sync";
+import { publishCompletedStudioJobToTruthworld } from "../../dubbing/studio-publisher";
 import { saveTranslationArtifact, saveDubbingReportArtifact } from "../services/dubbing-report";
 
 const db = () => admin.firestore();
@@ -465,7 +481,8 @@ export class DubbingEngine {
       }).catch(() => {});
     }
 
-    const DUBBING_TIMEOUT_MS = parseInt(process.env.DUBBING_TIMEOUT_MS || "540000", 10);
+    // Leave 60s headroom before Cloud Run's 540s hard kill so cleanup, checkpoint sync, and refunds complete.
+    const DUBBING_TIMEOUT_MS = parseInt(process.env.DUBBING_TIMEOUT_MS || "480000", 10);
     let timeoutTimer: NodeJS.Timeout | null = null;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutTimer = setTimeout(async () => {
@@ -629,6 +646,39 @@ export class DubbingEngine {
       const prepTimings: Record<string, number> = {};
       const jobDurSec = Number(executionPlan.durationSeconds || executionPlan.duration || 0) ||
         (segments.length > 0 ? segments[segments.length - 1].end / 1000 : 0);
+
+      // Hop 1 delegation for long-form (> 3m): run language-independent prep in handleDubbingPrep
+      // so analysis + separation get their own 540s budget before voices/reels/translation.
+      const preCheckDurationMs = Number(executionPlan.durationSeconds || executionPlan.duration || 0) * 1000 ||
+        (segments.length > 0 ? segments[segments.length - 1].end : 0);
+      const reelThresholdPre = Number(process.env.DUBBING_REEL_THRESHOLD_MS || DEFAULT_REEL_THRESHOLD_MS);
+      if (
+        stepHandoffEnabled() &&
+        executionPlan.generateDubbing &&
+        preCheckDurationMs > reelThresholdPre &&
+        !(executionPlan as any)._prepHandoffDone
+      ) {
+        const sepCached = await hasStepPrefixCached(jobId, "separation");
+        if (!sepCached) {
+          logger.info("[Dubbing:Handoff] Long-form job without cached prep — delegating prep_analysis to handleDubbingPrep", {
+            jobId,
+            preCheckDurationMs,
+            reelThresholdPre,
+          });
+          await this.distribution.publish("dubbing-step-prep", {
+            eventId: `dub_prep_${jobId}_${Date.now()}`,
+            eventType: "dubbing-step-prep",
+            jobId,
+            userId,
+            timestamp: Date.now(),
+            data: { videoUrl, executionPlan },
+            retryCount: 0,
+            source: "dubbing-engine-handoff",
+          });
+          await this.distribution.markEventCompleted(eventId);
+          return [];
+        }
+      }
 
       // 1.2b. Diarization check (dubbing only). Must run before speaker profiling and voice
       // assignment; see runDiarizationCheck. Background separation does not depend on speaker labels,
@@ -1065,15 +1115,39 @@ export class DubbingEngine {
         await fs.promises.mkdir(tmpProfileDir, { recursive: true }).catch(() => {});
 
         try {
-          // Resolve local audio and video files if accessible for multimodal profiling
+          // Resolve local audio (reusing shared /tmp cache) and lazy signed URL for speaker frame range-seek
           const sourceAudioForProfile = isolatedVocalUrl || originalAudioUrl;
           const tVoicesDlStart = Date.now();
-          const localAudioPath = await mediaService.ensureLocalMediaFile(sourceAudioForProfile, tmpProfileDir, ".mp3");
-          const localVideoPath = videoUrl ? await mediaService.ensureLocalMediaFile(videoUrl, tmpProfileDir, ".mp4") : null;
+          const localAudioPath = (sharedTmpEnabled()
+            ? await mediaService.ensureJobLocalFile(jobId, sourceAudioForProfile, ".mp3", 90000)
+            : null) ?? await mediaService.ensureLocalMediaFile(sourceAudioForProfile, tmpProfileDir, ".mp3");
+          let accessibleVideoUrl: string | null | undefined;
+          let fallbackLocalVideoPath: string | null | undefined;
+          const resolveAccessibleVideo = async (): Promise<string | null> => {
+            if (accessibleVideoUrl !== undefined) return accessibleVideoUrl;
+            if (!videoUrl) {
+              accessibleVideoUrl = null;
+              return null;
+            }
+            accessibleVideoUrl = await audioIdentityService.getAccessibleUrl(videoUrl).catch(() => videoUrl);
+            return accessibleVideoUrl;
+          };
+          const resolveFallbackVideo = async (): Promise<string | null> => {
+            if (fallbackLocalVideoPath !== undefined) return fallbackLocalVideoPath;
+            if (!videoUrl) {
+              fallbackLocalVideoPath = null;
+              return null;
+            }
+            fallbackLocalVideoPath = (sharedTmpEnabled()
+              ? await mediaService.ensureJobLocalFile(jobId, videoUrl, ".mp4", 180000)
+              : null) ?? await mediaService.ensureLocalMediaFile(videoUrl, tmpProfileDir, ".mp4");
+            return fallbackLocalVideoPath;
+          };
           emitDubbingTiming("voices.tmp_download", tVoicesDlStart, {
             jobId,
             hasAudio: Boolean(localAudioPath),
-            hasVideo: Boolean(localVideoPath),
+            hasVideo: Boolean(videoUrl),
+            lazyFrameSeek: true,
           });
 
           // Each speaker's clip, frame and multimodal profile are independent of the others, so they
@@ -1150,10 +1224,25 @@ export class DubbingEngine {
                 }
               }
 
-              if (localVideoPath && fs.existsSync(localVideoPath)) {
+              if (videoUrl) {
                 try {
                   const outFrame = path.join(tmpProfileDir, `frame_${profile.speakerId}.jpg`);
-                  await mediaService.extractVideoFrame(localVideoPath, midSec, outFrame);
+                  const remoteVideo = await resolveAccessibleVideo();
+                  let extracted = false;
+                  if (remoteVideo) {
+                    try {
+                      await mediaService.extractVideoFrame(remoteVideo, midSec, outFrame);
+                      extracted = fs.existsSync(outFrame);
+                    } catch {
+                      extracted = false;
+                    }
+                  }
+                  if (!extracted) {
+                    const localVid = await resolveFallbackVideo();
+                    if (localVid && fs.existsSync(localVid)) {
+                      await mediaService.extractVideoFrame(localVid, midSec, outFrame);
+                    }
+                  }
                   if (fs.existsSync(outFrame)) frameImgPath = outFrame;
                 } catch (videoFrameErr) {
                   logger.warn("[Dubbing] Video frame extraction notice:", videoFrameErr);
@@ -1188,6 +1277,20 @@ export class DubbingEngine {
 
             speakerGenderMapping[profile.speakerId] = diarizedProfile.gender === "female" ? "FEMALE" : "MALE";
             diarizedBySpeaker[profile.speakerId] = diarizedProfile;
+
+            // 0. Explicit creator speaker voice override from Standalone Dubbing Studio
+            const spkOverride = executionPlan.speakerOverrides?.[profile.speakerId];
+            if (spkOverride?.assignedVoiceId) {
+              voiceMapping[profile.speakerId] = spkOverride.assignedVoiceId;
+              lockedVoiceSpeakers.add(profile.speakerId);
+              assignedVoiceIds.add(spkOverride.assignedVoiceId);
+              logger.info("[Dubbing:Studio] Applied explicit creator voice override", {
+                jobId,
+                speakerId: profile.speakerId,
+                voiceId: spkOverride.assignedVoiceId,
+              });
+              continue;
+            }
 
             // Per-speaker cloning: the speaker's own cloned voice, made in this run, comes first.
             const ownCloneId = speakerCloneVoices.get(profile.speakerId);
@@ -1503,7 +1606,9 @@ export class DubbingEngine {
       // 🛡️ A7 Fix: lower threshold from 20m to 8m (well under the 540s Cloud Function timeout)
       const resolvedDurationMs = await this.resolveJobDurationMs(jobId, executionPlan, segments);
       const reelThresholdMs = Number(process.env.DUBBING_REEL_THRESHOLD_MS || 8 * 60 * 1000);
-      if (executionPlan.generateDubbing && resolvedDurationMs > reelThresholdMs) {
+      const awaitingTwoStageReview =
+        executionPlan.twoStageReviewEnabled === true && executionPlan.twoStageReviewCompleted !== true;
+      if (executionPlan.generateDubbing && resolvedDurationMs > reelThresholdMs && !awaitingTwoStageReview) {
         logger.info("[Dubbing] Long-form media detected (>8m) — fanning out into distributed reel workers to avoid 540s timeout", {
           jobId,
           resolvedDurationMs,
@@ -1633,6 +1738,25 @@ export class DubbingEngine {
         throw new Error(`All ${languagesToProcess.length} languages failed for job ${jobId}: ${failureDetails.map(f => `${f.lang}: ${f.error}`).join(" | ")}`);
       }
 
+      if (dubbingResults.some((r) => r.dubOutcome === "awaiting_review")) {
+        await db().collection("video_jobs").doc(jobId).set(
+          {
+            updatedAt: Date.now(),
+            stages: {
+              dubbing: {
+                status: "awaiting_transcription_review",
+                progress: 45,
+                updatedAt: Date.now(),
+              },
+            },
+          },
+          { merge: true }
+        );
+        await syncStudioDubbingJobsForPipelineJob(jobId);
+        logger.info("[Dubbing] Paused before TTS for two-stage human script review", { jobId });
+        return dubbingResults;
+      }
+
       // A1/A2: a language counts as failed when it threw, or when its dub was ordered but not
       // delivered (a failure inside the dub step, or a language that can't be dubbed). Each is
       // refunded at the price paid for it, once (refundService.ts).
@@ -1753,6 +1877,34 @@ export class DubbingEngine {
 
       await aggregationLayer.onStageComplete(jobId, "dubbing", userId, executionPlan);
       await syncStudioDubbingJobsForPipelineJob(jobId);
+
+      if (
+        dubbingDelivered &&
+        executionPlan.publishToTruthworld === true &&
+        executionPlan.channelId &&
+        !executionPlan.videoId
+      ) {
+        const vJobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
+        const vJobData = vJobSnap?.exists ? vJobSnap.data() || {} : {};
+        await publishCompletedStudioJobToTruthworld({
+          pipelineJobId: jobId,
+          studioJobId: typeof vJobData.studioJobId === "string" ? vJobData.studioJobId : undefined,
+          userId,
+          channelId: executionPlan.channelId,
+          title: String(executionPlan.title || vJobData.fileName || "Dubbed Video"),
+          durationSeconds: Number(executionPlan.durationSeconds || executionPlan.duration || jobDurSec || 60),
+          sourceLanguage: normSource,
+          sourceMediaUrl: videoUrl,
+          dubbedPaths,
+          audioPaths,
+          subtitlePaths,
+        }).catch((pubErr) => {
+          logger.error("[DubbingStudio:Publish] Non-fatal feed publish error:", {
+            jobId,
+            err: String(pubErr),
+          });
+        });
+      }
 
       logger.info("[Dubbing] Completed", {
         jobId,
@@ -2030,7 +2182,26 @@ export class DubbingEngine {
   async failAfterRetryLimit(jobId: string, userId: string, executionPlan: ExecutionPlan, eventId: string, attempts: number): Promise<{ refundedLanguages: string[] }> {
     const { undelivered } = await this.undeliveredLanguages(jobId, executionPlan);
     if (undelivered.length === 0) {
-      logger.info("[Dubbing] Retry limit reached on an event whose languages are all delivered — nothing to fail", { jobId, eventId, attempts });
+      logger.info("[Dubbing] Retry limit reached on an event whose languages are all delivered — finalizing status", { jobId, eventId, attempts });
+      await this.distribution.markEventCompleted(eventId).catch(() => {});
+      await EdgeLayer.updateStageSync(jobId, "dubbing", {
+        status: "completed",
+        progress: 100,
+        completedAt: Date.now(),
+        error: admin.firestore.FieldValue.delete() as any,
+      }).catch(() => {});
+      await EdgeLayer.upsertDubbingJob(jobId, {
+        status: "completed",
+        progress: 100,
+        completedAt: Date.now(),
+        error: admin.firestore.FieldValue.delete() as any,
+      }).catch(() => {});
+      await syncStudioDubbingJobsForPipelineJob(jobId, null, {
+        status: "completed",
+        progressPercent: 100,
+        currentStepMessage: "Your dubbed audio is ready.",
+        error: admin.firestore.FieldValue.delete() as any,
+      }).catch(() => {});
       return { refundedLanguages: [] };
     }
     const friendly = "Dubbing could not be completed after several attempts. The fee for the undelivered languages has been refunded to your wallet.";
@@ -3283,6 +3454,61 @@ export class DubbingEngine {
       }
 
       if (executionPlan.generateDubbing && targetLang !== sourceLang && isDubbingSupportedForTarget) {
+        if (executionPlan.twoStageReviewEnabled === true && executionPlan.twoStageReviewCompleted !== true) {
+          const reviewSegments = dubbingSegs.map((s, idx) => ({
+            id: `seg_${idx + 1}`,
+            speakerId: s.speaker || "speaker_1",
+            startTimeMs: s.start,
+            endTimeMs: s.end,
+            originalText: s.originalText || "",
+            translatedText: s.translatedText || "",
+            targetLanguage: targetLang,
+            status: "pending",
+            speedMultiplier: 1.0,
+          }));
+          await db()
+            .collection("video_jobs")
+            .doc(jobId)
+            .set(
+              {
+                pendingReviewSegmentsByLanguage: {
+                  [targetLang]: reviewSegments,
+                },
+                updatedAt: Date.now(),
+              },
+              { merge: true }
+            );
+          return {
+            jobId,
+            language: targetLang,
+            subtitleUrl: "",
+            subtitleFormat: "srt",
+            audioUrl: "",
+            videoUrl: "",
+            translationUrl,
+            segments: dubbingSegs.length,
+            processingTime: Date.now() - t0,
+            dubOutcome: "awaiting_review",
+          };
+        }
+
+        if (executionPlan.twoStageReviewCompleted === true) {
+          const vJobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
+          const reviewed = vJobSnap?.exists
+            ? (vJobSnap.data()?.reviewedSegmentsByLanguage?.[targetLang] as Array<Record<string, any>> | undefined)
+            : undefined;
+          if (Array.isArray(reviewed) && reviewed.length > 0) {
+            for (let i = 0; i < Math.min(dubbingSegs.length, reviewed.length); i++) {
+              if (typeof reviewed[i]?.translatedText === "string" && reviewed[i].translatedText.trim().length > 0) {
+                dubbingSegs[i].translatedText = reviewed[i].translatedText.trim();
+              }
+              if (typeof reviewed[i]?.originalText === "string" && reviewed[i].originalText.trim().length > 0) {
+                dubbingSegs[i].originalText = reviewed[i].originalText.trim();
+              }
+            }
+          }
+        }
+
         let leaseAcquired = false;
         let leaseHeartbeat: NodeJS.Timeout | null = null;
         const currentWorkerId = uuidv4();
@@ -3720,6 +3946,7 @@ export class DubbingEngine {
                       userId,
                       ttsTier: dubbingTier as any,
                       voiceType: voiceType as any,
+                      speakingRate: seg.speaker ? executionPlan.speakerOverrides?.[seg.speaker]?.speedAdjustment : undefined,
                       stability: busPayload.voiceSettings.stability,
                       similarityBoost: busPayload.voiceSettings.similarity_boost,
                       style: busPayload.voiceSettings.style,
@@ -3837,6 +4064,7 @@ export class DubbingEngine {
                     userId,
                     ttsTier: dubbingTier as any,
                     voiceType: voiceType as any,
+                    speakingRate: seg.speaker ? executionPlan.speakerOverrides?.[seg.speaker]?.speedAdjustment : undefined,
                     stability: settings.stability,
                     similarityBoost: bus.voiceSettings.similarity_boost,
                     style: settings.style,
@@ -4084,7 +4312,10 @@ export class DubbingEngine {
           let faithfulMixed = false;
           let deliveryTargetLufs: number | undefined;
           let dubSyncReport: DubSyncReport | undefined;
-          if (faithfulMixEnabled()) {
+          const preserveBgm = executionPlan.demuxOptions?.preserveBgm !== false;
+          const bgmDuckLevelPercent = executionPlan.demuxOptions?.bgmDuckLevelPercent;
+
+          if (preserveBgm && faithfulMixEnabled() && bgmDuckLevelPercent === undefined) {
             try {
               await updateDubbingStage("running", 94);
               const sourceAudioUrl = await mediaService.extractStereoSourceAudio(videoUrl, jobId);
@@ -4139,26 +4370,31 @@ export class DubbingEngine {
           }
 
           if (!faithfulMixed && mneStemUrl && mneValidation?.validationStatus !== "failed") {
-            try {
-              await updateDubbingStage("running", 94);
-              logger.info("[Dubbing] Dynamically sidechain-ducking M&E stem with dubbed speech", { jobId, targetLang, tier: executionPlan.dubbingTier });
-              masterAudioUrl = await mediaService.mixDubWithMne(jobId, targetLang, {
-                mneUrl: mneStemUrl,
-                dubbedAudioUrl: rawDialogueUrl,
-                isolatedVocalUrl: isolatedVocalUrl || undefined,
-                sourceWords: sourceWords || undefined,
-                totalDurationSeconds,
-                totalDurationMs,
-                // audioFilters intentionally omitted — dialogue already mastered by stitchAudio;
-                // mixDubWithMne handles the final single-pass loudnorm.
-                roomTone: acousticFingerprint?.roomTone,
-                spokenSegments: segments.map((s) => ({ start: s.start, end: s.end })),
-                isDegradedMne: mneValidation?.validationStatus === "degraded" || mneValidation?.source === "dsp_fallback",
-                mneValidation,
-              });
-              logger.info("[Dubbing] ✅ Non-destructive M&E + Dubbed master mix created", { jobId, targetLang, masterAudioUrl });
-            } catch (mixErr) {
-              logger.warn("[Dubbing] M&E mix notice, falling back to dialogue audio:", mixErr);
+            if (!preserveBgm) {
+              logger.info("[Dubbing] Skipping M&E background mix because preserveBgm is disabled", { jobId, targetLang });
+            } else {
+              try {
+                await updateDubbingStage("running", 94);
+                logger.info("[Dubbing] Dynamically sidechain-ducking M&E stem with dubbed speech", { jobId, targetLang, tier: executionPlan.dubbingTier, bgmDuckLevelPercent });
+                masterAudioUrl = await mediaService.mixDubWithMne(jobId, targetLang, {
+                  mneUrl: mneStemUrl,
+                  dubbedAudioUrl: rawDialogueUrl,
+                  isolatedVocalUrl: isolatedVocalUrl || undefined,
+                  sourceWords: sourceWords || undefined,
+                  totalDurationSeconds,
+                  totalDurationMs,
+                  // audioFilters intentionally omitted — dialogue already mastered by stitchAudio;
+                  // mixDubWithMne handles the final single-pass loudnorm.
+                  roomTone: acousticFingerprint?.roomTone,
+                  bgmDuckLevelPercent,
+                  spokenSegments: segments.map((s) => ({ start: s.start, end: s.end })),
+                  isDegradedMne: mneValidation?.validationStatus === "degraded" || mneValidation?.source === "dsp_fallback",
+                  mneValidation,
+                });
+                logger.info("[Dubbing] ✅ Non-destructive M&E + Dubbed master mix created", { jobId, targetLang, masterAudioUrl });
+              } catch (mixErr) {
+                logger.warn("[Dubbing] M&E mix notice, falling back to dialogue audio:", mixErr);
+              }
             }
           }
 
@@ -4338,14 +4574,19 @@ export class DubbingEngine {
           } else {
             try {
               // Remux dubbed audio into video container cleanly via FFmpeg
+              const isPreMastered = masterAudioUrl !== rawDialogueUrl;
               videoResult = await mediaService.mergeAudioToVideo({
                 jobId, videoUrl, audioUrl, 
                 subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
                 language: targetLang, format: "mp4",
                 audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
-                isPreMastered: masterAudioUrl !== rawDialogueUrl,
+                isPreMastered,
               });
-              videoResult = await this.enforceVideoLoudness(jobId, targetLang, videoResult, deliveryTargetLufs);
+              // enforceDeliveryAudio already verified & normalized masterAudioUrl; skip redundant
+              // full-MP4 download + ebur128 re-scan when mergeAudioToVideo applied no audioFilters.
+              if (!isPreMastered) {
+                videoResult = await this.enforceVideoLoudness(jobId, targetLang, videoResult, deliveryTargetLufs);
+              }
               if (videoResult) {
                 await this.saveDubbingCheckpoint(jobId, targetLang, {
                   masterVideoUrl: videoResult,
@@ -6233,6 +6474,15 @@ export class DubbingEngine {
           }
           return this.withWordTimings(data, jobId, origJobId);
         }
+      }
+    }
+
+    const vJobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
+    const vJobTranscript = vJobSnap?.exists ? vJobSnap.data()?.transcription : null;
+    if (vJobTranscript && Array.isArray(vJobTranscript.utterances || vJobTranscript.segments) && (vJobTranscript.utterances || vJobTranscript.segments).length > 0) {
+      const normalized = this.normalizeTranscriptData(vJobTranscript);
+      if (normalized.utterances.length > 0) {
+        return this.withWordTimings(normalized, jobId, origJobId);
       }
     }
 

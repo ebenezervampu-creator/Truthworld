@@ -76,6 +76,52 @@ class WebPlatformUtilsImpl {
     }
   }
 
+  static Future<dynamic> fetchBlobFromObjectUrl(String blobUrl) async {
+    try {
+      if (blobUrl.trim().isEmpty) return null;
+      final response = await web.window.fetch(blobUrl.toJS).toDart;
+      return await response.blob().toDart;
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'WebPlatformUtils.fetchBlobFromObjectUrl');
+      return null;
+    }
+  }
+
+  static Future<Duration?> getVideoDurationFromUrl(String url) async {
+    try {
+      if (url.trim().isEmpty) return null;
+      final video = web.document.createElement('video') as web.HTMLVideoElement
+        ..src = url
+        ..preload = 'metadata';
+
+      final completer = Completer<Duration?>();
+      video.onloadedmetadata = ((web.Event _) {
+        final durSec = video.duration;
+        if (!completer.isCompleted) {
+          if (!durSec.isNaN && !durSec.isInfinite && durSec > 0) {
+            completer.complete(Duration(seconds: durSec.floor()));
+          } else {
+            completer.complete(null);
+          }
+        }
+      }).toJS;
+
+      video.onerror = ((web.Event _) {
+        if (!completer.isCompleted) {
+          completer.complete(null);
+        }
+      }).toJS;
+
+      return await completer.future.timeout(
+        const Duration(seconds: 6),
+        onTimeout: () => null,
+      );
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'WebPlatformUtils.getVideoDurationFromUrl');
+      return null;
+    }
+  }
+
   static bool isFullscreen() {
     try {
       return web.document.fullscreenElement != null;

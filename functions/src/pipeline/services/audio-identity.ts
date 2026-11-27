@@ -15,7 +15,8 @@ import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
 import { getVertexAI } from "../utils/ai-client";
 import { extractCandidateText, normalizeToGcsUri } from "../utils/ai-utils";
-import { downloadStorageBuffer, getFfmpegPath } from "./media";
+import { downloadStorageBuffer, getFfmpegPath, mediaService } from "./media";
+import { sharedTmpEnabled } from "./latency-flags";
 import { measureLineAcoustics } from "./emotion-transfer";
 import { ElevenLabsEmotionTag, EmotionalIntensityProfile, SegmentProsodyCue } from "../types";
 import {
@@ -253,6 +254,80 @@ export interface AcousticFingerprint {
   speakingRate?: number;
 }
 
+export const PROSODY_MIN_SEGMENT_MS = 250;
+
+/**
+ * Computes segment mean RMS energy (dBFS) directly from decoded mono float32 PCM.
+ * Avoids spawning 60 sequential FFmpeg `volumedetect` processes.
+ */
+export function computeSegmentEnergyFromPcm(
+  pcm: Float32Array,
+  sampleRate: number,
+  startMs: number,
+  endMs: number
+): number | null {
+  if (!pcm || pcm.length === 0 || sampleRate <= 0 || endMs <= startMs) return null;
+  const sIdx = Math.max(0, Math.floor((startMs * sampleRate) / 1000));
+  const eIdx = Math.min(pcm.length, Math.ceil((endMs * sampleRate) / 1000));
+  if (eIdx <= sIdx) return null;
+  let sumSq = 0;
+  for (let i = sIdx; i < eIdx; i++) {
+    const v = pcm[i];
+    sumSq += v * v;
+  }
+  const meanSq = sumSq / (eIdx - sIdx);
+  if (meanSq <= 1e-12) return -120;
+  return Number((10 * Math.log10(meanSq)).toFixed(1));
+}
+
+/** 2:1 box-averaged downsample (e.g. 16 kHz -> 8 kHz) in pure JS. */
+export function downsamplePcm2to1(pcm: Float32Array): Float32Array {
+  const outLen = Math.floor(pcm.length / 2);
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    out[i] = 0.5 * (pcm[i * 2] + pcm[i * 2 + 1]);
+  }
+  return out;
+}
+
+/** Encodes a [startMs, endMs) slice of mono float32 PCM directly to an in-memory 16-bit WAV Buffer. */
+export function encodeMonoWav16FromFloat32(
+  pcm: Float32Array,
+  sampleRate: number,
+  startMs: number,
+  endMs: number,
+  maxDurationMs = 6000
+): Buffer | null {
+  if (!pcm || pcm.length === 0 || sampleRate <= 0 || endMs <= startMs) return null;
+  const clampedEndMs = Math.min(endMs, startMs + maxDurationMs);
+  const sIdx = Math.max(0, Math.floor((startMs * sampleRate) / 1000));
+  const eIdx = Math.min(pcm.length, Math.ceil((clampedEndMs * sampleRate) / 1000));
+  const count = eIdx - sIdx;
+  if (count <= 0) return null;
+
+  const dataBytes = count * 2;
+  const buf = Buffer.allocUnsafe(44 + dataBytes);
+  buf.write("RIFF", 0, "ascii");
+  buf.writeUInt32LE(36 + dataBytes, 4);
+  buf.write("WAVE", 8, "ascii");
+  buf.write("fmt ", 12, "ascii");
+  buf.writeUInt32LE(16, 16); // PCM chunk size
+  buf.writeUInt16LE(1, 20);  // PCM format
+  buf.writeUInt16LE(1, 22);  // mono
+  buf.writeUInt32LE(sampleRate, 24);
+  buf.writeUInt32LE(sampleRate * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36, "ascii");
+  buf.writeUInt32LE(dataBytes, 40);
+
+  for (let i = 0; i < count; i++) {
+    const clamped = Math.max(-1, Math.min(1, pcm[sIdx + i]));
+    buf.writeInt16LE(Math.round(clamped * 32767), 44 + i * 2);
+  }
+  return buf;
+}
+
 export class AudioIdentityService {
   private get model() {
     return getVertexAI().getGenerativeModel({
@@ -452,7 +527,10 @@ Return ONLY a valid JSON object matching this schema:
     return filters.join(",");
   }
 
-  public async getAccessibleUrl(url: string): Promise<string> {
+  public async getAccessibleUrl(
+    url: string,
+    options?: { downloadFileName?: string }
+  ): Promise<string> {
     if (!url) return url;
     if (url.includes("X-Goog-Signature") || url.includes("GoogleAccessId")) return url;
 
@@ -501,6 +579,9 @@ Return ONLY a valid JSON object matching this schema:
         const [signedUrl] = await file.getSignedUrl({
           action: "read",
           expires: Date.now() + 3600 * 1000,
+          ...(options?.downloadFileName
+            ? { responseDisposition: `attachment; filename="${options.downloadFileName}"` }
+            : {}),
         });
         return signedUrl;
       } catch (signErr) {
@@ -566,42 +647,41 @@ Return ONLY a valid JSON object matching this schema:
     const acousticMap = new Map<number, { f0Hz: number | null; voicedRmsDb: number | null; voicedShare?: number | null }>();
     const workDir = path.join(os.tmpdir(), `prosody_deep_${jobId}_${Date.now()}`);
     let localAudioPath: string | null = null;
+    let ownedLocalAudio = false;
+    let pcm16k: Float32Array | null = null;
     const ffmpegPath = getFfmpegPath();
 
     try {
-      // 1. Download source audio once for both RMS volumedetect & per-segment WAV slice extraction
+      // 1. Obtain shared local audio (zero redundant GCS download) & decode once at 16 kHz mono.
       if (audioUrl && ffmpegPath) {
         try {
-          const buf = await downloadStorageBuffer(audioUrl);
-          if (buf && buf.length >= 256) {
-            fs.mkdirSync(workDir, { recursive: true });
-            localAudioPath = path.join(workDir, "source_audio.bin");
-            fs.writeFileSync(localAudioPath, buf);
+          const shared = sharedTmpEnabled()
+            ? await mediaService.ensureJobLocalFile(jobId, audioUrl, ".audio", 90000)
+            : null;
+          if (shared && fs.existsSync(shared)) {
+            localAudioPath = shared;
+          } else {
+            const buf = await downloadStorageBuffer(audioUrl);
+            if (buf && buf.length >= 256) {
+              fs.mkdirSync(workDir, { recursive: true });
+              localAudioPath = path.join(workDir, "source_audio.bin");
+              fs.writeFileSync(localAudioPath, buf);
+              ownedLocalAudio = true;
+            }
+          }
+
+          if (localAudioPath) {
+            const { stdout } = await execFileAsync(
+              ffmpegPath,
+              ["-nostdin", "-v", "error", "-i", localAudioPath, "-ac", "1", "-ar", "16000", "-f", "f32le", "pipe:1"],
+              { encoding: "buffer", maxBuffer: 600 * 1024 * 1024, timeout: 120000 } as any
+            );
+            const rawBuf = Buffer.from(stdout as unknown as Buffer);
+            pcm16k = new Float32Array(rawBuf.buffer, rawBuf.byteOffset, Math.floor(rawBuf.length / 4));
 
             for (const seg of segments.slice(0, 60)) {
-              const startSec = Math.max(0, seg.start / 1000);
-              const durSec = Math.max(0.2, Math.min(20, (seg.end - seg.start) / 1000));
-              try {
-                const { stderr } = await execFileAsync(
-                  ffmpegPath,
-                  [
-                    "-ss", startSec.toFixed(3),
-                    "-t", durSec.toFixed(3),
-                    "-i", localAudioPath,
-                    "-af", "volumedetect",
-                    "-f", "null",
-                    process.platform === "win32" ? "NUL" : "/dev/null",
-                  ],
-                  { timeout: 10000 }
-                );
-                const meanMatch = stderr.match(/mean_volume:\s*(-?[\d.]+)\s*dB/);
-                if (meanMatch) {
-                  const db = parseFloat(meanMatch[1]);
-                  if (Number.isFinite(db)) energyMap.set(seg.index, Number(db.toFixed(1)));
-                }
-              } catch {
-                // Non-fatal per-segment probe
-              }
+              const db = computeSegmentEnergyFromPcm(pcm16k, 16000, seg.start, seg.end);
+              if (db !== null) energyMap.set(seg.index, db);
             }
           }
         } catch {
@@ -610,24 +690,16 @@ Return ONLY a valid JSON object matching this schema:
       }
 
       // 2a. Deep Per-Segment Gemini 3.5 Flash Lite Multimodal Audio Analysis (inlineData WAV slices, bounded concurrency)
-      if (localAudioPath && ffmpegPath) {
+      if (pcm16k && pcm16k.length > 0) {
         try {
-          const { stdout } = await execFileAsync(
-            ffmpegPath,
-            ["-v", "error", "-i", localAudioPath, "-ac", "1", "-ar", "8000", "-f", "f32le", "pipe:1"],
-            { encoding: "buffer", maxBuffer: 400 * 1024 * 1024, timeout: 120000 } as any
-          );
-          const buf = Buffer.from(stdout as unknown as Buffer);
-          const pcm = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 4));
+          const pcm8k = downsamplePcm2to1(pcm16k);
           for (const seg of segments) {
-            acousticMap.set(seg.index, measureLineAcoustics(pcm, 8000, seg.start, seg.end));
+            acousticMap.set(seg.index, measureLineAcoustics(pcm8k, 8000, seg.start, seg.end));
           }
         } catch (acousticErr) {
           logger.warn("[AudioIdentity] Line pitch/loudness measurement skipped", { jobId, error: (acousticErr as Error).message });
         }
-      }
 
-      if (localAudioPath && ffmpegPath) {
         const activeSegments = segments
           .slice(0, 40)
           .filter((seg) => {
@@ -641,25 +713,8 @@ Return ONLY a valid JSON object matching this schema:
           const batch = activeSegments.slice(i, i + CONCURRENCY);
           await Promise.allSettled(
             batch.map(async (seg) => {
-              const startSec = Math.max(0, seg.start / 1000);
-              const durSec = Math.max(0.3, Math.min(6.0, (seg.end - seg.start) / 1000));
-              const clipPath = path.join(workDir, `seg_${seg.index}.wav`);
               try {
-                await execFileAsync(
-                  ffmpegPath,
-                  [
-                    "-y",
-                    "-ss", startSec.toFixed(3),
-                    "-t", durSec.toFixed(3),
-                    "-i", localAudioPath!,
-                    "-ar", "16000",
-                    "-ac", "1",
-                    "-f", "wav",
-                    clipPath,
-                  ],
-                  { timeout: 10000 }
-                );
-                const wavBuf = await fs.promises.readFile(clipPath);
+                const wavBuf = encodeMonoWav16FromFloat32(pcm16k!, 16000, seg.start, seg.end, 6000);
                 if (!wavBuf || wavBuf.length < 256) return;
 
                 const prompt = `Analyze this speaker audio clip for cinema-grade voice acting transfer.
@@ -738,13 +793,12 @@ Return ONLY valid JSON:
                 });
               } catch {
                 // Non-fatal per-segment multimodal failure — falls back below
-              } finally {
-                await fs.promises.unlink(clipPath).catch(() => {});
               }
             })
           );
         }
       }
+      void ownedLocalAudio;
 
       // 2b. Fallback: Single whole-track GCS multimodal batch call if inline WAV slices yielded zero cues
       const gcsUri = audioUrl

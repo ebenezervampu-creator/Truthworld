@@ -217,19 +217,6 @@ class CreatorAnalyticsController extends BaseController
         }
       }
 
-      if (videoWatchTime <= 0 && videoViews > 0 && videoDur > 0) {
-        final reconciled = math.min(
-          videoViews * videoDur,
-          (videoViews * videoDur * 0.75).round(),
-        );
-        if (reconciled > 0) {
-          videoWatchTime = reconciled;
-          if (Get.isRegistered<DistributedCounterService>()) {
-            DistributedCounterService.to.healParentVideoWatchTime(videoId, reconciled);
-          }
-        }
-      }
-
       if (videoDur > 0 && videoWatchTime > 0) {
         final maxAllowed = math.max(1, videoViews) * videoDur;
         videoWatchTime = math.min(videoWatchTime, maxAllowed);
@@ -641,18 +628,6 @@ class CreatorAnalyticsController extends BaseController
           if (shardW > 0) {
             w = shardW;
             DistributedCounterService.to.healParentVideoWatchTime(v.id, shardW);
-          }
-        }
-        if (w <= 0 && v.viewCount > 0 && v.durationSeconds > 0) {
-          final healed = math.min(
-            v.viewCount * v.durationSeconds,
-            (v.viewCount * v.durationSeconds * 0.75).round(),
-          );
-          if (healed > 0) {
-            w = healed;
-            if (Get.isRegistered<DistributedCounterService>()) {
-              DistributedCounterService.to.healParentVideoWatchTime(v.id, healed);
-            }
           }
         }
         resolvedVideos.add(v.copyWith(totalWatchTimeSeconds: w));

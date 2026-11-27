@@ -22,9 +22,19 @@ class DubbingPricingCalculatorCard extends StatelessWidget {
       final publishToTw = controller.publishToTruthworld.value;
       final calculatedCost = controller.calculatedCostUsd;
       final industryCost = controller.industryBenchmarkCostUsd;
-      final chars = controller.totalCharactersRequired;
+      final quote = controller.serverQuote.value;
       final targetCount = controller.targetLanguages.length;
       final savings = (industryCost - calculatedCost).clamp(0, 9999);
+      final hasChannel = controller.userChannel.value != null;
+      final channelName = controller.userChannel.value?.name ?? '';
+      final availableUsd = controller.totalAvailableWalletUsd;
+      final durationMins = (controller.estimatedDurationSeconds.value / 60.0)
+          .clamp(1.0, 999.0);
+      final rateLabel = isSubOnly
+          ? 'Subtitle localization'
+          : (quote != null && quote.isReady && quote.isPricedByCharacters
+              ? 'Character-billed'
+              : '\$0.30/min • ${durationMins.toStringAsFixed(1)} min');
 
       return Container(
         padding: const EdgeInsets.all(14),
@@ -56,7 +66,7 @@ class DubbingPricingCalculatorCard extends StatelessWidget {
                 InkWell(
                   onTap: () => Get.dialog(const DubbingWalletModal()),
                   child: const Text(
-                    'Credits & Wallet →',
+                    'Wallet & Top-Up →',
                     style: TextStyle(
                       fontFamily: TWTypography.uiFamily,
                       color: AppColors.textLink,
@@ -90,7 +100,7 @@ class DubbingPricingCalculatorCard extends StatelessWidget {
                   child: Text(
                     targetCount == 0
                         ? 'Select a language'
-                        : '/ $chars chars • $targetCount ${targetCount == 1 ? 'language' : 'languages'}',
+                        : '$rateLabel • $targetCount ${targetCount == 1 ? 'language' : 'languages'}',
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontFamily: TWTypography.uiFamily,
@@ -141,7 +151,7 @@ class DubbingPricingCalculatorCard extends StatelessWidget {
                   ),
                 ],
               ),
-            ] else if (controller.totalAvailableCharacters >= chars && controller.totalAvailableCharacters > 0) ...[
+            ] else if (targetCount > 0 && controller.hasSufficientBalance) ...[
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -149,7 +159,7 @@ class DubbingPricingCalculatorCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Covered by your balance (${controller.totalAvailableCharacters} chars)',
+                      'Covered by wallet (\$${availableUsd.toStringAsFixed(2)} USD available)',
                       style: const TextStyle(
                         fontFamily: TWTypography.uiFamily,
                         color: AppColors.success,
@@ -162,13 +172,13 @@ class DubbingPricingCalculatorCard extends StatelessWidget {
               ),
             ],
 
-            // Compact TruthWorld Feed Discount Switch
+            // Compact TruthWorld Feed Publishing Switch
             if (!isSubOnly) ...[
               const SizedBox(height: 12),
               Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
               const SizedBox(height: 10),
               InkWell(
-                onTap: () => controller.publishToTruthworld.value = !controller.publishToTruthworld.value,
+                onTap: () => controller.setPublishToTruthworld(!publishToTw),
                 borderRadius: BorderRadius.circular(8),
                 child: Row(
                   children: [
@@ -187,10 +197,12 @@ class DubbingPricingCalculatorCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            r'40% discount ($3 / 10k chars vs $5 export)',
+                            hasChannel
+                                ? 'Add dubbed tracks to ${channelName.isNotEmpty ? channelName : 'your channel'} on completion'
+                                : 'Requires a TruthWorld creator channel to publish publicly',
                             style: TextStyle(
                               fontFamily: TWTypography.uiFamily,
-                              color: publishToTw ? AppColors.textLink : AppColors.textTertiary,
+                              color: publishToTw && hasChannel ? AppColors.textLink : AppColors.textTertiary,
                               fontSize: 10.5,
                             ),
                           ),
@@ -198,12 +210,12 @@ class DubbingPricingCalculatorCard extends StatelessWidget {
                       ),
                     ),
                     Switch(
-                      value: publishToTw,
+                      value: hasChannel && publishToTw,
                       activeThumbColor: Colors.black,
                       activeTrackColor: Colors.white,
                       inactiveThumbColor: AppColors.textSecondary,
                       inactiveTrackColor: const Color(0xFF232329),
-                      onChanged: (val) => controller.publishToTruthworld.value = val,
+                      onChanged: (val) => controller.setPublishToTruthworld(val),
                     ),
                   ],
                 ),

@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/video/data/models/credibility_chat_message.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/services/credibility_governance_service.dart';
@@ -62,7 +64,7 @@ class AiCredibilityChatService {
   AiCredibilityChatService._();
   static final AiCredibilityChatService instance = AiCredibilityChatService._();
 
-  FirebaseFunctions get _functions => FirebaseFunctions.instanceFor(region: 'asia-south1');
+  FirebaseFunctions get _functions => FirebaseFunctions.instanceFor(region: AppConfig.credibilityFunctionsRegion);
 
   /// Client-side session cache for zero latency and minimal backend/LLM invocation cost
   final Map<String, CredibilityChatMessage> _clientCache = {};
@@ -167,7 +169,7 @@ class AiCredibilityChatService {
     }
 
     final streamingUrl = Uri.parse(
-      '${AppConfig.cloudFunctionsBaseUrl}/streamCredibilityAiChat',
+      '${AppConfig.credibilityFunctionsBaseUrl}/streamCredibilityAiChat',
     );
 
     final payload = <String, dynamic>{
@@ -208,17 +210,17 @@ class AiCredibilityChatService {
     http.StreamedResponse? streamedResponse;
     try {
       final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      final headers = await buildStreamRequestHeaders(
+        authToken: token,
+        appCheckTokenLoader: StorageUtils.getAppCheckToken,
+      );
 
       Future<http.StreamedResponse> sendStreamRequest() async {
         if (streamedResponseHandler != null) {
           return streamedResponseHandler!();
         }
         final request = http.Request('POST', streamingUrl)
-          ..headers.addAll({
-            'Content-Type': 'application/json; charset=utf-8',
-            'Accept': 'text/event-stream',
-            if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-          })
+          ..headers.addAll(headers)
           ..body = jsonEncode(payload);
 
         return AppHttpClient.instance.client
@@ -555,6 +557,62 @@ class AiCredibilityChatService {
   }
 
   /// Synthesizes local heuristic message from indexed video fact-check ledger
+  @visibleForTesting
+  static Future<Map<String, String>> buildStreamRequestHeaders({
+    String? authToken,
+    String? appCheckToken,
+    Future<String?> Function()? appCheckTokenLoader,
+  }) async {
+    String? resolvedAppCheck = appCheckToken;
+    if ((resolvedAppCheck == null || resolvedAppCheck.isEmpty) &&
+        appCheckTokenLoader != null) {
+      try {
+        resolvedAppCheck = await appCheckTokenLoader();
+      } catch (_) {
+        resolvedAppCheck = null;
+      }
+    }
+    return <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'text/event-stream',
+      if (authToken != null && authToken.isNotEmpty)
+        'Authorization': 'Bearer $authToken',
+      if (resolvedAppCheck != null && resolvedAppCheck.isNotEmpty)
+        'X-Firebase-AppCheck': resolvedAppCheck,
+    };
+  }
+
+  /// Synthesizes a local heuristic fallback using loaded claims/sources without
+  /// hardcoding unrelated corporate/financial copy.
+  @visibleForTesting
+  CredibilityChatMessage buildLocalHeuristicResponse({
+    required String videoId,
+    required String scope,
+    required String userQuery,
+    int? claimIndex,
+    String? claimText,
+    String? verdict,
+    List<dynamic>? cachedSources,
+    List<dynamic>? cachedClaims,
+    String? videoTitle,
+    String? videoSummary,
+    String? claimExplanation,
+  }) {
+    return _synthesizeLocalHeuristicMessage(
+      videoId: videoId,
+      scope: scope,
+      claimIndex: claimIndex,
+      userQuery: userQuery,
+      claimText: claimText,
+      verdict: verdict,
+      cachedSources: cachedSources,
+      cachedClaims: cachedClaims,
+      videoTitle: videoTitle,
+      videoSummary: videoSummary,
+      claimExplanation: claimExplanation,
+    );
+  }
+
   CredibilityChatMessage _synthesizeLocalHeuristicMessage({
     required String userQuery,
     required String scope,
@@ -641,18 +699,19 @@ class AiCredibilityChatService {
           ? 'Because this presentation contains **$disputedCount assertions flagged with caution or discrepancies**, cross-referencing with comprehensive investigative coverage is strongly recommended.'
           : 'For deeper analysis beyond this presentation, cross-referencing multiple authoritative investigative perspectives provides a well-rounded understanding.';
 
+      final sourcePreview = parsedSources.isNotEmpty
+          ? parsedSources
+              .take(4)
+              .map((s) => '- **${s.publisher ?? s.domain ?? "Reference Source"}**: ${s.title}')
+              .join('\n')
+          : '- Cross-check cited institutional records, peer-reviewed studies, and primary documents on the Sources tab.';
+
       return CredibilityChatMessage.ai(
         text: '### Recommended Authoritative Perspectives for "$effectiveTitle"\n\n'
             '$disputeText\n\n'
-            'Here are the most reliable channels, publications, and investigation angles to explore for this subject:\n\n'
-            '1. **Investigative Business & Financial Journalism**:\n'
-            '   - **Bloomberg Originals & Financial Times**: Deep dives into sustainable business models, cash burn, and logistics rather than promotional marketing.\n'
-            '   - **The Ken & LiveMint**: Comprehensive investigative case studies examining dark store unit economics, delivery worker conditions, and regulatory compliance.\n\n'
-            '2. **Audited Financials & Regulatory Disclosures**:\n'
-            '   - Review quarterly investor presentations, SEBI/SEC regulatory filings, and audited earnings calls for verified figures on profitability, margins, and order volumes.\n\n'
-            '3. **Industry Logistics & Peer-Reviewed Supply Chain Studies**:\n'
-            '   - Academic research on urban micro-fulfillment centers, road safety studies, and municipal labor reports.\n\n'
-            'You can also tap any of the verified citations below to inspect the original reference documents.',
+            'Explore primary evidence and cited sources indexed for this topic:\n\n'
+            '$sourcePreview\n\n'
+            'For deeper verification, compare primary archival records, domain-specialist publications, and independent reporting across the Sources tab.',
         sources: parsedSources.take(4).toList(),
         scope: scope,
         claimIndex: claimIndex,
@@ -746,15 +805,14 @@ class AiCredibilityChatService {
               '- **Status**: **Active (Deep Re-Verification)**\n\n'
               '---\n'
               '### What Happens Next (Automated Deep Re-Verification Process)\n'
-              '1. **Particular Claim Re-Verification**: The automated verification engine fetches and cross-references your submitted URLs specifically against statutory registries (SEC/SEBI), corporate filings, and global wire services.\n'
-              '2. **Platform Consensus Update**: If the counter-evidence confirms the claim is false, the master ledger officially flips Claim #$targetNum from **Verified** to **False** (or **Contradicted**).\n'
-              '3. **Claim Ledger Update**: Claim #$targetNum will be officially updated on the master truth ledger from Verified to False.\n'
-              '4. **Notification**: You will receive a confirmation alert once the re-verification resolves.',
+              '1. **Particular Claim Re-Verification**: The automated verification engine fetches and cross-references your submitted URLs against primary public records, institutional archives, peer-reviewed research, and independent wire services.\n'
+              '2. **Platform Consensus Update**: If counter-evidence confirms the claim verdict should change, the master ledger updates Claim #$targetNum.\n'
+              '3. **Notification**: You will receive an update once the re-verification resolves.',
           sources: extractedUrls
               .map((u) => UISource(
                     title: 'Submitted Counter-Evidence',
                     url: u,
-                    domain: u.split('/')[2],
+                    domain: Uri.tryParse(u)?.host ?? '',
                     trustLevel: 'Submitted',
                     type: 'Dispute',
                   ))
@@ -763,7 +821,7 @@ class AiCredibilityChatService {
           claimIndex: claimIndex,
           suggestedFollowups: const [
             'What is the current status of this dispute?',
-            'How are statutory sources verified?',
+            'How are primary sources verified?',
             'Summarize the credibility of this video',
           ],
           disclaimer: 'Dispute submitted to the automated deep re-verification pipeline.',
@@ -776,8 +834,8 @@ class AiCredibilityChatService {
       return CredibilityChatMessage.ai(
         text: '### Evidence Review & Dispute Protocol$claimInfo\n\n'
             'I can **automatically submit an official dispute** for this claim on your behalf!\n\n'
-            'To trigger the Deep Re-Verification Engine, please paste your counter-source URLs here in our chat (e.g. authoritative links from statutory filings, SEC/SEBI, regulatory disclosures, or established wire services).\n\n'
-            'Once you share the link, I will automatically attach your sources, trigger the deep re-verification pipeline for this particular claim, and track the verdict revision for you.',
+            'To trigger the Deep Re-Verification Engine, please paste your counter-source URLs here in our chat (for example, links to primary public archives, peer-reviewed studies, institutional records, or established wire services).\n\n'
+            'Once you share the link, I will attach your sources, trigger re-verification for this particular claim, and track any verdict revision for you.',
         sources: parsedSources.take(4).toList(),
         scope: scope,
         claimIndex: claimIndex,
@@ -895,20 +953,44 @@ class AiCredibilityChatService {
     }
 
     if (bestMatchingClaim != null && highestMatches >= 1) {
-      final stmt = bestMatchingClaim['statement'] ?? bestMatchingClaim['claim'] ?? bestMatchingClaim['claimText'] ?? '';
-      final verd = bestMatchingClaim['verdict'] ?? bestMatchingClaim['status'] ?? 'Verified';
-      final expl = bestMatchingClaim['explanation'] ?? bestMatchingClaim['reasoning'] ?? bestMatchingClaim['truthBreakdown'] ?? '';
+      final stmt = (bestMatchingClaim['statement'] ??
+              bestMatchingClaim['claim'] ??
+              bestMatchingClaim['claimText'] ??
+              '')
+          .toString()
+          .trim();
+      final verd = (bestMatchingClaim['verdict'] ??
+              bestMatchingClaim['status'] ??
+              'unproven')
+          .toString()
+          .trim();
+      final expl = (bestMatchingClaim['explanation'] ??
+              bestMatchingClaim['reasoning'] ??
+              bestMatchingClaim['truthBreakdown'] ??
+              '')
+          .toString()
+          .trim();
+      final counts = _countVerdictBuckets(cachedClaims ?? const []);
+      final countSummary =
+          '**Video Claim Ledger (${cachedClaims?.length ?? 0} claims, ${parsedSources.length} sources):** '
+          '**${counts['verified']} Verified** · **${counts['caution']} Caution** · '
+          '**${counts['false']} False** · **${counts['unproven']} No evidence yet**.';
 
       final contextIntro = scope == 'video'
           ? '### Fact-Check Analysis on Claim (Video Context: "$effectiveTitle")\n\n'
-            'In the context of the entire video, here is the empirical breakdown for this assertion on the transparent claim ledger:\n\n'
+            'In the context of the entire video, here is the empirical breakdown for the closest assertion on the transparent claim ledger:\n\n'
           : '### Fact-Check Analysis on Claim\n\n';
+
+      final explanationBlock = expl.isNotEmpty
+          ? expl
+          : 'Detailed written reasoning is not available in the local cache for this assertion yet.';
 
       return CredibilityChatMessage.ai(
         text: '$contextIntro'
             '> "$stmt"\n\n'
             '**Classification:** **$verd**\n\n'
-            '${expl.isNotEmpty ? expl : "This assertion was analyzed against authoritative public records, official company filings, and independent market data."}',
+            '$explanationBlock\n\n'
+            '$countSummary',
         sources: parsedSources.take(4).toList(),
         scope: scope,
         claimIndex: claimIndex,
@@ -938,7 +1020,7 @@ class AiCredibilityChatService {
         text: '### Rhetorical & Satirical Context Analysis for "$effectiveTitle"\n\n'
             "TruthWorld's credibility framework explicitly differentiates between **verifiable empirical assertions** and **rhetorical figures of speech** (such as hyperbole, satire, sarcasm, and colloquial idioms):\n\n"
             '- **Figurative Rhetoric**: Exaggerated expressions used for entertainment, humor, or emotional emphasis are not classified as factual deception when reasonable audiences recognize them as rhetorical flair.\n'
-            '- **Substantive Claims**: Only concrete factual, historical, scientific, or financial assertions are subjected to empirical verification.\n\n'
+            '- **Substantive Claims**: Only concrete factual, historical, scientific, or statistical assertions are subjected to empirical verification.\n\n'
             'If there is a specific quote or statement from this video you would like analyzed for literal truth vs figurative hyperbole, let me know!',
         sources: parsedSources.take(3).toList(),
         scope: scope,
@@ -952,7 +1034,7 @@ class AiCredibilityChatService {
       );
     }
 
-    // 5. TECHNICAL, CALCULATIONS & UNIT ECONOMICS INQUIRY
+    // 5. TECHNICAL, CALCULATIONS & QUANTITATIVE INQUIRY
     final isCalculationQuery = lowerQ.contains('calculate') ||
         lowerQ.contains('math') ||
         lowerQ.contains('formula') ||
@@ -966,10 +1048,10 @@ class AiCredibilityChatService {
       return CredibilityChatMessage.ai(
         text: '### Analytical & Quantitative Context: "$effectiveTitle"\n\n'
             'Regarding: *"$userQuery"*\n\n'
-            'In empirical analysis, claims involving growth, profitability, and operational scale require rigorous quantitative modeling:\n\n'
-            '- **Contribution Margin / Unit Economics**: Revenue per order minus cost of goods sold, delivery commissions, micro-fulfillment labor, and packaging overhead.\n'
-            '- **Verification Standard**: True financial viability is demonstrated through audited statutory filings rather than top-line Gross Merchandise Value (GMV) or marketing figures.\n\n'
-            'Would you like to examine how specific financial or operational metrics in this video compare against documented industry benchmarks?',
+            'In empirical verification, quantitative claims involving measurements, rates, or financial metrics are checked against primary source data:\n\n'
+            '- **Methodology Check**: Reported numbers should identify clear denominators, timeframes, and definitions.\n'
+            '- **Verification Standard**: Empirical accuracy is established through primary institutional records, peer-reviewed research, or audited disclosures rather than selective headlines.\n\n'
+            'Would you like to examine a specific statistic or measurement cited in this video?',
         sources: parsedSources.take(4).toList(),
         scope: scope,
         claimIndex: claimIndex,
@@ -996,7 +1078,7 @@ class AiCredibilityChatService {
             'Regarding: *"$userQuery"*\n\n'
             'For ongoing stories and recent developments, TruthWorld maintains a dynamic verification protocol:\n\n'
             "- **Indexed Baseline**: The video's verified assertions reflect established documentation at the time of review.\n"
-            '- **Developing Inquiries**: New regulatory disclosures, corporate press releases, or investigative reporting continue to be cross-referenced as verified wire services report them.\n\n'
+            '- **Developing Inquiries**: New institutional updates, primary publications, or independent wire reporting continue to be cross-referenced as verified records emerge.\n\n'
             'Explore the cited sources below or ask about specific assertions that may have recent developments.',
         sources: parsedSources.take(4).toList(),
         scope: scope,
@@ -1153,23 +1235,15 @@ class AiCredibilityChatService {
         lowerQ.contains('truth');
 
     if (isTrustQuery) {
-      final claimsCount = cachedClaims?.length ?? 0;
-      return CredibilityChatMessage.ai(
-        text: '### Credibility & Fact-Check Assessment for "$effectiveTitle"\n\n'
-            "This video is evaluated across **$claimsCount verified assertions** on TruthWorld's transparent claim ledger.\n\n"
-            '**Key Findings:**\n'
-            '- **Empirical Facts**: Factual dates, corporate milestones, and documented public events are confirmed by reliable records.\n'
-            '- **Nuance & Caution**: Forward-looking financial forecasts, promotional metrics, and competitive assertions require verification before acceptance.\n\n'
-            'Explore the verified citations below or ask about any specific assertion.',
-        sources: parsedSources.take(4).toList(),
+      return _buildHonestLedgerSynthesis(
+        title: effectiveTitle,
+        userQuery: userQuery,
+        cachedClaims: cachedClaims,
+        parsedSources: parsedSources,
+        videoSummary: videoSummary,
         scope: scope,
         claimIndex: claimIndex,
-        suggestedFollowups: [
-          'Suggest better videos on this topic',
-          'What are the primary sources?',
-          'Why this verdict?',
-        ],
-        disclaimer: 'Truth Intelligence provides independent empirical verification.',
+        heading: '### Credibility & Fact-Check Assessment for "$effectiveTitle"',
       );
     }
 
@@ -1192,22 +1266,167 @@ class AiCredibilityChatService {
     }
 
     // 12. CONVERSATIONAL USER-QUERY-DIRECTED FALLBACK
-    final claimsCount = cachedClaims?.length ?? 0;
+    return _buildHonestLedgerSynthesis(
+      title: effectiveTitle,
+      userQuery: userQuery,
+      cachedClaims: cachedClaims,
+      parsedSources: parsedSources,
+      videoSummary: videoSummary,
+      scope: scope,
+      claimIndex: claimIndex,
+      heading: '### Truth Intelligence Summary: "$effectiveTitle"',
+    );
+  }
+
+  static ({String text, String status}) _extractClaimTextAndStatus(dynamic raw) {
+    if (raw is ClaimResult) {
+      return (
+        text: raw.text.trim(),
+        status: raw.verdict.toLowerCase().trim(),
+      );
+    }
+    if (raw is Map) {
+      return (
+        text: (raw['claim'] ?? raw['text'] ?? raw['statement'] ?? '').toString().trim(),
+        status: (raw['status'] ?? raw['verdict'] ?? '').toString().toLowerCase().trim(),
+      );
+    }
+    return (text: '', status: '');
+  }
+
+  static Map<String, int> _countVerdictBuckets(List<dynamic> claims) {
+    var verified = 0;
+    var caution = 0;
+    var falseCount = 0;
+    var unproven = 0;
+    for (final raw in claims) {
+      final status = _extractClaimTextAndStatus(raw).status;
+      if (const {
+        'verified_true',
+        'mostly_true',
+        'correct',
+        'mostly_correct',
+        'partially_true',
+      }.contains(status)) {
+        verified++;
+      } else if (const {
+        'false_claim',
+        'verified_false',
+        'incorrect',
+        'historical_consensus_denial',
+        'incorrect_citation',
+      }.contains(status)) {
+        falseCount++;
+      } else if (const {
+        'unproven',
+        'unsupported',
+        'unverified',
+        'inconclusive',
+        'verification_timeout',
+        '',
+      }.contains(status)) {
+        unproven++;
+      } else {
+        caution++;
+      }
+    }
+    return {
+      'verified': verified,
+      'caution': caution,
+      'false': falseCount,
+      'unproven': unproven,
+    };
+  }
+
+  CredibilityChatMessage _buildHonestLedgerSynthesis({
+    required String title,
+    required String userQuery,
+    required List<dynamic>? cachedClaims,
+    required List<UISource> parsedSources,
+    required String? videoSummary,
+    required String scope,
+    required int? claimIndex,
+    required String heading,
+  }) {
+    final claims = cachedClaims ?? const [];
+    if (claims.isEmpty) {
+      final summaryLine = (videoSummary != null && videoSummary.trim().isNotEmpty)
+          ? '${videoSummary.trim()}\n\n'
+          : '';
+      return CredibilityChatMessage.ai(
+        text: '$heading\n\n'
+            '$summaryLine'
+            'Live Truth Intelligence reasoning is temporarily unavailable, and no claim records are currently loaded on this device for **"$title"**.\n\n'
+            'Please check your connection and tap refresh, or inspect the Sources and Fact Claims tabs once loaded.',
+        sources: parsedSources.take(4).toList(),
+        scope: scope,
+        claimIndex: claimIndex,
+        suggestedFollowups: const [
+          'What are the primary sources?',
+          'Why is evidence still pending?',
+        ],
+        disclaimer: 'Truth Intelligence connects to live backend verification when available.',
+      );
+    }
+
+    final counts = _countVerdictBuckets(claims);
+    final queryWords = userQuery
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9\u00C0-\u0FFF]+'))
+        .where((w) => w.length >= 3)
+        .toSet();
+    final matchedHighlights = <String>[];
+
+    for (final raw in claims) {
+      final parsed = _extractClaimTextAndStatus(raw);
+      if (parsed.text.isNotEmpty && matchedHighlights.length < 3 && queryWords.isNotEmpty) {
+        final lowerText = parsed.text.toLowerCase();
+        if (queryWords.any(lowerText.contains)) {
+          final label = parsed.status.isEmpty ? 'pending' : parsed.status.replaceAll('_', ' ').toUpperCase();
+          matchedHighlights.add('• **$label**: ${parsed.text}');
+        }
+      }
+    }
+
+    final buf = StringBuffer()
+      ..writeln(heading)
+      ..writeln()
+      ..writeln(
+        'Live Truth Intelligence reasoning is temporarily offline, so here is the verified ledger snapshot currently loaded for **"$title"**:',
+      )
+      ..writeln()
+      ..writeln(
+        '**Claim Breakdown (${claims.length} claims, ${parsedSources.length} sources):** '
+        '**${counts['verified']} Verified** · **${counts['caution']} Caution** · '
+        '**${counts['false']} False** · **${counts['unproven']} No evidence yet**.',
+      );
+
+    if (videoSummary != null && videoSummary.trim().isNotEmpty) {
+      buf.writeln();
+      buf.writeln(videoSummary.trim());
+    }
+
+    if (matchedHighlights.isNotEmpty) {
+      buf.writeln();
+      buf.writeln('**Related Claims in This Video:**');
+      for (final h in matchedHighlights) {
+        buf.writeln(h);
+      }
+    }
+
+    buf.writeln();
+    buf.write('Retry in a moment for full conversational synthesis across all ${parsedSources.length} cited sources.');
 
     return CredibilityChatMessage.ai(
-      text: '### Truth Intelligence Analysis: "$effectiveTitle"\n\n'
-          'Regarding: *"$userQuery"*\n\n'
-          'Our empirical verification system analyzed this video across **$claimsCount factual assertions** and evaluated them against authoritative journalistic, corporate, and regulatory documentation on the transparent claim ledger.\n\n'
-          'You can ask me to evaluate any specific claim made in the video, explain why a verdict was reached, request better investigative sources, or inspect cited primary documents.',
+      text: buf.toString().trim(),
       sources: parsedSources.take(4).toList(),
       scope: scope,
       claimIndex: claimIndex,
-      suggestedFollowups: [
-        'Suggest better videos for this claim',
-        'Why this verdict?',
+      suggestedFollowups: const [
         'What are the primary sources?',
+        'Suggest better videos on this topic',
       ],
-      disclaimer: 'Truth Intelligence Assistant grounds findings in indexed empirical evidence.',
+      disclaimer: 'Fallback snapshot synthesized from loaded video claim records while live Ask AI reconnects.',
     );
   }
 

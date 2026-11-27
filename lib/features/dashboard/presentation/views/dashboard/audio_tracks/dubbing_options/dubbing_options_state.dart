@@ -213,7 +213,7 @@ class DubbingOptionsState {
 
     if (targetCodes.isEmpty) {
       AppSnackbar.warning(
-        'Please select a language to generate audio tracks.',
+        'Please select a language to generate dubs.',
         title: 'Select Language',
       );
       return;

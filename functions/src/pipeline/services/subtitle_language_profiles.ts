@@ -181,7 +181,11 @@ const PROFILES: Record<string, SubtitleLanguageProfile> = {
     minInterCueGapMs: 66,
     segmentationStrategy: "indic_postpositional",
     punctuationBreakRules: [/[.?!।|]/, /[,;:—–]/],
-    protectedWordPatterns: [],
+    protectedWordPatterns: [
+      /^(?:திரு|திருமதி|டாக்டர்|பேராசிரியர்)\s*\S+$/,
+      /^(?:அவர்கள்|உடைய|இருந்து|மூலம்|உடன்|பற்றி)$/,
+      /^\d+(?:[.,]\d+)?\s*(?:%|சதவீதம்|ரூபாய்|கோடி|இலட்சம்|லட்சம்)$/,
+    ],
   },
   kn: {
     languageCode: "kn",
@@ -211,7 +215,11 @@ const PROFILES: Record<string, SubtitleLanguageProfile> = {
     minInterCueGapMs: 66,
     segmentationStrategy: "indic_postpositional",
     punctuationBreakRules: [/[.?!।|]/, /[,;:—–]/],
-    protectedWordPatterns: [],
+    protectedWordPatterns: [
+      /^(?:ശ്രീ|ശ്രീമതി|ഡോ\.?|പ്രൊഫസർ)\s*\S+$/,
+      /^(?:യുടെ|ൽ|നിന്ന്|വഴി|കൂടി|കുറിച്ച്)$/,
+      /^\d+(?:[.,]\d+)?\s*(?:%|ശതമാനം|രൂപ|കോടി|ലക്ഷം)$/,
+    ],
   },
   bn: {
     languageCode: "bn",
@@ -241,7 +249,11 @@ const PROFILES: Record<string, SubtitleLanguageProfile> = {
     minInterCueGapMs: 66,
     segmentationStrategy: "indic_postpositional",
     punctuationBreakRules: [/[.?!।|]/, /[,;:—–]/],
-    protectedWordPatterns: [],
+    protectedWordPatterns: [
+      /^(?:श्री|श्रीमती|डॉ\.?|प्रा\.)\s*\S+$/,
+      /^(?:च्या|ची|चा|चे|ला|ना|मध्ये|वर|पासून|साठी|द्वारे)$/,
+      /^\d+(?:[.,]\d+)?\s*(?:%|टक्के|रुपये|कोटी|लाख|लक्ष)$/,
+    ],
   },
   gu: {
     languageCode: "gu",

@@ -10,7 +10,7 @@
  *   3. Realtime Database: user presence, session logs.
  */
 
-import { auth, logger, runWith } from "firebase-functions/v1";
+import { logger, region } from "firebase-functions/v1";
 import { onRequest, onCall } from "firebase-functions/v2/https";
 import type { UserRecord } from "firebase-admin/auth";
 import * as admin from "firebase-admin";
@@ -295,9 +295,10 @@ export async function purgeAllUserData(uid: string): Promise<{
  * Dispatches a branded HTML welcome email via native Google/Gmail SMTP,
  * guarded by Firestore idempotency to prevent duplicate emails on retries.
  */
-export const onUserCreated = runWith({
-  secrets: ["SMTP_USER", "SMTP_PASS"],
-})
+export const onUserCreated = region("asia-south1")
+  .runWith({
+    secrets: ["SMTP_USER", "SMTP_PASS"],
+  })
   .auth.user()
   .onCreate(async (user: UserRecord) => {
   const uid = user.uid;
@@ -407,7 +408,7 @@ export const onUserCreated = runWith({
  * ⚡ ON USER DELETED (Auth Trigger)
  * Automatically triggers when any user account is permanently deleted in Firebase Auth.
  */
-export const onUserDeleted = auth.user().onDelete(async (user: UserRecord) => {
+export const onUserDeleted = region("asia-south1").auth.user().onDelete(async (user: UserRecord) => {
   logger.info(`[onUserDeleted] Triggered for user: ${user.uid} (${user.email || "no-email"})`);
   await purgeAllUserData(user.uid);
 });

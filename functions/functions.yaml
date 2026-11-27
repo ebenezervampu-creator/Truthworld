@@ -286,6 +286,24 @@
       "callableTrigger": {},
       "entryPoint": "resubmitVideoForModeration"
     },
+    "submitVideoReport": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 30,
+      "minInstances": null,
+      "maxInstances": 20,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "submitVideoReport"
+    },
     "ingestUploadedImage": {
       "platform": "gcfv2",
       "availableMemoryMb": 256,
@@ -956,11 +974,6 @@
       "region": [
         "asia-south1"
       ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
       "labels": {},
       "eventTrigger": {
         "eventType": "google.cloud.firestore.document.v1.written",
@@ -1070,11 +1083,6 @@
       "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
-      ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
       ],
       "labels": {},
       "eventTrigger": {
@@ -1745,6 +1753,9 @@
       "ingressSettings": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
       "secretEnvironmentVariables": [
         {
           "key": "SMTP_USER"
@@ -1772,6 +1783,9 @@
       "ingressSettings": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
       "eventTrigger": {
         "eventType": "providers/firebase.auth/eventTypes/user.delete",
         "eventFilters": {
@@ -2248,11 +2262,6 @@
       "region": [
         "asia-south1"
       ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
       "labels": {},
       "eventTrigger": {
         "eventType": "google.cloud.firestore.document.v1.written",
@@ -2283,9 +2292,6 @@
       ],
       "secretEnvironmentVariables": [
         {
-          "key": "GEMINI_API_KEY"
-        },
-        {
           "key": "ASSEMBLYAI_KEY"
         },
         {
@@ -2314,9 +2320,6 @@
         "asia-south1"
       ],
       "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        },
         {
           "key": "ASSEMBLYAI_KEY"
         },
@@ -2399,11 +2402,6 @@
       "region": [
         "asia-south1"
       ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
       "labels": {},
       "eventTrigger": {
         "eventType": "google.cloud.firestore.document.v1.written",
@@ -2431,11 +2429,6 @@
       "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
-      ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
       ],
       "labels": {},
       "eventTrigger": {
@@ -3457,11 +3450,6 @@
       "region": [
         "asia-south1"
       ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "chatWithCredibilityAi"
@@ -3479,11 +3467,6 @@
       "cpu": 1,
       "region": [
         "asia-south1"
-      ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
       ],
       "labels": {},
       "httpsTrigger": {},
@@ -3537,7 +3520,7 @@
       "platform": "gcfv2",
       "cpu": "gcf_gen1",
       "region": [
-        "us-central1"
+        "asia-south1"
       ],
       "secretEnvironmentVariables": [
         {
@@ -3580,6 +3563,11 @@
       "region": [
         "asia-south1"
       ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        }
+      ],
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "regenerateDubbingSegment"
@@ -3597,6 +3585,14 @@
       "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        },
+        {
+          "key": "DEMUX_WORKER_TOKEN"
+        }
       ],
       "labels": {},
       "callableTrigger": {},
@@ -3726,9 +3722,6 @@
       ],
       "secretEnvironmentVariables": [
         {
-          "key": "GEMINI_API_KEY"
-        },
-        {
           "key": "ASSEMBLYAI_KEY"
         },
         {
@@ -3783,9 +3776,6 @@
       "secretEnvironmentVariables": [
         {
           "key": "ASSEMBLYAI_KEY"
-        },
-        {
-          "key": "GEMINI_API_KEY"
         }
       ],
       "labels": {},
@@ -3847,11 +3837,6 @@
       "region": [
         "asia-south1"
       ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
       "labels": {},
       "eventTrigger": {
         "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
@@ -3898,11 +3883,6 @@
       "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
-      ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
       ],
       "labels": {},
       "eventTrigger": {
@@ -4011,11 +3991,6 @@
       "region": [
         "asia-south1"
       ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
       "labels": {},
       "eventTrigger": {
         "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
@@ -4067,11 +4042,6 @@
       "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
-      ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
       ],
       "labels": {},
       "callableTrigger": {},
@@ -4365,6 +4335,11 @@
       "region": [
         "asia-south1"
       ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "GOOGLE_TRANSLATION_API_KEY"
+        }
+      ],
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "retranslateDubbingSegment"
@@ -4396,8 +4371,8 @@
       "entryPoint": "remasterDubbedAudioTrack"
     },
     "getDubbingExportPackage": {
-      "availableMemoryMb": 512,
-      "timeoutSeconds": 60,
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 300,
       "minInstances": null,
       "maxInstances": 10,
       "ingressSettings": null,
@@ -4408,6 +4383,14 @@
       "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        },
+        {
+          "key": "DEMUX_WORKER_TOKEN"
+        }
       ],
       "labels": {},
       "callableTrigger": {},
@@ -4515,6 +4498,34 @@
         "retry": false
       },
       "entryPoint": "onVideoJobWrittenSyncDubbingStudio"
+    },
+    "onDisputedClaimCommentCreated": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 180,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.created",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "videos/{videoId}/claim_comments/{commentId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onDisputedClaimCommentCreated"
     },
     "onVideoPublished": {
       "availableMemoryMb": 256,
@@ -4632,11 +4643,6 @@
       "region": [
         "asia-south1"
       ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
       "labels": {},
       "taskQueueTrigger": {
         "retryConfig": {
@@ -4666,11 +4672,6 @@
       "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
-      ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
       ],
       "labels": {},
       "taskQueueTrigger": {
@@ -4702,11 +4703,6 @@
       "region": [
         "asia-south1"
       ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
       "labels": {},
       "taskQueueTrigger": {
         "retryConfig": {
@@ -4736,11 +4732,6 @@
       "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
-      ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
       ],
       "labels": {},
       "taskQueueTrigger": {

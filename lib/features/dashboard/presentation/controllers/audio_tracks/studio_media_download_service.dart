@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
@@ -245,7 +246,7 @@ class StudioMediaDownloadService {
 
     // Attempt A: Cloud Generation via generateDubbedVideo onCall function
     try {
-      final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+      final callable = FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion)
           .httpsCallable('generateDubbedVideo');
       final response = await callable.call<Map<String, dynamic>>({
         'videoId': video.id,
@@ -513,7 +514,7 @@ class StudioMediaDownloadService {
     // 1. Primary: Authoritative Cloud Function export package (verifies GCS existence + signed URLs)
     if (!isTestEnvironment) {
       try {
-        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+        final callable = FirebaseFunctions.instanceFor(region: AppConfig.dubbingFunctionsRegion)
             .httpsCallable('getDubbingExportPackage');
         final res = await callable.call<Map<String, dynamic>>({
           'videoId': video.id,

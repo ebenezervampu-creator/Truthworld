@@ -31,6 +31,21 @@ class AppConfig {
         : 'https://asia-south1-truthworld-1.cloudfunctions.net',
   );
 
+  /// Region of the dubbing, subtitle and transcription Cloud Functions.
+  /// Keep in step with DUBBING_REGION in functions/src/config/regions.ts.
+  static const String dubbingFunctionsRegion = 'asia-south1';
+
+  /// Region of the credibility, fact-check and appeals Cloud Functions.
+  /// Keep in step with CREDIBILITY_REGION in functions/src/config/regions.ts.
+  static const String credibilityFunctionsRegion = 'asia-south1';
+
+  static const String credibilityFunctionsBaseUrl = String.fromEnvironment(
+    'CREDIBILITY_FUNCTIONS_BASE_URL',
+    defaultValue: isFirebaseStaging
+        ? 'https://$credibilityFunctionsRegion-$stagingFunctionsProjectId.cloudfunctions.net'
+        : 'https://$credibilityFunctionsRegion-truthworld-1.cloudfunctions.net',
+  );
+
   static const String cdnBaseUrl = String.fromEnvironment(
     'CDN_BASE_URL',
     defaultValue: 'https://cdn.truthworld.in',

@@ -142,7 +142,7 @@ COMMUNITY GUIDELINES & POLICIES:
 5. No promotion of terrorism, hate groups, or violence.
 6. NO gibberish, nonsensical, placeholder, or testing-only content (e.g. "asdf", "test", "demo", "lorem ipsum"). All topic details must look professional, legitimate, and ready for publication.
 7. Topic name and description must not contain links or URLs pointing to external sites.
-8. Strictly NO romantic content or romantic love stories between opposite genders (boys and girls, or men and women), even within or after marriage. Romance between opposite genders is entirely prohibited. Only clean, public-friendly forms of love, such as familial love (e.g. father's love, mother's love, sister's/brother's love) or friendship, are welcomed and permitted.
+8. Strictly NO lustful, erotic, or sexually suggestive romantic content. Chaste, family-friendly relationship, marriage, familial love (e.g. father's, mother's, sibling's love), and friendship topics are welcomed and permitted.
 9. Profanity, vulgar language, and swearing are strictly prohibited.
 
 DECISION RUBRIC:
@@ -168,7 +168,6 @@ export const onTopicWritten = onDocumentWritten(
     region: "asia-south1",
     retry: false,
     maxInstances: 2,
-    secrets: ["GEMINI_API_KEY"],
   },
   async (event) => {
     const topicId = event.params.topicId;

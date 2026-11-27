@@ -342,6 +342,181 @@ class DubbingVoiceCloningDialog extends StatelessWidget {
                           ],
                         ),
                       )),
+                      const SizedBox(height: 18),
+
+                      // Speaker Voice, Pitch & Speed Overrides
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'SPEAKER VOICE PROFILES',
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.textTertiary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: controller.addSpeaker,
+                            icon: const Icon(Icons.person_add_alt_1_rounded, size: 14, color: AppColors.textLink),
+                            label: const Text(
+                              'Add Speaker',
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                color: AppColors.textLink,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Obx(() => Column(
+                        children: controller.speakers.map((spk) {
+                          const voiceOptions = <Map<String, String>>[
+                            {'id': 'default_voice', 'label': 'Auto (Natural Native Voice)'},
+                            {'id': 'pNInz6obpgDQGcFmaJgB', 'label': 'Adam — Deep Male'},
+                            {'id': '21m00Tcm4TlvDq8ikWAM', 'label': 'Rachel — Clear Female'},
+                            {'id': 'ErXwobaYiN019PkySvjV', 'label': 'Antoni — Warm Male'},
+                            {'id': 'EXAVITQu4vr4xnSDxMaL', 'label': 'Bella — Expressive Female'},
+                          ];
+                          final hasSelectedVoice = voiceOptions.any((v) => v['id'] == spk.assignedVoiceId);
+                          final activeVoiceId = hasSelectedVoice ? spk.assignedVoiceId : 'default_voice';
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.bgInput,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      spk.label,
+                                      style: const TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: AppColors.textPrimary,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (controller.speakers.length > 1)
+                                      IconButton(
+                                        onPressed: () => controller.removeSpeaker(spk.id),
+                                        icon: const Icon(Icons.close, size: 15, color: AppColors.textTertiary),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                DropdownButtonFormField<String>(
+                                  initialValue: activeVoiceId,
+                                  dropdownColor: AppColors.bgSurface,
+                                  style: const TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    color: AppColors.textPrimary,
+                                    fontSize: 12,
+                                  ),
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    filled: true,
+                                    fillColor: AppColors.bgSurface,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                    ),
+                                  ),
+                                  items: voiceOptions
+                                      .map((v) => DropdownMenuItem<String>(
+                                            value: v['id'],
+                                            child: Text(v['label']!),
+                                          ))
+                                      .toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      controller.updateSpeakerVoice(spk.id, val);
+                                    }
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Speed: ${spk.speedAdjustment.toStringAsFixed(2)}x',
+                                            style: const TextStyle(
+                                              fontFamily: TWTypography.uiFamily,
+                                              color: AppColors.textSecondary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                          Slider(
+                                            value: spk.speedAdjustment.clamp(0.7, 1.2),
+                                            min: 0.7,
+                                            max: 1.2,
+                                            divisions: 10,
+                                            activeColor: AppColors.brand,
+                                            inactiveColor: AppColors.bgSurfaceHigh,
+                                            onChanged: (v) => controller.updateSpeakerTuning(spk.id, speed: v),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Pitch: ${spk.pitchAdjustment >= 0 ? '+' : ''}${spk.pitchAdjustment.round()} st',
+                                            style: const TextStyle(
+                                              fontFamily: TWTypography.uiFamily,
+                                              color: AppColors.textSecondary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                          Slider(
+                                            value: spk.pitchAdjustment.clamp(-6.0, 6.0),
+                                            min: -6.0,
+                                            max: 6.0,
+                                            divisions: 12,
+                                            activeColor: AppColors.brand,
+                                            inactiveColor: AppColors.bgSurfaceHigh,
+                                            onChanged: (v) => controller.updateSpeakerTuning(spk.id, pitch: v),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      )),
                     ],
                   ),
                 ),

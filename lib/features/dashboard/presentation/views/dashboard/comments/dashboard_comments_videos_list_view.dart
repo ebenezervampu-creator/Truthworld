@@ -111,14 +111,18 @@ class DashboardCommentsVideosListView extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Text(
-                        'All Videos',
-                        style: TextStyle(
-                          fontFamily: TWTypography.brandFamily,
-                          fontFamilyFallback: TWTypography.fallbackFamilies,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                      const Flexible(
+                        child: Text(
+                          'All Videos',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: TWTypography.brandFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
                       if (isSelected) ...[
@@ -286,43 +290,53 @@ class DashboardCommentsVideosListView extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgSurface,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: AppColors.bgDivider),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              size: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              video.formattedCommentCount,
-                              style: const TextStyle(
-                                fontFamily: TWTypography.uiFamily,
-                                fontFamilyFallback: TWTypography.fallbackFamilies,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgSurface,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: AppColors.bgDivider),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 11,
                                 color: AppColors.textSecondary,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  video.formattedCommentCount,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        '${video.formattedViewCount} views • ${timeago.format(video.createdAt)}',
-                        style: const TextStyle(
-                          fontFamily: TWTypography.uiFamily,
-                          fontFamilyFallback: TWTypography.fallbackFamilies,
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
+                      Expanded(
+                        child: Text(
+                          '${video.formattedViewCount} views • ${timeago.format(video.createdAt)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ),
                     ],

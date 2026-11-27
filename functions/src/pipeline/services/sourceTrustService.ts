@@ -247,6 +247,9 @@ export class SourceTrustService {
 
     // Tier C: Encyclopedic / Deep Knowledge
     "wikipedia.org": { domain: "wikipedia.org", tier: "C", reputationScore: 0.85, verticals: ["general"], isOfficial: false },
+    "wikidata.org": { domain: "wikidata.org", tier: "C", reputationScore: 0.84, verticals: ["general"], isOfficial: false },
+    "doi.org": { domain: "doi.org", tier: "B", reputationScore: 0.94, verticals: ["science", "academic"], isOfficial: false },
+    "stlouisfed.org": { domain: "stlouisfed.org", tier: "A", reputationScore: 0.99, verticals: ["finance", "macroeconomics"], isOfficial: true },
     "investopedia.com": { domain: "investopedia.com", tier: "C", reputationScore: 0.9, verticals: ["finance"], isOfficial: false },
     "healthline.com": { domain: "healthline.com", tier: "C", reputationScore: 0.8, verticals: ["health"], isOfficial: false },
     "sciencedirect.com": { domain: "sciencedirect.com", tier: "C", reputationScore: 0.95, verticals: ["science", "academic"], isOfficial: false },
@@ -741,6 +744,24 @@ export class SourceTrustService {
     }
   }
 
+  private static readonly FILE_EXTENSION_SUFFIXES = new Set([
+    "png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "tiff",
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv", "txt", "rtf",
+    "mp4", "mp3", "wav", "mov", "avi", "mkv", "webm", "m4a",
+    "zip", "tar", "gz", "7z", "rar",
+    "json", "xml", "yaml", "yml", "html", "htm", "xhtml", "php", "aspx", "jsp", "js", "mjs", "cjs", "css", "scss", "map", "ts", "tsx", "py",
+  ]);
+
+  private static readonly KNOWN_DOMAIN_TLDS = new Set([
+    "com", "org", "net", "edu", "gov", "mil", "int", "info", "biz", "io", "ai", "co",
+    "news", "media", "science", "press", "pub", "tech", "dev", "app", "tv", "fm",
+    "uk", "nz", "au", "ca", "in", "jp", "de", "fr", "cn", "za", "sg", "br", "mx",
+    "es", "it", "nl", "se", "no", "dk", "fi", "ch", "at", "be", "ie", "kr", "tw",
+    "hk", "ae", "sa", "il", "ru", "ua", "pl", "pt", "gr", "tr", "id", "my", "ph",
+    "th", "vn", "pk", "bd", "lk", "np", "ng", "ke", "eg", "ar", "cl", "pe", "eu",
+    "govt",
+  ]);
+
   /**
    * Infers publisher domain from grounded chunk title or text.
    */
@@ -748,9 +769,29 @@ export class SourceTrustService {
     if (!title) return null;
     const cleanTitle = title.trim();
 
-    // 1. Direct FQDN match in title
-    const match = cleanTitle.match(/\b([a-zA-Z0-9-]+\.(?:gov(?:\.[a-z]{2})?|edu(?:\.[a-z]{2})?|org(?:\.[a-z]{2})?|ac\.[a-z]{2}|res\.[a-z]{2}|int|mil|com(?:\.[a-z]{2})?|net|in))\b/i);
-    if (match) return match[1].toLowerCase();
+    // 1. Direct multi-part FQDN match in title (supports ccTLDs like .nz, .co.uk, .com.au
+    //    while rejecting file extensions like .png, .pdf, .json, .html, .js)
+    const domainCandidates = cleanTitle.match(/\b((?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,10})\b/g) || [];
+    for (const rawCandidate of domainCandidates) {
+      const candidate = rawCandidate.toLowerCase();
+      const labels = candidate.split(".");
+      const lastLabel = labels[labels.length - 1];
+      if (!lastLabel || SourceTrustService.FILE_EXTENSION_SUFFIXES.has(lastLabel)) {
+        continue;
+      }
+      if (!SourceTrustService.KNOWN_DOMAIN_TLDS.has(lastLabel)) {
+        continue;
+      }
+      if (labels.some((lbl) => !lbl || lbl.startsWith("-") || lbl.endsWith("-"))) {
+        continue;
+      }
+      // Reject purely numeric prefixes like v1.2.com? Actually e.g. 538.com or 20minutes.fr can start with digits,
+      // just require at least one alphabetic char somewhere in the registrable domain
+      const normalized = this.extractDomain(candidate);
+      if (normalized && /[a-z]/.test(normalized.split(".")[0])) {
+        return normalized;
+      }
+    }
 
     // 2. Known institutional & publisher keyword hints
     const lower = cleanTitle.toLowerCase();
@@ -939,11 +980,13 @@ export class SourceTrustService {
         const lastTwo = parts.slice(-2).join('.');
         const multiPartSuffixes = new Set([
           'co.uk', 'ac.uk', 'gov.uk', 'org.uk', 'me.uk',
-          'gov.in', 'edu.in', 'res.in', 'org.in', 'co.in',
-          'gov.au', 'edu.au', 'com.au', 'org.au',
+          'gov.in', 'edu.in', 'res.in', 'org.in', 'co.in', 'nic.in',
+          'gov.au', 'edu.au', 'com.au', 'org.au', 'net.au',
           'edu.cn', 'gov.cn', 'com.cn', 'net.cn', 'org.cn',
           'co.jp', 'ne.jp', 'go.jp', 'or.jp', 'ac.jp',
-          'co.za', 'gov.za', 'org.za', 'co.nz', 'govt.nz'
+          'co.za', 'gov.za', 'org.za',
+          'co.nz', 'govt.nz', 'org.nz', 'ac.nz', 'net.nz',
+          'gc.ca', 'co.ca', 'com.sg', 'gov.sg', 'edu.sg', 'org.sg'
         ]);
         if (multiPartSuffixes.has(lastTwo)) {
           return parts.slice(-3).join('.');

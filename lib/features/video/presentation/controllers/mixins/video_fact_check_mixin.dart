@@ -190,7 +190,22 @@ mixin VideoFactCheckMixin on GetxController {
         if (fetchUrl.startsWith('gs://')) {
           fetchUrl = await FirebaseStorage.instance.refFromURL(fetchUrl).getDownloadURL();
         }
-        final response = await AppHttpClient.get(Uri.parse(fetchUrl));
+        final uri = Uri.tryParse(fetchUrl);
+        final host = uri?.host.toLowerCase() ?? '';
+        final pathLower = uri?.path.toLowerCase() ?? '';
+        final isTrustedHost = host == 'firebasestorage.googleapis.com' ||
+            host == 'storage.googleapis.com' ||
+            host == 'truthworld-1.firebasestorage.app' ||
+            host == 'truthworld-1.appspot.com';
+        final isFactCheckObject = pathLower.contains('factchecks') ||
+            pathLower.contains('final_outputs');
+        if (uri == null ||
+            uri.scheme != 'https' ||
+            !isTrustedHost ||
+            !isFactCheckObject) {
+          throw Exception('Untrusted fact-check report location.');
+        }
+        final response = await AppHttpClient.get(uri);
         if (response.statusCode == 200) {
           decoded = await IsolateComputeUtils.parseJsonMapAsync(response.body);
         } else {

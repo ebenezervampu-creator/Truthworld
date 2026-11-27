@@ -424,6 +424,7 @@ interface VoiceSettings {
   similarity_boost: number;
   style?: number;
   use_speaker_boost?: boolean;
+  speed?: number;
 }
 
 /**
@@ -997,6 +998,11 @@ export class ElevenLabsTTSService {
       similarity_boost: resolvedSimilarity,
       use_speaker_boost: request.useSpeakerBoost ?? this.defaultVoiceSettings.use_speaker_boost ?? true,
       ...(typeof request.style === "number" && Number.isFinite(request.style) ? { style: clamp01(request.style) } : {}),
+      ...(typeof request.speakingRate === "number" &&
+      Number.isFinite(request.speakingRate) &&
+      request.speakingRate !== 1.0
+        ? { speed: Number(Math.max(0.7, Math.min(1.2, request.speakingRate)).toFixed(2)) }
+        : {}),
     };
 
     // First use of this voice runs alone (see acquireVoiceFirstUse); waits before taking a TTS slot.

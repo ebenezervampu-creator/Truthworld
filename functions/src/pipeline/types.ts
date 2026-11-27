@@ -481,6 +481,8 @@ export interface UrlVerificationRecord {
   contentType?: string;
   contentTitle?: string;
   excerpt?: string;
+  authorName?: string;
+  authorUrl?: string;
   /**
    * Up to ~3,000 characters of the page's own visible text, kept so the stance step can
    * judge whether the page supports or refutes a claim (never shown to users).
@@ -2711,6 +2713,27 @@ export interface ExecutionPlan {
   priority: 'low' | 'normal' | 'high';
   skipCache: boolean;
   disputedClaimIndex?: number;
+
+  // Standalone Dubbing Studio controls
+  twoStageReviewEnabled?: boolean;
+  twoStageReviewCompleted?: boolean;
+  skipTranscription?: boolean;
+  publishToTruthworld?: boolean;
+  demuxOptions?: {
+    isolateVocals?: boolean;
+    preserveBgm?: boolean;
+    bgmDuckLevelPercent?: number;
+    noiseSuppression?: boolean;
+  };
+  speakerOverrides?: Record<
+    string,
+    {
+      assignedVoiceId?: string;
+      isClonedVoice?: boolean;
+      pitchAdjustment?: number;
+      speedAdjustment?: number;
+    }
+  >;
 }
 
 /**
@@ -2812,6 +2835,8 @@ export type EventType =
   | 'transcription-complete'
   | 'fact-processing'
   | 'dubbing-processing'
+  | 'dubbing-step-prep'
+  | 'dubbing-step-translate'
   | 'dubbing-prewarm'
   | 'dubbing-reel-requested'
   | 'dubbing-reel-assemble'
@@ -3304,7 +3329,7 @@ export interface DubbingResult {
    * not_dubbable (no ElevenLabs v4 support or no native voice; subtitles only), not_requested.
    * Failed and not_dubbable languages are refunded.
    */
-  dubOutcome?: "delivered" | "failed" | "not_dubbable" | "not_requested";
+  dubOutcome?: "delivered" | "failed" | "not_dubbable" | "not_requested" | "awaiting_review";
   stems?: {
     mne?: string | null;
     dialogue?: string;

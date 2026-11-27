@@ -474,6 +474,18 @@ async function main(): Promise<void> {
     console.log("\n" + md + "\n");
     console.log(`Output folder: ${outDir}`);
     await new Promise<void>((resolve) => runLog.end(() => resolve()));
+    const runId = path.basename(outDir);
+    for (const fileName of ["report.json", "run-log.txt"]) {
+      const localPath = path.join(outDir, fileName);
+      if (fs.existsSync(localPath)) {
+        try {
+          await bucket.upload(localPath, { destination: `dub-runs/${runId}/${fileName}` });
+          console.log(`Backed up ${fileName} -> gs://${bucketName}/dub-runs/${runId}/${fileName}`);
+        } catch (backupErr: any) {
+          console.warn(`  Warning: GCS backup failed for dub-runs/${runId}/${fileName}: ${backupErr?.message || backupErr}`);
+        }
+      }
+    }
     process.exit(report.verdict === "DUB_DELIVERED" ? 0 : 1);
   }
 }

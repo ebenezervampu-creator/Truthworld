@@ -241,6 +241,13 @@ export class AppealsDeskService {
       throw new Error("Missing required parameters for dispute submission.");
     }
 
+    const restriction = await communityEvidenceService.getUserRestrictionStatus(userId);
+    if (restriction.restricted) {
+      throw new Error(
+        `Your AI Check access is restricted for ${restriction.label} due to repeated invalid source submissions.`
+      );
+    }
+
     if (!reason || reason.trim().length < 10) {
       throw new Error("Dispute reason must provide at least 10 characters of substantive context.");
     }
